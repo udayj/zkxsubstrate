@@ -5,6 +5,7 @@
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 
+
 #[cfg(test)]
 mod mock;
 
@@ -21,6 +22,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use zkx_support::types::TradingAccount;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -41,6 +43,26 @@ pub mod pallet {
 	// Learn more about declaring storage items:
 	// https://docs.substrate.io/main-docs/build/runtime-storage/#declaring-storage-items
 	pub type Something<T> = StorageValue<_, u32>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn accounts)]
+	pub type Accounts<T: Config> = StorageMap<
+	_,
+	Blake2_128Concat,
+		[u8;32],
+		TradingAccount,
+		OptionQuery>;
+
+
+	#[pallet::storage]
+	#[pallet::getter(fn balances)]
+	pub(super) type Balances<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat, [u8;32],
+		Blake2_128Concat, [u8;32],
+		sp_arithmetic::FixedI128,
+		ValueQuery
+	>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/main-docs/build/events-errors/
@@ -89,6 +111,25 @@ pub mod pallet {
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::cause_error())]
 		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+
+			// Read a value from storage.
+			match <Something<T>>::get() {
+				// Return an error if the value has not been set.
+				None => return Err(Error::<T>::NoneValue.into()),
+				Some(old) => {
+					// Increment the value read from storage; will error in the event of overflow.
+					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
+					// Update the value in storage with the incremented result.
+					<Something<T>>::put(new);
+					Ok(())
+				},
+			}
+		}
+
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::do_something())]
+		pub fn record_account(origin: OriginFor<T>, trading_account: TradingAccount,) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
 
 			// Read a value from storage.
