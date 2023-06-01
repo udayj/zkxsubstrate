@@ -132,8 +132,10 @@ pub mod pallet {
 		pub fn record_account(origin: OriginFor<T>, trading_account: TradingAccount,) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
 
+			<Accounts<T>>::insert(trading_account.account_id, trading_account);
+			Ok(())
 			// Read a value from storage.
-			match <Something<T>>::get() {
+/*			match <Something<T>>::get() {
 				// Return an error if the value has not been set.
 				None => return Err(Error::<T>::NoneValue.into()),
 				Some(old) => {
@@ -143,7 +145,7 @@ pub mod pallet {
 					<Something<T>>::put(new);
 					Ok(())
 				},
-			}
+			}*/
 		}
 	}
 }

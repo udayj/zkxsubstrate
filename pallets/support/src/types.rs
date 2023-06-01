@@ -8,5 +8,5 @@ use frame_support::pallet_prelude::*;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
 pub struct TradingAccount {
-    account_id: [u8;32]
+    pub account_id: [u8;32]
 }
