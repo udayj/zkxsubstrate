@@ -72,6 +72,7 @@ pub mod pallet {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
 		SomethingStored { something: u32, who: T::AccountId },
+		AccountAdded { account_id: [u8; 32]}
 	}
 
 	// Errors inform users that something went wrong.
@@ -132,7 +133,10 @@ pub mod pallet {
 		pub fn record_account(origin: OriginFor<T>, trading_account: TradingAccount,) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
 
-			<Accounts<T>>::insert(trading_account.account_id, trading_account);
+			<Accounts<T>>::insert(trading_account.account_id, trading_account.clone());
+
+			Self::deposit_event(Event::AccountAdded { account_id: trading_account.account_id });
+
 			Ok(())
 			// Read a value from storage.
 /*			match <Something<T>>::get() {
