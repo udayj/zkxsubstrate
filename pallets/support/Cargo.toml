@@ -1,0 +1,18 @@
+[package]
+name = "zkx-support"
+version = "0.0.1-dev"
+description = "Shared files for all pallets"
+authors = ["ZKX"]
+homepage = "https://zkx.fi"
+edition = "2021"
+license = "MIT-0"
+publish = false
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
+	"derive",
+] }
+scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", default-features = false,  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
