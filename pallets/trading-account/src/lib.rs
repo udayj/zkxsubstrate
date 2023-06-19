@@ -23,6 +23,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use zkx_support::types::TradingAccount;
+	use assets::AssetInterface;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -34,6 +35,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// Type representing the weight of this pallet
 		type WeightInfo: WeightInfo;
+		type Asset: AssetInterface;
 	}
 
 	// The pallet's runtime storage items.
@@ -72,7 +74,8 @@ pub mod pallet {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
 		SomethingStored { something: u32, who: T::AccountId },
-		AccountAdded { account_id: [u8; 32]}
+		AccountAdded { account_id: [u8; 32]},
+		DefaultCollateral { id: u8 },
 	}
 
 	// Errors inform users that something went wrong.
@@ -134,6 +137,9 @@ pub mod pallet {
 			let _who = ensure_signed(origin)?;
 
 			<Accounts<T>>::insert(trading_account.account_id, trading_account.clone());
+			let default_collateral = T::Asset::get_default_collateral();
+
+			Self::deposit_event(Event::DefaultCollateral { id: default_collateral });
 
 			Self::deposit_event(Event::AccountAdded { account_id: trading_account.account_id });
 

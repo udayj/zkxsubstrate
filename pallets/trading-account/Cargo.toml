@@ -24,6 +24,7 @@ sp-arithmetic = { version = "6.0.0", default-features = false, git = "https://gi
 
 zkx-support= { path="../support"}
 fixed = {version="1.23.1"}
+assets = { default-features = false, path = "../assets" }
 
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -38,6 +39,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
+	"assets/std",
 ]
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
 try-runtime = ["frame-support/try-runtime"]

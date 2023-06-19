@@ -381,6 +381,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4822,6 +4825,7 @@ dependencies = [
 name = "pallet-zkx-trading-account"
 version = "0.0.1-dev"
 dependencies = [
+ "assets",
  "fixed",
  "frame-benchmarking",
  "frame-support",

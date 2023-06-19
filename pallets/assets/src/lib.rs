@@ -2,8 +2,15 @@
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
+	use core::option::Option;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -16,7 +23,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
 
-	#[derive(Clone, Encode, Decode, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub struct Asset {
 		pub id: u8,
 		pub name: u8,
@@ -26,11 +33,17 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
+	#[pallet::getter(fn assets_count)]
 	pub(super) type AssetsCount<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	/// Maps the Assets struct to the unique_id.
 	#[pallet::storage]
+	#[pallet::getter(fn assets)]
 	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u8, Asset>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn default_collateral_asset)]
+	pub(super) type DefaultCollateralAsset<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -38,6 +51,10 @@ pub mod pallet {
 		DuplicateAsset,
 		/// The total supply of collectibles can't exceed the u64 limit
 		BoundsOverflow,
+		/// Asset does not exist
+		AssetNotFound,
+		/// Asset is not a collateral
+		AssetNotCollateral,
 	}
 
 	#[pallet::event]
@@ -45,6 +62,12 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new asset was successfully created
 		AssetCreated { id: u8, asset: Asset },
+		/// Default collateral asset modified
+		DefaultCollateralModified { id: u8 },
+	}
+
+	pub trait AssetInterface {
+		fn get_default_collateral() -> u8;
 	}
 
 	// Pallet callable functions
@@ -80,8 +103,35 @@ pub mod pallet {
 			// Deposit the "AssetCreated" event.
 			Self::deposit_event(Event::AssetCreated { id, asset });
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn modify_default_collateral(
+			origin: OriginFor<T>,
+			id: u8,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let sender = ensure_signed(origin)?;
+
+			// Check if the asset exists in the storage map
+			ensure!(AssetMap::<T>::contains_key(id), Error::<T>::AssetNotFound);
+
+			// Get asset using id and set it as default collateral
+			let asset = AssetMap::<T>::get(id).unwrap();
+			ensure!(asset.is_collateral == true, Error::<T>::AssetNotCollateral);
+			DefaultCollateralAsset::<T>::put(id);
+
+			// Deposit the "AssetCreated" event.
+			Self::deposit_event(Event::DefaultCollateralModified { id });
 
 			Ok(())
+		}
+	}
+	
+	impl<T: Config> AssetInterface for Pallet<T> {
+		fn get_default_collateral() -> u8 {
+			DefaultCollateralAsset::<T>::get()
 		}
 	}
 }

@@ -5,6 +5,7 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
+use assets;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -18,6 +19,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		TemplateModule: pallet_template,
+		Assets: assets
 	}
 );
 
@@ -51,6 +53,11 @@ impl frame_system::Config for Test {
 impl pallet_template::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
+	type Asset = Assets;
+}
+
+impl assets::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
 }
 
 // Build genesis storage according to the mock runtime.
