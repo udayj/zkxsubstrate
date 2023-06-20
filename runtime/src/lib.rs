@@ -272,7 +272,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_zkx_trading_account::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_zkx_trading_account::weights::SubstrateWeight<Runtime>;
-	type Asset = pallet_asset;
+	type Asset = Assets;
 }
 
 impl pallet_asset::Config for Runtime {

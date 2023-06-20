@@ -24,7 +24,7 @@ sp-arithmetic = { version = "6.0.0", default-features = false, git = "https://gi
 
 zkx-support= { path="../support"}
 fixed = {version="1.23.1"}
-pallet-asset = { path = "../asset" }
+pallet-asset = { default-features = false, path = "../asset" }
 
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
