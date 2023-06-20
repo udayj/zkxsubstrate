@@ -374,19 +374,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "155a5a185e42c6b77ac7b88a15143d930a9e9727a5b7b77eed417404ab15c247"
 
 [[package]]
-name = "assets"
-version = "0.0.1-dev"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
-]
-
-[[package]]
 name = "async-channel"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4435,7 +4422,6 @@ dependencies = [
 name = "node-template-runtime"
 version = "4.0.0-dev"
 dependencies = [
- "assets",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -4443,6 +4429,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "pallet-asset",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
@@ -4657,6 +4644,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-asset"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
 name = "pallet-aura"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.42#bca8a29dbde0009e80c4c4737be47abff6b3e2c2"
@@ -4825,11 +4826,11 @@ dependencies = [
 name = "pallet-zkx-trading-account"
 version = "0.0.1-dev"
 dependencies = [
- "assets",
  "fixed",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-asset",
  "parity-scale-codec",
  "scale-info",
  "sp-arithmetic",

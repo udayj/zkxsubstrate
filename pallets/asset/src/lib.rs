@@ -12,7 +12,9 @@ mod tests;
 pub mod pallet {
 	use core::option::Option;
 	use frame_support::pallet_prelude::*;
+	use frame_support::inherent::Vec;
 	use frame_system::pallet_prelude::*;
+	use zkx_support::traits::AssetInterface;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -23,10 +25,10 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
 
-	#[derive(Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 	pub struct Asset {
 		pub id: u8,
-		pub name: u8,
+		pub name: Vec<u8>,
 		pub is_tradable: bool,
 		pub is_collateral: bool,
 		pub token_decimal: u8,
@@ -66,9 +68,9 @@ pub mod pallet {
 		DefaultCollateralModified { id: u8 },
 	}
 
-	pub trait AssetInterface {
-		fn get_default_collateral() -> u8;
-	}
+	// pub trait AssetInterface {
+	// 	fn get_default_collateral() -> u8;
+	// }
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -78,7 +80,7 @@ pub mod pallet {
 		pub fn add_asset(
 			origin: OriginFor<T>,
 			id: u8,
-			name: u8,
+			name: Vec<u8>,
 			is_tradable: bool,
 			is_collateral: bool,
 			token_decimal: u8,
@@ -92,12 +94,12 @@ pub mod pallet {
 			// Check if the asset exists in the storage map
 			ensure!(!AssetMap::<T>::contains_key(&asset.id), Error::<T>::DuplicateAsset);
 
-			// Increment the count of the assets
+			// Increment the count of the asset
 			let count = AssetsCount::<T>::get();
 			let new_count = count.checked_add(1).ok_or(Error::<T>::BoundsOverflow)?;
 
 			// Write new asset to storage and update the count
-			AssetMap::<T>::insert(asset.id, asset);
+			AssetMap::<T>::insert(asset.id, asset.clone());
 			AssetsCount::<T>::put(new_count);
 
 			// Deposit the "AssetCreated" event.

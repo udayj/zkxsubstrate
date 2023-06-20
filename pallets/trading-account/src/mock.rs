@@ -5,7 +5,8 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use assets;
+use pallet_asset;
+
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -19,7 +20,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		TemplateModule: pallet_template,
-		Assets: assets
+		Assets: pallet_asset
 	}
 );
 
@@ -56,7 +57,7 @@ impl pallet_template::Config for Test {
 	type Asset = Assets;
 }
 
-impl assets::Config for Test {
+impl pallet_asset::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
 
