@@ -4429,6 +4429,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "pallet-asset",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
@@ -4643,6 +4644,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-asset"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
 name = "pallet-aura"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.42#bca8a29dbde0009e80c4c4737be47abff6b3e2c2"
@@ -4815,6 +4830,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-asset",
  "parity-scale-codec",
  "scale-info",
  "sp-arithmetic",
