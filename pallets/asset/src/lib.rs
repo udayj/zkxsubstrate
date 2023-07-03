@@ -80,6 +80,9 @@ pub mod pallet {
         /// Create a new asset
         #[pallet::weight(0)]
         pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+            // Make sure the caller is from a signed origin
+            let sender = ensure_signed(origin)?;
+            
             // Check if the asset exists in the storage map
             ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
 
@@ -99,6 +102,9 @@ pub mod pallet {
         /// Modify an existing asset
         #[pallet::weight(0)]
         pub fn modify_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+            // Make sure the caller is from a signed origin
+            let sender = ensure_signed(origin)?;
+
             // Check if the asset exists in the storage map
             ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::AssetNotFound);
 
@@ -113,6 +119,9 @@ pub mod pallet {
         /// Remove an existing asset
         #[pallet::weight(0)]
         pub fn remove_asset(origin: OriginFor<T>, id: u8) -> DispatchResult {
+            // Make sure the caller is from a signed origin
+            let sender = ensure_signed(origin)?;
+
             // Check if the asset exists in the storage map
             ensure!(AssetMap::<T>::contains_key(id), Error::<T>::AssetNotFound);
 
@@ -127,6 +136,9 @@ pub mod pallet {
         /// Replace all assets
         #[pallet::weight(0)]
         pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
+            // Make sure the caller is from a signed origin
+            let sender = ensure_signed(origin)?;
+
             // Clear asset map
             let _ = AssetMap::<T>::clear(100, None);
 
