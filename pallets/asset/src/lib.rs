@@ -62,7 +62,13 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// A new asset was successfully created
+        /// An asset was created
+        AssetCreated { id: u8, asset: Asset },
+        /// An asset was modified
+        AssetModified { id: u8, asset: Asset },
+        /// An asset was removed
+        AssetRemoved { id: u8 },
+        /// Assets were successfully created
         AssetsCreated { length: u64 },
         /// Default collateral asset modified
         DefaultCollateralModified { id: u8 },
@@ -71,7 +77,54 @@ pub mod pallet {
     // Pallet callable functions
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Create a new asset.
+        /// Create a new asset
+        #[pallet::weight(0)]
+        pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+            // Check if the asset exists in the storage map
+            ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
+
+            // Increment the count of the asset
+            let count = AssetsCount::<T>::get();
+            let new_count = count.checked_add(1).ok_or(Error::<T>::BoundsOverflow)?;
+
+            // Write new asset to storage and update the count
+            AssetMap::<T>::insert(asset.id, asset.clone());
+            AssetsCount::<T>::put(new_count);
+
+            Self::deposit_event(Event::AssetCreated { id: asset.id, asset: asset.clone() });
+
+            Ok(())
+        }
+
+        /// Modify an existing asset
+        #[pallet::weight(0)]
+        pub fn modify_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+            // Check if the asset exists in the storage map
+            ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::AssetNotFound);
+
+            // Modify the asset value in the storage map
+            AssetMap::<T>::insert(asset.id, asset.clone());
+
+            Self::deposit_event(Event::AssetModified { id: asset.id, asset: asset.clone() });
+
+            Ok(())
+        }
+
+        /// Remove an existing asset
+        #[pallet::weight(0)]
+        pub fn remove_asset(origin: OriginFor<T>, id: u8) -> DispatchResult {
+            // Check if the asset exists in the storage map
+            ensure!(AssetMap::<T>::contains_key(id), Error::<T>::AssetNotFound);
+
+            // Remove the asset with the given id
+            AssetMap::<T>::remove(id);
+
+            Self::deposit_event(Event::AssetRemoved { id });
+
+            Ok(())
+        }
+
+        /// Replace all assets
         #[pallet::weight(0)]
         pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
             // Clear asset map
@@ -93,11 +146,9 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Modify default collateral
         #[pallet::weight(0)]
-        pub fn modify_default_collateral(
-            origin: OriginFor<T>,
-            id: u8,
-        ) -> DispatchResult {
+        pub fn modify_default_collateral(origin: OriginFor<T>, id: u8) -> DispatchResult {
             // Make sure the caller is from a signed origin
             let sender = ensure_signed(origin)?;
 
@@ -109,35 +160,11 @@ pub mod pallet {
             ensure!(asset.is_collateral == true, Error::<T>::AssetNotCollateral);
             DefaultCollateralAsset::<T>::put(id);
 
-            // Deposit the "AssetCreated" event.
             Self::deposit_event(Event::DefaultCollateralModified { id });
 
             Ok(())
         }
     }
-
-    // Pallet internal functions
-    // impl<T: Config> Pallet<T> {
-    //     fn add_asset(
-    //         asset: Asset,
-    //     ) -> Result<(), DispatchError> {
-    //         // Check if the asset exists in the storage map
-    //         ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
-    //
-    //         // Increment the count of the asset
-    //         // let count = AssetsCount::<T>::get();
-    //         // let new_count = count.checked_add(1).ok_or(Error::<T>::BoundsOverflow)?;
-    //
-    //         // Write new asset to storage and update the count
-    //         AssetMap::<T>::insert(asset.id, asset.clone());
-    //         // AssetsCount::<T>::put(new_count);
-    //
-    //         // Deposit the "AssetCreated" event.
-    //         Self::deposit_event(Event::AssetCreated { id: asset.id, asset: asset.clone() });
-    //
-    //         Ok(())
-    //     }
-    // }
 
     impl<T: Config> AssetInterface for Pallet<T> {
         fn get_default_collateral() -> u8 {
