@@ -13,8 +13,12 @@ pub mod pallet {
     use core::option::Option;
     use frame_support::pallet_prelude::*;
     use frame_support::inherent::Vec;
+    use frame_support::transactional;
     use frame_system::pallet_prelude::*;
     use zkx_support::traits::AssetInterface;
+
+    static DEFAULT_COLLATERAL_ID: u64 = 4543560;
+    static DELETION_LIMIT: u32 = 100;
 
     #[pallet::pallet]
     #[pallet::generate_store(pub (super) trait Store)]
@@ -27,7 +31,7 @@ pub mod pallet {
 
     #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
     pub struct Asset {
-        pub id: u8,
+        pub id: u64,
         pub name: BoundedVec<u8, ConstU32<50>>,
         pub is_tradable: bool,
         pub is_collateral: bool,
@@ -41,7 +45,7 @@ pub mod pallet {
     /// Maps the Assets struct to the unique_id.
     #[pallet::storage]
     #[pallet::getter(fn assets)]
-    pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u8, Asset>;
+    pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u64, Asset>;
 
     #[pallet::storage]
     #[pallet::getter(fn default_collateral_asset)]
@@ -53,86 +57,18 @@ pub mod pallet {
         DuplicateAsset,
         /// The total supply of collectibles can't exceed the u64 limit
         BoundsOverflow,
-        /// Asset does not exist
-        AssetNotFound,
-        /// Asset is not a collateral
-        AssetNotCollateral,
     }
 
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// An asset was created
-        AssetCreated { id: u8, asset: Asset },
-        /// An asset was modified
-        AssetModified { id: u8, asset: Asset },
-        /// An asset was removed
-        AssetRemoved { id: u8 },
         /// Assets were successfully created
         AssetsCreated { length: u64 },
-        /// Default collateral asset modified
-        DefaultCollateralModified { id: u8 },
     }
 
     // Pallet callable functions
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Create a new asset
-        #[pallet::weight(0)]
-        pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-            // Make sure the caller is from a signed origin
-            let sender = ensure_signed(origin)?;
-            
-            // Check if the asset exists in the storage map
-            ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
-
-            // Increment the count of the asset
-            let count = AssetsCount::<T>::get();
-            let new_count = count.checked_add(1).ok_or(Error::<T>::BoundsOverflow)?;
-
-            // Write new asset to storage and update the count
-            AssetMap::<T>::insert(asset.id, asset.clone());
-            AssetsCount::<T>::put(new_count);
-
-            Self::deposit_event(Event::AssetCreated { id: asset.id, asset: asset.clone() });
-
-            Ok(())
-        }
-
-        /// Modify an existing asset
-        #[pallet::weight(0)]
-        pub fn modify_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-            // Make sure the caller is from a signed origin
-            let sender = ensure_signed(origin)?;
-
-            // Check if the asset exists in the storage map
-            ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::AssetNotFound);
-
-            // Modify the asset value in the storage map
-            AssetMap::<T>::insert(asset.id, asset.clone());
-
-            Self::deposit_event(Event::AssetModified { id: asset.id, asset: asset.clone() });
-
-            Ok(())
-        }
-
-        /// Remove an existing asset
-        #[pallet::weight(0)]
-        pub fn remove_asset(origin: OriginFor<T>, id: u8) -> DispatchResult {
-            // Make sure the caller is from a signed origin
-            let sender = ensure_signed(origin)?;
-
-            // Check if the asset exists in the storage map
-            ensure!(AssetMap::<T>::contains_key(id), Error::<T>::AssetNotFound);
-
-            // Remove the asset with the given id
-            AssetMap::<T>::remove(id);
-
-            Self::deposit_event(Event::AssetRemoved { id });
-
-            Ok(())
-        }
-
         /// Replace all assets
         #[pallet::weight(0)]
         pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
@@ -140,7 +76,7 @@ pub mod pallet {
             let sender = ensure_signed(origin)?;
 
             // Clear asset map
-            let _ = AssetMap::<T>::clear(100, None);
+            let _ = AssetMap::<T>::clear(DELETION_LIMIT, None);
 
             let length: u64 = u64::try_from(assets.len()).unwrap();
 
@@ -157,30 +93,11 @@ pub mod pallet {
 
             Ok(())
         }
-
-        /// Modify default collateral
-        #[pallet::weight(0)]
-        pub fn modify_default_collateral(origin: OriginFor<T>, id: u8) -> DispatchResult {
-            // Make sure the caller is from a signed origin
-            let sender = ensure_signed(origin)?;
-
-            // Check if the asset exists in the storage map
-            ensure!(AssetMap::<T>::contains_key(id), Error::<T>::AssetNotFound);
-
-            // Get asset using id and set it as default collateral
-            let asset = AssetMap::<T>::get(id).unwrap();
-            ensure!(asset.is_collateral == true, Error::<T>::AssetNotCollateral);
-            DefaultCollateralAsset::<T>::put(id);
-
-            Self::deposit_event(Event::DefaultCollateralModified { id });
-
-            Ok(())
-        }
     }
 
     impl<T: Config> AssetInterface for Pallet<T> {
-        fn get_default_collateral() -> u8 {
-            DefaultCollateralAsset::<T>::get()
+        fn get_default_collateral() -> u64 {
+            DEFAULT_COLLATERAL_ID
         }
     }
 }
