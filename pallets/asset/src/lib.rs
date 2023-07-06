@@ -15,7 +15,9 @@ pub mod pallet {
     use frame_support::inherent::Vec;
     use frame_support::transactional;
     use frame_system::pallet_prelude::*;
+    use scale_info::prelude::string::String;
     use zkx_support::traits::AssetInterface;
+    use zkx_support::str_to_felt;
 
     static DEFAULT_COLLATERAL_ID: u64 = 4543560;
     static DELETION_LIMIT: u32 = 100;
@@ -57,6 +59,8 @@ pub mod pallet {
         DuplicateAsset,
         /// The total supply of collectibles can't exceed the u64 limit
         BoundsOverflow,
+        /// Invalid value for id or token decimal
+        InvalidAsset,
     }
 
     #[pallet::event]
@@ -84,6 +88,12 @@ pub mod pallet {
             for element in assets {
                 // Check if the asset exists in the storage map
                 ensure!(!AssetMap::<T>::contains_key(element.id), Error::<T>::DuplicateAsset);
+                // Validate asset
+                ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
+                let name_string = String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
+                let name_felt = str_to_felt(name_string.as_str());
+                ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
+
                 AssetMap::<T>::insert(element.id, element.clone());
             }
 

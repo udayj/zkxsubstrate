@@ -81,3 +81,31 @@ fn it_does_not_work_for_replace_assets_duplicate() {
         assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
     });
 }
+
+#[test]
+#[should_panic(expected = "InvalidAsset")]
+fn it_does_not_work_for_replace_assets_invalid_id() {
+    new_test_ext().execute_with(|| {
+        // Go past genesis block so events get deposited
+        System::set_block_number(1);
+        // Dispatch a signed extrinsic.
+        let name: Vec<u8> = "USDC".into();
+        let asset: Asset = Asset { id: ETH_ID, name: name.try_into().unwrap(), is_tradable: false, is_collateral: true, token_decimal: 6 };
+        let assets: Vec<Asset> = vec![asset.clone()];
+        assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+    });
+}
+
+#[test]
+#[should_panic(expected = "InvalidAsset")]
+fn it_does_not_work_for_replace_assets_invalid_decimal() {
+    new_test_ext().execute_with(|| {
+        // Go past genesis block so events get deposited
+        System::set_block_number(1);
+        // Dispatch a signed extrinsic.
+        let name: Vec<u8> = "ETH".into();
+        let asset: Asset = Asset { id: ETH_ID, name: name.try_into().unwrap(), is_tradable: false, is_collateral: true, token_decimal: 19 };
+        let assets: Vec<Asset> = vec![asset.clone()];
+        assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+    });
+}
