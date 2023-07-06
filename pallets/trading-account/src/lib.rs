@@ -75,7 +75,7 @@ pub mod pallet {
 		/// parameters. [something, who]
 		SomethingStored { something: u32, who: T::AccountId },
 		AccountAdded { account_id: [u8; 32]},
-		DefaultCollateral { id: u8 },
+		DefaultCollateral { id: u64 },
 	}
 
 	// Errors inform users that something went wrong.

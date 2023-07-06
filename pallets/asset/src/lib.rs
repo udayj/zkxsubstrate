@@ -13,7 +13,6 @@ pub mod pallet {
     use core::option::Option;
     use frame_support::pallet_prelude::*;
     use frame_support::inherent::Vec;
-    use frame_support::transactional;
     use frame_system::pallet_prelude::*;
     use scale_info::prelude::string::String;
     use zkx_support::traits::AssetInterface;
