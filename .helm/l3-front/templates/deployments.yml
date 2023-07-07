@@ -20,7 +20,7 @@ spec:
         - name: dockerhub
       containers:
       - name: app
-        image: zkxteam/l3-front:{{ $.Values.image_tag }}  
+        image: zkxteam/zkxsubstrate:front-{{ $.Values.env }}  
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
