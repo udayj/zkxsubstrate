@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: l3-front
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: l3-front
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: l3-front
+      annotations:
+        rollme: {{ randAlphaNum 5 | quote }}
+    spec:
+      imagePullSecrets:
+        - name: dockerhub
+      containers:
+      - name: app
+        image: zkxteam/l3-front:{{ $.Values.image_tag }}  
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1024Mi
+      nodeSelector:
+        role: worker-spot
