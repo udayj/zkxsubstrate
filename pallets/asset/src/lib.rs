@@ -56,7 +56,7 @@ pub mod pallet {
     pub enum Error<T> {
         /// Each asset must have a unique identifier
         DuplicateAsset,
-        /// The total supply of collectibles can't exceed the u64 limit
+        /// The total supply of assets can't exceed the u64 limit
         BoundsOverflow,
         /// Invalid value for id or token decimal
         InvalidAsset,

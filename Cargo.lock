@@ -4510,6 +4510,7 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
+ "pallet-market",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -4800,6 +4801,21 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-market"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
 ]
 
 [[package]]

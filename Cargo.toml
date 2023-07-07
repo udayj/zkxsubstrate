@@ -2,6 +2,7 @@
 members = [
     "node",
     "pallets/asset",
+    "pallets/market",
     "pallets/trading-account",
     "pallets/support",
     "runtime",

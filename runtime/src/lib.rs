@@ -48,6 +48,7 @@ pub use sp_runtime::{Perbill, Permill};
 /// Import the template pallet.
 pub use pallet_zkx_trading_account;
 pub use pallet_asset;
+pub use pallet_market;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -279,6 +280,9 @@ impl pallet_asset::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+impl pallet_market::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+}
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
@@ -297,6 +301,7 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		ZkxTradingAccount: pallet_zkx_trading_account,
 		Assets: pallet_asset,
+		Markets: pallet_market,
 	}
 );
 
