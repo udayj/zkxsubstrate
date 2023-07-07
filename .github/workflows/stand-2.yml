@@ -21,7 +21,7 @@ on:
 
   deploy:
     runs-on: [ubuntu-latest]
-    needs: ['build']
+    # needs: ['build']
     container:
       image: alpine/k8s:1.23.16
       env:
