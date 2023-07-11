@@ -2,22 +2,23 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
-//
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::pallet_prelude::*;
 	use frame_support::inherent::Vec;
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use sp_arithmetic::fixed_point::FixedI128;
 	use scale_info::prelude::string::String;
-	// use zkx_support::traits::AssetInterface;
+	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::str_to_felt;
+	use zkx_support::traits::AssetInterface;
+	use zkx_support::types::Market;
 
 	static DELETION_LIMIT: u32 = 100;
 
@@ -28,34 +29,11 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-	}
-
-	#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-	pub struct Market {
-		pub id: u64,
-		pub asset: u64,
-		pub asset_collateral: u64,
-		pub is_tradable: bool,
-		pub is_archived: bool,
-		pub ttl: u32,
-		pub tick_size: u64,
-		pub tick_precision: u8,
-		pub step_size: u64,
-		pub step_precision: u8,
-		pub minimum_order_size: u64,
-		pub minimum_leverage: u8,
-		pub maximum_leverage: u8,
-		pub currently_allowed_leverage: u8,
-		pub maintenance_margin_fraction: u64,
-		pub initial_margin_fraction: u64,
-		pub incremental_initial_margin_fraction: u64,
-		pub incremental_position_size: u64,
-		pub baseline_position_size: u64,
-		pub maximum_position_size: u64,
+		type Asset: AssetInterface;
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn marketss_count)]
+	#[pallet::getter(fn markets_count)]
 	pub(super) type MarketsCount<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	/// Maps the Market struct to the unique_id.
@@ -69,8 +47,16 @@ pub mod pallet {
 		DuplicateMarket,
 		/// The total supply of markets can't exceed the u64 limit
 		BoundsOverflow,
-		/// Invalid value for one of the fields
-		InvalidMarket,
+		/// Invalid value for Market Id
+		InvalidMarketId,
+		/// Invalid value for is_tradable field
+		InvalidTradableFlag,
+		/// Asset not created
+		AssetNotFound,
+		/// Asset provided as collateral is not marked as collateral in the system
+		AssetNotCollateral,
+		/// Invalid value for max leverage or currently allowed leverage
+		InvalidLeverage,
 	}
 
 	#[pallet::event]
@@ -98,6 +84,26 @@ pub mod pallet {
 			for element in markets {
 				// Check if the market exists in the storage map
 				ensure!(!MarketMap::<T>::contains_key(element.id), Error::<T>::DuplicateMarket);
+				// Check market id is non zero
+				ensure!(element.id > 0, Error::<T>::InvalidMarketId);
+				// Validate is_tradable flag
+				ensure!((0..3).contains(&element.is_tradable), Error::<T>::InvalidTradableFlag);
+				// Validate asset and asset collateral
+				let asset = T::Asset::get_asset(element.asset);
+				ensure!(asset.is_some(), Error::<T>::AssetNotFound);
+				let asset_collateral = T::Asset::get_asset(element.asset_collateral);
+				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+				ensure!(
+					element.maximum_leverage >= element.minimum_leverage,
+					Error::<T>::InvalidLeverage
+				);
+				ensure!(
+					(element.minimum_leverage..element.maximum_leverage + 1)
+						.contains(&element.currently_allowed_leverage),
+					Error::<T>::InvalidLeverage
+				);
+
 				MarketMap::<T>::insert(element.id, element.clone());
 			}
 
