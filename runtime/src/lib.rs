@@ -45,10 +45,10 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-/// Import the template pallet.
-pub use pallet_zkx_trading_account;
 pub use pallet_asset;
 pub use pallet_market;
+/// Import the template pallet.
+pub use pallet_zkx_trading_account;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -282,6 +282,7 @@ impl pallet_asset::Config for Runtime {
 
 impl pallet_market::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type Asset = Assets;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
