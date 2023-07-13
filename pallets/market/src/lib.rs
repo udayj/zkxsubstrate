@@ -14,9 +14,7 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use scale_info::prelude::string::String;
 	use sp_arithmetic::fixed_point::FixedI128;
-	use zkx_support::str_to_felt;
 	use zkx_support::traits::AssetInterface;
 	use zkx_support::types::Market;
 
@@ -99,7 +97,7 @@ pub mod pallet {
 					Error::<T>::InvalidLeverage
 				);
 				ensure!(
-					(element.minimum_leverage..element.maximum_leverage + 1)
+					(element.minimum_leverage..element.maximum_leverage + FixedI128::from_inner(1))
 						.contains(&element.currently_allowed_leverage),
 					Error::<T>::InvalidLeverage
 				);

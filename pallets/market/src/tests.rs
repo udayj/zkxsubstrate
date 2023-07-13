@@ -1,6 +1,5 @@
-use crate::{mock::*, Error, Event};
-use frame_support::BoundedVec;
-use frame_support::{assert_noop, assert_ok};
+use crate::{mock::*, Event};
+use frame_support::assert_ok;
 use zkx_support::types::Asset;
 use zkx_support::types::Market;
 
@@ -53,20 +52,20 @@ fn setup() -> (Market, Market) {
 		is_tradable: 1,
 		is_archived: false,
 		ttl: 3600,
-		tick_size: 1,
+		tick_size: 1.into(),
 		tick_precision: 1,
-		step_size: 1,
+		step_size: 1.into(),
 		step_precision: 1,
-		minimum_order_size: 1,
-		minimum_leverage: 1,
-		maximum_leverage: 10,
-		currently_allowed_leverage: 8,
-		maintenance_margin_fraction: 1,
-		initial_margin_fraction: 1,
-		incremental_initial_margin_fraction: 1,
-		incremental_position_size: 1,
-		baseline_position_size: 1,
-		maximum_position_size: 1,
+		minimum_order_size: 1.into(),
+		minimum_leverage: 1.into(),
+		maximum_leverage: 10.into(),
+		currently_allowed_leverage: 8.into(),
+		maintenance_margin_fraction: 1.into(),
+		initial_margin_fraction: 1.into(),
+		incremental_initial_margin_fraction: 1.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
 	};
 	let market2: Market = Market {
 		id: 2,
@@ -75,20 +74,20 @@ fn setup() -> (Market, Market) {
 		is_tradable: 0,
 		is_archived: false,
 		ttl: 360,
-		tick_size: 1,
+		tick_size: 1.into(),
 		tick_precision: 1,
-		step_size: 1,
+		step_size: 1.into(),
 		step_precision: 1,
-		minimum_order_size: 1,
-		minimum_leverage: 1,
-		maximum_leverage: 10,
-		currently_allowed_leverage: 8,
-		maintenance_margin_fraction: 1,
-		initial_margin_fraction: 1,
-		incremental_initial_margin_fraction: 1,
-		incremental_position_size: 1,
-		baseline_position_size: 1,
-		maximum_position_size: 1,
+		minimum_order_size: 1.into(),
+		minimum_leverage: 1.into(),
+		maximum_leverage: 10.into(),
+		currently_allowed_leverage: 8.into(),
+		maintenance_margin_fraction: 1.into(),
+		initial_margin_fraction: 1.into(),
+		incremental_initial_margin_fraction: 1.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
 	};
 	(market1, market2)
 }
@@ -220,7 +219,8 @@ fn it_does_not_work_for_replace_markets_invalid_max_leverage() {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { minimum_leverage: 5, maximum_leverage: 4, ..market1 };
+		let market: Market =
+			Market { minimum_leverage: 5.into(), maximum_leverage: 4.into(), ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -234,7 +234,7 @@ fn it_does_not_work_for_replace_markets_invalid_current_leverage() {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { currently_allowed_leverage: 11, ..market1 };
+		let market: Market = Market { currently_allowed_leverage: 11.into(), ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
