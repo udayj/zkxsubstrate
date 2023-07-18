@@ -1,0 +1,5 @@
+commit_hash: mock
+env: dev
+
+#enable/disable options
+maintenance: disable
