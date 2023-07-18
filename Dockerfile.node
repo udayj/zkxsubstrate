@@ -1,0 +1,13 @@
+FROM zkxteam/zkxsubstrate:stand1-base as base
+
+FROM ubuntu:22.04
+COPY --from=base /app/target/release/node-template /app/
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl-dev \
+    git clang gcc curl libssl-dev llvm libudev-dev make \
+    && rm -rf /var/lib/apt/lists/* && mkdir /data
+
+CMD ["./app/node-template"]

@@ -1,0 +1,26 @@
+FROM rust:1.68 as builder
+WORKDIR /app
+COPY . .
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl-dev \
+    git clang curl libssl-dev llvm libudev-dev make protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup default stable && rustup update && rustup target add wasm32-unknown-unknown
+RUN rustup show
+
+RUN cargo build --release --package node-template-runtime
+
+CMD ["/bin/bash"]
+
+FROM node:18-bullseye
+ARG SCRIPT_NAME=test
+WORKDIR /app
+COPY --from=builder /app/target/release/wbuild/node-template-runtime/node_template_runtime.compact.compressed.wasm /app
+COPY scripts/* /app/
+RUN npm i @polkadot/api@10.9.1 && npm i @polkadot/keyring@12.3.2
+RUN mv $SCRIPT_NAME update.ts
+CMD ["node","update.ts"]
+

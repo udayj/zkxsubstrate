@@ -13,14 +13,6 @@ RUN rustup show
 
 RUN cargo build --release
 
-FROM ubuntu:22.04
-COPY --from=builder /app/target/release/node-template /app/
+CMD ["/bin/bash"]
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates \
-    libssl-dev \
-    git clang gcc curl libssl-dev llvm libudev-dev make \
-    && rm -rf /var/lib/apt/lists/* && mkdir /data
 
-CMD ["./app/node-template"]
