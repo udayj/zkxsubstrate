@@ -8,7 +8,7 @@ on:
 jobs:
   build_base:
     runs-on: [ubuntu-latest]
-    if: ${{ contains(github.event.head_commit.message, 'stand_1') && contains(github.event.head_commit.message, 'drop_data') }}
+    if: ${{ contains(github.event.head_commit.message, 'stand_2') && contains(github.event.head_commit.message, 'drop_data') }}
     steps:
       - uses: actions/checkout@v1
       - name: Login to Docker Hub
@@ -16,8 +16,8 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: docker build -f Dockerfile.base -t zkxteam/zkxsubstrate:stand1-base .
-      - run: docker push zkxteam/zkxsubstrate:stand1-base
+      - run: docker build -f Dockerfile.base -t zkxteam/zkxsubstrate:stand2-base .
+      - run: docker push zkxteam/zkxsubstrate:stand2-base
 
   build_node:
     runs-on: [ubuntu-latest]
@@ -29,12 +29,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: docker build -f Dockerfile.node -t zkxteam/zkxsubstrate:stand1-node .
-      - run: docker push zkxteam/zkxsubstrate:stand1-node
+      - run: docker build -f Dockerfile.node -t zkxteam/zkxsubstrate:stand2-node .
+      - run: docker push zkxteam/zkxsubstrate:stand2-node
 
   build_runtime:
     runs-on: [ubuntu-latest]
-    if: ${{ contains(github.event.head_commit.message, 'stand_1') && contains(github.event.head_commit.message, 'runtime_update') }}
+    if: ${{ contains(github.event.head_commit.message, 'stand_2') && contains(github.event.head_commit.message, 'runtime_update') }}
     steps:
       - uses: actions/checkout@v1
       - name: Login to Docker Hub
@@ -42,8 +42,8 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: docker build -f Dockerfile.update --build-arg "SCRIPT_NAME=stand-1.ts" -t zkxteam/zkxsubstrate:stand1-runtime .
-      - run: docker push zkxteam/zkxsubstrate:stand1-runtime
+      - run: docker build -f Dockerfile.update --build-arg "SCRIPT_NAME=stand-2.ts" -t zkxteam/zkxsubstrate:stand2-runtime .
+      - run: docker push zkxteam/zkxsubstrate:stand2-runtime
 
   deploy_with_drop:
     runs-on: [ubuntu-latest]
@@ -59,12 +59,12 @@ jobs:
       id: branch-name
       uses: tj-actions/branch-names@v6
     - run: aws eks update-kubeconfig --region eu-north-1 --name dev
-    - run: helm uninstall zkxl3-main -n zkxl3-stand-1
-    - run: helm uninstall zkxl3-follower -n zkxl3-stand-1
-    - run: helm upgrade -i root .helm/root/ -f .helm/root/values.yml -n zkxl3-stand-1 --set dockerhub_token=${{ secrets.DOCKERHUB_TOKEN_K8S }} --wait --atomic --timeout 600s --create-namespace
-    - run: helm upgrade -i zkxl3-main .helm/l3/ -f .helm/l3/values-main-stand-1.yml -n zkxl3-stand-1 --wait --atomic --timeout 600s
-    - run: helm upgrade -i zkxl3-follower .helm/l3/ -f .helm/l3/values-follower-stand-1.yml -n zkxl3-stand-1 --wait --atomic --timeout 600s
-    - run: helm upgrade -i zkxl3-front  .helm/l3-front/ -f .helm/l3-front/values-stand-1.yml -n zkxl3-stand-1 --wait --atomic --timeout 300s
+    - run: helm uninstall zkxl3-main -n zkxl3-stand-2
+    - run: helm uninstall zkxl3-follower -n zkxl3-stand-2
+    - run: helm upgrade -i root .helm/root/ -f .helm/root/values.yml -n zkxl3-stand-2 --set dockerhub_token=${{ secrets.DOCKERHUB_TOKEN_K8S }} --wait --atomic --timeout 600s --create-namespace
+    - run: helm upgrade -i zkxl3-main .helm/l3/ -f .helm/l3/values-main-stand-2.yml -n zkxl3-stand-2 --wait --atomic --timeout 600s
+    - run: helm upgrade -i zkxl3-follower .helm/l3/ -f .helm/l3/values-follower-stand-2.yml -n zkxl3-stand-2 --wait --atomic --timeout 600s
+    - run: helm upgrade -i zkxl3-front  .helm/l3-front/ -f .helm/l3-front/values-stand-2.yml -n zkxl3-stand-2 --wait --atomic --timeout 300s
 
 
   runtime_update:
@@ -77,4 +77,4 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    - run: docker run zkxteam/zkxsubstrate:stand1-runtime
+    - run: docker run zkxteam/zkxsubstrate:stand2-runtime
