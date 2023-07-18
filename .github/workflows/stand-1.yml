@@ -42,7 +42,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: docker run -f Dockerfile.update --build-arg "SCRIPT_NAME=stand-1.ts" -t zkxteam/zkxsubstrate:stand1-runtime
+      - run: docker build -f Dockerfile.update --build-arg "SCRIPT_NAME=stand-1.ts" -t zkxteam/zkxsubstrate:stand1-runtime
       - run: docker push zkxteam/zkxsubstrate:stand1-runtime
 
   deploy_with_drop:
