@@ -12,13 +12,14 @@ mod tests;
 pub mod weights;
 pub use weights::*;
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
+	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use zkx_support::traits::AssetInterface;
-	use zkx_support::types::TradingAccount;
+	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
+	use zkx_support::types::{BalanceUpdate, TradingAccount};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -36,54 +37,108 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	pub type Accounts<T: Config> = StorageMap<_, Blake2_128Concat, u8, TradingAccount, OptionQuery>;
+	pub type AccountMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn account_presence)]
+	pub type AccountPresenceMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, TradingAccount, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
-	pub(super) type Balances<T: Config> = StorageDoubleMap<
+	pub(super) type BalancesMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		[u8; 32],
+		TradingAccount,
 		Blake2_128Concat,
-		u8,
+		u64,
 		FixedI128,
 		ValueQuery,
 	>;
 
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		AccountAdded { account_id: [u8; 32] },
-	}
-
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
+		/// Account already exists
+		DuplicateAccount,
+		/// Asset not created
+		AssetNotFound,
+		/// Asset provided as collateral is not marked as collateral in the system
+		AssetNotCollateral,
 	}
 
-	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-	// These functions materialize as "extrinsics", which are often compared to transactions.
-	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		/// Several accounts added
+		AccountsAdded { length: u128 },
+		/// Balances for an account updated
+		BalancesUpdated { account: TradingAccount },
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::call_index(2)]
-		#[pallet::weight(T::WeightInfo::do_something())]
-		pub fn record_account(
-			origin: OriginFor<T>,
-			trading_account: TradingAccount,
-		) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+		/// Add several accounts together
+		#[pallet::weight(0)]
+		pub fn add_accounts(origin: OriginFor<T>, accounts: Vec<TradingAccount>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
-			// <Accounts<T>>::insert(trading_account.account_id, trading_account.clone());
-			let default_collateral = T::Asset::get_default_collateral();
+			let length: u128 = u128::try_from(accounts.len()).unwrap();
+			let mut current_length = AccountsCount::<T>::get();
+			let final_length: u128 = length + current_length;
 
-			Self::deposit_event(Event::AccountAdded { account_id: trading_account.account_id });
+			for element in accounts {
+				// Check if the account exists in the presence storage map
+				ensure!(
+					!AccountPresenceMap::<T>::contains_key(&element),
+					Error::<T>::DuplicateAccount
+				);
+				AccountPresenceMap::<T>::insert(&element, true);
+				AccountMap::<T>::insert(current_length, element);
+				current_length += 1;
+			}
+
+			AccountsCount::<T>::put(final_length);
+
+			Self::deposit_event(Event::AccountsAdded { length });
 
 			Ok(())
+		}
+
+		/// Add balances for a particular user
+		#[pallet::weight(0)]
+		pub fn add_balances(
+			origin: OriginFor<T>,
+			account: TradingAccount,
+			balances: Vec<BalanceUpdate>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			// Check if the account exists in the presence storage map
+			ensure!(!AccountPresenceMap::<T>::contains_key(&account), Error::<T>::DuplicateAccount);
+
+			for element in balances {
+				// Validate that the asset exists and it is a collateral
+				let asset_collateral = T::Asset::get_asset(element.asset_id);
+				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+
+				// Update the map with new balance
+				let current_balance: FixedI128 = BalancesMap::<T>::get(&account, element.asset_id);
+				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
+				BalancesMap::<T>::set(&account, element.asset_id, new_balance);
+			}
+
+			Self::deposit_event(Event::BalancesUpdated { account });
+
+			Ok(())
+		}
+	}
+
+	impl<T: Config> TradingAccountInterface for Pallet<T> {
+		fn get_balance(account: TradingAccount, id: u64) -> FixedI128 {
+			BalancesMap::<T>::get(account, id)
 		}
 	}
 }

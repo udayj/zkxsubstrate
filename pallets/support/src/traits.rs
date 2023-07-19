@@ -1,8 +1,17 @@
-use crate::types::Asset;
+use crate::types::{Asset, Market, TradingAccount};
+use sp_arithmetic::fixed_point::FixedI128;
+
+pub trait TradingAccountInterface {
+	fn get_balance(account: TradingAccount, asset_id: u64) -> FixedI128;
+}
 
 pub trait AssetInterface {
 	fn get_default_collateral() -> u64;
 	fn get_asset(id: u64) -> Option<Asset>;
+}
+
+pub trait MarketInterface {
+	fn get_market(id: u64) -> Option<Market>;
 }
 
 pub trait FixedI128Ext<T> {

@@ -9,6 +9,12 @@ pub struct TradingAccount {
 	pub account_id: [u8; 32],
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+pub struct BalanceUpdate {
+	pub asset_id: u64,
+	pub balance_value: FixedI128,
+}
+
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Asset {
 	pub id: u64,

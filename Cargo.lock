@@ -4927,7 +4927,7 @@ dependencies = [
  "pallet-asset",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 6.0.0",
+ "sp-arithmetic 16.0.0",
  "sp-core",
  "sp-io",
  "sp-runtime",

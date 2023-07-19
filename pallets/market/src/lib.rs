@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_arithmetic::fixed_point::FixedI128;
-	use zkx_support::traits::AssetInterface;
+	use zkx_support::traits::{AssetInterface, MarketInterface};
 	use zkx_support::types::Market;
 
 	static DELETION_LIMIT: u32 = 100;
@@ -110,6 +110,16 @@ pub mod pallet {
 			Self::deposit_event(Event::MarketsCreated { length });
 
 			Ok(())
+		}
+	}
+
+	impl<T: Config> MarketInterface for Pallet<T> {
+		fn get_market(id: u64) -> Option<Market> {
+			let result = MarketMap::<T>::try_get(id);
+			match result {
+				Ok(result) => return Some(result),
+				Err(_) => return None,
+			};
 		}
 	}
 }
