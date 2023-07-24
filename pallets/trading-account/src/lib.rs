@@ -137,8 +137,20 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: TradingAccount, id: u64) -> FixedI128 {
-			BalancesMap::<T>::get(account, id)
+		fn get_balance(account: TradingAccount, asset_id: u64) -> FixedI128 {
+			BalancesMap::<T>::get(account, asset_id)
+		}
+
+		fn transfer(account: TradingAccount, asset_id: u64, amount: FixedI128) {
+			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+			let new_balance = current_balance.add(amount);
+			BalancesMap::<T>::set(account, asset_id, new_balance);
+		}
+
+		fn transfer_from(account: TradingAccount, asset_id: u64, amount: FixedI128) {
+			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+			let new_balance = current_balance.sub(amount);
+			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 	}
 }

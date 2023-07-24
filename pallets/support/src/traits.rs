@@ -3,6 +3,8 @@ use sp_arithmetic::fixed_point::FixedI128;
 
 pub trait TradingAccountInterface {
 	fn get_balance(account: TradingAccount, asset_id: u64) -> FixedI128;
+	fn transfer(account: TradingAccount, asset_id: u64, amount: FixedI128);
+	fn transfer_from(account: TradingAccount, asset_id: u64, amount: FixedI128);
 }
 
 pub trait AssetInterface {

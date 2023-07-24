@@ -4513,6 +4513,7 @@ dependencies = [
  "pallet-market",
  "pallet-sudo",
  "pallet-timestamp",
+ "pallet-trading",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-zkx-trading-account",
@@ -4870,6 +4871,22 @@ dependencies = [
  "sp-runtime",
  "sp-std 5.0.0",
  "sp-timestamp",
+]
+
+[[package]]
+name = "pallet-trading"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-asset",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic 16.0.0",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
 ]
 
 [[package]]

@@ -2,9 +2,10 @@ use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
+use sp_arithmetic::per_things::Percent;
 use sp_runtime::RuntimeDebug;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
 pub struct TradingAccount {
 	pub account_id: [u8; 32],
 }
@@ -46,4 +47,40 @@ pub struct Market {
 	pub incremental_position_size: FixedI128,
 	pub baseline_position_size: FixedI128,
 	pub maximum_position_size: FixedI128,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum Direction {
+	#[default]
+	Long,
+	Short,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum Side {
+	#[default]
+	Buy,
+	Sell,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct Order {
+	pub user: TradingAccount,
+	pub order_id: u128,
+	pub market_id: u64,
+	pub direction: Direction,
+	pub side: Side,
+	pub price: FixedI128,
+	pub size: FixedI128,
+	pub leverage: FixedI128,
+	pub slippage: Percent,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct Position {
+	pub avg_execution_price: FixedI128,
+	pub size: FixedI128,
+	pub margin_amount: FixedI128,
+	pub borrowed_amount: FixedI128,
+	pub leverage: FixedI128,
 }
