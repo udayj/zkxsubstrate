@@ -134,7 +134,7 @@ pub mod pallet {
 			margin_amount = order_value;
 
 			let balance = T::TradingAccountPallet::get_balance(order.user.clone(), collateral_id);
-			// Do error handling
+			// Do error handling for balance check
 			// ensure!(order_value <= balance, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(order.user, collateral_id, order_value);
 
