@@ -8,7 +8,7 @@ const fs = require("fs");
 
 async function main() {
   // Initialise the provider to connect to the local node
-  const provider = new WsProvider("wss://l3.stand-1.k8s.ntwrkx.com");
+  const provider = new WsProvider("ws://127.0.0.1:9944");
 
   // Create the API and wait until ready (optional provider passed through)
   const api = await ApiPromise.create({ provider });
@@ -34,8 +34,8 @@ async function main() {
   console.log(`Upgrading from ${adminId}, ${code.length / 2} bytes`);
 
   // Perform the actual chain upgrade via the sudo module
-  const sudo = api.tx.sudo.sudoUncheckedWeight(proposal, { weight: 1 });
-  api.tx.sudo.sudo(sudo).signAndSend(adminPair, ({ events = [], status }) => {
+  const sudo = api.tx.sudo.sudoUncheckedWeight(proposal, { weight: 0 });
+  sudo.signAndSend(adminPair, ({ events = [], status }) => {
     console.log("Proposal status:", status.type);
 
     if (status.isInBlock) {
