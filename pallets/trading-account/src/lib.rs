@@ -57,6 +57,18 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn locked_margin)]
+	pub(super) type LockedMarginMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		TradingAccount,
+		Blake2_128Concat,
+		u64,
+		FixedI128,
+		ValueQuery,
+	>;
+
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
@@ -116,7 +128,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			// Check if the account exists in the presence storage map
-			ensure!(!AccountPresenceMap::<T>::contains_key(&account), Error::<T>::DuplicateAccount);
+			ensure!(AccountPresenceMap::<T>::contains_key(&account), Error::<T>::DuplicateAccount);
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
@@ -141,6 +153,14 @@ pub mod pallet {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
+		fn get_locked_margin(account: TradingAccount, asset_id: u64) -> FixedI128 {
+			LockedMarginMap::<T>::get(account, asset_id)
+		}
+
+		fn set_locked_margin(account: TradingAccount, asset_id: u64, new_amount: FixedI128) {
+			LockedMarginMap::<T>::set(account, asset_id, new_amount);
+		}
+
 		fn transfer(account: TradingAccount, asset_id: u64, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.add(amount);
@@ -151,6 +171,10 @@ pub mod pallet {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.sub(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
+		}
+
+		fn is_registered_user(account: TradingAccount) -> bool {
+			AccountPresenceMap::<T>::contains_key(&account)
 		}
 	}
 }

@@ -64,10 +64,18 @@ pub enum Side {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum OrderType {
+	#[default]
+	Limit,
+	Market,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub user: TradingAccount,
 	pub order_id: u128,
 	pub market_id: u64,
+	pub order_type: OrderType,
 	pub direction: Direction,
 	pub side: Side,
 	pub price: FixedI128,

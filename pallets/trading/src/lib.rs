@@ -10,13 +10,18 @@ pub use pallet::*;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
+	use core::f32::consts::E;
 	use core::option::Option;
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
-	use zkx_support::types::{Direction, Market, Order, Position, Side, TradingAccount};
+	use zkx_support::types::{Direction, Market, Order, OrderType, Position, Side, TradingAccount};
+
+	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
+	static LONG: u64 = 1;
+	static SHORT: u64 = 2;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub (super) trait Store)]
@@ -28,6 +33,10 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 	}
+
+	#[pallet::storage]
+	#[pallet::getter(fn portion_executed)]
+	pub(super) type PortionExecutedMap<T: Config> = StorageMap<_, Twox64Concat, u128, FixedI128>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
@@ -51,6 +60,16 @@ pub mod pallet {
 		QuantityLockedError,
 		/// Balance not enough to open the position
 		InsufficientBalance,
+		/// User's account is not registered
+		UserNotRegistered,
+		/// Order size less than min quantity
+		SizeTooSmall,
+		/// Market matched and order market are different
+		MarketMismatch,
+		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
+		InvalidLeverage,
+		/// Quantity to execute is 0 since order is completely executed
+		ExecutableQuantityZero,
 	}
 
 	#[pallet::event]
@@ -83,26 +102,117 @@ pub mod pallet {
 			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable);
 
 			let collateral_id: u64 = market.asset_collateral;
+			let initial_taker_locked_quantity: FixedI128;
 
 			ensure!(
 				quantity_locked != FixedI128::checked_from_integer(0).unwrap(),
 				Error::<T>::QuantityLockedError
 			);
 
-			let mut margin_amount: FixedI128 = 0.into();
-			let mut borrowed_amount: FixedI128 = 0.into();
-			let mut avg_execution_price: FixedI128 = 0.into();
+			let taker_order = orders[orders.len() - 1].clone();
+			let initial_taker_locked_response = Self::calculate_initial_taker_locked_size(
+				taker_order,
+				quantity_locked,
+				market_id,
+				collateral_id,
+			);
+			match initial_taker_locked_response {
+				Ok(quantity) => initial_taker_locked_quantity = quantity,
+				Err(e) => return Err(e),
+			}
 
-			for element in orders {
+			let mut quantity_executed: FixedI128 = 0.into();
+			let mut total_order_volume: FixedI128 = 0.into();
+
+			for element in orders.clone() {
+				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
+				let mut borrowed_amount: FixedI128 = 0.into(); // To do - don't assign value
+				let mut avg_execution_price: FixedI128 = 0.into(); // To do - don't assign value
+				let mut execution_price: FixedI128 = 0.into(); // To do - don't assign value
+				let mut quantity_to_execute: FixedI128 = 0.into(); // To do - don't assign value
+				let mut user_available_balance: FixedI128 = 0.into(); // To do - don't assign value
+				let mut margin_lock_amount: FixedI128 = 0.into(); // To do - don't assign value
+				let mut new_position_size: FixedI128 = 0.into(); // To do - don't assign value
+				let mut new_leverage: FixedI128 = 0.into(); // To do - don't assign value
+				let mut new_margin_locked: FixedI128 = 0.into(); // To do - don't assign value
+				let mut new_portion_executed: FixedI128 = 0.into(); // To do - don't assign value
+
+				let validation_response =
+					Self::perform_validations(element.clone(), oracle_price, market.clone());
+				match validation_response {
+					Ok(()) => (),
+					Err(e) => return Err(e),
+				}
+
+				let order_portion_executed =
+					PortionExecutedMap::<T>::get(element.order_id).unwrap();
+				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
+				let position_details =
+					PositionsMap::<T>::get(element.user.clone(), [market_id, direction]);
+				let current_margin_locked =
+					T::TradingAccountPallet::get_locked_margin(element.user.clone(), collateral_id);
+
+				// Maker Order
+				if element.order_id != orders[orders.len() - 1].clone().order_id {
+					// Calculate quantity left to be executed
+					let quantity_remaining = initial_taker_locked_quantity - quantity_executed;
+					// Calculate quantity that needs to be executed for the current maker
+					let maker_quantity_to_execute_response = Self::calculate_quantity_to_execute(
+						order_portion_executed,
+						market_id,
+						position_details.clone(),
+						element.clone(),
+						quantity_remaining,
+					);
+					match maker_quantity_to_execute_response {
+						Ok(quantity) => quantity_to_execute = quantity,
+						Err(e) => return Err(e),
+					}
+					// Try to include both validations below in existing function
+					// To do - validate maker direction and side
+					// To do - validate maker is limit order
+					execution_price = element.price;
+
+					quantity_executed = quantity_executed + quantity_to_execute;
+					total_order_volume = total_order_volume + (element.price * quantity_to_execute);
+				} else { // Taker Order
+				}
+
+				new_portion_executed = order_portion_executed + quantity_to_execute;
+
+				// BUY order
 				if element.side == Side::Buy {
-					(margin_amount, borrowed_amount, avg_execution_price) =
-						Self::process_open_orders(
-							element.clone(),
-							FixedI128::checked_from_integer(10000).unwrap(),
-							collateral_id,
-						);
-				} else {
-					// to do
+					let response = Self::process_open_orders(
+						element.clone(),
+						quantity_to_execute,
+						execution_price,
+						market_id,
+						collateral_id,
+					);
+					match response {
+						Ok((margin, borrowed, average_execution, balance, margin_lock)) => {
+							margin_amount = margin;
+							borrowed_amount = borrowed;
+							avg_execution_price = average_execution;
+							user_available_balance = balance;
+							margin_lock_amount = margin_lock;
+						},
+						Err(e) => return Err(e),
+					}
+
+					new_position_size = quantity_to_execute + position_details.size;
+					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
+					new_margin_locked = current_margin_locked + margin_lock_amount;
+
+					let updated_position = Position {
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+					};
+				} else { // SELL order
+					 // to do
 				}
 
 				let position = Position {
@@ -110,10 +220,16 @@ pub mod pallet {
 					size: element.size,
 					margin_amount,
 					borrowed_amount,
-					leverage: FixedI128::checked_from_integer(1).unwrap(),
+					leverage: element.leverage,
 				};
-				let direction = if element.direction == Direction::Long { 1_u64 } else { 2_u64 };
-				PositionsMap::<T>::set(element.user, [market_id, direction], position);
+				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
+				PositionsMap::<T>::set(element.user.clone(), [market_id, direction], position);
+				T::TradingAccountPallet::set_locked_margin(
+					element.user,
+					collateral_id,
+					new_margin_locked,
+				);
+				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
 			}
 
 			Ok(())
@@ -121,24 +237,127 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn calculate_initial_taker_locked_size(
+			order: Order,
+			quantity_locked: FixedI128,
+			market_id: u64,
+			collateral_id: u64,
+		) -> Result<FixedI128, DispatchError> {
+			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id).unwrap();
+
+			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
+			let position_details =
+				PositionsMap::<T>::get(order.user.clone(), [market_id, direction]);
+
+			let quantity_response = Self::calculate_quantity_to_execute(
+				order_portion_executed,
+				market_id,
+				position_details,
+				order,
+				quantity_locked,
+			);
+			match quantity_response {
+				Ok(quantity) => Ok(quantity),
+				Err(e) => Err(e),
+			}
+		}
+
+		fn calculate_quantity_to_execute(
+			portion_executed: FixedI128,
+			market_id: u64,
+			position_details: Position,
+			order: Order,
+			quantity_remaining: FixedI128,
+		) -> Result<FixedI128, DispatchError> {
+			let executable_quantity = order.size - portion_executed;
+			ensure!(executable_quantity > 1.into(), Error::<T>::ExecutableQuantityZero); // Modify code with tick/step size
+
+			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
+			ensure!(quantity_to_execute > 1.into(), Error::<T>::ExecutableQuantityZero);
+
+			if order.side == Side::Buy {
+				Ok(quantity_to_execute)
+			} else {
+				// To Do - handle SELL case
+				Ok(quantity_to_execute) // This is just a placeholder
+			}
+		}
+
+		fn perform_validations(
+			order: Order,
+			oracle_price: FixedI128,
+			market: Market,
+		) -> Result<(), DispatchError> {
+			// Validate that the user is registered
+			let is_registered = T::TradingAccountPallet::is_registered_user(order.user.clone());
+			ensure!(is_registered, Error::<T>::UserNotRegistered);
+
+			// Validate that size of order is >= min quantity for market
+			ensure!(order.size >= market.minimum_order_size, Error::<T>::SizeTooSmall);
+
+			// Validate that market matched and market in order are same
+			ensure!(market.id == order.market_id, Error::<T>::MarketMismatch);
+
+			// Validate leverage value
+			ensure!(
+				order.leverage >= LEVERAGE_ONE
+					&& order.leverage <= market.currently_allowed_leverage,
+				Error::<T>::InvalidLeverage
+			);
+
+			Ok(())
+		}
+
 		fn process_open_orders(
 			order: Order,
+			order_size: FixedI128,
 			execution_price: FixedI128,
+			market_id: u64,
 			collateral_id: u64,
-		) -> (FixedI128, FixedI128, FixedI128) {
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), DispatchError> {
 			let mut margin_amount: FixedI128 = 0.into();
 			let mut borrowed_amount: FixedI128 = 0.into();
 			let mut average_execution_price: FixedI128 = execution_price;
 
-			let order_value = order.size.mul(execution_price);
-			margin_amount = order_value;
+			// To do - get fee rate and calculate fee
+
+			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
+			let position_details =
+				PositionsMap::<T>::get(order.user.clone(), [market_id, direction]);
+
+			// Calculate average execution price
+			if position_details.size == 0.into() {
+				average_execution_price = execution_price;
+			} else {
+				let cumulative_order_value = (position_details.size
+					* position_details.avg_execution_price)
+					+ (order_size * execution_price);
+				let cumulative_order_size = position_details.size + order_size;
+				average_execution_price = cumulative_order_value / cumulative_order_size;
+			}
+
+			let leveraged_order_value = order_size * execution_price;
+			let margin_order_value = leveraged_order_value / order.leverage;
+			let amount_to_be_borrowed = leveraged_order_value - margin_order_value;
+			margin_amount = position_details.margin_amount + margin_order_value;
+			borrowed_amount = position_details.borrowed_amount + amount_to_be_borrowed;
+
+			// To do - calculate fee
+
+			// To do - If leveraged order, deduct from liquidity fund
+			// To do - deposit to holding fund
 
 			let balance = T::TradingAccountPallet::get_balance(order.user.clone(), collateral_id);
-			// Do error handling for balance check
-			// ensure!(order_value <= balance, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(order.user, collateral_id, order_value);
+			ensure!(margin_order_value <= balance, Error::<T>::InsufficientBalance);
+			T::TradingAccountPallet::transfer_from(order.user, collateral_id, margin_order_value);
 
-			(margin_amount, borrowed_amount, average_execution_price)
+			Ok((
+				margin_amount,
+				borrowed_amount,
+				average_execution_price,
+				balance,
+				margin_order_value,
+			))
 		}
 	}
 }
