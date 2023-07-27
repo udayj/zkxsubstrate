@@ -50,6 +50,30 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn collateral_to_market_length)]
+	pub(super) type CollateralToMarketLengthMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		TradingAccount,
+		Blake2_128Concat,
+		u64, // collateral id
+		u64, // number of markets
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn collateral_to_market)]
+	pub(super) type CollateralToMarketMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		TradingAccount,
+		Blake2_128Concat,
+		u64, // index
+		u64, // market id
+		ValueQuery,
+	>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Invalid input for market
@@ -175,7 +199,17 @@ pub mod pallet {
 
 					quantity_executed = quantity_executed + quantity_to_execute;
 					total_order_volume = total_order_volume + (element.price * quantity_to_execute);
-				} else { // Taker Order
+				} else {
+					// Taker Order
+					quantity_to_execute = quantity_executed;
+					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
+
+					// To do - validate taker and post only order
+					// Handle FoK order
+
+					execution_price = total_order_volume / quantity_to_execute;
+
+					// Validation for price - for both market and limit order
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
@@ -203,6 +237,31 @@ pub mod pallet {
 					new_position_size = quantity_to_execute + position_details.size;
 					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
 					new_margin_locked = current_margin_locked + margin_lock_amount;
+
+					if position_details.size == 0.into() {
+						let opposite_direction =
+							if element.direction == Direction::Long { SHORT } else { LONG };
+						let opposite_position = PositionsMap::<T>::get(
+							element.user.clone(),
+							[market_id, opposite_direction],
+						);
+						if opposite_position.size == 0.into() {
+							let length = CollateralToMarketLengthMap::<T>::get(
+								element.user.clone(),
+								collateral_id,
+							);
+							CollateralToMarketMap::<T>::insert(
+								element.user.clone(),
+								length,
+								market_id,
+							);
+							CollateralToMarketLengthMap::<T>::insert(
+								element.user.clone(),
+								collateral_id,
+								length + 1_u64,
+							);
+						}
+					}
 
 					let updated_position = Position {
 						avg_execution_price,
@@ -270,10 +329,10 @@ pub mod pallet {
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, DispatchError> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > 1.into(), Error::<T>::ExecutableQuantityZero); // Modify code with tick/step size
+			ensure!(executable_quantity > 0.into(), Error::<T>::ExecutableQuantityZero); // Modify code with tick/step size
 
 			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > 1.into(), Error::<T>::ExecutableQuantityZero);
+			ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
