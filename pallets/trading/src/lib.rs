@@ -92,6 +92,12 @@ pub mod pallet {
 		InvalidLeverage,
 		/// Quantity to execute is 0 since order is completely executed
 		ExecutableQuantityZero,
+		/// Maker side or direction does not match with other makers
+		InvalidMaker,
+		/// Execution price is not valid wrt limit price
+		LimitPriceError,
+		/// Price is not within slippage limit
+		SlippageError,
 	}
 
 	#[pallet::event]
@@ -148,6 +154,7 @@ pub mod pallet {
 
 			let mut quantity_executed: FixedI128 = 0.into();
 			let mut total_order_volume: FixedI128 = 0.into();
+			let mut updated_position: Position;
 
 			for element in orders.clone() {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -179,6 +186,17 @@ pub mod pallet {
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].clone().order_id {
+					let validation_response = Self::validate_maker(
+						orders[0].direction.clone(),
+						orders[0].side.clone(),
+						element.direction.clone(),
+						element.side.clone(),
+						element.order_type.clone(),
+					);
+					match validation_response {
+						Ok(()) => (),
+						Err(e) => return Err(e),
+					}
 					// Calculate quantity left to be executed
 					let quantity_remaining = initial_taker_locked_quantity - quantity_executed;
 					// Calculate quantity that needs to be executed for the current maker
@@ -193,24 +211,60 @@ pub mod pallet {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => return Err(e),
 					}
-					// Try to include both validations below in existing function
-					// To do - validate maker direction and side
-					// To do - validate maker is limit order
+
+					// For a maker execution price will always be the price in its order object
 					execution_price = element.price;
 
 					quantity_executed = quantity_executed + quantity_to_execute;
 					total_order_volume = total_order_volume + (element.price * quantity_to_execute);
 				} else {
 					// Taker Order
+					let validation_response = Self::validate_taker(
+						orders[0].direction.clone(),
+						orders[0].side.clone(),
+						element.direction.clone(),
+						element.side.clone(),
+					);
+					match validation_response {
+						Ok(()) => (),
+						Err(e) => return Err(e),
+					}
+
+					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
 
 					// To do - validate taker and post only order
 					// Handle FoK order
 
+					// Calculate execution price for taker
 					execution_price = total_order_volume / quantity_to_execute;
 
-					// Validation for price - for both market and limit order
+					// Validate execution price of taker
+					if element.order_type == OrderType::Limit {
+						let limit_validation = Self::validate_limit_price(
+							element.price,
+							execution_price,
+							element.direction.clone(),
+							element.side.clone(),
+						);
+						match limit_validation {
+							Ok(()) => (),
+							Err(e) => return Err(e),
+						}
+					} else {
+						let slippage_validation = Self::validate_within_slippage(
+							element.slippage,
+							oracle_price,
+							execution_price,
+							element.direction.clone(),
+							element.side.clone(),
+						);
+						match slippage_validation {
+							Ok(()) => (),
+							Err(e) => return Err(e),
+						}
+					}
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
@@ -239,6 +293,8 @@ pub mod pallet {
 					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
 					new_margin_locked = current_margin_locked + margin_lock_amount;
 
+					// If the user previously does not have any position in this market
+					// then add the market to CollateralToMarketMap
 					if position_details.size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
@@ -264,26 +320,31 @@ pub mod pallet {
 						}
 					}
 
-					let updated_position = Position {
+					updated_position = Position {
 						avg_execution_price,
 						size: new_position_size,
 						margin_amount,
 						borrowed_amount,
 						leverage: new_leverage,
 					};
-				} else { // SELL order
-					 // to do
+				} else {
+					// SELL order
+					updated_position = Position {
+						avg_execution_price: 0.into(),
+						size: 0.into(),
+						margin_amount: 0.into(),
+						borrowed_amount: 0.into(),
+						leverage: 0.into(),
+					};
 				}
 
-				let position = Position {
-					avg_execution_price,
-					size: element.size,
-					margin_amount,
-					borrowed_amount,
-					leverage: element.leverage,
-				};
+				// Update position, locked margin and portion executed
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
-				PositionsMap::<T>::set(element.user.clone(), [market_id, direction], position);
+				PositionsMap::<T>::set(
+					element.user.clone(),
+					[market_id, direction],
+					updated_position,
+				);
 				T::TradingAccountPallet::set_locked_margin(
 					element.user,
 					collateral_id,
@@ -367,6 +428,95 @@ pub mod pallet {
 					&& order.leverage <= market.currently_allowed_leverage,
 				Error::<T>::InvalidLeverage
 			);
+
+			Ok(())
+		}
+
+		fn validate_maker(
+			maker1_direction: Direction,
+			maker1_side: Side,
+			current_direction: Direction,
+			current_side: Side,
+			order_type: OrderType,
+		) -> Result<(), DispatchError> {
+			let opposite_direction = if maker1_direction == Direction::Long {
+				Direction::Short
+			} else {
+				Direction::Long
+			};
+			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
+
+			ensure!(
+				!(current_direction == maker1_direction && current_side == maker1_side),
+				Error::<T>::InvalidMaker
+			);
+			ensure!(
+				!(current_direction == opposite_direction && current_side == opposite_side),
+				Error::<T>::InvalidMaker
+			);
+			ensure!(order_type == OrderType::Limit, Error::<T>::InvalidMaker);
+
+			Ok(())
+		}
+
+		fn validate_taker(
+			maker1_direction: Direction,
+			maker1_side: Side,
+			current_direction: Direction,
+			current_side: Side,
+		) -> Result<(), DispatchError> {
+			let opposite_direction = if maker1_direction == Direction::Long {
+				Direction::Short
+			} else {
+				Direction::Long
+			};
+			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
+
+			ensure!(
+				!(current_direction == maker1_direction && current_side == opposite_side),
+				Error::<T>::InvalidMaker
+			);
+			ensure!(
+				!(current_direction == opposite_direction && current_side == maker1_side),
+				Error::<T>::InvalidMaker
+			);
+
+			Ok(())
+		}
+
+		fn validate_limit_price(
+			price: FixedI128,
+			execution_price: FixedI128,
+			direction: Direction,
+			side: Side,
+		) -> Result<(), DispatchError> {
+			if (direction == Direction::Long && side == Side::Buy)
+				|| (direction == Direction::Short && side == Side::Sell)
+			{
+				ensure!(execution_price <= price, Error::<T>::LimitPriceError);
+			} else {
+				ensure!(price <= execution_price, Error::<T>::LimitPriceError);
+			}
+
+			Ok(())
+		}
+
+		fn validate_within_slippage(
+			slippage: FixedI128,
+			oracle_price: FixedI128,
+			execution_price: FixedI128,
+			direction: Direction,
+			side: Side,
+		) -> Result<(), DispatchError> {
+			let threshold = slippage * oracle_price;
+
+			if (direction == Direction::Long && side == Side::Buy)
+				|| (direction == Direction::Short && side == Side::Sell)
+			{
+				ensure!(execution_price <= (oracle_price + threshold), Error::<T>::SlippageError);
+			} else {
+				ensure!((oracle_price - threshold) <= execution_price, Error::<T>::SlippageError);
+			}
 
 			Ok(())
 		}
