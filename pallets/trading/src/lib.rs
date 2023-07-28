@@ -146,7 +146,7 @@ pub mod pallet {
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
-			ensure!(&market.is_some(), Error::<T>::MarketNotFound);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
 			let market = market.unwrap();
 			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable);
 
@@ -158,7 +158,7 @@ pub mod pallet {
 				Error::<T>::QuantityLockedError
 			);
 
-			let taker_order = orders[orders.len() - 1].clone();
+			let taker_order = orders[orders.len() - 1];
 			let initial_taker_locked_response = Self::calculate_initial_taker_locked_size(
 				taker_order,
 				quantity_locked,
@@ -175,7 +175,7 @@ pub mod pallet {
 			let mut updated_position: Position;
 			let mut open_interest: FixedI128 = 0.into();
 
-			for element in orders.clone() {
+			for element in &orders {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
 				let mut borrowed_amount: FixedI128 = 0.into(); // To do - don't assign value
 				let mut avg_execution_price: FixedI128 = 0.into(); // To do - don't assign value
@@ -188,8 +188,7 @@ pub mod pallet {
 				let mut new_margin_locked: FixedI128 = 0.into(); // To do - don't assign value
 				let mut new_portion_executed: FixedI128 = 0.into(); // To do - don't assign value
 
-				let validation_response =
-					Self::perform_validations(element.clone(), oracle_price, market.clone());
+				let validation_response = Self::perform_validations(element, oracle_price, market);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => return Err(e),
@@ -198,19 +197,18 @@ pub mod pallet {
 				let order_portion_executed =
 					PortionExecutedMap::<T>::get(element.order_id).unwrap();
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
-				let position_details =
-					PositionsMap::<T>::get(element.user.clone(), [market_id, direction]);
+				let position_details = PositionsMap::<T>::get(element.user, [market_id, direction]);
 				let current_margin_locked =
-					T::TradingAccountPallet::get_locked_margin(element.user.clone(), collateral_id);
+					T::TradingAccountPallet::get_locked_margin(element.user, collateral_id);
 
 				// Maker Order
-				if element.order_id != orders[orders.len() - 1].clone().order_id {
+				if element.order_id != orders[orders.len() - 1].order_id {
 					let validation_response = Self::validate_maker(
-						orders[0].direction.clone(),
-						orders[0].side.clone(),
-						element.direction.clone(),
-						element.side.clone(),
-						element.order_type.clone(),
+						orders[0].direction,
+						orders[0].side,
+						element.direction,
+						element.side,
+						element.order_type,
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -222,8 +220,8 @@ pub mod pallet {
 					let maker_quantity_to_execute_response = Self::calculate_quantity_to_execute(
 						order_portion_executed,
 						market_id,
-						position_details.clone(),
-						element.clone(),
+						position_details,
+						element,
 						quantity_remaining,
 					);
 					match maker_quantity_to_execute_response {
@@ -239,10 +237,10 @@ pub mod pallet {
 				} else {
 					// Taker Order
 					let validation_response = Self::validate_taker(
-						orders[0].direction.clone(),
-						orders[0].side.clone(),
-						element.direction.clone(),
-						element.side.clone(),
+						orders[0].direction,
+						orders[0].side,
+						element.direction,
+						element.side,
 						element.post_only,
 					);
 					match validation_response {
@@ -267,8 +265,8 @@ pub mod pallet {
 						let limit_validation = Self::validate_limit_price(
 							element.price,
 							execution_price,
-							element.direction.clone(),
-							element.side.clone(),
+							element.direction,
+							element.side,
 						);
 						match limit_validation {
 							Ok(()) => (),
@@ -279,8 +277,8 @@ pub mod pallet {
 							element.slippage,
 							oracle_price,
 							execution_price,
-							element.direction.clone(),
-							element.side.clone(),
+							element.direction,
+							element.side,
 						);
 						match slippage_validation {
 							Ok(()) => (),
@@ -294,7 +292,7 @@ pub mod pallet {
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
-						element.clone(),
+						element,
 						quantity_to_execute,
 						execution_price,
 						market_id,
@@ -320,22 +318,14 @@ pub mod pallet {
 					if position_details.size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
-						let opposite_position = PositionsMap::<T>::get(
-							element.user.clone(),
-							[market_id, opposite_direction],
-						);
+						let opposite_position =
+							PositionsMap::<T>::get(element.user, [market_id, opposite_direction]);
 						if opposite_position.size == 0.into() {
-							let length = CollateralToMarketLengthMap::<T>::get(
-								element.user.clone(),
-								collateral_id,
-							);
-							CollateralToMarketMap::<T>::insert(
-								element.user.clone(),
-								length,
-								market_id,
-							);
+							let length =
+								CollateralToMarketLengthMap::<T>::get(element.user, collateral_id);
+							CollateralToMarketMap::<T>::insert(element.user, length, market_id);
 							CollateralToMarketLengthMap::<T>::insert(
-								element.user.clone(),
+								element.user,
 								collateral_id,
 								length + 1_u64,
 							);
@@ -364,11 +354,7 @@ pub mod pallet {
 
 				// Update position, locked margin and portion executed
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
-				PositionsMap::<T>::set(
-					element.user.clone(),
-					[market_id, direction],
-					updated_position,
-				);
+				PositionsMap::<T>::set(element.user, [market_id, direction], updated_position);
 				T::TradingAccountPallet::set_locked_margin(
 					element.user,
 					collateral_id,
@@ -401,14 +387,13 @@ pub mod pallet {
 			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id).unwrap();
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details =
-				PositionsMap::<T>::get(order.user.clone(), [market_id, direction]);
+			let position_details = PositionsMap::<T>::get(order.user, [market_id, direction]);
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
 				market_id,
 				position_details,
-				order,
+				&order,
 				quantity_locked,
 			);
 			match quantity_response {
@@ -421,7 +406,7 @@ pub mod pallet {
 			portion_executed: FixedI128,
 			market_id: U256,
 			position_details: Position,
-			order: Order,
+			order: &Order,
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, DispatchError> {
 			let executable_quantity = order.size - portion_executed;
@@ -439,12 +424,12 @@ pub mod pallet {
 		}
 
 		fn perform_validations(
-			order: Order,
+			order: &Order,
 			oracle_price: FixedI128,
 			market: Market,
 		) -> Result<(), DispatchError> {
 			// Validate that the user is registered
-			let is_registered = T::TradingAccountPallet::is_registered_user(order.user.clone());
+			let is_registered = T::TradingAccountPallet::is_registered_user(order.user);
 			ensure!(is_registered, Error::<T>::UserNotRegistered);
 
 			// Validate that size of order is >= min quantity for market
@@ -557,7 +542,7 @@ pub mod pallet {
 		}
 
 		fn process_open_orders(
-			order: Order,
+			order: &Order,
 			order_size: FixedI128,
 			execution_price: FixedI128,
 			market_id: U256,
@@ -572,8 +557,7 @@ pub mod pallet {
 			// To do - get fee rate and calculate fee
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details =
-				PositionsMap::<T>::get(order.user.clone(), [market_id, direction]);
+			let position_details = PositionsMap::<T>::get(order.user, [market_id, direction]);
 
 			// Calculate average execution price
 			if position_details.size == 0.into() {
@@ -597,7 +581,7 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(order.user.clone(), collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
 			ensure!(margin_order_value <= balance, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(order.user, collateral_id, margin_order_value);
 

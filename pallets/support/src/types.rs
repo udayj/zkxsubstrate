@@ -5,7 +5,9 @@ use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 
-#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
 pub struct TradingAccount {
 	pub account_id: U256,
 }
@@ -25,7 +27,7 @@ pub struct Asset {
 	pub token_decimal: u8,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Market {
 	pub id: U256,
 	pub asset: U256,
@@ -49,28 +51,28 @@ pub struct Market {
 	pub maximum_position_size: FixedI128,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Direction {
 	#[default]
 	Long,
 	Short,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Side {
 	#[default]
 	Buy,
 	Sell,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderType {
 	#[default]
 	Limit,
 	Market,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum TimeInForce {
 	#[default]
 	GTC,
@@ -78,7 +80,7 @@ pub enum TimeInForce {
 	FOK,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub user: TradingAccount,
 	pub order_id: u128,
@@ -94,7 +96,7 @@ pub struct Order {
 	pub time_in_force: TimeInForce,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
 	pub avg_execution_price: FixedI128,
 	pub size: FixedI128,
