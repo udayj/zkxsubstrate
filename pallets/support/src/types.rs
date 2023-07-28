@@ -80,7 +80,7 @@ pub enum TimeInForce {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
-	pub user: TradingAccount,
+	pub user: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub order_type: OrderType,

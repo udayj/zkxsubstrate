@@ -17,9 +17,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
-	use zkx_support::types::{
-		Direction, Market, Order, OrderType, Position, Side, TimeInForce, TradingAccount,
-	};
+	use zkx_support::types::{Direction, Market, Order, OrderType, Position, Side, TimeInForce};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
@@ -47,7 +45,7 @@ pub mod pallet {
 	pub(super) type PositionsMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		TradingAccount,
+		U256, // account_id
 		Blake2_128Concat,
 		[U256; 2],
 		Position,
@@ -59,7 +57,7 @@ pub mod pallet {
 	pub(super) type CollateralToMarketLengthMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		TradingAccount,
+		U256, // account_id
 		Blake2_128Concat,
 		U256, // collateral id
 		u64,  // number of markets
@@ -71,7 +69,7 @@ pub mod pallet {
 	pub(super) type CollateralToMarketMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		TradingAccount,
+		U256, // account_id
 		Blake2_128Concat,
 		u64,  // index
 		U256, // market id
@@ -200,7 +198,7 @@ pub mod pallet {
 				let position_details =
 					PositionsMap::<T>::get(&element.user, [market_id, direction]);
 				let current_margin_locked =
-					T::TradingAccountPallet::get_locked_margin(&element.user, collateral_id);
+					T::TradingAccountPallet::get_locked_margin(element.user, collateral_id);
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
@@ -357,7 +355,7 @@ pub mod pallet {
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
 				PositionsMap::<T>::set(&element.user, [market_id, direction], updated_position);
 				T::TradingAccountPallet::set_locked_margin(
-					&element.user,
+					element.user,
 					collateral_id,
 					new_margin_locked,
 				);
@@ -430,7 +428,7 @@ pub mod pallet {
 			market: &Market,
 		) -> Result<(), DispatchError> {
 			// Validate that the user is registered
-			let is_registered = T::TradingAccountPallet::is_registered_user(&order.user);
+			let is_registered = T::TradingAccountPallet::is_registered_user(order.user);
 			ensure!(is_registered, Error::<T>::UserNotRegistered);
 
 			// Validate that size of order is >= min quantity for market
@@ -582,9 +580,9 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(&order.user, collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
 			ensure!(margin_order_value <= balance, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(&order.user, collateral_id, margin_order_value);
+			T::TradingAccountPallet::transfer_from(order.user, collateral_id, margin_order_value);
 
 			Ok((
 				margin_amount,
