@@ -1,14 +1,14 @@
 use crate::{mock::*, Error, Event};
-use frame_support::BoundedVec;
 use frame_support::{assert_noop, assert_ok};
+use primitive_types::U256;
 use zkx_support::types::Asset;
 
-static ETH_ID: u64 = 4543560;
-static USDC_ID: u64 = 1431520323;
-static LINK_ID: u64 = 1279872587;
-static BTC_ID: u64 = 4346947;
-
 fn setup() -> (Asset, Asset, Asset, Asset) {
+	let ETH_ID: U256 = 4543560.into();
+	let USDC_ID: U256 = 1431520323.into();
+	let LINK_ID: U256 = 1279872587.into();
+	let BTC_ID: U256 = 4346947.into();
+
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: ETH_ID,
@@ -47,6 +47,7 @@ fn setup() -> (Asset, Asset, Asset, Asset) {
 #[test]
 fn it_works_for_replace_assets() {
 	new_test_ext().execute_with(|| {
+		let ETH_ID: U256 = 4543560.into();
 		let (asset1, _, _, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -66,6 +67,9 @@ fn it_works_for_replace_assets() {
 #[test]
 fn it_works_for_replace_assets_multiple_assets() {
 	new_test_ext().execute_with(|| {
+		let ETH_ID: U256 = 4543560.into();
+		let USDC_ID: U256 = 1431520323.into();
+		let LINK_ID: U256 = 1279872587.into();
 		let (asset1, asset2, asset3, asset4) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -95,6 +99,7 @@ fn it_works_for_replace_assets_multiple_assets() {
 #[should_panic(expected = "DuplicateAsset")]
 fn it_does_not_work_for_replace_assets_duplicate() {
 	new_test_ext().execute_with(|| {
+		let ETH_ID: U256 = 4543560.into();
 		let (asset1, _, _, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -116,6 +121,7 @@ fn it_does_not_work_for_replace_assets_duplicate() {
 #[should_panic(expected = "InvalidAsset")]
 fn it_does_not_work_for_replace_assets_invalid_id() {
 	new_test_ext().execute_with(|| {
+		let ETH_ID: U256 = 4543560.into();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -136,6 +142,7 @@ fn it_does_not_work_for_replace_assets_invalid_id() {
 #[should_panic(expected = "InvalidAsset")]
 fn it_does_not_work_for_replace_assets_invalid_decimal() {
 	new_test_ext().execute_with(|| {
+		let ETH_ID: U256 = 4543560.into();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.

@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-use sp_arithmetic::fixed_point::FixedI128;
 
 #[cfg(test)]
 mod mock;
@@ -18,6 +17,8 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use primitive_types::U256;
+	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
 	use zkx_support::types::{BalanceUpdate, TradingAccount};
 
@@ -52,7 +53,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		TradingAccount,
 		Blake2_128Concat,
-		u64,
+		U256,
 		FixedI128,
 		ValueQuery,
 	>;
@@ -64,7 +65,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		TradingAccount,
 		Blake2_128Concat,
-		u64,
+		U256,
 		FixedI128,
 		ValueQuery,
 	>;
@@ -149,25 +150,25 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: TradingAccount, asset_id: u64) -> FixedI128 {
+		fn get_balance(account: TradingAccount, asset_id: U256) -> FixedI128 {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
-		fn get_locked_margin(account: TradingAccount, asset_id: u64) -> FixedI128 {
+		fn get_locked_margin(account: TradingAccount, asset_id: U256) -> FixedI128 {
 			LockedMarginMap::<T>::get(account, asset_id)
 		}
 
-		fn set_locked_margin(account: TradingAccount, asset_id: u64, new_amount: FixedI128) {
+		fn set_locked_margin(account: TradingAccount, asset_id: U256, new_amount: FixedI128) {
 			LockedMarginMap::<T>::set(account, asset_id, new_amount);
 		}
 
-		fn transfer(account: TradingAccount, asset_id: u64, amount: FixedI128) {
+		fn transfer(account: TradingAccount, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.add(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn transfer_from(account: TradingAccount, asset_id: u64, amount: FixedI128) {
+		fn transfer_from(account: TradingAccount, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.sub(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);

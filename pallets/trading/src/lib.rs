@@ -10,18 +10,16 @@ pub use pallet::*;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use core::f32::consts::E;
 	use core::option::Option;
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
 	use zkx_support::types::{Direction, Market, Order, OrderType, Position, Side, TradingAccount};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
-	static LONG: u64 = 1;
-	static SHORT: u64 = 2;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub (super) trait Store)]
@@ -45,7 +43,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		TradingAccount,
 		Blake2_128Concat,
-		[u64; 2],
+		[U256; 2],
 		Position,
 		ValueQuery,
 	>;
@@ -57,8 +55,8 @@ pub mod pallet {
 		Blake2_128Concat,
 		TradingAccount,
 		Blake2_128Concat,
-		u64, // collateral id
-		u64, // number of markets
+		U256, // collateral id
+		u64,  // number of markets
 		ValueQuery,
 	>;
 
@@ -69,8 +67,8 @@ pub mod pallet {
 		Blake2_128Concat,
 		TradingAccount,
 		Blake2_128Concat,
-		u64, // index
-		u64, // market id
+		u64,  // index
+		U256, // market id
 		ValueQuery,
 	>;
 
@@ -112,12 +110,15 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			batch_id: u128,
 			quantity_locked: FixedI128,
-			market_id: u64,
+			market_id: U256,
 			oracle_price: FixedI128,
 			orders: Vec<Order>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			let sender = ensure_signed(origin)?;
+
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -125,7 +126,7 @@ pub mod pallet {
 			let market = market.unwrap();
 			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable);
 
-			let collateral_id: u64 = market.asset_collateral;
+			let collateral_id: U256 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
 			ensure!(
@@ -299,9 +300,12 @@ pub mod pallet {
 		fn calculate_initial_taker_locked_size(
 			order: Order,
 			quantity_locked: FixedI128,
-			market_id: u64,
-			collateral_id: u64,
+			market_id: U256,
+			collateral_id: U256,
 		) -> Result<FixedI128, DispatchError> {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+
 			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id).unwrap();
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
@@ -323,7 +327,7 @@ pub mod pallet {
 
 		fn calculate_quantity_to_execute(
 			portion_executed: FixedI128,
-			market_id: u64,
+			market_id: U256,
 			position_details: Position,
 			order: Order,
 			quantity_remaining: FixedI128,
@@ -371,9 +375,11 @@ pub mod pallet {
 			order: Order,
 			order_size: FixedI128,
 			execution_price: FixedI128,
-			market_id: u64,
-			collateral_id: u64,
+			market_id: U256,
+			collateral_id: U256,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), DispatchError> {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
 			let mut margin_amount: FixedI128 = 0.into();
 			let mut borrowed_amount: FixedI128 = 0.into();
 			let mut average_execution_price: FixedI128 = execution_price;
@@ -420,3 +426,4 @@ pub mod pallet {
 		}
 	}
 }
+//

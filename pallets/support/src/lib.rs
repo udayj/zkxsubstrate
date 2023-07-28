@@ -8,9 +8,9 @@ pub mod types;
 
 pub mod traits;
 
-pub fn str_to_felt(text: &str) -> u64 {
+pub fn str_to_felt(text: &str) -> u128 {
 	let a = FieldElement::from_byte_slice_be(text.as_bytes());
-	u64::try_from(a.unwrap()).unwrap()
+	u128::try_from(a.unwrap()).unwrap()
 }
 
 impl FixedI128Ext<FixedI128> for FixedI128 {
