@@ -150,31 +150,31 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: TradingAccount, asset_id: U256) -> FixedI128 {
+		fn get_balance(account: &TradingAccount, asset_id: U256) -> FixedI128 {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
-		fn get_locked_margin(account: TradingAccount, asset_id: U256) -> FixedI128 {
+		fn get_locked_margin(account: &TradingAccount, asset_id: U256) -> FixedI128 {
 			LockedMarginMap::<T>::get(account, asset_id)
 		}
 
-		fn set_locked_margin(account: TradingAccount, asset_id: U256, new_amount: FixedI128) {
+		fn set_locked_margin(account: &TradingAccount, asset_id: U256, new_amount: FixedI128) {
 			LockedMarginMap::<T>::set(account, asset_id, new_amount);
 		}
 
-		fn transfer(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+		fn transfer(account: &TradingAccount, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.add(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn transfer_from(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+		fn transfer_from(account: &TradingAccount, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.sub(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn is_registered_user(account: TradingAccount) -> bool {
+		fn is_registered_user(account: &TradingAccount) -> bool {
 			AccountPresenceMap::<T>::contains_key(&account)
 		}
 	}
