@@ -71,6 +71,14 @@ pub enum OrderType {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum TimeInForce {
+	#[default]
+	GTC,
+	IOC,
+	FOK,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub user: TradingAccount,
 	pub order_id: u128,
@@ -82,6 +90,8 @@ pub struct Order {
 	pub size: FixedI128,
 	pub leverage: FixedI128,
 	pub slippage: FixedI128,
+	pub post_only: bool,
+	pub time_in_force: TimeInForce,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]

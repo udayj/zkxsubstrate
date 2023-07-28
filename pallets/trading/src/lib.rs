@@ -17,7 +17,9 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
-	use zkx_support::types::{Direction, Market, Order, OrderType, Position, Side, TradingAccount};
+	use zkx_support::types::{
+		Direction, Market, Order, OrderType, Position, Side, TimeInForce, TradingAccount,
+	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
@@ -31,6 +33,10 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 	}
+
+	#[pallet::storage]
+	#[pallet::getter(fn batch_status)]
+	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn portion_executed)]
@@ -72,8 +78,14 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn open_interest)]
+	pub(super) type OpenInterestMap<T: Config> = StorageMap<_, Twox64Concat, U256, FixedI128>;
+
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Batch with same ID already execute
+		BatchAlreadyExecuted,
 		/// Invalid input for market
 		MarketNotFound,
 		/// Market not tradable
@@ -94,10 +106,14 @@ pub mod pallet {
 		ExecutableQuantityZero,
 		/// Maker side or direction does not match with other makers
 		InvalidMaker,
+		/// Taker side or direction is invalid wrt to makers, or taker order is post only
+		InvalidTaker,
 		/// Execution price is not valid wrt limit price
 		LimitPriceError,
 		/// Price is not within slippage limit
 		SlippageError,
+		/// FOK orders should be filled completely
+		FOKError,
 	}
 
 	#[pallet::event]
@@ -114,7 +130,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn execute_trade(
 			origin: OriginFor<T>,
-			batch_id: u128,
+			batch_id: U256,
 			quantity_locked: FixedI128,
 			market_id: U256,
 			oracle_price: FixedI128,
@@ -125,6 +141,8 @@ pub mod pallet {
 
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
+
+			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::BatchAlreadyExecuted);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -155,6 +173,7 @@ pub mod pallet {
 			let mut quantity_executed: FixedI128 = 0.into();
 			let mut total_order_volume: FixedI128 = 0.into();
 			let mut updated_position: Position;
+			let mut open_interest: FixedI128 = 0.into();
 
 			for element in orders.clone() {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -224,6 +243,7 @@ pub mod pallet {
 						orders[0].side.clone(),
 						element.direction.clone(),
 						element.side.clone(),
+						element.post_only,
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -234,8 +254,10 @@ pub mod pallet {
 					quantity_to_execute = quantity_executed;
 					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
 
-					// To do - validate taker and post only order
 					// Handle FoK order
+					if element.time_in_force == TimeInForce::FOK {
+						ensure!(quantity_to_execute == element.size, Error::<T>::FOKError);
+					}
 
 					// Calculate execution price for taker
 					execution_price = total_order_volume / quantity_to_execute;
@@ -327,6 +349,8 @@ pub mod pallet {
 						borrowed_amount,
 						leverage: new_leverage,
 					};
+
+					open_interest = open_interest + quantity_to_execute;
 				} else {
 					// SELL order
 					updated_position = Position {
@@ -352,6 +376,13 @@ pub mod pallet {
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
 			}
+
+			// Update open interest
+			let actual_open_interest = open_interest / 2.into();
+			let current_open_interest = OpenInterestMap::<T>::get(market_id).unwrap();
+			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
+
+			BatchStatusMap::<T>::insert(batch_id, true);
 
 			Ok(())
 		}
@@ -464,6 +495,7 @@ pub mod pallet {
 			maker1_side: Side,
 			current_direction: Direction,
 			current_side: Side,
+			post_only: bool,
 		) -> Result<(), DispatchError> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
@@ -474,12 +506,15 @@ pub mod pallet {
 
 			ensure!(
 				!(current_direction == maker1_direction && current_side == opposite_side),
-				Error::<T>::InvalidMaker
+				Error::<T>::InvalidTaker
 			);
 			ensure!(
 				!(current_direction == opposite_direction && current_side == maker1_side),
-				Error::<T>::InvalidMaker
+				Error::<T>::InvalidTaker
 			);
+
+			// Taker order cannot be post only order
+			ensure!(post_only == false, Error::<T>::InvalidTaker);
 
 			Ok(())
 		}
