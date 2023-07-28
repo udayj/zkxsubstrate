@@ -38,37 +38,22 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	pub type AccountMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
+	pub type AccountMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, U256, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
 	pub type AccountPresenceMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, TradingAccount, bool, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
-	pub(super) type BalancesMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		TradingAccount,
-		Blake2_128Concat,
-		U256,
-		FixedI128,
-		ValueQuery,
-	>;
+	pub(super) type BalancesMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn locked_margin)]
-	pub(super) type LockedMarginMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		TradingAccount,
-		Blake2_128Concat,
-		U256,
-		FixedI128,
-		ValueQuery,
-	>;
+	pub(super) type LockedMarginMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -87,7 +72,7 @@ pub mod pallet {
 		/// Several accounts added
 		AccountsAdded { length: u128 },
 		/// Balances for an account updated
-		BalancesUpdated { account: TradingAccount },
+		BalancesUpdated { account_id: U256 },
 	}
 
 	#[pallet::call]
@@ -104,11 +89,11 @@ pub mod pallet {
 			for element in accounts {
 				// Check if the account exists in the presence storage map
 				ensure!(
-					!AccountPresenceMap::<T>::contains_key(&element),
+					!AccountPresenceMap::<T>::contains_key(&element.account_id),
 					Error::<T>::DuplicateAccount
 				);
-				AccountPresenceMap::<T>::insert(&element, true);
-				AccountMap::<T>::insert(current_length, element);
+				AccountPresenceMap::<T>::insert(&element.account_id, true);
+				AccountMap::<T>::insert(current_length, element.account_id);
 				current_length += 1;
 			}
 
@@ -123,13 +108,16 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn add_balances(
 			origin: OriginFor<T>,
-			account: TradingAccount,
+			account_id: U256,
 			balances: Vec<BalanceUpdate>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			// Check if the account exists in the presence storage map
-			ensure!(AccountPresenceMap::<T>::contains_key(&account), Error::<T>::DuplicateAccount);
+			ensure!(
+				AccountPresenceMap::<T>::contains_key(account_id),
+				Error::<T>::DuplicateAccount
+			);
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
@@ -138,43 +126,44 @@ pub mod pallet {
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 
 				// Update the map with new balance
-				let current_balance: FixedI128 = BalancesMap::<T>::get(&account, element.asset_id);
+				let current_balance: FixedI128 =
+					BalancesMap::<T>::get(account_id, element.asset_id);
 				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
-				BalancesMap::<T>::set(&account, element.asset_id, new_balance);
+				BalancesMap::<T>::set(account_id, element.asset_id, new_balance);
 			}
 
-			Self::deposit_event(Event::BalancesUpdated { account });
+			Self::deposit_event(Event::BalancesUpdated { account_id });
 
 			Ok(())
 		}
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: TradingAccount, asset_id: U256) -> FixedI128 {
+		fn get_balance(account: U256, asset_id: U256) -> FixedI128 {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
-		fn get_locked_margin(account: TradingAccount, asset_id: U256) -> FixedI128 {
+		fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128 {
 			LockedMarginMap::<T>::get(account, asset_id)
 		}
 
-		fn set_locked_margin(account: TradingAccount, asset_id: U256, new_amount: FixedI128) {
+		fn set_locked_margin(account: U256, asset_id: U256, new_amount: FixedI128) {
 			LockedMarginMap::<T>::set(account, asset_id, new_amount);
 		}
 
-		fn transfer(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+		fn transfer(account: U256, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.add(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn transfer_from(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+		fn transfer_from(account: U256, asset_id: U256, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.sub(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn is_registered_user(account: TradingAccount) -> bool {
+		fn is_registered_user(account: U256) -> bool {
 			AccountPresenceMap::<T>::contains_key(&account)
 		}
 	}

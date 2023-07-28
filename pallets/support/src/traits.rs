@@ -3,12 +3,12 @@ use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
 pub trait TradingAccountInterface {
-	fn is_registered_user(account: TradingAccount) -> bool;
-	fn get_balance(account: TradingAccount, asset_id: U256) -> FixedI128;
-	fn get_locked_margin(account: TradingAccount, asset_id: U256) -> FixedI128;
-	fn set_locked_margin(account: TradingAccount, asset_id: U256, amount: FixedI128);
-	fn transfer(account: TradingAccount, asset_id: U256, amount: FixedI128);
-	fn transfer_from(account: TradingAccount, asset_id: U256, amount: FixedI128);
+	fn is_registered_user(account: U256) -> bool;
+	fn get_balance(account: U256, asset_id: U256) -> FixedI128;
+	fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128;
+	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
+	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
+	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
 }
 
 pub trait AssetInterface {

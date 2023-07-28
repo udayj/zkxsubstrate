@@ -3,7 +3,6 @@ use frame_support::pallet_prelude::*;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_arithmetic::per_things::Percent;
 use sp_runtime::RuntimeDebug;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
@@ -50,30 +49,38 @@ pub struct Market {
 	pub maximum_position_size: FixedI128,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Direction {
 	#[default]
 	Long,
 	Short,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Side {
 	#[default]
 	Buy,
 	Sell,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderType {
 	#[default]
 	Limit,
 	Market,
 }
 
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum TimeInForce {
+	#[default]
+	GTC,
+	IOC,
+	FOK,
+}
+
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
-	pub user: TradingAccount,
+	pub user: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub order_type: OrderType,
@@ -82,7 +89,9 @@ pub struct Order {
 	pub price: FixedI128,
 	pub size: FixedI128,
 	pub leverage: FixedI128,
-	pub slippage: Percent,
+	pub slippage: FixedI128,
+	pub post_only: bool,
+	pub time_in_force: TimeInForce,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
