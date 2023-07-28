@@ -14,12 +14,12 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use primitive_types::U256;
 	use scale_info::prelude::string::String;
 	use zkx_support::str_to_felt;
 	use zkx_support::traits::AssetInterface;
 	use zkx_support::types::Asset;
 
-	static DEFAULT_COLLATERAL_ID: u64 = 4543560;
 	static DELETION_LIMIT: u32 = 100;
 
 	#[pallet::pallet]
@@ -38,7 +38,7 @@ pub mod pallet {
 	/// Maps the Assets struct to the unique_id.
 	#[pallet::storage]
 	#[pallet::getter(fn assets)]
-	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u64, Asset>;
+	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, U256, Asset>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn default_collateral_asset)]
@@ -83,7 +83,7 @@ pub mod pallet {
 				ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
 				let name_string =
 					String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
-				let name_felt = str_to_felt(name_string.as_str());
+				let name_felt: U256 = str_to_felt(name_string.as_str()).into();
 				ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
 
 				AssetMap::<T>::insert(element.id, element.clone());
@@ -98,11 +98,11 @@ pub mod pallet {
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
-		fn get_default_collateral() -> u64 {
-			DEFAULT_COLLATERAL_ID
+		fn get_default_collateral() -> U256 {
+			4543560_u32.into()
 		}
 
-		fn get_asset(id: u64) -> Option<Asset> {
+		fn get_asset(id: U256) -> Option<Asset> {
 			let result = AssetMap::<T>::try_get(id);
 			match result {
 				Ok(result) => return Some(result),

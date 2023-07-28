@@ -34,8 +34,8 @@ async function main() {
   console.log(`Upgrading from ${adminId}, ${code.length / 2} bytes`);
 
   // Perform the actual chain upgrade via the sudo module
-  const sudo = api.tx.sudo.sudoUncheckedWeight(proposal, { weight: 1 });
-  api.tx.sudo.sudo(sudo).signAndSend(adminPair, ({ events = [], status }) => {
+  const sudo = api.tx.sudo.sudoUncheckedWeight(proposal, { weight: 0 });
+  sudo.signAndSend(adminPair, ({ events = [], status }) => {
     console.log("Proposal status:", status.type);
 
     if (status.isInBlock) {

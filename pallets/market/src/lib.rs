@@ -14,8 +14,9 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
-	use zkx_support::traits::AssetInterface;
+	use zkx_support::traits::{AssetInterface, MarketInterface};
 	use zkx_support::types::Market;
 
 	static DELETION_LIMIT: u32 = 100;
@@ -37,7 +38,7 @@ pub mod pallet {
 	/// Maps the Market struct to the unique_id.
 	#[pallet::storage]
 	#[pallet::getter(fn markets)]
-	pub(super) type MarketMap<T: Config> = StorageMap<_, Twox64Concat, u64, Market>;
+	pub(super) type MarketMap<T: Config> = StorageMap<_, Twox64Concat, U256, Market>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -83,7 +84,7 @@ pub mod pallet {
 				// Check if the market exists in the storage map
 				ensure!(!MarketMap::<T>::contains_key(element.id), Error::<T>::DuplicateMarket);
 				// Check market id is non zero
-				ensure!(element.id > 0, Error::<T>::InvalidMarketId);
+				ensure!(element.id > 0.into(), Error::<T>::InvalidMarketId);
 				// Validate is_tradable flag
 				ensure!((0..3).contains(&element.is_tradable), Error::<T>::InvalidTradableFlag);
 				// Validate asset and asset collateral
@@ -110,6 +111,16 @@ pub mod pallet {
 			Self::deposit_event(Event::MarketsCreated { length });
 
 			Ok(())
+		}
+	}
+
+	impl<T: Config> MarketInterface for Pallet<T> {
+		fn get_market(id: U256) -> Option<Market> {
+			let result = MarketMap::<T>::try_get(id);
+			match result {
+				Ok(result) => return Some(result),
+				Err(_) => return None,
+			};
 		}
 	}
 }

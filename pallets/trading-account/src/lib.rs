@@ -1,10 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
-
 
 #[cfg(test)]
 mod mock;
@@ -12,150 +8,174 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
 pub mod weights;
 pub use weights::*;
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
+	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use zkx_support::types::TradingAccount;
-	use zkx_support::traits::AssetInterface;
+	use primitive_types::U256;
+	use sp_arithmetic::fixed_point::FixedI128;
+	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
+	use zkx_support::types::{BalanceUpdate, TradingAccount};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		/// Type representing the weight of this pallet
 		type WeightInfo: WeightInfo;
 		type Asset: AssetInterface;
 	}
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/main-docs/build/runtime-storage/
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/main-docs/build/runtime-storage/#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn accounts_count)]
+	pub(super) type AccountsCount<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	pub type Accounts<T: Config> = StorageMap<
-	_,
-	Blake2_128Concat,
-		[u8;32],
-		TradingAccount,
-		OptionQuery>;
+	pub type AccountMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn account_presence)]
+	pub type AccountPresenceMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, TradingAccount, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
-	pub(super) type Balances<T: Config> = StorageDoubleMap<
+	pub(super) type BalancesMap<T: Config> = StorageDoubleMap<
 		_,
-		Blake2_128Concat, [u8;32],
-		Blake2_128Concat, [u8;32],
-		sp_arithmetic::FixedI128,
-		ValueQuery
+		Blake2_128Concat,
+		TradingAccount,
+		Blake2_128Concat,
+		U256,
+		FixedI128,
+		ValueQuery,
 	>;
 
-	// Pallets use events to inform users when important changes are made.
-	// https://docs.substrate.io/main-docs/build/events-errors/
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored { something: u32, who: T::AccountId },
-		AccountAdded { account_id: [u8; 32]},
-		DefaultCollateral { id: u64 },
-	}
+	#[pallet::storage]
+	#[pallet::getter(fn locked_margin)]
+	pub(super) type LockedMarginMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		TradingAccount,
+		Blake2_128Concat,
+		U256,
+		FixedI128,
+		ValueQuery,
+	>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
+		/// Account already exists
+		DuplicateAccount,
+		/// Asset not created
+		AssetNotFound,
+		/// Asset provided as collateral is not marked as collateral in the system
+		AssetNotCollateral,
 	}
 
-	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-	// These functions materialize as "extrinsics", which are often compared to transactions.
-	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		/// Several accounts added
+		AccountsAdded { length: u128 },
+		/// Balances for an account updated
+		BalancesUpdated { account: TradingAccount },
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::do_something())]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/main-docs/build/origins/
-			let who = ensure_signed(origin)?;
+		/// Add several accounts together
+		#[pallet::weight(0)]
+		pub fn add_accounts(origin: OriginFor<T>, accounts: Vec<TradingAccount>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
-			// Update storage.
-			<Something<T>>::put(something);
+			let length: u128 = u128::try_from(accounts.len()).unwrap();
+			let mut current_length = AccountsCount::<T>::get();
+			let final_length: u128 = length + current_length;
 
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored { something, who });
-			// Return a successful DispatchResultWithPostInfo
-			Ok(())
-		}
-
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::call_index(1)]
-		#[pallet::weight(T::WeightInfo::cause_error())]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
-
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => return Err(Error::<T>::NoneValue.into()),
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
+			for element in accounts {
+				// Check if the account exists in the presence storage map
+				ensure!(
+					!AccountPresenceMap::<T>::contains_key(&element),
+					Error::<T>::DuplicateAccount
+				);
+				AccountPresenceMap::<T>::insert(&element, true);
+				AccountMap::<T>::insert(current_length, element);
+				current_length += 1;
 			}
-		}
 
-		#[pallet::call_index(2)]
-		#[pallet::weight(T::WeightInfo::do_something())]
-		pub fn record_account(origin: OriginFor<T>, trading_account: TradingAccount,) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+			AccountsCount::<T>::put(final_length);
 
-			<Accounts<T>>::insert(trading_account.account_id, trading_account.clone());
-			let default_collateral = T::Asset::get_default_collateral();
-
-			Self::deposit_event(Event::DefaultCollateral { id: default_collateral });
-
-			Self::deposit_event(Event::AccountAdded { account_id: trading_account.account_id });
+			Self::deposit_event(Event::AccountsAdded { length });
 
 			Ok(())
-			// Read a value from storage.
-/*			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => return Err(Error::<T>::NoneValue.into()),
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
-			}*/
+		}
+
+		/// Add balances for a particular user
+		#[pallet::weight(0)]
+		pub fn add_balances(
+			origin: OriginFor<T>,
+			account: TradingAccount,
+			balances: Vec<BalanceUpdate>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			// Check if the account exists in the presence storage map
+			ensure!(AccountPresenceMap::<T>::contains_key(&account), Error::<T>::DuplicateAccount);
+
+			for element in balances {
+				// Validate that the asset exists and it is a collateral
+				let asset_collateral = T::Asset::get_asset(element.asset_id);
+				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+
+				// Update the map with new balance
+				let current_balance: FixedI128 = BalancesMap::<T>::get(&account, element.asset_id);
+				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
+				BalancesMap::<T>::set(&account, element.asset_id, new_balance);
+			}
+
+			Self::deposit_event(Event::BalancesUpdated { account });
+
+			Ok(())
+		}
+	}
+
+	impl<T: Config> TradingAccountInterface for Pallet<T> {
+		fn get_balance(account: TradingAccount, asset_id: U256) -> FixedI128 {
+			BalancesMap::<T>::get(account, asset_id)
+		}
+
+		fn get_locked_margin(account: TradingAccount, asset_id: U256) -> FixedI128 {
+			LockedMarginMap::<T>::get(account, asset_id)
+		}
+
+		fn set_locked_margin(account: TradingAccount, asset_id: U256, new_amount: FixedI128) {
+			LockedMarginMap::<T>::set(account, asset_id, new_amount);
+		}
+
+		fn transfer(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+			let new_balance = current_balance.add(amount);
+			BalancesMap::<T>::set(account, asset_id, new_balance);
+		}
+
+		fn transfer_from(account: TradingAccount, asset_id: U256, amount: FixedI128) {
+			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+			let new_balance = current_balance.sub(amount);
+			BalancesMap::<T>::set(account, asset_id, new_balance);
+		}
+
+		fn is_registered_user(account: TradingAccount) -> bool {
+			AccountPresenceMap::<T>::contains_key(&account)
 		}
 	}
 }
