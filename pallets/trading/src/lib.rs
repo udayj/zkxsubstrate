@@ -112,6 +112,8 @@ pub mod pallet {
 		SlippageError,
 		/// FOK orders should be filled completely
 		FOKError,
+		/// Not enough margin to cover losses - short limit sell or long limit sell
+		NotEnoughMargin,
 	}
 
 	#[pallet::event]
@@ -342,13 +344,88 @@ pub mod pallet {
 					open_interest = open_interest + quantity_to_execute;
 				} else {
 					// SELL order
-					updated_position = Position {
-						avg_execution_price: 0.into(),
-						size: 0.into(),
-						margin_amount: 0.into(),
-						borrowed_amount: 0.into(),
-						leverage: 0.into(),
-					};
+					let response = Self::process_close_orders(
+						element,
+						quantity_to_execute,
+						execution_price,
+						market_id,
+						collateral_id,
+					);
+					match response {
+						Ok((margin, borrowed, average_execution, balance, margin_lock)) => {
+							margin_amount = margin;
+							borrowed_amount = borrowed;
+							avg_execution_price = average_execution;
+							user_available_balance = balance;
+							margin_lock_amount = margin_lock;
+						},
+						Err(e) => return Err(e),
+					}
+
+					new_position_size = position_details.size - quantity_to_execute;
+
+					// To do - handle liquidation/deleveraging order
+
+					new_leverage = position_details.leverage;
+					new_margin_locked = current_margin_locked - margin_lock_amount;
+
+					// To do - handle the case when liquidatable position is present
+					// if amount to be sold is 0, do nothing
+					// else check whether current market and direction is liquidatable position and update
+
+					// If the user does not have any position in this market
+					// hen remove the market from CollateralToMarketMap
+					if new_position_size == 0.into() {
+						let opposite_direction =
+							if element.direction == Direction::Long { SHORT } else { LONG };
+						let opposite_position =
+							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
+						if opposite_position.size == 0.into() {
+							let length =
+								CollateralToMarketLengthMap::<T>::get(&element.user, collateral_id);
+							CollateralToMarketMap::<T>::remove(&element.user, length);
+							CollateralToMarketLengthMap::<T>::insert(
+								&element.user,
+								collateral_id,
+								length - 1_u64,
+							);
+						}
+						updated_position = Position {
+							avg_execution_price: 0.into(),
+							size: 0.into(),
+							margin_amount: 0.into(),
+							borrowed_amount: 0.into(),
+							leverage: 0.into(),
+						};
+					} else {
+						// To do - Calculate pnl
+
+						updated_position = Position {
+							avg_execution_price,
+							size: new_position_size,
+							margin_amount,
+							borrowed_amount,
+							leverage: new_leverage,
+						};
+					}
+
+					let is_final: bool;
+					if element.time_in_force == TimeInForce::IOC {
+						new_portion_executed = element.size;
+						is_final = true;
+					} else {
+						if new_portion_executed == element.size {
+							is_final = true;
+						} else {
+							if new_position_size == 0.into() {
+								is_final = true;
+							} else {
+								is_final = false;
+							}
+						}
+					}
+
+					open_interest = open_interest - quantity_to_execute;
 				}
 
 				// Update position, locked margin and portion executed
@@ -417,8 +494,12 @@ pub mod pallet {
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
 			} else {
-				// To Do - handle SELL case
-				Ok(quantity_to_execute) // This is just a placeholder
+				// To Do - handle Liquidation/Deleveraging scenario
+
+				let quantity_to_execute = quantity_to_execute - position_details.size;
+				ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
+
+				Ok(quantity_to_execute)
 			}
 		}
 
@@ -590,6 +671,127 @@ pub mod pallet {
 				average_execution_price,
 				balance,
 				margin_order_value,
+			))
+		}
+
+		fn process_close_orders(
+			order: &Order,
+			order_size: FixedI128,
+			execution_price: FixedI128,
+			market_id: U256,
+			collateral_id: U256,
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), DispatchError> {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+			let actual_execution_price: FixedI128;
+			let price_diff: FixedI128;
+
+			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
+			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+
+			if order.direction == Direction::Long {
+				actual_execution_price = execution_price;
+				price_diff = execution_price - position_details.avg_execution_price;
+			} else {
+				price_diff = position_details.avg_execution_price - execution_price;
+				actual_execution_price = position_details.avg_execution_price + price_diff;
+			}
+
+			// Total value of asset at current price
+			let leveraged_order_value = order_size * actual_execution_price;
+
+			// Calculate amount that needs to be returned to liquidity fund
+			let ratio_of_position = order_size / position_details.size;
+			let borrowed_amount_to_return = position_details.borrowed_amount * ratio_of_position;
+			let margin_amount_to_reduce = position_details.margin_amount * ratio_of_position;
+
+			// Calculate pnl
+			let pnl = order_size * price_diff;
+			let margin_plus_pnl = margin_amount_to_reduce + pnl;
+
+			// To do - handle deleveraging order
+
+			let borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
+			let margin_amount = position_details.margin_amount - margin_amount_to_reduce;
+
+			// To do - deduct fund from holding contract
+			// To do - deposit fund to liquidity fund if position is leveraged
+
+			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
+
+			// Check if user is under water, ie,
+			// user has lost some borrowed funds
+			if margin_plus_pnl.is_negative() {
+				let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
+
+				// Check if user's balance can cover the deficit
+				if amount_to_transfer_from > balance {
+					if order.order_type == OrderType::Limit {
+						ensure!(false, Error::<T>::NotEnoughMargin);
+					}
+
+					if balance.is_negative() {
+						// To do - withdraw amount_to_transfer_from from insurance fund
+					} else {
+						// To do - withdraw (amount_to_transfer_from - balance) from insurance fund
+					}
+				}
+
+				// If user's position value has become negative
+				// it's a deficit for holding contract
+				if leveraged_order_value.is_negative() {
+					// To do - deposit abs(leveraged_order_value) to holding
+				}
+
+				// Deduct under water amount (if any) + margin amt to reduce from user
+				T::TradingAccountPallet::transfer_from(
+					order.user,
+					collateral_id,
+					amount_to_transfer_from + margin_amount_to_reduce,
+				);
+			// To do - calculate realized pnl
+			} else {
+				// User is not under water
+				// User is in loss
+				if pnl.is_negative() {
+					// Loss cannot be covered by the user
+					if pnl.saturating_abs() > balance {
+						// If balance is negative, deduct whole loss from insurance fund
+						if balance.is_negative() {
+							// To do - deduct abs(pnl) from insurance fund
+						} else {
+							// To do - deduct (abs(pnl) - balance) from insurance fund
+						}
+					}
+
+					// Deduct required funds from user
+					T::TradingAccountPallet::transfer_from(
+						order.user,
+						collateral_id,
+						pnl.saturating_abs(),
+					);
+				} else {
+					// User is in profit
+					// Transfer the profit to user
+					T::TradingAccountPallet::transfer(order.user, collateral_id, pnl);
+				}
+
+				// To do - Handle liquidation and deleveraging orders
+
+				// Deduct  proportionate margin amount from user
+				T::TradingAccountPallet::transfer_from(
+					order.user,
+					collateral_id,
+					margin_amount_to_reduce,
+				);
+			}
+
+			Ok((
+				margin_amount,
+				borrowed_amount,
+				position_details.avg_execution_price,
+				balance,
+				margin_amount_to_reduce,
 			))
 		}
 	}
