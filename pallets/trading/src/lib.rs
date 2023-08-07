@@ -12,7 +12,7 @@ pub use pallet::*;
 pub mod pallet {
 	use core::option::Option;
 	use frame_support::inherent::Vec;
-	use frame_support::pallet_prelude::*;
+	use frame_support::pallet_prelude::{ValueQuery, *};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
@@ -34,11 +34,12 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn batch_status)]
-	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool>;
+	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn portion_executed)]
-	pub(super) type PortionExecutedMap<T: Config> = StorageMap<_, Twox64Concat, u128, FixedI128>;
+	pub(super) type PortionExecutedMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
@@ -78,7 +79,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
-	pub(super) type OpenInterestMap<T: Config> = StorageMap<_, Twox64Concat, U256, FixedI128>;
+	pub(super) type OpenInterestMap<T: Config> =
+		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -194,8 +196,7 @@ pub mod pallet {
 					Err(e) => return Err(e),
 				}
 
-				let order_portion_executed =
-					PortionExecutedMap::<T>::get(element.order_id).unwrap();
+				let order_portion_executed = PortionExecutedMap::<T>::get(element.order_id);
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
 				let position_details =
 					PositionsMap::<T>::get(&element.user, [market_id, direction]);
@@ -441,7 +442,7 @@ pub mod pallet {
 
 			// Update open interest
 			let actual_open_interest = open_interest / 2.into();
-			let current_open_interest = OpenInterestMap::<T>::get(market_id).unwrap();
+			let current_open_interest = OpenInterestMap::<T>::get(market_id);
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
 			BatchStatusMap::<T>::insert(batch_id, true);
@@ -460,7 +461,7 @@ pub mod pallet {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 
-			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id).unwrap();
+			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id);
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
 			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
