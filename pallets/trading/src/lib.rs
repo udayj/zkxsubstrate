@@ -544,11 +544,11 @@ pub mod pallet {
 			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
 
 			ensure!(
-				!(current_direction == maker1_direction && current_side == maker1_side),
+				(current_direction == maker1_direction && current_side == maker1_side),
 				Error::<T>::InvalidMaker
 			);
 			ensure!(
-				!(current_direction == opposite_direction && current_side == opposite_side),
+				(current_direction == opposite_direction && current_side == opposite_side),
 				Error::<T>::InvalidMaker
 			);
 			ensure!(order_type == OrderType::Limit, Error::<T>::InvalidMaker);
@@ -571,11 +571,11 @@ pub mod pallet {
 			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
 
 			ensure!(
-				!(current_direction == maker1_direction && current_side == opposite_side),
+				(current_direction == maker1_direction && current_side == opposite_side),
 				Error::<T>::InvalidTaker
 			);
 			ensure!(
-				!(current_direction == opposite_direction && current_side == maker1_side),
+				(current_direction == opposite_direction && current_side == maker1_side),
 				Error::<T>::InvalidTaker
 			);
 
