@@ -102,3 +102,9 @@ pub struct Position {
 	pub borrowed_amount: FixedI128,
 	pub leverage: FixedI128,
 }
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct EventList {
+	pub order_id: u128,
+	pub error_code: u16,
+}

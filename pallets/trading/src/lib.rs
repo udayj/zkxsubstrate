@@ -17,7 +17,9 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
-	use zkx_support::types::{Direction, Market, Order, OrderType, Position, Side, TimeInForce};
+	use zkx_support::types::{
+		Direction, EventList, Market, Order, OrderType, Position, Side, TimeInForce,
+	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
@@ -102,14 +104,24 @@ pub mod pallet {
 		MarketMismatch,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		InvalidLeverage,
-		/// Quantity to execute is 0 since order is completely executed
-		ExecutableQuantityZero,
+		/// Maker order skipped since quantity_executed = quantity_locked for the batch
+		ExecutableQuantityZeroA,
+		/// Order is fully executed
+		ExecutableQuantityZeroB,
+		/// Order is trying to close an empty position
+		ExecutableQuantityZeroC,
 		/// Maker side or direction does not match with other makers
-		InvalidMaker,
-		/// Taker side or direction is invalid wrt to makers, or taker order is post only
-		InvalidTaker,
-		/// Execution price is not valid wrt limit price
-		LimitPriceError,
+		InvalidMakerDirectionSide,
+		/// Maker order can only be limit order
+		InvalidMakerOrderType,
+		/// Taker side or direction is invalid wrt to makers
+		InvalidTakerDirectionSide,
+		/// Taker order is post only
+		InvalidTakerPostOnly,
+		/// Execution price is not valid wrt limit price for long sell or short buy
+		LimitPriceErrorLongSell,
+		/// Execution price is not valid wrt limit price for long buy or short sell
+		LimitPriceErrorLongBuy,
 		/// Price is not within slippage limit
 		SlippageError,
 		/// FOK orders should be filled completely
@@ -122,7 +134,9 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Trade executed successfully
-		TradeExecuted { id: u64 },
+		TradeExecuted { batch_id: u64 },
+		/// Order error
+		OrderError { order_id: u128, error_code: u16 },
 	}
 
 	// Pallet callable functions
@@ -169,13 +183,17 @@ pub mod pallet {
 			);
 			match initial_taker_locked_response {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
-				Err(e) => return Err(e),
+				Err(e) => match e {
+					_ => return Err(DispatchError::Other("ExecutableQuantityZero")), // Double check this
+				},
 			}
 
 			let mut quantity_executed: FixedI128 = 0.into();
 			let mut total_order_volume: FixedI128 = 0.into();
 			let mut updated_position: Position;
 			let mut open_interest: FixedI128 = 0.into();
+
+			let mut error_events: Vec<EventList> = Vec::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -193,7 +211,29 @@ pub mod pallet {
 				let validation_response = Self::perform_validations(element, oracle_price, &market);
 				match validation_response {
 					Ok(()) => (),
-					Err(e) => return Err(e),
+					Err(e) => match e {
+						Error::<T>::UserNotRegistered => {
+							error_events
+								.push(EventList { order_id: element.order_id, error_code: 510 });
+							continue;
+						},
+						Error::<T>::SizeTooSmall => {
+							error_events
+								.push(EventList { order_id: element.order_id, error_code: 505 });
+							continue;
+						},
+						Error::<T>::MarketMismatch => {
+							error_events
+								.push(EventList { order_id: element.order_id, error_code: 504 });
+							continue;
+						},
+						Error::<T>::InvalidLeverage => {
+							error_events
+								.push(EventList { order_id: element.order_id, error_code: 502 });
+							continue;
+						},
+						_ => (),
+					},
 				}
 
 				let order_portion_executed = PortionExecutedMap::<T>::get(element.order_id);
@@ -214,7 +254,23 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => return Err(e),
+						Err(e) => match e {
+							Error::<T>::InvalidMakerDirectionSide => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 512,
+								});
+								continue;
+							},
+							Error::<T>::InvalidMakerOrderType => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 518,
+								});
+								continue;
+							},
+							_ => (),
+						},
 					}
 					// Calculate quantity left to be executed
 					let quantity_remaining = initial_taker_locked_quantity - quantity_executed;
@@ -228,7 +284,30 @@ pub mod pallet {
 					);
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
-						Err(e) => return Err(e),
+						Err(e) => match e {
+							Error::<T>::ExecutableQuantityZeroA => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 533,
+								});
+								continue;
+							},
+							Error::<T>::ExecutableQuantityZeroB => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 523,
+								});
+								continue;
+							},
+							Error::<T>::ExecutableQuantityZeroC => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 524,
+								});
+								continue;
+							},
+							_ => (),
+						},
 					}
 
 					// For a maker execution price will always be the price in its order object
@@ -247,12 +326,28 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => return Err(e),
+						Err(e) => match e {
+							Error::<T>::InvalidTakerDirectionSide => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 511,
+								});
+								continue;
+							},
+							Error::<T>::InvalidTakerPostOnly => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 515,
+								});
+								continue;
+							},
+							_ => (),
+						},
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
-					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
+					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroA);
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
@@ -272,7 +367,23 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => return Err(e),
+							Err(e) => match e {
+								Error::<T>::LimitPriceErrorLongSell => {
+									error_events.push(EventList {
+										order_id: element.order_id,
+										error_code: 507,
+									});
+									continue;
+								},
+								Error::<T>::LimitPriceErrorLongBuy => {
+									error_events.push(EventList {
+										order_id: element.order_id,
+										error_code: 508,
+									});
+									continue;
+								},
+								_ => (),
+							},
 						}
 					} else {
 						let slippage_validation = Self::validate_within_slippage(
@@ -284,7 +395,16 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => return Err(e),
+							Err(e) => match e {
+								Error::<T>::SlippageError => {
+									error_events.push(EventList {
+										order_id: element.order_id,
+										error_code: 506,
+									});
+									continue;
+								},
+								_ => (),
+							},
 						}
 					}
 				}
@@ -308,7 +428,16 @@ pub mod pallet {
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 						},
-						Err(e) => return Err(e),
+						Err(e) => match e {
+							Error::<T>::InsufficientBalance => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 501,
+								});
+								continue;
+							},
+							_ => (),
+						},
 					}
 
 					new_position_size = quantity_to_execute + position_details.size;
@@ -360,7 +489,16 @@ pub mod pallet {
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 						},
-						Err(e) => return Err(e),
+						Err(e) => match e {
+							Error::<T>::NotEnoughMargin => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: 532,
+								});
+								continue;
+							},
+							_ => (),
+						},
 					}
 
 					new_position_size = position_details.size - quantity_to_execute;
@@ -438,6 +576,13 @@ pub mod pallet {
 					new_margin_locked,
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
+
+				for element in &error_events {
+					Self::deposit_event(Event::OrderError {
+						order_id: element.order_id,
+						error_code: element.error_code,
+					});
+				}
 			}
 
 			// Update open interest
@@ -457,7 +602,7 @@ pub mod pallet {
 			quantity_locked: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-		) -> Result<FixedI128, DispatchError> {
+		) -> Result<FixedI128, Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 
@@ -485,12 +630,12 @@ pub mod pallet {
 			position_details: &Position,
 			order: &Order,
 			quantity_remaining: FixedI128,
-		) -> Result<FixedI128, DispatchError> {
+		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > 0.into(), Error::<T>::ExecutableQuantityZero); // Modify code with tick/step size
+			ensure!(executable_quantity > 0.into(), Error::<T>::ExecutableQuantityZeroA); // Modify code with tick/step size
 
 			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
+			ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroB);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
@@ -498,7 +643,7 @@ pub mod pallet {
 				// To Do - handle Liquidation/Deleveraging scenario
 
 				let quantity_to_execute = quantity_to_execute - position_details.size;
-				ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZero);
+				ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroC);
 
 				Ok(quantity_to_execute)
 			}
@@ -508,7 +653,7 @@ pub mod pallet {
 			order: &Order,
 			oracle_price: FixedI128,
 			market: &Market,
-		) -> Result<(), DispatchError> {
+		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.user);
 			ensure!(is_registered, Error::<T>::UserNotRegistered);
@@ -535,7 +680,7 @@ pub mod pallet {
 			current_direction: Direction,
 			current_side: Side,
 			order_type: OrderType,
-		) -> Result<(), DispatchError> {
+		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
 			} else {
@@ -546,10 +691,10 @@ pub mod pallet {
 			ensure!(
 				(current_direction == maker1_direction && current_side == maker1_side)
 					|| (current_direction == opposite_direction && current_side == opposite_side),
-				Error::<T>::InvalidMaker
+				Error::<T>::InvalidMakerDirectionSide
 			);
 
-			ensure!(order_type == OrderType::Limit, Error::<T>::InvalidMaker);
+			ensure!(order_type == OrderType::Limit, Error::<T>::InvalidMakerOrderType);
 
 			Ok(())
 		}
@@ -560,7 +705,7 @@ pub mod pallet {
 			current_direction: Direction,
 			current_side: Side,
 			post_only: bool,
-		) -> Result<(), DispatchError> {
+		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
 			} else {
@@ -571,11 +716,11 @@ pub mod pallet {
 			ensure!(
 				(current_direction == maker1_direction && current_side == opposite_side)
 					|| (current_direction == opposite_direction && current_side == maker1_side),
-				Error::<T>::InvalidTaker
+				Error::<T>::InvalidTakerDirectionSide
 			);
 
 			// Taker order cannot be post only order
-			ensure!(post_only == false, Error::<T>::InvalidTaker);
+			ensure!(post_only == false, Error::<T>::InvalidTakerPostOnly);
 
 			Ok(())
 		}
@@ -585,13 +730,13 @@ pub mod pallet {
 			execution_price: FixedI128,
 			direction: Direction,
 			side: Side,
-		) -> Result<(), DispatchError> {
+		) -> Result<(), Error<T>> {
 			if (direction == Direction::Long && side == Side::Buy)
 				|| (direction == Direction::Short && side == Side::Sell)
 			{
-				ensure!(execution_price <= price, Error::<T>::LimitPriceError);
+				ensure!(execution_price <= price, Error::<T>::LimitPriceErrorLongBuy);
 			} else {
-				ensure!(price <= execution_price, Error::<T>::LimitPriceError);
+				ensure!(price <= execution_price, Error::<T>::LimitPriceErrorLongSell);
 			}
 
 			Ok(())
@@ -603,7 +748,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			direction: Direction,
 			side: Side,
-		) -> Result<(), DispatchError> {
+		) -> Result<(), Error<T>> {
 			let threshold = slippage * oracle_price;
 
 			if (direction == Direction::Long && side == Side::Buy)
@@ -623,7 +768,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), DispatchError> {
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let mut margin_amount: FixedI128 = 0.into();
@@ -676,7 +821,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), DispatchError> {
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let actual_execution_price: FixedI128;
