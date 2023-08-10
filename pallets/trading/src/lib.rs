@@ -105,11 +105,11 @@ pub mod pallet {
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		InvalidLeverage,
 		/// Maker order skipped since quantity_executed = quantity_locked for the batch
-		ExecutableQuantityZeroA,
+		MakerOrderSkipped,
 		/// Order is fully executed
-		ExecutableQuantityZeroB,
+		OrderFullyExecuted,
 		/// Order is trying to close an empty position
-		ExecutableQuantityZeroC,
+		ClosingEmptyPosition,
 		/// Maker side or direction does not match with other makers
 		InvalidMakerDirectionSide,
 		/// Maker order can only be limit order
@@ -211,28 +211,12 @@ pub mod pallet {
 				let validation_response = Self::perform_validations(element, oracle_price, &market);
 				match validation_response {
 					Ok(()) => (),
-					Err(e) => match e {
-						Error::<T>::UserNotRegistered => {
-							error_events
-								.push(EventList { order_id: element.order_id, error_code: 510 });
-							continue;
-						},
-						Error::<T>::SizeTooSmall => {
-							error_events
-								.push(EventList { order_id: element.order_id, error_code: 505 });
-							continue;
-						},
-						Error::<T>::MarketMismatch => {
-							error_events
-								.push(EventList { order_id: element.order_id, error_code: 504 });
-							continue;
-						},
-						Error::<T>::InvalidLeverage => {
-							error_events
-								.push(EventList { order_id: element.order_id, error_code: 502 });
-							continue;
-						},
-						_ => (),
+					Err(e) => {
+						error_events.push(EventList {
+							order_id: element.order_id,
+							error_code: Self::get_error_code(e),
+						});
+						continue;
 					},
 				}
 
@@ -254,22 +238,12 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => match e {
-							Error::<T>::InvalidMakerDirectionSide => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 512,
-								});
-								continue;
-							},
-							Error::<T>::InvalidMakerOrderType => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 518,
-								});
-								continue;
-							},
-							_ => (),
+						Err(e) => {
+							error_events.push(EventList {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
 						},
 					}
 					// Calculate quantity left to be executed
@@ -284,29 +258,12 @@ pub mod pallet {
 					);
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
-						Err(e) => match e {
-							Error::<T>::ExecutableQuantityZeroA => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 533,
-								});
-								continue;
-							},
-							Error::<T>::ExecutableQuantityZeroB => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 523,
-								});
-								continue;
-							},
-							Error::<T>::ExecutableQuantityZeroC => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 524,
-								});
-								continue;
-							},
-							_ => (),
+						Err(e) => {
+							error_events.push(EventList {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
 						},
 					}
 
@@ -326,28 +283,18 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => match e {
-							Error::<T>::InvalidTakerDirectionSide => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 511,
-								});
-								continue;
-							},
-							Error::<T>::InvalidTakerPostOnly => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 515,
-								});
-								continue;
-							},
-							_ => (),
+						Err(e) => {
+							error_events.push(EventList {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
 						},
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
-					ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroA);
+					ensure!(quantity_to_execute > 0.into(), Error::<T>::MakerOrderSkipped);
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
@@ -367,22 +314,12 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => match e {
-								Error::<T>::LimitPriceErrorLongSell => {
-									error_events.push(EventList {
-										order_id: element.order_id,
-										error_code: 507,
-									});
-									continue;
-								},
-								Error::<T>::LimitPriceErrorLongBuy => {
-									error_events.push(EventList {
-										order_id: element.order_id,
-										error_code: 508,
-									});
-									continue;
-								},
-								_ => (),
+							Err(e) => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
+								continue;
 							},
 						}
 					} else {
@@ -395,15 +332,12 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => match e {
-								Error::<T>::SlippageError => {
-									error_events.push(EventList {
-										order_id: element.order_id,
-										error_code: 506,
-									});
-									continue;
-								},
-								_ => (),
+							Err(e) => {
+								error_events.push(EventList {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
+								continue;
 							},
 						}
 					}
@@ -428,15 +362,12 @@ pub mod pallet {
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 						},
-						Err(e) => match e {
-							Error::<T>::InsufficientBalance => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 501,
-								});
-								continue;
-							},
-							_ => (),
+						Err(e) => {
+							error_events.push(EventList {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
 						},
 					}
 
@@ -489,15 +420,12 @@ pub mod pallet {
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 						},
-						Err(e) => match e {
-							Error::<T>::NotEnoughMargin => {
-								error_events.push(EventList {
-									order_id: element.order_id,
-									error_code: 532,
-								});
-								continue;
-							},
-							_ => (),
+						Err(e) => {
+							error_events.push(EventList {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
 						},
 					}
 
@@ -576,13 +504,6 @@ pub mod pallet {
 					new_margin_locked,
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
-
-				for element in &error_events {
-					Self::deposit_event(Event::OrderError {
-						order_id: element.order_id,
-						error_code: element.error_code,
-					});
-				}
 			}
 
 			// Update open interest
@@ -591,6 +512,13 @@ pub mod pallet {
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
 			BatchStatusMap::<T>::insert(batch_id, true);
+
+			for element in &error_events {
+				Self::deposit_event(Event::OrderError {
+					order_id: element.order_id,
+					error_code: element.error_code,
+				});
+			}
 
 			Ok(())
 		}
@@ -632,10 +560,10 @@ pub mod pallet {
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > 0.into(), Error::<T>::ExecutableQuantityZeroA); // Modify code with tick/step size
+			ensure!(executable_quantity > 0.into(), Error::<T>::MakerOrderSkipped); // Modify code with tick/step size
 
 			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroB);
+			ensure!(quantity_to_execute > 0.into(), Error::<T>::OrderFullyExecuted);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
@@ -643,7 +571,7 @@ pub mod pallet {
 				// To Do - handle Liquidation/Deleveraging scenario
 
 				let quantity_to_execute = quantity_to_execute - position_details.size;
-				ensure!(quantity_to_execute > 0.into(), Error::<T>::ExecutableQuantityZeroC);
+				ensure!(quantity_to_execute > 0.into(), Error::<T>::ClosingEmptyPosition);
 
 				Ok(quantity_to_execute)
 			}
@@ -934,6 +862,28 @@ pub mod pallet {
 				balance,
 				margin_amount_to_reduce,
 			))
+		}
+
+		fn get_error_code(error: Error<T>) -> u16 {
+			match error {
+				Error::<T>::InsufficientBalance => 501,
+				Error::<T>::InvalidLeverage => 502,
+				Error::<T>::MarketMismatch => 504,
+				Error::<T>::SizeTooSmall => 505,
+				Error::<T>::SlippageError => 506,
+				Error::<T>::LimitPriceErrorLongSell => 507,
+				Error::<T>::LimitPriceErrorLongBuy => 508,
+				Error::<T>::UserNotRegistered => 510,
+				Error::<T>::InvalidTakerDirectionSide => 511,
+				Error::<T>::InvalidMakerDirectionSide => 512,
+				Error::<T>::InvalidTakerPostOnly => 515,
+				Error::<T>::InvalidMakerOrderType => 518,
+				Error::<T>::OrderFullyExecuted => 523,
+				Error::<T>::ClosingEmptyPosition => 524,
+				Error::<T>::NotEnoughMargin => 532,
+				Error::<T>::MakerOrderSkipped => 533,
+				_ => 500,
+			}
 		}
 	}
 }
