@@ -8865,6 +8865,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "trading-fees"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-asset",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic 16.0.0",
+ "zkx-support",
+]
+
+[[package]]
 name = "trie-db"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
