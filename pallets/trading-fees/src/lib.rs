@@ -6,6 +6,8 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
+	use sp_arithmetic::fixed_point::FixedI128;
+	use zkx_support::traits::TradingFeesInterface;
 	use zkx_support::types::{BaseFee, Discount};
 
 	#[pallet::pallet]
@@ -49,8 +51,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// fee and discount details updated
-		FeeAndDiscountUpdated { tier: u8, fee_details: BaseFee, discount_details: Discount },
+		/// Base fee and discount details updated
+		BaseFeeAndDiscountUpdated { tier: u8, fee_details: BaseFee, discount_details: Discount },
 	}
 
 	// Pallet callable functions
@@ -141,13 +143,83 @@ pub mod pallet {
 			}
 
 			// Emit event
-			Self::deposit_event(Event::FeeAndDiscountUpdated {
+			Self::deposit_event(Event::BaseFeeAndDiscountUpdated {
 				tier,
 				fee_details,
 				discount_details,
 			});
 
 			Ok(())
+		}
+	}
+
+	impl<T: Config> TradingFeesInterface for Pallet<T> {
+		fn get_fee_rate(user: U256, side: bool, number_of_tokens: U256) -> (FixedI128, u8, u8) {
+			// Get the max base fee tier
+			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
+			// Calculate base fee of the maker, taker and base fee tier
+			let (base_fee_maker, base_fee_taker, base_fee_tier) =
+				Self::find_user_base_fee(number_of_tokens, current_max_base_fee_tier);
+
+			// Get the max discount tier
+			let current_max_discount_tier = MaxDiscountTier::<T>::get();
+			// Calculate the discount and discount tier
+			let (discount, discount_tier) =
+				Self::find_user_discount(number_of_tokens, current_max_discount_tier);
+
+			// Get the fee according to the side
+			let base_fee;
+			if side == true {
+				base_fee = base_fee_maker;
+			} else {
+				base_fee = base_fee_taker;
+			}
+
+			// Calculate fee after the discount
+			let one: FixedI128 = 1.into();
+			let non_discount: FixedI128 = one - discount;
+			let fee: FixedI128 = base_fee * non_discount;
+
+			return (fee, base_fee_tier, discount_tier);
+		}
+	}
+
+	// Pallet internal functions
+	impl<T: Config> Pallet<T> {
+		fn find_user_base_fee(
+			number_of_tokens: U256,
+			current_max_base_fee_tier: u8,
+		) -> (FixedI128, FixedI128, u8) {
+			let mut tier = current_max_base_fee_tier;
+			let mut fee_details = BaseFeeTierMap::<T>::get(tier);
+			let mut result;
+			while tier >= 1 {
+				fee_details = BaseFeeTierMap::<T>::get(tier);
+				result = number_of_tokens - fee_details.number_of_tokens;
+				if result >= U256::from(0) {
+					break;
+				}
+				tier -= 1;
+			}
+			return (fee_details.maker_fee, fee_details.taker_fee, tier);
+		}
+
+		fn find_user_discount(
+			number_of_tokens: U256,
+			current_max_discount_tier: u8,
+		) -> (FixedI128, u8) {
+			let mut tier = current_max_discount_tier;
+			let mut discount_details = DiscountTierMap::<T>::get(tier);
+			let mut result;
+			while tier >= 1 {
+				discount_details = DiscountTierMap::<T>::get(tier);
+				result = number_of_tokens - discount_details.number_of_tokens;
+				if result >= U256::from(0) {
+					break;
+				}
+				tier -= 1;
+			}
+			return (discount_details.discount, tier);
 		}
 	}
 }
