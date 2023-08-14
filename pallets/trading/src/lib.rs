@@ -18,7 +18,8 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
 	use zkx_support::types::{
-		Direction, EventList, Market, Order, OrderType, Position, Side, TimeInForce,
+		Direction, ErrorEventList, Market, Order, OrderEventList, OrderType, Position, Side,
+		TimeInForce,
 	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -137,6 +138,17 @@ pub mod pallet {
 		TradeExecuted { batch_id: u64 },
 		/// Order error
 		OrderError { order_id: u128, error_code: u16 },
+		/// Order of a user executed successfully
+		OrderExecuted {
+			user: U256,
+			order_id: u128,
+			market_id: U256,
+			size: FixedI128,
+			direction: Direction,
+			side: Side,
+			order_type: OrderType,
+			execution_price: FixedI128,
+		},
 	}
 
 	// Pallet callable functions
@@ -193,7 +205,8 @@ pub mod pallet {
 			let mut updated_position: Position;
 			let mut open_interest: FixedI128 = 0.into();
 
-			let mut error_events: Vec<EventList> = Vec::new();
+			let mut error_events: Vec<ErrorEventList> = Vec::new();
+			let mut order_events: Vec<OrderEventList> = Vec::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -212,7 +225,7 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						error_events.push(EventList {
+						error_events.push(ErrorEventList {
 							order_id: element.order_id,
 							error_code: Self::get_error_code(e),
 						});
@@ -239,7 +252,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(EventList {
+							error_events.push(ErrorEventList {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -259,7 +272,7 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							error_events.push(EventList {
+							error_events.push(ErrorEventList {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -284,7 +297,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(EventList {
+							error_events.push(ErrorEventList {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -315,7 +328,7 @@ pub mod pallet {
 						match limit_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(EventList {
+								error_events.push(ErrorEventList {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -333,7 +346,7 @@ pub mod pallet {
 						match slippage_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(EventList {
+								error_events.push(ErrorEventList {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -363,7 +376,7 @@ pub mod pallet {
 							margin_lock_amount = margin_lock;
 						},
 						Err(e) => {
-							error_events.push(EventList {
+							error_events.push(ErrorEventList {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -421,7 +434,7 @@ pub mod pallet {
 							margin_lock_amount = margin_lock;
 						},
 						Err(e) => {
-							error_events.push(EventList {
+							error_events.push(ErrorEventList {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -504,6 +517,17 @@ pub mod pallet {
 					new_margin_locked,
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
+
+				order_events.push(OrderEventList {
+					user: element.user,
+					order_id: element.order_id,
+					market_id: element.market_id,
+					size: quantity_to_execute,
+					direction: element.direction,
+					side: element.side,
+					order_type: element.order_type,
+					execution_price,
+				})
 			}
 
 			// Update open interest
@@ -517,6 +541,19 @@ pub mod pallet {
 				Self::deposit_event(Event::OrderError {
 					order_id: element.order_id,
 					error_code: element.error_code,
+				});
+			}
+
+			for element in &order_events {
+				Self::deposit_event(Event::OrderExecuted {
+					user: element.user,
+					order_id: element.order_id,
+					market_id: element.market_id,
+					size: element.size,
+					direction: element.direction,
+					side: element.side,
+					order_type: element.order_type,
+					execution_price: element.execution_price,
 				});
 			}
 
