@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, TradingAccount};
+use crate::types::{Asset, Market, OrderSide, Side};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
@@ -25,5 +25,9 @@ pub trait FixedI128Ext<T> {
 }
 
 pub trait TradingFeesInterface {
-	fn get_fee_rate(user: U256, side: bool, number_of_tokens: U256) -> (FixedI128, u8, u8);
+	fn get_fee_rate(
+		side: Side,
+		order_side: OrderSide,
+		number_of_tokens: U256,
+	) -> (FixedI128, u8, u8);
 }

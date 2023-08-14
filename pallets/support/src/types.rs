@@ -121,15 +121,22 @@ pub struct OrderEventList {
 	pub execution_price: FixedI128,
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct BaseFee {
 	pub number_of_tokens: U256,
 	pub maker_fee: FixedI128,
 	pub taker_fee: FixedI128,
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Discount {
 	pub number_of_tokens: U256,
 	pub discount: FixedI128,
+}
+
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum OrderSide {
+	#[default]
+	Maker,
+	Taker,
 }
