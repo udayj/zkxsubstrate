@@ -102,3 +102,21 @@ pub struct Position {
 	pub borrowed_amount: FixedI128,
 	pub leverage: FixedI128,
 }
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ErrorEventList {
+	pub order_id: u128,
+	pub error_code: u16,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct OrderEventList {
+	pub user: U256,
+	pub order_id: u128,
+	pub market_id: U256,
+	pub size: FixedI128,
+	pub direction: Direction,
+	pub side: Side,
+	pub order_type: OrderType,
+	pub execution_price: FixedI128,
+}
