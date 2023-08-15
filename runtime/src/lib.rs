@@ -48,6 +48,7 @@ pub use sp_runtime::{Perbill, Permill};
 pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_trading;
+pub use pallet_trading_fees;
 pub use pallet_zkx_trading_account;
 
 /// An index to a block.
@@ -285,6 +286,10 @@ impl pallet_market::Config for Runtime {
 	type Asset = Assets;
 }
 
+impl pallet_trading_fees::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+}
+
 impl pallet_trading::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
@@ -310,6 +315,7 @@ construct_runtime!(
 		Assets: pallet_asset,
 		Markets: pallet_market,
 		Trading: pallet_trading,
+		TradingFees: pallet_trading_fees,
 	}
 );
 

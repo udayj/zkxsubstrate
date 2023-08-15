@@ -1,8 +1,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use pallet::*;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
+	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
@@ -33,7 +42,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		u8, // tier
 		Blake2_128Concat,
-		Side, // open or close position
+		Side, // buy or sell
 		BaseFee,
 		ValueQuery,
 	>;
@@ -45,7 +54,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		u8, // tier
 		Blake2_128Concat,
-		Side, // open or close position
+		Side, // buy or sell
 		Discount,
 		ValueQuery,
 	>;
@@ -69,10 +78,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Base fee details updated
-		BaseFeeUpdated { tier: u8, fee_details: BaseFee },
-		/// Discount details updated
-		DiscountUpdated { tier: u8, discount_details: Discount },
+		/// Base fees and discounts details updated
+		BaseFeesAndDiscountsUpdated { fee_tiers: u8, discount_tiers: u8 },
 	}
 
 	// Pallet callable functions
@@ -80,7 +87,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// External function for updating fee and discount details
 		#[pallet::weight(0)]
-		pub fn update_base_fees_and_discount(
+		pub fn update_base_fees_and_discounts(
 			origin: OriginFor<T>,
 			side: Side,
 			fee_tiers: Vec<u8>,
@@ -92,7 +99,7 @@ pub mod pallet {
 			let _ = ensure_signed(origin)?;
 
 			ensure!(fee_tiers.len() == fee_details.len(), Error::<T>::FeeTiersLengthMismatch);
-			let update_base_fee_response = Self::update_base_fee(side, fee_tiers, fee_details);
+			let update_base_fee_response = Self::update_base_fee(side, &fee_tiers, fee_details);
 			match update_base_fee_response {
 				Ok(()) => (),
 				Err(e) => return Err(e),
@@ -103,11 +110,16 @@ pub mod pallet {
 				Error::<T>::DiscountTiersLengthMismatch
 			);
 			let update_discount_response =
-				Self::update_discount(side, discount_tiers, discount_details);
+				Self::update_discount(side, &discount_tiers, discount_details);
 			match update_discount_response {
 				Ok(()) => (),
 				Err(e) => return Err(e),
 			}
+			// Emit event
+			Self::deposit_event(Event::BaseFeesAndDiscountsUpdated {
+				fee_tiers: u8::try_from(fee_tiers.len()).unwrap(),
+				discount_tiers: u8::try_from(discount_tiers.len()).unwrap(),
+			});
 
 			Ok(())
 		}
@@ -190,7 +202,7 @@ pub mod pallet {
 
 		fn update_base_fee(
 			side: Side,
-			fee_tiers: Vec<u8>,
+			fee_tiers: &Vec<u8>,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
 			let mut tier: u8;
@@ -241,15 +253,13 @@ pub mod pallet {
 					MaxBaseFeeTier::<T>::put(tier);
 					BaseFeeTierMap::<T>::insert(tier, side, fee_info);
 				}
-				// Emit event
-				Self::deposit_event(Event::BaseFeeUpdated { tier, fee_details: fee_info });
 			}
 			Ok(())
 		}
 
 		fn update_discount(
 			side: Side,
-			discount_tiers: Vec<u8>,
+			discount_tiers: &Vec<u8>,
 			discount_details: Vec<Discount>,
 		) -> DispatchResult {
 			let mut tier: u8;
@@ -303,12 +313,6 @@ pub mod pallet {
 					MaxDiscountTier::<T>::put(tier);
 					DiscountTierMap::<T>::insert(tier, side, discount_info);
 				}
-
-				// Emit event
-				Self::deposit_event(Event::DiscountUpdated {
-					tier,
-					discount_details: discount_info,
-				});
 			}
 			Ok(())
 		}

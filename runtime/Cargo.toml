@@ -52,6 +52,7 @@ pallet-zkx-trading-account = { version = "0.0.1-dev", default-features = false, 
 pallet-asset = { version = "0.0.1-dev", default-features = false, path = "../pallets/asset" }
 pallet-market = { version = "0.0.1-dev", default-features = false, path = "../pallets/market" }
 pallet-trading = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading" }
+pallet-trading-fees = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading-fees" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v0.9.42" }
@@ -78,6 +79,7 @@ std = [
 	"pallet-market/std",
 	"pallet-timestamp/std",
 	"pallet-trading/std",
+	"pallet-trading-fees/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"sp-api/std",
