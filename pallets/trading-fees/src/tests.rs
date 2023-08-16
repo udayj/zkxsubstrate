@@ -67,7 +67,7 @@ fn test_update_fees_and_discounts() {
 			discount_details.clone()
 		));
 
-		assert_eq!(TradingFeesModule::max_base_tier(), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(), 3);
 		let base_fee0 = TradingFeesModule::base_fee_tier(1, Side::Buy);
 		assert_eq!(base_fee0, fee_details[0]);
 		let base_fee1 = TradingFeesModule::base_fee_tier(2, Side::Buy);
@@ -287,5 +287,111 @@ fn test_update_discount_with_tiers_length_mismatch() {
 			discount_tiers,
 			discount_details.clone()
 		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "ZeroFeeTiers")]
+fn test_update_fees_and_discounts_with_zero_fee_tiers() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup();
+
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Buy;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+		assert_eq!(TradingFeesModule::max_base_fee_tier(), 3);
+		assert_eq!(TradingFeesModule::max_discount_tier(), 4);
+
+		let fee_tiers: Vec<u8> = Vec::new();
+		let fee_details: Vec<BaseFee> = Vec::new();
+		let discount_tiers: Vec<u8> = vec![1];
+		let mut discount_details: Vec<Discount> = Vec::new();
+		let discount = Discount {
+			number_of_tokens: 700.into(),
+			discount: FixedI128::from_inner(100000000000000000),
+		};
+		discount_details.push(discount);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		assert_eq!(TradingFeesModule::max_base_fee_tier(), 0);
+		assert_eq!(TradingFeesModule::max_discount_tier(), 1);
+	});
+}
+
+#[test]
+fn test_update_fees_and_discounts_with_multiple_calls() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup();
+
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Buy;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+		assert_eq!(TradingFeesModule::max_base_fee_tier(), 3);
+		assert_eq!(TradingFeesModule::max_discount_tier(), 4);
+
+		let fee_tiers: Vec<u8> = vec![1, 2];
+		let mut fee_details: Vec<BaseFee> = Vec::new();
+		let base_fee1 = BaseFee {
+			number_of_tokens: 0.into(),
+			maker_fee: FixedI128::from_inner(200000000000000),
+			taker_fee: FixedI128::from_inner(500000000000000),
+		};
+		let base_fee2 = BaseFee {
+			number_of_tokens: 1000.into(),
+			maker_fee: FixedI128::from_inner(150000000000000),
+			taker_fee: FixedI128::from_inner(400000000000000),
+		};
+		fee_details.push(base_fee1);
+		fee_details.push(base_fee2);
+
+		let discount_tiers: Vec<u8> = vec![1];
+		let mut discount_details: Vec<Discount> = Vec::new();
+		let discount = Discount {
+			number_of_tokens: 700.into(),
+			discount: FixedI128::from_inner(100000000000000000),
+		};
+		discount_details.push(discount);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		assert_eq!(TradingFeesModule::max_base_fee_tier(), 2);
+		assert_eq!(TradingFeesModule::max_discount_tier(), 1);
 	});
 }

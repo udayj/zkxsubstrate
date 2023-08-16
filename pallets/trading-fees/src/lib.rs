@@ -19,6 +19,8 @@ pub mod pallet {
 	use zkx_support::traits::TradingFeesInterface;
 	use zkx_support::types::{BaseFee, Discount, OrderSide, Side};
 
+	static DELETION_LIMIT: u32 = 100;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -28,7 +30,7 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn max_base_tier)]
+	#[pallet::getter(fn max_base_fee_tier)]
 	pub(super) type MaxBaseFeeTier<T> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::storage]
@@ -73,6 +75,8 @@ pub mod pallet {
 		DiscountTiersLengthMismatch,
 		/// Invalid number of tokens
 		InvalidNumberOfTokens,
+		/// There should be atleast one fee tier
+		ZeroFeeTiers,
 	}
 
 	#[pallet::event]
@@ -98,7 +102,15 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;
 
+			// Clear all mappings
+			let _ = MaxBaseFeeTier::<T>::kill();
+			let _ = MaxDiscountTier::<T>::kill();
+			let _ = BaseFeeTierMap::<T>::clear(DELETION_LIMIT, None);
+			let _ = DiscountTierMap::<T>::clear(DELETION_LIMIT, None);
+
 			ensure!(fee_tiers.len() == fee_details.len(), Error::<T>::FeeTiersLengthMismatch);
+			ensure!(fee_tiers.len() >= 1, Error::<T>::ZeroFeeTiers);
+
 			let update_base_fee_response = Self::update_base_fee(side, &fee_tiers, fee_details);
 			match update_base_fee_response {
 				Ok(()) => (),
@@ -251,8 +263,8 @@ pub mod pallet {
 					ensure!(upper_tier_fee.taker_fee < fee_info.taker_fee, Error::<T>::InvalidFee);
 				} else {
 					MaxBaseFeeTier::<T>::put(tier);
-					BaseFeeTierMap::<T>::insert(tier, side, fee_info);
 				}
+				BaseFeeTierMap::<T>::insert(tier, side, fee_info);
 			}
 			Ok(())
 		}
@@ -311,8 +323,8 @@ pub mod pallet {
 					);
 				} else {
 					MaxDiscountTier::<T>::put(tier);
-					DiscountTierMap::<T>::insert(tier, side, discount_info);
 				}
+				DiscountTierMap::<T>::insert(tier, side, discount_info);
 			}
 			Ok(())
 		}
