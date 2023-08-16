@@ -4514,6 +4514,7 @@ dependencies = [
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-trading",
+ "pallet-trading-fees",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-zkx-trading-account",
@@ -4882,6 +4883,22 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-asset",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic 16.0.0",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
+name = "pallet-trading-fees"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",

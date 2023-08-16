@@ -4,6 +4,7 @@ members = [
     "pallets/asset",
     "pallets/market",
     "pallets/trading-account",
+    "pallets/trading-fees",
     "pallets/support",
     "runtime",
 ]
