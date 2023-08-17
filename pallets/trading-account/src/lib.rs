@@ -16,11 +16,13 @@ pub mod pallet {
 	use super::*;
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
+	use frame_support::sp_runtime::traits::Hash;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
+	use sp_io::hashing::blake2_256;
 	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
-	use zkx_support::types::{BalanceUpdate, TradingAccount};
+	use zkx_support::types::{BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -38,7 +40,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	pub type AccountMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, U256, OptionQuery>;
+	// Here, key is the index and value is the trading account
+	pub type AccountMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
@@ -47,6 +51,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
+	// Here, key1 is the account address and key2 is the asset_id
 	pub(super) type BalancesMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
 
@@ -79,21 +84,47 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Add several accounts together
 		#[pallet::weight(0)]
-		pub fn add_accounts(origin: OriginFor<T>, accounts: Vec<TradingAccount>) -> DispatchResult {
+		pub fn add_accounts(
+			origin: OriginFor<T>,
+			accounts: Vec<TradingAccountWithoutId>,
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			let length: u128 = u128::try_from(accounts.len()).unwrap();
 			let mut current_length = AccountsCount::<T>::get();
 			let final_length: u128 = length + current_length;
+			let mut account_id: U256;
 
 			for element in accounts {
+				let account_address = U256::from(element.account_address);
+				let mut account_array: [u8; 32];
+				account_address.to_little_endian(&mut account_array);
+
+				let index = U256::from(element.index);
+				let mut index_array: [u8; 32];
+				index.to_little_endian(&mut index_array);
+
+				// Concatenate the byte arrays
+				let concatenated_bytes: Vec<u8> = [account_array, index_array].concat();
+				let result: [u8; 32] = concatenated_bytes.try_into().unwrap();
+
+				//account_id = blake2_256(&result);
+				let account_id = T::Hashing::hash(&result);
+
 				// Check if the account exists in the presence storage map
 				ensure!(
-					!AccountPresenceMap::<T>::contains_key(&element.account_id),
+					!AccountPresenceMap::<T>::contains_key(account_id),
 					Error::<T>::DuplicateAccount
 				);
-				AccountPresenceMap::<T>::insert(&element.account_id, true);
-				AccountMap::<T>::insert(current_length, element.account_id);
+				AccountPresenceMap::<T>::insert(account_id, true);
+				let trading_account: TradingAccount = TradingAccount {
+					account_id,
+					account_address: element.account_address,
+					index: element.index,
+					pub_key: element.pub_key,
+				};
+
+				AccountMap::<T>::insert(current_length, trading_account);
 				current_length += 1;
 			}
 
