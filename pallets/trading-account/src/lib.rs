@@ -16,7 +16,6 @@ pub mod pallet {
 	use super::*;
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
-	use frame_support::sp_runtime::traits::Hash;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
@@ -88,7 +87,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			accounts: Vec<TradingAccountWithoutId>,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			let length: u128 = u128::try_from(accounts.len()).unwrap();
 			let mut current_length = AccountsCount::<T>::get();
@@ -97,19 +96,14 @@ pub mod pallet {
 
 			for element in accounts {
 				let account_address = U256::from(element.account_address);
-				let mut account_array: [u8; 32];
+				let mut account_array: [u8; 32] = [0; 32];
 				account_address.to_little_endian(&mut account_array);
 
-				let index = U256::from(element.index);
-				let mut index_array: [u8; 32];
-				index.to_little_endian(&mut index_array);
+				let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+				concatenated_bytes.push(element.index);
+				let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
 
-				// Concatenate the byte arrays
-				let concatenated_bytes: Vec<u8> = [account_array, index_array].concat();
-				let result: [u8; 32] = concatenated_bytes.try_into().unwrap();
-
-				//account_id = blake2_256(&result);
-				let account_id = T::Hashing::hash(&result);
+				account_id = blake2_256(&result).into();
 
 				// Check if the account exists in the presence storage map
 				ensure!(
@@ -142,7 +136,7 @@ pub mod pallet {
 			account_id: U256,
 			balances: Vec<BalanceUpdate>,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			// Check if the account exists in the presence storage map
 			ensure!(

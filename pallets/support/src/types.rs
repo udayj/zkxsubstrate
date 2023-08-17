@@ -5,7 +5,9 @@ use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 
-#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
 pub struct TradingAccount {
 	pub account_id: U256,
 	pub account_address: U256,
@@ -13,7 +15,9 @@ pub struct TradingAccount {
 	pub pub_key: U256,
 }
 
-#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
 pub struct TradingAccountWithoutId {
 	pub account_address: U256,
 	pub index: u8,
