@@ -1,6 +1,7 @@
 use crate::mock::*;
 use frame_support::assert_ok;
-use zkx_support::types::{TradingAccount, TradingAccountWithoutId};
+use primitive_types::U256;
+use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 fn setup() -> Vec<TradingAccountWithoutId> {
 	let mut trading_accounts: Vec<TradingAccountWithoutId> = Vec::new();
@@ -23,6 +24,32 @@ fn setup() -> Vec<TradingAccountWithoutId> {
 	trading_accounts.push(trading_account2);
 	trading_accounts.push(trading_account3);
 	trading_accounts
+}
+
+fn create_assets() -> Vec<Asset> {
+	let eth_id: U256 = 4543560.into();
+	let usdc_id: U256 = 1431520323.into();
+	let name1: Vec<u8> = "ETH".into();
+	let asset1: Asset = Asset {
+		id: eth_id,
+		name: name1.try_into().unwrap(),
+		is_tradable: true,
+		is_collateral: false,
+		token_decimal: 18,
+	};
+	let name2: Vec<u8> = "USDC".into();
+	let asset2: Asset = Asset {
+		id: usdc_id,
+		name: name2.try_into().unwrap(),
+		is_tradable: false,
+		is_collateral: true,
+		token_decimal: 6,
+	};
+	let mut assets: Vec<Asset> = Vec::new();
+	assets.push(asset1);
+	assets.push(asset2);
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets.clone()));
+	assets
 }
 
 #[test]
@@ -64,5 +91,100 @@ fn test_add_accounts() {
 		);
 		assert_eq!(trading_accounts.get(2).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(2).unwrap().pub_key, trading_account.pub_key);
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_balances_with_unknown_asset() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let usdt_id: U256 = 123.into();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+		let balance: BalanceUpdate =
+			BalanceUpdate { asset_id: usdt_id, balance_value: 1000.into() };
+		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
+		collateral_balances.push(balance);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_balances(
+			RuntimeOrigin::signed(1),
+			trading_account.account_id,
+			collateral_balances
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotCollateral")]
+fn test_add_balances_with_asset_not_marked_as_collateral() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let eth_id: U256 = 4543560.into();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+		let balance: BalanceUpdate = BalanceUpdate { asset_id: eth_id, balance_value: 1000.into() };
+		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
+		collateral_balances.push(balance);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_balances(
+			RuntimeOrigin::signed(1),
+			trading_account.account_id,
+			collateral_balances
+		));
+	});
+}
+
+#[test]
+fn test_add_balances() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let usdc_id: U256 = 1431520323.into();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+		let balance: BalanceUpdate =
+			BalanceUpdate { asset_id: usdc_id, balance_value: 1000.into() };
+		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
+		collateral_balances.push(balance);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_balances(
+			RuntimeOrigin::signed(1),
+			trading_account.account_id,
+			collateral_balances
+		));
+
+		assert_eq!(
+			TradingAccountModule::balances(trading_account.account_id, usdc_id),
+			1000.into()
+		);
+		assert_eq!(TradingAccountModule::account_collaterals_length(trading_account.account_id), 1);
+		assert_eq!(
+			TradingAccountModule::account_collaterals(trading_account.account_id, 0),
+			usdc_id
+		);
 	});
 }

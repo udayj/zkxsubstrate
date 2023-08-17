@@ -35,6 +35,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts_count)]
+	// It stores no.of accounts
 	pub(super) type AccountsCount<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
@@ -45,19 +46,33 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
+	// Here, key is the account_id and value is the true/false
 	pub type AccountPresenceMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
-	// Here, key1 is the account address and key2 is the asset_id
+	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn locked_margin)]
+	// Here, key1 is account_id,  key2 is asset_id and value is the locked margin
 	pub(super) type LockedMarginMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn account_collaterals)]
+	// Here, key1 is account_id, key2 is index and value is the collateral_id
+	pub type AccountCollateralsMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u8, U256, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn account_collaterals_length)]
+	// Here, key is the account_id and value is the collateral length
+	pub type AccountCollateralsLengthMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, u8, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -150,9 +165,13 @@ pub mod pallet {
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 
-				// Update the map with new balance
+				let collateral_length = AccountCollateralsLengthMap::<T>::get(account_id);
 				let current_balance: FixedI128 =
 					BalancesMap::<T>::get(account_id, element.asset_id);
+				if current_balance == 0.into() {
+					Self::add_collateral(account_id, element.asset_id, collateral_length);
+				}
+				// Update the map with new balance
 				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
 				BalancesMap::<T>::set(account_id, element.asset_id, new_balance);
 			}
@@ -190,6 +209,22 @@ pub mod pallet {
 
 		fn is_registered_user(account: U256) -> bool {
 			AccountPresenceMap::<T>::contains_key(&account)
+		}
+	}
+
+	// Pallet internal functions
+	impl<T: Config> Pallet<T> {
+		fn add_collateral(account_id: U256, collateral_id: U256, collateral_length: u8) {
+			let mut index = 0_u8;
+			while index < collateral_length {
+				let collateral = AccountCollateralsMap::<T>::get(account_id, index);
+				if collateral == collateral_id {
+					return;
+				}
+				index += 1;
+			}
+			AccountCollateralsMap::<T>::insert(account_id, index, collateral_id);
+			AccountCollateralsLengthMap::<T>::insert(account_id, collateral_length + 1);
 		}
 	}
 }
