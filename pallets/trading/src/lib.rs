@@ -16,10 +16,10 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::traits::{MarketInterface, TradingAccountInterface};
+	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingFeesInterface};
 	use zkx_support::types::{
-		Direction, ErrorEventList, Market, Order, OrderEventList, OrderType, Position, Side,
-		TimeInForce,
+		Direction, ErrorEventList, Market, Order, OrderEventList, OrderSide, OrderType, Position,
+		Side, TimeInForce,
 	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -33,6 +33,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
+		type TradingFeesPallet: TradingFeesInterface;
 	}
 
 	#[pallet::storage]
@@ -148,6 +149,8 @@ pub mod pallet {
 			side: Side,
 			order_type: OrderType,
 			execution_price: FixedI128,
+			pnl: FixedI128,
+			opening_fee: FixedI128,
 		},
 	}
 
@@ -220,6 +223,10 @@ pub mod pallet {
 				let mut new_leverage: FixedI128 = 0.into(); // To do - don't assign value
 				let mut new_margin_locked: FixedI128 = 0.into(); // To do - don't assign value
 				let mut new_portion_executed: FixedI128 = 0.into(); // To do - don't assign value
+				let realized_pnl: FixedI128;
+				let new_realized_pnl: FixedI128;
+				let opening_fee: FixedI128;
+				let order_side: OrderSide;
 
 				let validation_response = Self::perform_validations(element, oracle_price, &market);
 				match validation_response {
@@ -285,6 +292,7 @@ pub mod pallet {
 
 					quantity_executed = quantity_executed + quantity_to_execute;
 					total_order_volume = total_order_volume + (element.price * quantity_to_execute);
+					order_side = OrderSide::Maker;
 				} else {
 					// Taker Order
 					let validation_response = Self::validate_taker(
@@ -354,6 +362,8 @@ pub mod pallet {
 							},
 						}
 					}
+
+					order_side = OrderSide::Taker;
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
@@ -363,17 +373,26 @@ pub mod pallet {
 					let response = Self::process_open_orders(
 						element,
 						quantity_to_execute,
+						order_side,
 						execution_price,
 						market_id,
 						collateral_id,
 					);
 					match response {
-						Ok((margin, borrowed, average_execution, balance, margin_lock)) => {
+						Ok((
+							margin,
+							borrowed,
+							average_execution,
+							balance,
+							margin_lock,
+							trading_fee,
+						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
+							realized_pnl = trading_fee;
 						},
 						Err(e) => {
 							error_events.push(ErrorEventList {
@@ -387,6 +406,8 @@ pub mod pallet {
 					new_position_size = quantity_to_execute + position_details.size;
 					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
 					new_margin_locked = current_margin_locked + margin_lock_amount;
+					new_realized_pnl = position_details.realized_pnl + realized_pnl;
+					opening_fee = realized_pnl;
 
 					// If the user previously does not have any position in this market
 					// then add the market to CollateralToMarketMap
@@ -413,6 +434,7 @@ pub mod pallet {
 						margin_amount,
 						borrowed_amount,
 						leverage: new_leverage,
+						realized_pnl: new_realized_pnl,
 					};
 
 					open_interest = open_interest + quantity_to_execute;
@@ -426,12 +448,20 @@ pub mod pallet {
 						collateral_id,
 					);
 					match response {
-						Ok((margin, borrowed, average_execution, balance, margin_lock)) => {
+						Ok((
+							margin,
+							borrowed,
+							average_execution,
+							balance,
+							margin_lock,
+							current_pnl,
+						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
 							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
+							realized_pnl = current_pnl;
 						},
 						Err(e) => {
 							error_events.push(ErrorEventList {
@@ -448,6 +478,8 @@ pub mod pallet {
 
 					new_leverage = position_details.leverage;
 					new_margin_locked = current_margin_locked - margin_lock_amount;
+					new_realized_pnl = position_details.realized_pnl + realized_pnl;
+					opening_fee = 0.into();
 
 					// To do - handle the case when liquidatable position is present
 					// if amount to be sold is 0, do nothing
@@ -476,6 +508,7 @@ pub mod pallet {
 							margin_amount: 0.into(),
 							borrowed_amount: 0.into(),
 							leverage: 0.into(),
+							realized_pnl: 0.into(),
 						};
 					} else {
 						// To do - Calculate pnl
@@ -486,6 +519,7 @@ pub mod pallet {
 							margin_amount,
 							borrowed_amount,
 							leverage: new_leverage,
+							realized_pnl: new_realized_pnl,
 						};
 					}
 
@@ -527,6 +561,8 @@ pub mod pallet {
 					side: element.side,
 					order_type: element.order_type,
 					execution_price,
+					pnl: realized_pnl,
+					opening_fee,
 				})
 			}
 
@@ -554,6 +590,8 @@ pub mod pallet {
 					side: element.side,
 					order_type: element.order_type,
 					execution_price: element.execution_price,
+					pnl: element.pnl,
+					opening_fee: element.opening_fee,
 				});
 			}
 
@@ -730,17 +768,16 @@ pub mod pallet {
 		fn process_open_orders(
 			order: &Order,
 			order_size: FixedI128,
+			order_side: OrderSide,
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let mut margin_amount: FixedI128 = 0.into();
 			let mut borrowed_amount: FixedI128 = 0.into();
 			let mut average_execution_price: FixedI128 = execution_price;
-
-			// To do - get fee rate and calculate fee
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
 			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
@@ -762,14 +799,21 @@ pub mod pallet {
 			margin_amount = position_details.margin_amount + margin_order_value;
 			borrowed_amount = position_details.borrowed_amount + amount_to_be_borrowed;
 
-			// To do - calculate fee
+			let (fee_rate, _, _) =
+				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::from(0));
+			let fee = fee_rate * leveraged_order_value;
+			let trading_fee = FixedI128::from_inner(0) - fee;
 
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
 			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
-			ensure!(margin_order_value <= balance, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(order.user, collateral_id, margin_order_value);
+			ensure!(margin_order_value + fee <= balance, Error::<T>::InsufficientBalance);
+			T::TradingAccountPallet::transfer_from(
+				order.user,
+				collateral_id,
+				margin_order_value + fee,
+			);
 
 			Ok((
 				margin_amount,
@@ -777,6 +821,7 @@ pub mod pallet {
 				average_execution_price,
 				balance,
 				margin_order_value,
+				trading_fee,
 			))
 		}
 
@@ -786,7 +831,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
+		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let actual_execution_price: FixedI128;
@@ -898,6 +943,7 @@ pub mod pallet {
 				position_details.avg_execution_price,
 				balance,
 				margin_amount_to_reduce,
+				pnl,
 			))
 		}
 

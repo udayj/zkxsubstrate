@@ -294,6 +294,7 @@ impl pallet_trading::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
 	type TradingAccountPallet = ZkxTradingAccount;
+	type TradingFeesPallet = TradingFees;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
