@@ -115,6 +115,7 @@ pub struct Position {
 	pub margin_amount: FixedI128,
 	pub borrowed_amount: FixedI128,
 	pub leverage: FixedI128,
+	pub realized_pnl: FixedI128,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -133,6 +134,8 @@ pub struct OrderEventList {
 	pub side: Side,
 	pub order_type: OrderType,
 	pub execution_price: FixedI128,
+	pub pnl: FixedI128,
+	pub opening_fee: FixedI128,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
