@@ -135,6 +135,12 @@ pub mod pallet {
 
 				AccountMap::<T>::insert(current_length, trading_account);
 				current_length += 1;
+
+				// Add predefined balance for default collateral to the account
+				let default_collateral = T::Asset::get_default_collateral();
+				BalancesMap::<T>::set(account_id, default_collateral, 10000.into());
+				AccountCollateralsMap::<T>::insert(account_id, 0, default_collateral);
+				AccountCollateralsLengthMap::<T>::insert(account_id, 1);
 			}
 
 			AccountsCount::<T>::put(final_length);

@@ -99,7 +99,7 @@ pub mod pallet {
 
 	impl<T: Config> AssetInterface for Pallet<T> {
 		fn get_default_collateral() -> U256 {
-			4543560_u32.into()
+			1431520323_u32.into()
 		}
 
 		fn get_asset(id: U256) -> Option<Asset> {
