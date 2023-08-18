@@ -1,6 +1,7 @@
 use crate::mock::*;
 use frame_support::assert_ok;
 use primitive_types::U256;
+use sp_arithmetic::FixedI128;
 use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 fn setup() -> Vec<TradingAccountWithoutId> {
@@ -73,6 +74,12 @@ fn test_add_accounts() {
 		);
 		assert_eq!(trading_accounts.get(0).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(0).unwrap().pub_key, trading_account.pub_key);
+
+		let usdc_id: U256 = 1431520323.into();
+		let expected_balance: FixedI128 = 10000.into();
+		let balance: FixedI128 =
+			TradingAccountModule::balances(trading_account.account_id, usdc_id);
+		assert!(balance == expected_balance);
 
 		trading_account = TradingAccountModule::accounts(1).unwrap();
 		println!("account{:?}", trading_account);
@@ -179,7 +186,7 @@ fn test_add_balances() {
 
 		assert_eq!(
 			TradingAccountModule::balances(trading_account.account_id, usdc_id),
-			1000.into()
+			11000.into()
 		);
 		assert_eq!(TradingAccountModule::account_collaterals_length(trading_account.account_id), 1);
 		assert_eq!(
