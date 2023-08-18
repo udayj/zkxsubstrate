@@ -1,12 +1,11 @@
-use crate as pallet_template;
+use crate as pallet_trading_account;
 use frame_support::traits::{ConstU16, ConstU64};
+use pallet_asset;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use pallet_asset;
-
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -19,7 +18,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system,
-		TemplateModule: pallet_template,
+		TradingAccountModule: pallet_trading_account,
 		Assets: pallet_asset
 	}
 );
@@ -51,7 +50,7 @@ impl frame_system::Config for Test {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_template::Config for Test {
+impl pallet_trading_account::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type Asset = Assets;

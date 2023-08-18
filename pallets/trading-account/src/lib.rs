@@ -19,8 +19,9 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
+	use sp_io::hashing::blake2_256;
 	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
-	use zkx_support::types::{BalanceUpdate, TradingAccount};
+	use zkx_support::types::{BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -34,26 +35,44 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts_count)]
+	// It stores no.of accounts
 	pub(super) type AccountsCount<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	pub type AccountMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, U256, OptionQuery>;
+	// Here, key is the index and value is the trading account
+	pub type AccountMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
+	// Here, key is the account_id and value is the true/false
 	pub type AccountPresenceMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
+	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn locked_margin)]
+	// Here, key1 is account_id,  key2 is asset_id and value is the locked margin
 	pub(super) type LockedMarginMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn account_collaterals)]
+	// Here, key1 is account_id, key2 is index and value is the collateral_id
+	pub type AccountCollateralsMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u8, U256, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn account_collaterals_length)]
+	// Here, key is the account_id and value is the collateral length
+	pub type AccountCollateralsLengthMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, u8, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -79,21 +98,42 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Add several accounts together
 		#[pallet::weight(0)]
-		pub fn add_accounts(origin: OriginFor<T>, accounts: Vec<TradingAccount>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		pub fn add_accounts(
+			origin: OriginFor<T>,
+			accounts: Vec<TradingAccountWithoutId>,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
 
 			let length: u128 = u128::try_from(accounts.len()).unwrap();
 			let mut current_length = AccountsCount::<T>::get();
 			let final_length: u128 = length + current_length;
+			let mut account_id: U256;
 
 			for element in accounts {
+				let account_address = U256::from(element.account_address);
+				let mut account_array: [u8; 32] = [0; 32];
+				account_address.to_little_endian(&mut account_array);
+
+				let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+				concatenated_bytes.push(element.index);
+				let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
+
+				account_id = blake2_256(&result).into();
+
 				// Check if the account exists in the presence storage map
 				ensure!(
-					!AccountPresenceMap::<T>::contains_key(&element.account_id),
+					!AccountPresenceMap::<T>::contains_key(account_id),
 					Error::<T>::DuplicateAccount
 				);
-				AccountPresenceMap::<T>::insert(&element.account_id, true);
-				AccountMap::<T>::insert(current_length, element.account_id);
+				AccountPresenceMap::<T>::insert(account_id, true);
+				let trading_account: TradingAccount = TradingAccount {
+					account_id,
+					account_address: element.account_address,
+					index: element.index,
+					pub_key: element.pub_key,
+				};
+
+				AccountMap::<T>::insert(current_length, trading_account);
 				current_length += 1;
 			}
 
@@ -111,7 +151,7 @@ pub mod pallet {
 			account_id: U256,
 			balances: Vec<BalanceUpdate>,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			// Check if the account exists in the presence storage map
 			ensure!(
@@ -125,9 +165,13 @@ pub mod pallet {
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 
-				// Update the map with new balance
+				let collateral_length = AccountCollateralsLengthMap::<T>::get(account_id);
 				let current_balance: FixedI128 =
 					BalancesMap::<T>::get(account_id, element.asset_id);
+				if current_balance == 0.into() {
+					Self::add_collateral(account_id, element.asset_id, collateral_length);
+				}
+				// Update the map with new balance
 				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
 				BalancesMap::<T>::set(account_id, element.asset_id, new_balance);
 			}
@@ -165,6 +209,22 @@ pub mod pallet {
 
 		fn is_registered_user(account: U256) -> bool {
 			AccountPresenceMap::<T>::contains_key(&account)
+		}
+	}
+
+	// Pallet internal functions
+	impl<T: Config> Pallet<T> {
+		fn add_collateral(account_id: U256, collateral_id: U256, collateral_length: u8) {
+			let mut index = 0_u8;
+			while index < collateral_length {
+				let collateral = AccountCollateralsMap::<T>::get(account_id, index);
+				if collateral == collateral_id {
+					return;
+				}
+				index += 1;
+			}
+			AccountCollateralsMap::<T>::insert(account_id, index, collateral_id);
+			AccountCollateralsLengthMap::<T>::insert(account_id, collateral_length + 1);
 		}
 	}
 }
