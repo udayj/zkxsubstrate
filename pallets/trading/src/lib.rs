@@ -89,13 +89,13 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Batch with same ID already execute
-		BatchAlreadyExecuted,
+		BatchAlreadyExecuted { error_code: u16 },
 		/// Invalid input for market
-		MarketNotFound,
+		MarketNotFound { error_code: u16 },
 		/// Market not tradable
-		MarketNotTradable,
+		MarketNotTradable { error_code: u16 },
 		/// Quantity locked cannot be 0
-		QuantityLockedError,
+		QuantityLockedError { error_code: u16 },
 		/// Balance not enough to open the position
 		InsufficientBalance,
 		/// User's account is not registered
@@ -127,9 +127,11 @@ pub mod pallet {
 		/// Price is not within slippage limit
 		SlippageError,
 		/// FOK orders should be filled completely
-		FOKError,
+		FOKError { error_code: u16 },
 		/// Not enough margin to cover losses - short limit sell or long limit sell
 		NotEnoughMargin,
+		/// Order error with error code
+		OrderError { error_code: u16 },
 	}
 
 	#[pallet::event]
@@ -173,20 +175,23 @@ pub mod pallet {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 
-			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::BatchAlreadyExecuted);
+			ensure!(
+				!BatchStatusMap::<T>::contains_key(batch_id),
+				Error::<T>::BatchAlreadyExecuted { error_code: 525 }
+			);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
-			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
 			let market = market.unwrap();
-			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable);
+			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable { error_code: 509 });
 
 			let collateral_id: U256 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
 			ensure!(
 				quantity_locked != FixedI128::checked_from_integer(0).unwrap(),
-				Error::<T>::QuantityLockedError
+				Error::<T>::QuantityLockedError { error_code: 522 }
 			);
 
 			let taker_order = &orders[orders.len() - 1];
@@ -198,8 +203,14 @@ pub mod pallet {
 			);
 			match initial_taker_locked_response {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
-				Err(e) => match e {
-					_ => return Err(DispatchError::Other("ExecutableQuantityZero")), // Double check this
+				Err(e) => {
+					// _ => return Err(DispatchError::Other("ExecutableQuantityZero")), // Double check this
+					let error_code = Self::get_error_code(e);
+					match error_code {
+						523 => return Err(DispatchError::Other("523")),
+						524 => return Err(DispatchError::Other("524")),
+						_ => return Err(DispatchError::Other("UnknownError")),
+					}
 				},
 			}
 
@@ -316,10 +327,27 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					ensure!(quantity_to_execute > 0.into(), Error::<T>::MakerOrderSkipped);
+					if quantity_to_execute == 0.into() {
+						if error_events.is_empty() {
+							return Err(DispatchError::Other("UnknownError"));
+						} else {
+							let error = &error_events[0];
+							ensure!(
+								true == false,
+								Error::<T>::OrderError {
+									// order_id: error.order_id,
+									error_code: error.error_code,
+								}
+							);
+						}
+					}
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
-						ensure!(quantity_to_execute == element.size, Error::<T>::FOKError);
+						ensure!(
+							quantity_to_execute == element.size,
+							Error::<T>::FOKError { error_code: 516 }
+						);
 					}
 
 					// Calculate execution price for taker
@@ -635,10 +663,10 @@ pub mod pallet {
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > 0.into(), Error::<T>::MakerOrderSkipped); // Modify code with tick/step size
+			ensure!(executable_quantity > 0.into(), Error::<T>::OrderFullyExecuted); // Modify code with tick/step size
 
 			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > 0.into(), Error::<T>::OrderFullyExecuted);
+			ensure!(quantity_to_execute > 0.into(), Error::<T>::MakerOrderSkipped);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
@@ -961,10 +989,10 @@ pub mod pallet {
 				Error::<T>::InvalidMakerDirectionSide => 512,
 				Error::<T>::InvalidTakerPostOnly => 515,
 				Error::<T>::InvalidMakerOrderType => 518,
-				Error::<T>::OrderFullyExecuted => 523,
+				Error::<T>::MakerOrderSkipped => 523,
 				Error::<T>::ClosingEmptyPosition => 524,
 				Error::<T>::NotEnoughMargin => 532,
-				Error::<T>::MakerOrderSkipped => 533,
+				Error::<T>::OrderFullyExecuted => 533,
 				_ => 500,
 			}
 		}
