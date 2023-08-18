@@ -204,7 +204,6 @@ pub mod pallet {
 			match initial_taker_locked_response {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
 				Err(e) => {
-					// _ => return Err(DispatchError::Other("ExecutableQuantityZero")), // Double check this
 					let error_code = Self::get_error_code(e);
 					match error_code {
 						523 => return Err(DispatchError::Other("523")),
@@ -326,7 +325,6 @@ pub mod pallet {
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
-					ensure!(quantity_to_execute > 0.into(), Error::<T>::MakerOrderSkipped);
 					if quantity_to_execute == 0.into() {
 						if error_events.is_empty() {
 							return Err(DispatchError::Other("UnknownError"));
