@@ -41,13 +41,13 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
 	// Here, key is the index and value is the trading account
-	pub type AccountMap<T: Config> =
+	pub(super) type AccountMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
 	// Here, key is the account_id and value is the true/false
-	pub type AccountPresenceMap<T: Config> =
+	pub(super) type AccountPresenceMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
 
 	#[pallet::storage]
@@ -65,13 +65,13 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn account_collaterals)]
 	// Here, key1 is account_id, key2 is index and value is the collateral_id
-	pub type AccountCollateralsMap<T: Config> =
+	pub(super) type AccountCollateralsMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u8, U256, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_collaterals_length)]
 	// Here, key is the account_id and value is the collateral length
-	pub type AccountCollateralsLengthMap<T: Config> =
+	pub(super) type AccountCollateralsLengthMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, u8, ValueQuery>;
 
 	// Errors inform users that something went wrong.
