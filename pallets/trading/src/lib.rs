@@ -38,15 +38,18 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn batch_status)]
+	// k1 - batch id, v - true/false
 	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn portion_executed)]
+	// k1 - order id, v - portion executed
 	pub(super) type PortionExecutedMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
+	// k1 - account id, k2 - 2 element array [market id, 1(LONG)/2(SHORT)], v - position object
 	pub(super) type PositionsMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
@@ -58,31 +61,14 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn collateral_to_market_length)]
-	pub(super) type CollateralToMarketLengthMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256, // account_id
-		Blake2_128Concat,
-		U256, // collateral id
-		u64,  // number of markets
-		ValueQuery,
-	>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn collateral_to_market)]
-	pub(super) type CollateralToMarketMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256, // account_id
-		Blake2_128Concat,
-		u64,  // index
-		U256, // market id
-		ValueQuery,
-	>;
+	// k1 - account_id, v - vector of market ids
+	pub(super) type CollateralToMarketMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
+	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
 
@@ -138,7 +124,14 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Trade executed successfully
-		TradeExecuted { batch_id: u64 },
+		TradeExecuted {
+			batch_id: U256,
+			market_id: U256,
+			size: FixedI128,
+			execution_price: FixedI128,
+			direction: Direction,
+			side: Side,
+		},
 		/// Order error
 		OrderError { order_id: u128, error_code: u16 },
 		/// Order of a user executed successfully
@@ -217,6 +210,8 @@ pub mod pallet {
 			let mut total_order_volume: FixedI128 = 0.into();
 			let mut updated_position: Position;
 			let mut open_interest: FixedI128 = 0.into();
+			let mut taker_quantity: FixedI128 = 0.into();
+			let mut taker_execution_price: FixedI128 = 0.into();
 
 			let mut error_events: Vec<ErrorEventList> = Vec::new();
 			let mut order_events: Vec<OrderEventList> = Vec::new();
@@ -390,6 +385,9 @@ pub mod pallet {
 					}
 
 					order_side = OrderSide::Taker;
+
+					taker_execution_price = execution_price;
+					taker_quantity = quantity_to_execute;
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
@@ -443,14 +441,9 @@ pub mod pallet {
 						let opposite_position =
 							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
 						if opposite_position.size == 0.into() {
-							let length =
-								CollateralToMarketLengthMap::<T>::get(&element.user, collateral_id);
-							CollateralToMarketMap::<T>::insert(&element.user, length, market_id);
-							CollateralToMarketLengthMap::<T>::insert(
-								&element.user,
-								collateral_id,
-								length + 1_u64,
-							);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.user);
+							markets.push(market_id);
+							CollateralToMarketMap::<T>::insert(&element.user, markets);
 						}
 					}
 
@@ -519,14 +512,13 @@ pub mod pallet {
 						let opposite_position =
 							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
 						if opposite_position.size == 0.into() {
-							let length =
-								CollateralToMarketLengthMap::<T>::get(&element.user, collateral_id);
-							CollateralToMarketMap::<T>::remove(&element.user, length);
-							CollateralToMarketLengthMap::<T>::insert(
-								&element.user,
-								collateral_id,
-								length - 1_u64,
-							);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.user);
+							for index in 0..markets.len() {
+								if markets[index] == market_id {
+									markets.remove(index);
+								}
+							}
+							CollateralToMarketMap::<T>::insert(&element.user, markets);
 						}
 						updated_position = Position {
 							avg_execution_price: 0.into(),
@@ -620,6 +612,15 @@ pub mod pallet {
 					opening_fee: element.opening_fee,
 				});
 			}
+
+			Self::deposit_event(Event::TradeExecuted {
+				batch_id,
+				market_id,
+				size: taker_quantity,
+				execution_price: taker_execution_price,
+				direction: orders[orders.len() - 1].direction,
+				side: orders[orders.len() - 1].side,
+			});
 
 			Ok(())
 		}
