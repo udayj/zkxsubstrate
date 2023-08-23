@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, OrderSide, Side};
+use crate::types::{Asset, Market, MarketPrice, OrderSide, Side};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
@@ -18,6 +18,10 @@ pub trait AssetInterface {
 
 pub trait MarketInterface {
 	fn get_market(id: U256) -> Option<Market>;
+}
+
+pub trait MarketPricesInterface {
+	fn get_market_price(market_id: U256) -> FixedI128;
 }
 
 pub trait FixedI128Ext<T> {
