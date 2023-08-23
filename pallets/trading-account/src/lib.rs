@@ -40,9 +40,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
-	// Here, key is the index and value is the trading account
+	// Here, key is the trading_account_id and value is the trading account
 	pub(super) type AccountMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, u128, TradingAccount, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_presence)]
@@ -127,7 +127,7 @@ pub mod pallet {
 					pub_key: element.pub_key,
 				};
 
-				AccountMap::<T>::insert(current_length, trading_account);
+				AccountMap::<T>::insert(account_id, trading_account);
 				current_length += 1;
 
 				// Add predefined balance for default collateral to the account

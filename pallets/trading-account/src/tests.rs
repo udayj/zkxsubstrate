@@ -2,6 +2,7 @@ use crate::mock::*;
 use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
+use sp_io::hashing::blake2_256;
 use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 fn setup() -> Vec<TradingAccountWithoutId> {
@@ -63,6 +64,19 @@ fn create_assets() -> Vec<Asset> {
 	assets
 }
 
+fn get_trading_account_id(trading_accounts: Vec<TradingAccountWithoutId>, index: usize) -> U256 {
+	let account_address = U256::from(trading_accounts[index].account_address);
+	let mut account_array: [u8; 32] = [0; 32];
+	account_address.to_little_endian(&mut account_array);
+
+	let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+	concatenated_bytes.push(trading_accounts.get(index).unwrap().index);
+	let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
+
+	let trading_account_id: U256 = blake2_256(&result).into();
+	trading_account_id
+}
+
 #[test]
 fn test_add_accounts() {
 	new_test_ext().execute_with(|| {
@@ -76,8 +90,11 @@ fn test_add_accounts() {
 		));
 		// Read pallet storage and assert an expected result.
 		assert_eq!(TradingAccountModule::accounts_count(), 3);
-		let mut trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
-		println!("account{:?}", trading_account);
+
+		let mut trading_account_id: U256 = get_trading_account_id(trading_accounts.clone(), 0);
+		let mut trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
+		println!("account: {:?}", trading_account);
 		assert_eq!(
 			trading_accounts.get(0).unwrap().account_address,
 			trading_account.account_address
@@ -91,8 +108,9 @@ fn test_add_accounts() {
 			TradingAccountModule::balances(trading_account.account_id, usdc_id);
 		assert!(balance == expected_balance);
 
-		trading_account = TradingAccountModule::accounts(1).unwrap();
-		println!("account{:?}", trading_account);
+		trading_account_id = get_trading_account_id(trading_accounts.clone(), 1);
+		trading_account = TradingAccountModule::accounts(trading_account_id).unwrap();
+		println!("account: {:?}", trading_account);
 		assert_eq!(
 			trading_accounts.get(1).unwrap().account_address,
 			trading_account.account_address
@@ -100,8 +118,9 @@ fn test_add_accounts() {
 		assert_eq!(trading_accounts.get(1).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(1).unwrap().pub_key, trading_account.pub_key);
 
-		trading_account = TradingAccountModule::accounts(2).unwrap();
-		println!("account{:?}", trading_account);
+		trading_account_id = get_trading_account_id(trading_accounts.clone(), 2);
+		trading_account = TradingAccountModule::accounts(trading_account_id).unwrap();
+		println!("account: {:?}", trading_account);
 		assert_eq!(
 			trading_accounts.get(2).unwrap().account_address,
 			trading_account.account_address
@@ -125,7 +144,10 @@ fn test_add_balances_with_unknown_asset() {
 			RuntimeOrigin::signed(1),
 			trading_accounts.clone()
 		));
-		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
 		let balance: BalanceUpdate =
 			BalanceUpdate { asset_id: usdt_id, balance_value: 1000.into() };
 		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
@@ -154,7 +176,10 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 			RuntimeOrigin::signed(1),
 			trading_accounts.clone()
 		));
-		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
 		let balance: BalanceUpdate = BalanceUpdate { asset_id: eth_id, balance_value: 1000.into() };
 		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
 		collateral_balances.push(balance);
@@ -163,7 +188,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 		assert_ok!(TradingAccountModule::set_balances(
 			RuntimeOrigin::signed(1),
 			trading_account.account_id,
-			collateral_balances
+			collateral_balances,
 		));
 	});
 }
@@ -182,7 +207,10 @@ fn test_add_balances() {
 			RuntimeOrigin::signed(1),
 			trading_accounts.clone()
 		));
-		let trading_account: TradingAccount = TradingAccountModule::accounts(0).unwrap();
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
 		let balance: BalanceUpdate =
 			BalanceUpdate { asset_id: usdc_id, balance_value: 1000.into() };
 		let balance1: BalanceUpdate =
