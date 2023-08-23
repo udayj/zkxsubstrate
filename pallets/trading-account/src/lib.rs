@@ -64,15 +64,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_collaterals)]
-	// Here, key1 is account_id, key2 is index and value is the collateral_id
+	// Here, key1 is account_id and value is vector of collateral_ids
 	pub(super) type AccountCollateralsMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u8, U256, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn account_collaterals_length)]
-	// Here, key is the account_id and value is the collateral length
-	pub(super) type AccountCollateralsLengthMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, u8, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -139,8 +133,9 @@ pub mod pallet {
 				// Add predefined balance for default collateral to the account
 				let default_collateral = T::Asset::get_default_collateral();
 				BalancesMap::<T>::set(account_id, default_collateral, 10000.into());
-				AccountCollateralsMap::<T>::insert(account_id, 0, default_collateral);
-				AccountCollateralsLengthMap::<T>::insert(account_id, 1);
+				let mut collaterals: Vec<U256> = Vec::new();
+				collaterals.push(default_collateral);
+				AccountCollateralsMap::<T>::insert(account_id, collaterals);
 			}
 
 			AccountsCount::<T>::put(final_length);
@@ -152,7 +147,7 @@ pub mod pallet {
 
 		/// Add balances for a particular user
 		#[pallet::weight(0)]
-		pub fn add_balances(
+		pub fn set_balances(
 			origin: OriginFor<T>,
 			account_id: U256,
 			balances: Vec<BalanceUpdate>,
@@ -171,15 +166,13 @@ pub mod pallet {
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 
-				let collateral_length = AccountCollateralsLengthMap::<T>::get(account_id);
 				let current_balance: FixedI128 =
 					BalancesMap::<T>::get(account_id, element.asset_id);
 				if current_balance == 0.into() {
-					Self::add_collateral(account_id, element.asset_id, collateral_length);
+					Self::add_collateral(account_id, element.asset_id);
 				}
 				// Update the map with new balance
-				let new_balance: FixedI128 = FixedI128::add(current_balance, element.balance_value);
-				BalancesMap::<T>::set(account_id, element.asset_id, new_balance);
+				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
 			}
 
 			Self::deposit_event(Event::BalancesUpdated { account_id });
@@ -220,17 +213,16 @@ pub mod pallet {
 
 	// Pallet internal functions
 	impl<T: Config> Pallet<T> {
-		fn add_collateral(account_id: U256, collateral_id: U256, collateral_length: u8) {
-			let mut index = 0_u8;
-			while index < collateral_length {
-				let collateral = AccountCollateralsMap::<T>::get(account_id, index);
-				if collateral == collateral_id {
+		fn add_collateral(account_id: U256, collateral_id: U256) {
+			let mut collaterals = AccountCollateralsMap::<T>::get(account_id);
+			for element in &collaterals {
+				if element == &collateral_id {
 					return;
 				}
-				index += 1;
 			}
-			AccountCollateralsMap::<T>::insert(account_id, index, collateral_id);
-			AccountCollateralsLengthMap::<T>::insert(account_id, collateral_length + 1);
+
+			collaterals.push(collateral_id);
+			AccountCollateralsMap::<T>::insert(account_id, collaterals);
 		}
 	}
 }
