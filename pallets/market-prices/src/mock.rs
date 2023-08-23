@@ -1,5 +1,6 @@
 use crate as pallet_market_prices;
 use frame_support::traits::{ConstU16, ConstU64};
+use pallet_asset;
 use pallet_market;
 use pallet_timestamp;
 use sp_core::H256;
@@ -20,8 +21,9 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		MarketPricesModule: pallet_market_prices,
-		Markets: pallet_market,
+		MarketModule: pallet_market,
 		Timestamp: pallet_timestamp,
+		AssetModule: pallet_asset
 	}
 );
 
@@ -52,13 +54,25 @@ impl frame_system::Config for Test {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+impl pallet_asset::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+}
+
 impl pallet_market::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type Asset = AssetModule;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = ConstU64<5>;
+	type WeightInfo = ();
 }
 
 impl pallet_market_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type MarketPallet = Markets;
+	type MarketPallet = MarketModule;
 	type TimeProvider = Timestamp;
 }
 

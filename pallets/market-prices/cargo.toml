@@ -19,8 +19,9 @@ zkx-support= { path="../support"}
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
-pallet-timestamp = { version = "21.0.0", default-features = false}
+pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 
 [features]
 default = ["std"]

@@ -5,8 +5,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -75,8 +75,9 @@ pub mod pallet {
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
 			// Get Market from the corresponding Id
-			let market = T::MarketPallet::get_market(market_id).unwrap();
-			ensure!(market.asset == 0.into(), Error::<T>::MarketNotFound);
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			let market = market.unwrap();
 
 			// Create a struct object for the market prices
 			let new_market_price: MarketPrice = MarketPrice {
@@ -113,8 +114,9 @@ pub mod pallet {
 				ensure!(curr_market.price >= 0.into(), Error::<T>::InvalidMarketPrice);
 
 				// Get Market from the corresponding Id
-				let market = T::MarketPallet::get_market(curr_market.market_id).unwrap();
-				ensure!(market.asset == 0.into(), Error::<T>::MarketNotFound);
+				let market = T::MarketPallet::get_market(curr_market.market_id);
+				ensure!(market.is_some(), Error::<T>::MarketNotFound);
+				let market = market.unwrap();
 
 				// Create a struct object for the market price
 				let new_market_price: MarketPrice = MarketPrice {

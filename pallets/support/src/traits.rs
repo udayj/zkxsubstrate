@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, MarketPrice, OrderSide, Side};
+use crate::types::{Asset, Market, OrderSide, Side};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
