@@ -14,6 +14,7 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 sp-arithmetic = { version = "16.0.0", default-features = false }
 
 pallet-asset = { default-features = false, path = "../asset" }
+pallet-market-prices = { default-features = false, path = "../market-prices" }
 zkx-support= { path="../support"}
 
 [dev-dependencies]

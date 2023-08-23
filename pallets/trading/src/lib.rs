@@ -16,7 +16,9 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingFeesInterface};
+	use zkx_support::traits::{
+		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+	};
 	use zkx_support::types::{
 		Direction, ErrorEventList, Market, Order, OrderEventList, OrderSide, OrderType, Position,
 		Side, TimeInForce,
@@ -34,6 +36,7 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
+		type MarketPricesPallet: MarketPricesInterface;
 	}
 
 	#[pallet::storage]
@@ -590,6 +593,12 @@ pub mod pallet {
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
 			BatchStatusMap::<T>::insert(batch_id, true);
+
+			//Update market price
+			let market_price = T::MarketPricesPallet::get_market_price(market_id);
+			if market_price == 0.into() {
+				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
+			}
 
 			for element in &error_events {
 				Self::deposit_event(Event::OrderError {

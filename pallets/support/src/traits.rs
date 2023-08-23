@@ -22,6 +22,7 @@ pub trait MarketInterface {
 
 pub trait MarketPricesInterface {
 	fn get_market_price(market_id: U256) -> FixedI128;
+	fn update_market_price(market_id: U256, price: FixedI128);
 }
 
 pub trait FixedI128Ext<T> {

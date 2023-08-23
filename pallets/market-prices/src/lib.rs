@@ -152,5 +152,9 @@ pub mod pallet {
 				market_price.price
 			}
 		}
+
+		fn update_market_price(market_id: U256, price: FixedI128) {
+			Self::update_market_price(market_id, price);
+		}
 	}
 }
