@@ -1,9 +1,14 @@
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
+use sp_arithmetic::FixedPointNumber;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
+use starknet_ff::FieldElement;
+use starknet_crypto::pedersen_hash;
+
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -84,6 +89,17 @@ pub enum OrderType {
 	Market,
 }
 
+impl From<OrderType> for u8 {
+
+	fn from(value: OrderType) -> u8 {
+
+		match value {
+			OrderType::Limit => 0_u8,
+			OrderType::Market => 1_u8
+		}
+	}
+}
+
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum TimeInForce {
 	#[default]
@@ -156,4 +172,30 @@ pub enum OrderSide {
 	#[default]
 	Maker,
 	Taker,
+}
+
+impl Order {
+
+	pub fn hash_elements(&self) -> FieldElement{
+
+		let mut elements: Vec<FieldElement> = Vec::new();
+		elements.push(FieldElement::from(self.order_id));
+		elements.push(FieldElement::from(u8::from(self.order_type)));
+		let inner_val:U256;
+		let max = U256::from_dec_str("3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
+		
+		if (self.price.into_inner() > 0 ){
+			inner_val = U256::from(self.price.into_inner()); // multiply by 10^20
+		}
+		else {
+			inner_val = max-U256::from(self.price.into_inner()*(-1));
+		}
+		let mut be_bytes:[u8;32];
+		inner_val.to_big_endian(&mut be_bytes);
+		elements.push(FieldElement::from_bytes_be(be_bytes).unwrap());
+
+		//elements.push();
+		pedersen_hash(&elements[0], &elements[1])
+
+	}
 }

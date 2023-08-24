@@ -3,6 +3,7 @@
 use crate::traits::FixedI128Ext;
 use sp_arithmetic::{fixed_point::FixedI128, traits::CheckedDiv, FixedPointNumber};
 use starknet_ff::FieldElement;
+pub use starknet_core::crypto::{ecdsa_verify};
 
 pub mod types;
 
