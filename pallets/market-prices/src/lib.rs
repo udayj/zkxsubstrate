@@ -59,41 +59,6 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// update market price
-		#[pallet::weight(0)]
-		pub fn update_market_price(
-			origin: OriginFor<T>,
-			market_id: U256,
-			price: FixedI128,
-		) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			let _ = ensure_signed(origin)?;
-
-			ensure!(price >= 0.into(), Error::<T>::InvalidMarketPrice);
-
-			// Get the current timestamp
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-
-			// Get Market from the corresponding Id
-			let market = T::MarketPallet::get_market(market_id);
-			ensure!(market.is_some(), Error::<T>::MarketNotFound);
-			let market = market.unwrap();
-
-			// Create a struct object for the market prices
-			let new_market_price: MarketPrice = MarketPrice {
-				asset_id: market.asset,
-				collateral_id: market.asset_collateral,
-				timestamp: current_timestamp,
-				price,
-			};
-
-			MarketPricesMap::<T>::insert(market_id, new_market_price);
-
-			Self::deposit_event(Event::MarketPriceUpdated { market_id, price: new_market_price });
-
-			Ok(())
-		}
-
 		/// update multiple market prices
 		#[pallet::weight(0)]
 		pub fn update_multiple_market_prices(
@@ -129,6 +94,7 @@ pub mod pallet {
 				MarketPricesMap::<T>::insert(curr_market.market_id, new_market_price);
 			}
 
+			// Emits event
 			Self::deposit_event(Event::MultipleMarketPricesUpdated { market_prices });
 
 			Ok(())
@@ -154,7 +120,26 @@ pub mod pallet {
 		}
 
 		fn update_market_price(market_id: U256, price: FixedI128) {
-			Self::update_market_price(market_id, price);
+			// Get the current timestamp
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+
+			// Get Market from the corresponding Id
+			let market = T::MarketPallet::get_market(market_id);
+			let market = market.unwrap();
+
+			// Create a struct object for the market prices
+			let new_market_price: MarketPrice = MarketPrice {
+				asset_id: market.asset,
+				collateral_id: market.asset_collateral,
+				timestamp: current_timestamp,
+				price,
+			};
+
+			// Updates market_price
+			MarketPricesMap::<T>::insert(market_id, new_market_price);
+
+			// Emits event
+			Self::deposit_event(Event::MarketPriceUpdated { market_id, price: new_market_price });
 		}
 	}
 }

@@ -121,6 +121,8 @@ pub mod pallet {
 		NotEnoughMargin,
 		/// Order error with error code
 		OrderError { error_code: u16 },
+		/// Invalid oracle price
+		InvalidOraclePrice { error_code: u16 },
 	}
 
 	#[pallet::event]
@@ -181,6 +183,15 @@ pub mod pallet {
 			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
 			let market = market.unwrap();
 			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable { error_code: 509 });
+
+			// validates oracle_price
+			ensure!(oracle_price > 0.into(), Error::<T>::InvalidOraclePrice { error_code: 513 });
+
+			//Update market price
+			let market_price = T::MarketPricesPallet::get_market_price(market_id);
+			if market_price == 0.into() {
+				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
+			}
 
 			let collateral_id: U256 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
@@ -593,12 +604,6 @@ pub mod pallet {
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
 			BatchStatusMap::<T>::insert(batch_id, true);
-
-			//Update market price
-			let market_price = T::MarketPricesPallet::get_market_price(market_id);
-			if market_price == 0.into() {
-				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
-			}
 
 			for element in &error_events {
 				Self::deposit_event(Event::OrderError {

@@ -8,7 +8,6 @@ fn setup() -> (Market, Market) {
 	let eth_id: U256 = 4543560.into();
 	let usdc_id: U256 = 1431520323.into();
 	let link_id: U256 = 1279872587.into();
-	let btc_id: U256 = 4346947.into();
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: eth_id,
@@ -33,15 +32,6 @@ fn setup() -> (Market, Market) {
 		is_collateral: false,
 		token_decimal: 6,
 	};
-	let name3: Vec<u8> = "BTC".into();
-	let asset4: Asset = Asset {
-		id: btc_id,
-		name: name3.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 6,
-	};
-
 	let assets: Vec<Asset> = vec![asset1.clone(), asset2.clone(), asset3.clone()];
 	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
@@ -94,7 +84,7 @@ fn setup() -> (Market, Market) {
 
 #[test]
 #[should_panic(expected = "MarketNotFound")]
-fn test_update_market_price_with_invalid_market_id() {
+fn test_update_multiple_market_prices_with_invalid_market_id() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
@@ -102,17 +92,20 @@ fn test_update_market_price_with_invalid_market_id() {
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-		assert_ok!(MarketPricesModule::update_market_price(
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: 0.into(), price: 1000.into() };
+		market_prices.push(market_price1);
+
+		assert_ok!(MarketPricesModule::update_multiple_market_prices(
 			RuntimeOrigin::signed(1),
-			0.into(),    //market_id
-			1000.into()  //price
+			market_prices
 		));
 	});
 }
 
 #[test]
 #[should_panic(expected = "InvalidMarketPrice")]
-fn test_update_market_price_with_invalid_market_price() {
+fn test_update_multiple_market_prices_with_invalid_market_price() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
@@ -120,38 +113,14 @@ fn test_update_market_price_with_invalid_market_price() {
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-		assert_ok!(MarketPricesModule::update_market_price(
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: market1.id, price: (-100).into() };
+		market_prices.push(market_price1);
+
+		assert_ok!(MarketPricesModule::update_multiple_market_prices(
 			RuntimeOrigin::signed(1),
-			1.into(),      //market_id
-			(-100).into()  //price
+			market_prices
 		));
-	});
-}
-
-#[test]
-fn test_update_market_price() {
-	new_test_ext().execute_with(|| {
-		let (market1, market2) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-		assert_ok!(MarketPricesModule::update_market_price(
-			RuntimeOrigin::signed(1),
-			1.into(),
-			1000.into()
-		));
-
-		let market_price = MarketPricesModule::market_price(market1.id);
-		let expected_price: FixedI128 = 1000.into();
-		let price: FixedI128 = market_price.price;
-		assert_eq!(expected_price, price);
-
-		// Assert that the correct event was deposited
-		System::assert_last_event(
-			Event::MarketPriceUpdated { market_id: market1.id, price: market_price }.into(),
-		);
 	});
 }
 
