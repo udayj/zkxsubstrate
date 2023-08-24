@@ -20,8 +20,6 @@ pub mod pallet {
 	use zkx_support::traits::{MarketInterface, MarketPricesInterface};
 	use zkx_support::types::{MarketPrice, MultipleMarketPrices};
 
-	static DELETION_LIMIT: u32 = 100;
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -67,9 +65,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;
-
-			// Clear market prices map
-			let _ = MarketPricesMap::<T>::clear(DELETION_LIMIT, None);
 
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
