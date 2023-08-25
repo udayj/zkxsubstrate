@@ -16,7 +16,9 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingFeesInterface};
+	use zkx_support::traits::{
+		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+	};
 	use zkx_support::types::{
 		Direction, ErrorEventList, Market, Order, OrderEventList, OrderSide, OrderType, Position,
 		Side, TimeInForce,
@@ -34,6 +36,7 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
+		type MarketPricesPallet: MarketPricesInterface;
 	}
 
 	#[pallet::storage]
@@ -118,6 +121,8 @@ pub mod pallet {
 		NotEnoughMargin,
 		/// Order error with error code
 		OrderError { error_code: u16 },
+		/// Invalid oracle price
+		InvalidOraclePrice { error_code: u16 },
 	}
 
 	#[pallet::event]
@@ -178,6 +183,15 @@ pub mod pallet {
 			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
 			let market = market.unwrap();
 			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable { error_code: 509 });
+
+			// validates oracle_price
+			ensure!(oracle_price > 0.into(), Error::<T>::InvalidOraclePrice { error_code: 513 });
+
+			//Update market price
+			let market_price = T::MarketPricesPallet::get_market_price(market_id);
+			if market_price == 0.into() {
+				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
+			}
 
 			let collateral_id: U256 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;

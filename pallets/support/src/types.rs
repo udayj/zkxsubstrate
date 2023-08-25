@@ -64,6 +64,20 @@ pub struct Market {
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MarketPrice {
+	pub asset_id: U256,
+	pub collateral_id: U256,
+	pub timestamp: u64,
+	pub price: FixedI128,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MultipleMarketPrices {
+	pub market_id: U256,
+	pub price: FixedI128,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Direction {
 	#[default]
 	Long,
