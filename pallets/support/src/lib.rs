@@ -1,9 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use crate::traits::FixedI128Ext;
+use frame_support::inherent::Vec;
 use sp_arithmetic::{fixed_point::FixedI128, traits::CheckedDiv, FixedPointNumber};
+use starknet_crypto::pedersen_hash;
 use starknet_ff::FieldElement;
 pub use starknet_core::crypto::{ecdsa_verify};
+use primitive_types::U256;
+use itertools::fold;
 
 pub mod types;
 
@@ -39,4 +43,36 @@ impl FixedI128Ext<FixedI128> for FixedI128 {
 		let res: FixedI128 = FixedI128::add(integer_part, decimal_part);
 		res
 	}
+}
+
+
+pub fn FixedI128_to_U256(val: FixedI128) -> U256 {
+
+	let inner_val:U256;
+	let max = U256::from_dec_str("3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
+	let FixedI128DIV = U256::from_dec_str("1000000000000000000").unwrap();
+	if (!val.is_negative()){
+		inner_val = U256::from(val.into_inner())*FixedI128DIV; // multiply by 10^20
+	}
+	else {
+		inner_val = max-(U256::from(val.into_inner()*(-1))*FixedI128DIV);
+	}
+	inner_val
+}
+
+pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
+
+	let first_element = FieldElement::from(0_u8);
+	let last_element = FieldElement::from(data.len());
+	
+	let mut elements = data.clone();
+	elements.push(last_element);
+
+	fold(&elements, first_element, foldable_pedersen_hash)
+}
+
+pub fn foldable_pedersen_hash(a: FieldElement, b: & FieldElement) -> FieldElement {
+
+	pedersen_hash(&a, b)
+
 }

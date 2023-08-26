@@ -1,6 +1,7 @@
 use crate::types::{Asset, Market, OrderSide, Side};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
+use starknet_ff::FieldElement;
 
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
@@ -30,4 +31,8 @@ pub trait TradingFeesInterface {
 		order_side: OrderSide,
 		number_of_tokens: U256,
 	) -> (FixedI128, u8, u8);
+}
+
+pub trait Hashable {
+	fn hash_elements(&self) -> FieldElement;
 }

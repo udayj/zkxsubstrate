@@ -9,6 +9,8 @@ use sp_runtime::RuntimeDebug;
 use starknet_ff::FieldElement;
 use starknet_crypto::pedersen_hash;
 
+use super::traits::Hashable;
+use super::{FixedI128_to_U256, pedersen_hash_multiple};
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -75,11 +77,33 @@ pub enum Direction {
 	Short,
 }
 
+impl From<Direction> for u8 {
+
+	fn from(value: Direction) -> u8 {
+
+		match value {
+			Direction::Long => 0_u8,
+			Direction::Short => 1_u8
+		}
+	}
+}
+
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Side {
 	#[default]
 	Buy,
 	Sell,
+}
+
+impl From<Side> for u8 {
+
+	fn from(value: Side) -> u8 {
+
+		match value {
+			Side::Buy => 0_u8,
+			Side::Sell => 1_u8
+		}
+	}
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -108,6 +132,18 @@ pub enum TimeInForce {
 	FOK,
 }
 
+impl From<TimeInForce> for u8 {
+
+	fn from(value: TimeInForce) -> u8 {
+
+		match value {
+			TimeInForce::GTC => 0_u8,
+			TimeInForce::IOC => 1_u8,
+			TimeInForce::FOK => 2_u8
+		}
+	}
+}
+
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub user: U256,
@@ -123,7 +159,7 @@ pub struct Order {
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
 }
-
+ 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
 	pub avg_execution_price: FixedI128,
@@ -174,28 +210,51 @@ pub enum OrderSide {
 	Taker,
 }
 
-impl Order {
+impl Hashable for Order {
 
-	pub fn hash_elements(&self) -> FieldElement{
+	fn hash_elements(&self) -> FieldElement{
 
 		let mut elements: Vec<FieldElement> = Vec::new();
-		elements.push(FieldElement::from(self.order_id));
-		elements.push(FieldElement::from(u8::from(self.order_type)));
-		let inner_val:U256;
-		let max = U256::from_dec_str("3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
-		
-		if (self.price.into_inner() > 0 ){
-			inner_val = U256::from(self.price.into_inner()); // multiply by 10^20
-		}
-		else {
-			inner_val = max-U256::from(self.price.into_inner()*(-1));
-		}
-		let mut be_bytes:[u8;32];
-		inner_val.to_big_endian(&mut be_bytes);
-		elements.push(FieldElement::from_bytes_be(be_bytes).unwrap());
+		let mut buffer:[u8;32] = [0;32];
+		self.user.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
 
+		elements.push(FieldElement::from(self.order_id));
+
+		self.market_id.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+
+		elements.push(FieldElement::from(u8::from(self.order_type)));
+		elements.push(FieldElement::from(u8::from(self.direction)));
+		elements.push(FieldElement::from(u8::from(self.side)));
+
+
+		let u256_representation = FixedI128_to_U256(self.price);
+		u256_representation.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap()); // try using from_byte_slice_be
+
+		let u256_representation = FixedI128_to_U256(self.size);
+		u256_representation.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+
+		let u256_representation = FixedI128_to_U256(self.leverage);
+		u256_representation.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+
+		let u256_representation = FixedI128_to_U256(self.slippage);
+		u256_representation.to_big_endian(&mut buffer);
+		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+
+		match self.post_only {
+			true => elements.push(FieldElement::from(1_u8)),
+			false => elements.push(FieldElement::from(0_u8))
+		}
+
+
+		elements.push(FieldElement::from(u8::from(self.time_in_force)));
+		// try using U256 from sp_core
 		//elements.push();
-		pedersen_hash(&elements[0], &elements[1])
+		pedersen_hash_multiple(&elements)
 
 	}
 }
