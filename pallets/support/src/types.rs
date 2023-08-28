@@ -6,11 +6,11 @@ use scale_info::TypeInfo;
 use sp_arithmetic::FixedPointNumber;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
-use starknet_ff::FieldElement;
+use starknet_ff::{FieldElement, FromByteSliceError};
 use starknet_crypto::poseidon_hash_many;
 
 use super::traits::Hashable;
-use super::{FixedI128_to_U256, pedersen_hash_multiple};
+use super::helpers::{FixedI128_to_U256, U256_to_FieldElement, pedersen_hash_multiple};
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -219,38 +219,35 @@ pub enum HashType {
 
 impl Hashable for Order {
 
-	fn hash(&self, hash_type: HashType) -> FieldElement{
+	// No error apart from error during conversion from U256 to FieldElement should happen
+	// Hence associated type is defined to be exactly that error i.e. FromByteSliceError
+	type ConversionError = FromByteSliceError;
+	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>{
 
 		let mut elements: Vec<FieldElement> = Vec::new();
-		let mut buffer:[u8;32] = [0;32];
-		self.user.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+		
+		elements.push(U256_to_FieldElement(&self.user)?);
 
 		elements.push(FieldElement::from(self.order_id));
 
-		self.market_id.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+		elements.push(U256_to_FieldElement(&self.market_id)?);
 
 		elements.push(FieldElement::from(u8::from(self.order_type)));
 		elements.push(FieldElement::from(u8::from(self.direction)));
 		elements.push(FieldElement::from(u8::from(self.side)));
 
 
-		let u256_representation = FixedI128_to_U256(self.price);
-		u256_representation.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap()); // try using from_byte_slice_be
+		let u256_representation = FixedI128_to_U256(&self.price);
+		elements.push(U256_to_FieldElement(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(self.size);
-		u256_representation.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+		let u256_representation = FixedI128_to_U256(&self.size);
+		elements.push(U256_to_FieldElement(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(self.leverage);
-		u256_representation.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+		let u256_representation = FixedI128_to_U256(&self.leverage);
+		elements.push(U256_to_FieldElement(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(self.slippage);
-		u256_representation.to_big_endian(&mut buffer);
-		elements.push(FieldElement::from_byte_slice_be(&buffer).unwrap());
+		let u256_representation = FixedI128_to_U256(&self.slippage);
+		elements.push(U256_to_FieldElement(&u256_representation)?);
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
@@ -259,13 +256,14 @@ impl Hashable for Order {
 
 
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
-		// try using U256 from sp_core
-		//elements.push();
+		
+
 		match hash_type {
-			HashType::Pedersen => pedersen_hash_multiple(&elements),
-			HashType::Poseidon => poseidon_hash_many(&elements)
+			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
+			HashType::Poseidon => Ok(poseidon_hash_many(&elements))
 		}
 		
 
 	}
+
 }
