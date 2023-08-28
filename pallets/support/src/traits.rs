@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, OrderSide, Side};
+use crate::types::{Asset, Market, OrderSide, Side, HashType};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_ff::FieldElement;
@@ -34,5 +34,5 @@ pub trait TradingFeesInterface {
 }
 
 pub trait Hashable {
-	fn hash_elements(&self) -> FieldElement;
+	fn hash(&self, hash_type:HashType) -> FieldElement;
 }

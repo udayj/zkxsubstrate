@@ -1,15 +1,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use crate::traits::FixedI128Ext;
-use frame_support::inherent::Vec;
 use sp_arithmetic::{fixed_point::FixedI128, traits::CheckedDiv, FixedPointNumber};
-use starknet_crypto::pedersen_hash;
-use starknet_ff::FieldElement;
-pub use starknet_core::crypto::{ecdsa_verify};
 use primitive_types::U256;
-use itertools::fold;
+use starknet_ff::FieldElement;
 
+// Re-export ecdsa_verify to be used as is
+pub use starknet_core::crypto::{ecdsa_verify};
 pub mod types;
+
+#[cfg(test)]
+mod tests;
 
 pub mod traits;
 
@@ -45,34 +46,42 @@ impl FixedI128Ext<FixedI128> for FixedI128 {
 	}
 }
 
+pub mod helpers{
 
-pub fn FixedI128_to_U256(val: FixedI128) -> U256 {
+	use starknet_crypto::pedersen_hash;
+	use frame_support::inherent::Vec;
+	use super::{FixedI128, CheckedDiv, FixedPointNumber, U256, FieldElement};
+	use itertools::fold;
 
-	let inner_val:U256;
-	let max = U256::from_dec_str("3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
-	let FixedI128DIV = U256::from_dec_str("1000000000000000000").unwrap();
-	if (!val.is_negative()){
-		inner_val = U256::from(val.into_inner())*FixedI128DIV; // multiply by 10^20
+	pub fn FixedI128_to_U256(val: FixedI128) -> U256 {
+
+		let inner_val:U256;
+		// Max prime 2^251 + 17*2^192 + 1
+		const PRIME:U256 = U256::from_dec_str("3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
+		
+		if (!val.is_negative()){
+			inner_val = U256::from(val.into_inner());
+		}
+		else {
+			inner_val = PRIME-(U256::from(val.into_inner()*(-1_i128)));
+		}
+		inner_val
 	}
-	else {
-		inner_val = max-(U256::from(val.into_inner()*(-1))*FixedI128DIV);
+
+	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
+
+		let first_element = FieldElement::from(0_u8);
+		let last_element = FieldElement::from(data.len());
+		
+		let mut elements = data.clone();
+		elements.push(last_element);
+
+		fold(&elements, first_element, foldable_pedersen_hash)
 	}
-	inner_val
-}
 
-pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
+	fn foldable_pedersen_hash(a: FieldElement, b: & FieldElement) -> FieldElement {
 
-	let first_element = FieldElement::from(0_u8);
-	let last_element = FieldElement::from(data.len());
-	
-	let mut elements = data.clone();
-	elements.push(last_element);
+		pedersen_hash(&a, b)
 
-	fold(&elements, first_element, foldable_pedersen_hash)
-}
-
-pub fn foldable_pedersen_hash(a: FieldElement, b: & FieldElement) -> FieldElement {
-
-	pedersen_hash(&a, b)
-
+	}
 }

@@ -7,7 +7,7 @@ use sp_arithmetic::FixedPointNumber;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 use starknet_ff::FieldElement;
-use starknet_crypto::pedersen_hash;
+use starknet_crypto::poseidon_hash_many;
 
 use super::traits::Hashable;
 use super::{FixedI128_to_U256, pedersen_hash_multiple};
@@ -210,9 +210,16 @@ pub enum OrderSide {
 	Taker,
 }
 
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum HashType {
+	#[default]
+	Pedersen,
+	Poseidon
+}
+
 impl Hashable for Order {
 
-	fn hash_elements(&self) -> FieldElement{
+	fn hash(&self, hash_type: HashType) -> FieldElement{
 
 		let mut elements: Vec<FieldElement> = Vec::new();
 		let mut buffer:[u8;32] = [0;32];
@@ -254,7 +261,11 @@ impl Hashable for Order {
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
 		// try using U256 from sp_core
 		//elements.push();
-		pedersen_hash_multiple(&elements)
+		match hash_type {
+			HashType::Pedersen => pedersen_hash_multiple(&elements),
+			HashType::Poseidon => poseidon_hash_many(&elements)
+		}
+		
 
 	}
 }
