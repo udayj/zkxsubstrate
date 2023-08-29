@@ -139,12 +139,6 @@ pub struct FailedOrder {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct FailedBatch {
-	pub batch_id: u128,
-	pub quantity_locked: FixedI128,
-}
-
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ExecutedBatch {
 	batch_id: U256,
 	market_id: U256,

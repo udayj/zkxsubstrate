@@ -1,4 +1,4 @@
-use crate::types::{Asset, ExecutedBatch, ExecutedOrder, FailedOrder, Market, OrderSide, Side};
+use crate::types::{Asset, Market, OrderSide, Side};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -15,14 +15,6 @@ pub trait TradingAccountInterface {
 pub trait AssetInterface {
 	fn get_default_collateral() -> U256;
 	fn get_asset(id: U256) -> Option<Asset>;
-}
-
-pub trait SyncFacadeInterface {
-	fn syncfacade_emit(
-		executed_orders: Vec<ExecutedOrder>,
-		failed_orders: Vec<FailedOrder>,
-		executed_batch: ExecutedBatch,
-	);
 }
 
 pub trait MarketInterface {
