@@ -134,20 +134,20 @@ pub mod pallet {
 			market_id: U256,
 			size: FixedI128,
 			execution_price: FixedI128,
-			direction: Direction,
-			side: Side,
+			direction: u8,
+			side: u8,
 		},
 		/// Order error
 		OrderError { order_id: u128, error_code: u16 },
 		/// Order of a user executed successfully
 		OrderExecuted {
-			user: U256,
+			account_id: U256,
 			order_id: u128,
 			market_id: U256,
 			size: FixedI128,
-			direction: Direction,
-			side: Side,
-			order_type: OrderType,
+			direction: u8,
+			side: u8,
+			order_type: u8,
 			execution_price: FixedI128,
 			pnl: FixedI128,
 			opening_fee: FixedI128,
@@ -182,7 +182,7 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id);
 			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
 			let market = market.unwrap();
-			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable { error_code: 509 });
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable { error_code: 509 });
 
 			// validates oracle_price
 			ensure!(oracle_price > 0.into(), Error::<T>::InvalidOraclePrice { error_code: 513 });
@@ -262,9 +262,9 @@ pub mod pallet {
 				let order_portion_executed = PortionExecutedMap::<T>::get(element.order_id);
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
 				let position_details =
-					PositionsMap::<T>::get(&element.user, [market_id, direction]);
+					PositionsMap::<T>::get(&element.account_id, [market_id, direction]);
 				let current_margin_locked =
-					T::TradingAccountPallet::get_locked_margin(element.user, collateral_id);
+					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
@@ -452,16 +452,20 @@ pub mod pallet {
 					if position_details.size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
-						let opposite_position =
-							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
+						let opposite_position = PositionsMap::<T>::get(
+							&element.account_id,
+							[market_id, opposite_direction],
+						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.user);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
 							markets.push(market_id);
-							CollateralToMarketMap::<T>::insert(&element.user, markets);
+							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
 						}
 					}
 
 					updated_position = Position {
+						direction: element.direction,
+						side: element.side,
 						avg_execution_price,
 						size: new_position_size,
 						margin_amount,
@@ -523,18 +527,22 @@ pub mod pallet {
 					if new_position_size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
-						let opposite_position =
-							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
+						let opposite_position = PositionsMap::<T>::get(
+							&element.account_id,
+							[market_id, opposite_direction],
+						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.user);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
 							for index in 0..markets.len() {
 								if markets[index] == market_id {
 									markets.remove(index);
 								}
 							}
-							CollateralToMarketMap::<T>::insert(&element.user, markets);
+							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
 						}
 						updated_position = Position {
+							direction: element.direction,
+							side: element.side,
 							avg_execution_price: 0.into(),
 							size: 0.into(),
 							margin_amount: 0.into(),
@@ -546,6 +554,8 @@ pub mod pallet {
 						// To do - Calculate pnl
 
 						updated_position = Position {
+							direction: element.direction,
+							side: element.side,
 							avg_execution_price,
 							size: new_position_size,
 							margin_amount,
@@ -576,16 +586,20 @@ pub mod pallet {
 
 				// Update position, locked margin and portion executed
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
-				PositionsMap::<T>::set(&element.user, [market_id, direction], updated_position);
+				PositionsMap::<T>::set(
+					&element.account_id,
+					[market_id, direction],
+					updated_position,
+				);
 				T::TradingAccountPallet::set_locked_margin(
-					element.user,
+					element.account_id,
 					collateral_id,
 					new_margin_locked,
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
 
 				order_events.push(OrderEventList {
-					user: element.user,
+					account_id: element.account_id,
 					order_id: element.order_id,
 					market_id: element.market_id,
 					size: quantity_to_execute,
@@ -613,27 +627,34 @@ pub mod pallet {
 			}
 
 			for element in &order_events {
+				let direction = if element.direction == Direction::Long { 1_u8 } else { 2_u8 };
+				let side = if element.side == Side::Buy { 1_u8 } else { 2_u8 };
+				let order_type = if element.order_type == OrderType::Market { 1_u8 } else { 2_u8 };
 				Self::deposit_event(Event::OrderExecuted {
-					user: element.user,
+					account_id: element.account_id,
 					order_id: element.order_id,
 					market_id: element.market_id,
 					size: element.size,
-					direction: element.direction,
-					side: element.side,
-					order_type: element.order_type,
+					direction,
+					side,
+					order_type,
 					execution_price: element.execution_price,
 					pnl: element.pnl,
 					opening_fee: element.opening_fee,
 				});
 			}
 
+			let taker_direction =
+				if orders[orders.len() - 1].direction == Direction::Long { 1_u8 } else { 2_u8 };
+			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 1_u8 } else { 2_u8 };
+
 			Self::deposit_event(Event::TradeExecuted {
 				batch_id,
 				market_id,
 				size: taker_quantity,
 				execution_price: taker_execution_price,
-				direction: orders[orders.len() - 1].direction,
-				side: orders[orders.len() - 1].side,
+				direction: taker_direction,
+				side: taker_side,
 			});
 
 			Ok(())
@@ -653,7 +674,8 @@ pub mod pallet {
 			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id);
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
@@ -699,7 +721,7 @@ pub mod pallet {
 			market: &Market,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
-			let is_registered = T::TradingAccountPallet::is_registered_user(order.user);
+			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
 			ensure!(is_registered, Error::<T>::UserNotRegistered);
 
 			// Validate that size of order is >= min quantity for market
@@ -821,7 +843,8 @@ pub mod pallet {
 			let mut average_execution_price: FixedI128 = execution_price;
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			// Calculate average execution price
 			if position_details.size == 0.into() {
@@ -848,10 +871,10 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
 			ensure!(margin_order_value + fee <= balance, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(
-				order.user,
+				order.account_id,
 				collateral_id,
 				margin_order_value + fee,
 			);
@@ -879,7 +902,8 @@ pub mod pallet {
 			let price_diff: FixedI128;
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			if order.direction == Direction::Long {
 				actual_execution_price = execution_price;
@@ -909,7 +933,7 @@ pub mod pallet {
 			// To do - deduct fund from holding contract
 			// To do - deposit fund to liquidity fund if position is leveraged
 
-			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
 
 			// Check if user is under water, ie,
 			// user has lost some borrowed funds
@@ -937,7 +961,7 @@ pub mod pallet {
 
 				// Deduct under water amount (if any) + margin amt to reduce from user
 				T::TradingAccountPallet::transfer_from(
-					order.user,
+					order.account_id,
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
 				);
@@ -958,21 +982,21 @@ pub mod pallet {
 
 					// Deduct required funds from user
 					T::TradingAccountPallet::transfer_from(
-						order.user,
+						order.account_id,
 						collateral_id,
 						pnl.saturating_abs(),
 					);
 				} else {
 					// User is in profit
 					// Transfer the profit to user
-					T::TradingAccountPallet::transfer(order.user, collateral_id, pnl);
+					T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
 				}
 
 				// To do - Handle liquidation and deleveraging orders
 
 				// Deduct  proportionate margin amount from user
 				T::TradingAccountPallet::transfer_from(
-					order.user,
+					order.account_id,
 					collateral_id,
 					margin_amount_to_reduce,
 				);
