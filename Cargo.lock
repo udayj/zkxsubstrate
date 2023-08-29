@@ -4513,6 +4513,7 @@ dependencies = [
  "pallet-market",
  "pallet-market-prices",
  "pallet-sudo",
+ "pallet-sync-facade",
  "pallet-timestamp",
  "pallet-trading",
  "pallet-trading-fees",
@@ -4876,6 +4877,21 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
+]
+
+[[package]]
+name = "pallet-sync-facade"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
 ]
 
 [[package]]
