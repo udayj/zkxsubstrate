@@ -85,8 +85,6 @@ pub mod pallet {
 				ensure!(!MarketMap::<T>::contains_key(element.id), Error::<T>::DuplicateMarket);
 				// Check market id is non zero
 				ensure!(element.id > 0.into(), Error::<T>::InvalidMarketId);
-				// Validate is_tradable flag
-				ensure!((0..3).contains(&element.is_tradable), Error::<T>::InvalidTradableFlag);
 				// Validate asset and asset collateral
 				let asset = T::Asset::get_asset(element.asset);
 				ensure!(asset.is_some(), Error::<T>::AssetNotFound);

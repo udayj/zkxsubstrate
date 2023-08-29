@@ -44,7 +44,7 @@ pub struct Market {
 	pub id: U256,
 	pub asset: U256,
 	pub asset_collateral: U256,
-	pub is_tradable: u8,
+	pub is_tradable: bool,
 	pub is_archived: bool,
 	pub ttl: u32,
 	pub tick_size: FixedI128,
@@ -108,7 +108,7 @@ pub enum TimeInForce {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
-	pub user: U256,
+	pub account_id: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub order_type: OrderType,
@@ -124,6 +124,8 @@ pub struct Order {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
+	pub direction: Direction,
+	pub side: Side,
 	pub avg_execution_price: FixedI128,
 	pub size: FixedI128,
 	pub margin_amount: FixedI128,
@@ -150,7 +152,7 @@ pub struct ExecutedBatch {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ExecutedOrder {
-	pub user: U256,
+	pub account_id: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub size: FixedI128,
