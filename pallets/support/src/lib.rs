@@ -14,10 +14,6 @@ mod tests;
 
 pub mod traits;
 
-pub enum Error {
-	U256ToFieldElement,
-	Hashing
-}
 pub fn str_to_felt(text: &str) -> u128 {
 	let a = FieldElement::from_byte_slice_be(text.as_bytes());
 	u128::try_from(a.unwrap()).unwrap()
@@ -54,16 +50,16 @@ pub mod helpers{
 
 	use starknet_crypto::pedersen_hash;
 	use frame_support::inherent::Vec;
-	use super::{FixedI128, CheckedDiv, FixedPointNumber, U256, FieldElement, Error, FromByteSliceError};
+	use super::{FixedI128, FixedPointNumber, U256, FieldElement, FromByteSliceError};
 	use itertools::fold;
 
 	// Function to convert from fixed point number to U256 inside the PRIME field
 	// This function does the appropriate mod arithmetic to ensure the returned value is actually less than PRIME
-	pub fn FixedI128_to_U256(val: &FixedI128) -> U256 {
+	pub fn fixed_i128_to_u256(val: &FixedI128) -> U256 {
 
 		let inner_val:U256;
 		// Max prime 2^251 + 17*2^192 + 1
-		let PRIME:U256 = U256::from_dec_str(
+		let prime:U256 = U256::from_dec_str(
 			"3618502788666131213697322783095070105623107215331596699973092056135872020481").unwrap();
 		// If the fixed point number is positive, we directly convert the inner val to U256
 		if !val.is_negative() {
@@ -72,12 +68,12 @@ pub mod helpers{
 		else {
 			// If the fixed point number is negative then we need to wrap the value
 			// i.e. -x is equivalent to PRIME - x (or -x % PRIME) where x is a positive number
-			inner_val = PRIME-(U256::from(val.into_inner()*(-1_i128)));
+			inner_val = prime-(U256::from(-val.into_inner()));
 		}
 		inner_val
 	}
 
-	pub fn U256_to_FieldElement(val: &U256) -> Result<FieldElement, FromByteSliceError> {
+	pub fn u256_to_field_element(val: &U256) -> Result<FieldElement, FromByteSliceError> {
 
 		let mut buffer:[u8;32] = [0;32];
 		val.to_big_endian(&mut buffer);

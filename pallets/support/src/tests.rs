@@ -1,27 +1,17 @@
 use starknet_ff::FieldElement;
-use sp_runtime::traits::Printable;
-use crate::types::Side;
-use starknet_crypto::{pedersen_hash, poseidon_hash_many, poseidon_hash};
+use starknet_crypto::{pedersen_hash, poseidon_hash_many, poseidon_hash, get_public_key, Signature};
+use starknet_core::crypto::{ecdsa_sign};
 use sp_arithmetic::fixed_point::FixedI128;
-use crate:: helpers::{FixedI128_to_U256, U256_to_FieldElement, pedersen_hash_multiple};
+use crate::helpers::{fixed_i128_to_u256, u256_to_field_element, pedersen_hash_multiple};
+use crate::types::{ Side, Order, OrderType, Direction, TimeInForce, HashType};
+use crate::traits::Hashable;
+use crate::ecdsa_verify;
 use primitive_types::U256;
-use sp_runtime::print;
 use frame_support::inherent::Vec;
 
 #[test]
-fn test_fe_and_hash_values() {
+fn test_felt_and_hash_values() {
 
-    // compare field elements of diff types - done
-    // compare hash of single elements - done
-    // check field elements of enum type - done
-    // hash of enum types - done
-    // compare u256 fe - done
-    // compare hash of u256 - done
-    // compare fixedi128 fe - done
-    // compare hash fixedi128 - done
-    // compare hash of arrays - done
-    // compare hash of order type
-    // verify signature
     let val1 = FieldElement::from(1_u8);
     let val2 = FieldElement::from(2_u128);
     let zero = FieldElement::from(0_u8);
@@ -41,25 +31,22 @@ fn test_fe_and_hash_values() {
 
     let u256_1 = U256::from_dec_str("1").unwrap();
     let u256_2 = U256::from_dec_str("2").unwrap();
-    let u256_3 = U256::from_dec_str("3").unwrap();
-    let u256_4 = U256::from_dec_str("4").unwrap();
-    let u256_5 = U256::from_dec_str("5").unwrap();
 
-    let u256_fe1 = U256_to_FieldElement(&u256_1).unwrap();
+    let u256_fe1 = u256_to_field_element(&u256_1).unwrap();
     assert_eq!(val1, u256_fe1);
 
-    let u256_fe2 = U256_to_FieldElement(&u256_2).unwrap();
+    let u256_fe2 = u256_to_field_element(&u256_2).unwrap();
     assert_eq!(pedersen_hash(&u256_fe1, &u256_fe2),
                 FieldElement::from_dec_str("2592987851775965742543459319508348457290966253241455514226127639100457844774").unwrap());
     let fixed1 = FixedI128::from_inner(-100);
     let fixed2 = FixedI128::from_inner(100);
     
-    let fixed1_u256 = FixedI128_to_U256(&fixed1);
+    let fixed1_u256 = fixed_i128_to_u256(&fixed1);
     
-    let fixed2_u256 = FixedI128_to_U256(&fixed2);
+    let fixed2_u256 = fixed_i128_to_u256(&fixed2);
 
-    let fixed1_fe = U256_to_FieldElement(&fixed1_u256).unwrap();
-    let fixed2_fe = U256_to_FieldElement(&fixed2_u256).unwrap();
+    let fixed1_fe = u256_to_field_element(&fixed1_u256).unwrap();
+    let fixed2_fe = u256_to_field_element(&fixed2_u256).unwrap();
     assert_ne!(fixed1_fe, fixed2_fe);
 
     // -100 = -100 % PRIME == PRIME - 100
@@ -79,5 +66,43 @@ fn test_fe_and_hash_values() {
             FieldElement::from_dec_str("1420103144340050848018289014363061324075028314390235365070247630498414256754").unwrap());
 
     assert_ne!(pedersen_hash(&zero, &fixed1_fe), pedersen_hash(&zero, &fixed2_fe));
+
+}
+
+#[test]
+fn test_order_signature() {
+
+    let order = Order {
+        user: U256::from_dec_str("100").unwrap(),
+        order_id: 200_u128,
+        market_id: U256::from_dec_str("300").unwrap(),
+        order_type: OrderType::Market,
+        direction: Direction::Long,
+        side: Side::Buy,
+        price: FixedI128::from_inner(10000000_i128),
+        size: FixedI128::from_inner(01_i128),
+        leverage: FixedI128::from_inner(-100_i128),
+        slippage: FixedI128::from_inner(-200_i128),
+        post_only: true,
+        time_in_force: TimeInForce::GTC
+    };
+
+    let order_hash = order.hash(HashType::Pedersen).unwrap();
+
+    // correct value of order_hash is the hash as calculated using compute_hash_on_elements (from cairo-lang package) using the 
+    // serialized values of the different types
+    // compute_hash_on_elements([100,200,300,1,0,0,10000000,0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
+    // 0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff39,1,0])
+    let expected_hash = FieldElement::from_dec_str("779455944553865873074074863659363906459964867916460440519908583353736546068").unwrap();
+    assert_eq!(order_hash, expected_hash);
+
+    let private_key = FieldElement::from_dec_str("100").unwrap();
+    let public_key = get_public_key(&private_key);
+    let signature = ecdsa_sign(&private_key, &order_hash).unwrap();
+    let verification = ecdsa_verify(
+        &public_key, 
+        &expected_hash, 
+        &Signature::from(signature)).unwrap();
+    assert_eq!(verification, true);
 
 }

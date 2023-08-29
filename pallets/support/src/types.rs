@@ -3,14 +3,13 @@ use frame_support::pallet_prelude::*;
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
-use sp_arithmetic::FixedPointNumber;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 use starknet_ff::{FieldElement, FromByteSliceError};
 use starknet_crypto::poseidon_hash_many;
 
 use super::traits::Hashable;
-use super::helpers::{FixedI128_to_U256, U256_to_FieldElement, pedersen_hash_multiple};
+use super::helpers::{fixed_i128_to_u256, u256_to_field_element, pedersen_hash_multiple};
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -220,50 +219,44 @@ pub enum HashType {
 impl Hashable for Order {
 
 	// No error apart from error during conversion from U256 to FieldElement should happen
-	// Hence associated type is defined to be exactly that error i.e. FromByteSliceError
+	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
 	type ConversionError = FromByteSliceError;
 	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>{
 
 		let mut elements: Vec<FieldElement> = Vec::new();
 		
-		elements.push(U256_to_FieldElement(&self.user)?);
+		elements.push(u256_to_field_element(&self.user)?);
 
 		elements.push(FieldElement::from(self.order_id));
 
-		elements.push(U256_to_FieldElement(&self.market_id)?);
+		elements.push(u256_to_field_element(&self.market_id)?);
 
 		elements.push(FieldElement::from(u8::from(self.order_type)));
 		elements.push(FieldElement::from(u8::from(self.direction)));
 		elements.push(FieldElement::from(u8::from(self.side)));
 
+		let u256_representation = fixed_i128_to_u256(&self.price);
+		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(&self.price);
-		elements.push(U256_to_FieldElement(&u256_representation)?);
+		let u256_representation = fixed_i128_to_u256(&self.size);
+		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(&self.size);
-		elements.push(U256_to_FieldElement(&u256_representation)?);
+		let u256_representation = fixed_i128_to_u256(&self.leverage);
+		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = FixedI128_to_U256(&self.leverage);
-		elements.push(U256_to_FieldElement(&u256_representation)?);
-
-		let u256_representation = FixedI128_to_U256(&self.slippage);
-		elements.push(U256_to_FieldElement(&u256_representation)?);
+		let u256_representation = fixed_i128_to_u256(&self.slippage);
+		elements.push(u256_to_field_element(&u256_representation)?);
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
 			false => elements.push(FieldElement::from(0_u8))
 		}
 
-
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
 		
-
 		match hash_type {
 			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
 			HashType::Poseidon => Ok(poseidon_hash_many(&elements))
-		}
-		
-
+		}		
 	}
-
 }
