@@ -73,7 +73,7 @@ fn test_felt_and_hash_values() {
 fn test_order_signature() {
 
     let order = Order {
-        user: U256::from_dec_str("100").unwrap(),
+        account_id: U256::from_dec_str("100").unwrap(),
         order_id: 200_u128,
         market_id: U256::from_dec_str("300").unwrap(),
         order_type: OrderType::Market,

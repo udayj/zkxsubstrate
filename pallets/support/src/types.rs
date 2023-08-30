@@ -251,7 +251,7 @@ impl Hashable for Order {
 
 		let mut elements: Vec<FieldElement> = Vec::new();
 		
-		elements.push(u256_to_field_element(&self.user)?);
+		elements.push(u256_to_field_element(&self.account_id)?);
 
 		elements.push(FieldElement::from(self.order_id));
 
