@@ -365,7 +365,6 @@ impl Hashable for Order {
 	}
 }
 
-
 // impl From<MarketUpdatedL2> For Vec<u64> {
 // 	fn from(event: MarketUpdatedL2) -> Self {
 // 		let mut result: Vec<FieldElement> = Vec::new();

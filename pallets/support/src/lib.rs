@@ -3,10 +3,11 @@
 use crate::traits::FixedI128Ext;
 use sp_arithmetic::{fixed_point::FixedI128, traits::CheckedDiv, FixedPointNumber};
 use primitive_types::U256;
-use starknet_ff:: {FieldElement, FromByteSliceError};
+use starknet_ff::FromByteSliceError;
 
 // Re-export ecdsa_verify to be used as is
-pub use starknet_core::crypto::{ecdsa_verify};
+pub use starknet_core::crypto::{ecdsa_verify, Signature};
+pub use starknet_ff::FieldElement;
 pub mod types;
 
 #[cfg(test)]
