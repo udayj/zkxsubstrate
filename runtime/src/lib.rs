@@ -6,7 +6,9 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use frame_support::inherent::Vec;
 use pallet_grandpa::AuthorityId as GrandpaId;
+use primitive_types::U256;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -52,6 +54,7 @@ pub use pallet_risk_management;
 pub use pallet_trading;
 pub use pallet_trading_fees;
 pub use pallet_zkx_trading_account;
+pub use zkx_support::types::Position;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -390,6 +393,16 @@ mod benches {
 }
 
 impl_runtime_apis! {
+	impl pallet_trading_runtime_api::TradingApi<Block> for Runtime {
+		fn positions() -> Vec<Position> {
+			let LONG: U256 = U256::from(1_u8);
+			let pos = Trading::positions(LONG, [LONG, LONG]);
+			let mut pos_vec = Vec::new();
+			pos_vec.push(pos);
+			return pos_vec;
+		}
+	}
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION

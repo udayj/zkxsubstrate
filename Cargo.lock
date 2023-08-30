@@ -4519,6 +4519,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "node-template-runtime",
+ "pallet-trading-rpc",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",
@@ -4575,10 +4576,12 @@ dependencies = [
  "pallet-timestamp",
  "pallet-trading",
  "pallet-trading-fees",
+ "pallet-trading-runtime-api",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-zkx-trading-account",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
  "sp-api",
  "sp-block-builder",
@@ -4593,6 +4596,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
+ "zkx-support",
 ]
 
 [[package]]
@@ -5016,6 +5020,28 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
+name = "pallet-trading-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee",
+ "pallet-trading-runtime-api",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
+name = "pallet-trading-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "frame-support",
+ "sp-api",
  "zkx-support",
 ]
 
@@ -10438,6 +10464,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "serde",
  "sp-arithmetic 16.0.0",
  "sp-runtime",
  "starknet-core",
