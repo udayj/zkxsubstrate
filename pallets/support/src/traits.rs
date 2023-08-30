@@ -1,4 +1,7 @@
-use crate::types::{Asset, Market, OrderSide, Side, HashType};
+use crate::types::{
+	Asset, Direction, HashType, Market, OrderSide, Position, PositionDetailsForRiskManagement, Side,
+};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_ff::FieldElement;
@@ -11,6 +14,26 @@ pub trait TradingAccountInterface {
 	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
+	fn get_margin_info(
+		account_id: U256,
+		collateral_id: U256,
+		new_position_maintanence_requirement: FixedI128,
+		new_position_margin: FixedI128,
+	) -> (
+		bool,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		PositionDetailsForRiskManagement,
+		FixedI128,
+	);
+}
+
+pub trait TradingInterface {
+	fn get_markets_of_collateral(collateral_id: U256) -> Vec<U256>;
+	fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position;
 }
 
 pub trait AssetInterface {
@@ -42,5 +65,5 @@ pub trait TradingFeesInterface {
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
-	fn hash(&self, hash_type:HashType) -> Result<FieldElement, Self::ConversionError>;
+	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>;
 }

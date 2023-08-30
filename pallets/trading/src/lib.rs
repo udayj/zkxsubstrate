@@ -18,6 +18,7 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{
 		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+		TradingInterface,
 	};
 	use zkx_support::types::{
 		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
@@ -1032,6 +1033,21 @@ pub mod pallet {
 				Error::<T>::OrderFullyExecuted => 533,
 				_ => 500,
 			}
+		}
+	}
+
+	impl<T: Config> TradingInterface for Pallet<T> {
+		fn get_markets_of_collateral(collateral_id: U256) -> Vec<U256> {
+			let markets = CollateralToMarketMap::<T>::get(collateral_id);
+			markets
+		}
+
+		fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+			let direction = if direction == Direction::Long { LONG } else { SHORT };
+			let position_details = PositionsMap::<T>::get(account_id, [market_id, direction]);
+			position_details
 		}
 	}
 }
