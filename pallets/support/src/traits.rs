@@ -1,7 +1,8 @@
-use crate::types::{Asset, Market, OrderSide, Side};
-use frame_support::inherent::Vec;
+use crate::types::{Asset, Market, OrderSide, Side, HashType};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
+use starknet_ff::FieldElement;
+use starknet_ff::FromByteSliceError;
 
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
@@ -36,4 +37,10 @@ pub trait TradingFeesInterface {
 		order_side: OrderSide,
 		number_of_tokens: U256,
 	) -> (FixedI128, u8, u8);
+}
+
+// This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
+pub trait Hashable {
+	type ConversionError;
+	fn hash(&self, hash_type:HashType) -> Result<FieldElement, Self::ConversionError>;
 }

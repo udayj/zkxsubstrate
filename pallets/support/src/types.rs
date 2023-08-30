@@ -1,9 +1,15 @@
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
+use starknet_ff::{FieldElement, FromByteSliceError};
+use starknet_crypto::poseidon_hash_many;
+
+use super::traits::Hashable;
+use super::helpers::{fixed_i128_to_u256, u256_to_field_element, pedersen_hash_multiple};
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -84,11 +90,33 @@ pub enum Direction {
 	Short,
 }
 
+impl From<Direction> for u8 {
+
+	fn from(value: Direction) -> u8 {
+
+		match value {
+			Direction::Long => 0_u8,
+			Direction::Short => 1_u8
+		}
+	}
+}
+
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum Side {
 	#[default]
 	Buy,
 	Sell,
+}
+
+impl From<Side> for u8 {
+
+	fn from(value: Side) -> u8 {
+
+		match value {
+			Side::Buy => 0_u8,
+			Side::Sell => 1_u8
+		}
+	}
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -98,12 +126,35 @@ pub enum OrderType {
 	Market,
 }
 
+impl From<OrderType> for u8 {
+
+	fn from(value: OrderType) -> u8 {
+
+		match value {
+			OrderType::Limit => 0_u8,
+			OrderType::Market => 1_u8
+		}
+	}
+}
+
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum TimeInForce {
 	#[default]
 	GTC,
 	IOC,
 	FOK,
+}
+
+impl From<TimeInForce> for u8 {
+
+	fn from(value: TimeInForce) -> u8 {
+
+		match value {
+			TimeInForce::GTC => 0_u8,
+			TimeInForce::IOC => 1_u8,
+			TimeInForce::FOK => 2_u8
+		}
+	}
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -121,7 +172,7 @@ pub struct Order {
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
 }
-
+ 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
 	pub direction: Direction,
@@ -182,4 +233,56 @@ pub enum OrderSide {
 	#[default]
 	Maker,
 	Taker,
+}
+
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum HashType {
+	#[default]
+	Pedersen,
+	Poseidon
+}
+
+impl Hashable for Order {
+
+	// No error apart from error during conversion from U256 to FieldElement should happen
+	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
+	type ConversionError = FromByteSliceError;
+	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>{
+
+		let mut elements: Vec<FieldElement> = Vec::new();
+		
+		elements.push(u256_to_field_element(&self.account_id)?);
+
+		elements.push(FieldElement::from(self.order_id));
+
+		elements.push(u256_to_field_element(&self.market_id)?);
+
+		elements.push(FieldElement::from(u8::from(self.order_type)));
+		elements.push(FieldElement::from(u8::from(self.direction)));
+		elements.push(FieldElement::from(u8::from(self.side)));
+
+		let u256_representation = fixed_i128_to_u256(&self.price);
+		elements.push(u256_to_field_element(&u256_representation)?);
+
+		let u256_representation = fixed_i128_to_u256(&self.size);
+		elements.push(u256_to_field_element(&u256_representation)?);
+
+		let u256_representation = fixed_i128_to_u256(&self.leverage);
+		elements.push(u256_to_field_element(&u256_representation)?);
+
+		let u256_representation = fixed_i128_to_u256(&self.slippage);
+		elements.push(u256_to_field_element(&u256_representation)?);
+
+		match self.post_only {
+			true => elements.push(FieldElement::from(1_u8)),
+			false => elements.push(FieldElement::from(0_u8))
+		}
+
+		elements.push(FieldElement::from(u8::from(self.time_in_force)));
+		
+		match hash_type {
+			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
+			HashType::Poseidon => Ok(poseidon_hash_many(&elements))
+		}		
+	}
 }
