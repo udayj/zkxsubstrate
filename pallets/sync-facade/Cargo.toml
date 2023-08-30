@@ -1,5 +1,5 @@
 [package]
-name = "pallet-trading"
+name = "pallet-sync-facade"
 version = "0.0.1-dev"
 edition = "2021"
 
@@ -11,10 +11,7 @@ frame-system = { default-features = false, version = "4.0.0-dev", git = "https:/
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive",] }
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-sp-arithmetic = { version = "16.0.0", default-features = false }
 
-pallet-asset = { default-features = false, path = "../asset" }
-pallet-market-prices = { default-features = false, path = "../market-prices" }
 zkx-support= { path="../support"}
 
 [dev-dependencies]
@@ -29,5 +26,4 @@ std = [
     "frame-system/std",
     "codec/std",
     "scale-info/std",
-    "sp-arithmetic/std",
 ]

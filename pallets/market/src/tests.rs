@@ -49,7 +49,7 @@ fn setup() -> (Market, Market) {
 		id: 1.into(),
 		asset: ETH_ID,
 		asset_collateral: USDC_ID,
-		is_tradable: 1,
+		is_tradable: true,
 		is_archived: false,
 		ttl: 3600,
 		tick_size: 1.into(),
@@ -71,7 +71,7 @@ fn setup() -> (Market, Market) {
 		id: 2.into(),
 		asset: LINK_ID,
 		asset_collateral: USDC_ID,
-		is_tradable: 0,
+		is_tradable: false,
 		is_archived: false,
 		ttl: 360,
 		tick_size: 1.into(),
@@ -150,20 +150,6 @@ fn it_does_not_work_for_replace_markets_zero_id() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		let market: Market = Market { id: 0.into(), ..market1 };
-		// Dispatch a signed extrinsic.
-		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-	});
-}
-
-#[test]
-#[should_panic(expected = "InvalidTradableFlag")]
-fn it_does_not_work_for_replace_markets_invalid_tradable_flag() {
-	new_test_ext().execute_with(|| {
-		let (market1, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		let market: Market = Market { is_tradable: 3, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));

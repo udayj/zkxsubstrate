@@ -6,6 +6,7 @@ members = [
     "pallets/trading-account",
     "pallets/trading-fees",
     "pallets/support",
+    "pallets/sync-facade",
     "runtime",
 ]
 [profile.release]

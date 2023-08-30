@@ -16,10 +16,12 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingFeesInterface};
+	use zkx_support::traits::{
+		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+	};
 	use zkx_support::types::{
-		Direction, ErrorEventList, Market, Order, OrderEventList, OrderSide, OrderType, Position,
-		Side, TimeInForce,
+		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
+		TimeInForce,
 	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -34,19 +36,23 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
+		type MarketPricesPallet: MarketPricesInterface;
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn batch_status)]
+	// k1 - batch id, v - true/false
 	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn portion_executed)]
+	// k1 - order id, v - portion executed
 	pub(super) type PortionExecutedMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
+	// k1 - account id, k2 - 2 element array [market id, 1(LONG)/2(SHORT)], v - position object
 	pub(super) type PositionsMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
@@ -58,31 +64,14 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn collateral_to_market_length)]
-	pub(super) type CollateralToMarketLengthMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256, // account_id
-		Blake2_128Concat,
-		U256, // collateral id
-		u64,  // number of markets
-		ValueQuery,
-	>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn collateral_to_market)]
-	pub(super) type CollateralToMarketMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256, // account_id
-		Blake2_128Concat,
-		u64,  // index
-		U256, // market id
-		ValueQuery,
-	>;
+	// k1 - account_id, v - vector of market ids
+	pub(super) type CollateralToMarketMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
+	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
 
@@ -132,24 +121,33 @@ pub mod pallet {
 		NotEnoughMargin,
 		/// Order error with error code
 		OrderError { error_code: u16 },
+		/// Invalid oracle price
+		InvalidOraclePrice { error_code: u16 },
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Trade executed successfully
-		TradeExecuted { batch_id: u64 },
+		TradeExecuted {
+			batch_id: U256,
+			market_id: U256,
+			size: FixedI128,
+			execution_price: FixedI128,
+			direction: u8,
+			side: u8,
+		},
 		/// Order error
 		OrderError { order_id: u128, error_code: u16 },
 		/// Order of a user executed successfully
 		OrderExecuted {
-			user: U256,
+			account_id: U256,
 			order_id: u128,
 			market_id: U256,
 			size: FixedI128,
-			direction: Direction,
-			side: Side,
-			order_type: OrderType,
+			direction: u8,
+			side: u8,
+			order_type: u8,
 			execution_price: FixedI128,
 			pnl: FixedI128,
 			opening_fee: FixedI128,
@@ -184,7 +182,16 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id);
 			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
 			let market = market.unwrap();
-			ensure!(market.is_tradable == 1_u8, Error::<T>::MarketNotTradable { error_code: 509 });
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable { error_code: 509 });
+
+			// validates oracle_price
+			ensure!(oracle_price > 0.into(), Error::<T>::InvalidOraclePrice { error_code: 513 });
+
+			//Update market price
+			let market_price = T::MarketPricesPallet::get_market_price(market_id);
+			if market_price == 0.into() {
+				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
+			}
 
 			let collateral_id: U256 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
@@ -217,9 +224,11 @@ pub mod pallet {
 			let mut total_order_volume: FixedI128 = 0.into();
 			let mut updated_position: Position;
 			let mut open_interest: FixedI128 = 0.into();
+			let mut taker_quantity: FixedI128 = 0.into();
+			let mut taker_execution_price: FixedI128 = 0.into();
 
-			let mut error_events: Vec<ErrorEventList> = Vec::new();
-			let mut order_events: Vec<OrderEventList> = Vec::new();
+			let mut failed_orders: Vec<FailedOrder> = Vec::new();
+			let mut executed_orders: Vec<ExecutedOrder> = Vec::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -242,7 +251,7 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						error_events.push(ErrorEventList {
+						failed_orders.push(FailedOrder {
 							order_id: element.order_id,
 							error_code: Self::get_error_code(e),
 						});
@@ -253,9 +262,9 @@ pub mod pallet {
 				let order_portion_executed = PortionExecutedMap::<T>::get(element.order_id);
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
 				let position_details =
-					PositionsMap::<T>::get(&element.user, [market_id, direction]);
+					PositionsMap::<T>::get(&element.account_id, [market_id, direction]);
 				let current_margin_locked =
-					T::TradingAccountPallet::get_locked_margin(element.user, collateral_id);
+					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
@@ -269,7 +278,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -289,7 +298,7 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -315,7 +324,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -326,10 +335,10 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == 0.into() {
-						if error_events.is_empty() {
+						if failed_orders.is_empty() {
 							return Err(DispatchError::Other("UnknownError"));
 						} else {
-							let error = &error_events[0];
+							let error = &failed_orders[0];
 							ensure!(
 								true == false,
 								Error::<T>::OrderError {
@@ -362,7 +371,7 @@ pub mod pallet {
 						match limit_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(ErrorEventList {
+								failed_orders.push(FailedOrder {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -380,7 +389,7 @@ pub mod pallet {
 						match slippage_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(ErrorEventList {
+								failed_orders.push(FailedOrder {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -390,6 +399,9 @@ pub mod pallet {
 					}
 
 					order_side = OrderSide::Taker;
+
+					taker_execution_price = execution_price;
+					taker_quantity = quantity_to_execute;
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
@@ -421,7 +433,7 @@ pub mod pallet {
 							realized_pnl = trading_fee;
 						},
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -440,21 +452,20 @@ pub mod pallet {
 					if position_details.size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
-						let opposite_position =
-							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
+						let opposite_position = PositionsMap::<T>::get(
+							&element.account_id,
+							[market_id, opposite_direction],
+						);
 						if opposite_position.size == 0.into() {
-							let length =
-								CollateralToMarketLengthMap::<T>::get(&element.user, collateral_id);
-							CollateralToMarketMap::<T>::insert(&element.user, length, market_id);
-							CollateralToMarketLengthMap::<T>::insert(
-								&element.user,
-								collateral_id,
-								length + 1_u64,
-							);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							markets.push(market_id);
+							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
 						}
 					}
 
 					updated_position = Position {
+						direction: element.direction,
+						side: element.side,
 						avg_execution_price,
 						size: new_position_size,
 						margin_amount,
@@ -490,7 +501,7 @@ pub mod pallet {
 							realized_pnl = current_pnl;
 						},
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -516,19 +527,22 @@ pub mod pallet {
 					if new_position_size == 0.into() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
-						let opposite_position =
-							PositionsMap::<T>::get(&element.user, [market_id, opposite_direction]);
+						let opposite_position = PositionsMap::<T>::get(
+							&element.account_id,
+							[market_id, opposite_direction],
+						);
 						if opposite_position.size == 0.into() {
-							let length =
-								CollateralToMarketLengthMap::<T>::get(&element.user, collateral_id);
-							CollateralToMarketMap::<T>::remove(&element.user, length);
-							CollateralToMarketLengthMap::<T>::insert(
-								&element.user,
-								collateral_id,
-								length - 1_u64,
-							);
+							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							for index in 0..markets.len() {
+								if markets[index] == market_id {
+									markets.remove(index);
+								}
+							}
+							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
 						}
 						updated_position = Position {
+							direction: element.direction,
+							side: element.side,
 							avg_execution_price: 0.into(),
 							size: 0.into(),
 							margin_amount: 0.into(),
@@ -540,6 +554,8 @@ pub mod pallet {
 						// To do - Calculate pnl
 
 						updated_position = Position {
+							direction: element.direction,
+							side: element.side,
 							avg_execution_price,
 							size: new_position_size,
 							margin_amount,
@@ -570,16 +586,20 @@ pub mod pallet {
 
 				// Update position, locked margin and portion executed
 				let direction = if element.direction == Direction::Long { LONG } else { SHORT };
-				PositionsMap::<T>::set(&element.user, [market_id, direction], updated_position);
+				PositionsMap::<T>::set(
+					&element.account_id,
+					[market_id, direction],
+					updated_position,
+				);
 				T::TradingAccountPallet::set_locked_margin(
-					element.user,
+					element.account_id,
 					collateral_id,
 					new_margin_locked,
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
 
-				order_events.push(OrderEventList {
-					user: element.user,
+				executed_orders.push(ExecutedOrder {
+					account_id: element.account_id,
 					order_id: element.order_id,
 					market_id: element.market_id,
 					size: quantity_to_execute,
@@ -599,27 +619,43 @@ pub mod pallet {
 
 			BatchStatusMap::<T>::insert(batch_id, true);
 
-			for element in &error_events {
+			for element in &failed_orders {
 				Self::deposit_event(Event::OrderError {
 					order_id: element.order_id,
 					error_code: element.error_code,
 				});
 			}
 
-			for element in &order_events {
+			for element in &executed_orders {
+				let direction = if element.direction == Direction::Long { 1_u8 } else { 2_u8 };
+				let side = if element.side == Side::Buy { 1_u8 } else { 2_u8 };
+				let order_type = if element.order_type == OrderType::Market { 1_u8 } else { 2_u8 };
 				Self::deposit_event(Event::OrderExecuted {
-					user: element.user,
+					account_id: element.account_id,
 					order_id: element.order_id,
 					market_id: element.market_id,
 					size: element.size,
-					direction: element.direction,
-					side: element.side,
-					order_type: element.order_type,
+					direction,
+					side,
+					order_type,
 					execution_price: element.execution_price,
 					pnl: element.pnl,
 					opening_fee: element.opening_fee,
 				});
 			}
+
+			let taker_direction =
+				if orders[orders.len() - 1].direction == Direction::Long { 1_u8 } else { 2_u8 };
+			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 1_u8 } else { 2_u8 };
+
+			Self::deposit_event(Event::TradeExecuted {
+				batch_id,
+				market_id,
+				size: taker_quantity,
+				execution_price: taker_execution_price,
+				direction: taker_direction,
+				side: taker_side,
+			});
 
 			Ok(())
 		}
@@ -638,7 +674,8 @@ pub mod pallet {
 			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id);
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
@@ -684,7 +721,7 @@ pub mod pallet {
 			market: &Market,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
-			let is_registered = T::TradingAccountPallet::is_registered_user(order.user);
+			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
 			ensure!(is_registered, Error::<T>::UserNotRegistered);
 
 			// Validate that size of order is >= min quantity for market
@@ -806,7 +843,8 @@ pub mod pallet {
 			let mut average_execution_price: FixedI128 = execution_price;
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			// Calculate average execution price
 			if position_details.size == 0.into() {
@@ -833,10 +871,10 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
 			ensure!(margin_order_value + fee <= balance, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(
-				order.user,
+				order.account_id,
 				collateral_id,
 				margin_order_value + fee,
 			);
@@ -864,7 +902,8 @@ pub mod pallet {
 			let price_diff: FixedI128;
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
-			let position_details = PositionsMap::<T>::get(&order.user, [market_id, direction]);
+			let position_details =
+				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			if order.direction == Direction::Long {
 				actual_execution_price = execution_price;
@@ -894,7 +933,7 @@ pub mod pallet {
 			// To do - deduct fund from holding contract
 			// To do - deposit fund to liquidity fund if position is leveraged
 
-			let balance = T::TradingAccountPallet::get_balance(order.user, collateral_id);
+			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
 
 			// Check if user is under water, ie,
 			// user has lost some borrowed funds
@@ -922,7 +961,7 @@ pub mod pallet {
 
 				// Deduct under water amount (if any) + margin amt to reduce from user
 				T::TradingAccountPallet::transfer_from(
-					order.user,
+					order.account_id,
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
 				);
@@ -943,21 +982,21 @@ pub mod pallet {
 
 					// Deduct required funds from user
 					T::TradingAccountPallet::transfer_from(
-						order.user,
+						order.account_id,
 						collateral_id,
 						pnl.saturating_abs(),
 					);
 				} else {
 					// User is in profit
 					// Transfer the profit to user
-					T::TradingAccountPallet::transfer(order.user, collateral_id, pnl);
+					T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
 				}
 
 				// To do - Handle liquidation and deleveraging orders
 
 				// Deduct  proportionate margin amount from user
 				T::TradingAccountPallet::transfer_from(
-					order.user,
+					order.account_id,
 					collateral_id,
 					margin_amount_to_reduce,
 				);

@@ -50,7 +50,7 @@ pub struct Market {
 	pub id: U256,
 	pub asset: U256,
 	pub asset_collateral: U256,
-	pub is_tradable: u8,
+	pub is_tradable: bool,
 	pub is_archived: bool,
 	pub ttl: u32,
 	pub tick_size: FixedI128,
@@ -67,6 +67,20 @@ pub struct Market {
 	pub incremental_position_size: FixedI128,
 	pub baseline_position_size: FixedI128,
 	pub maximum_position_size: FixedI128,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MarketPrice {
+	pub asset_id: U256,
+	pub collateral_id: U256,
+	pub timestamp: u64,
+	pub price: FixedI128,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MultipleMarketPrices {
+	pub market_id: U256,
+	pub price: FixedI128,
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -145,7 +159,7 @@ impl From<TimeInForce> for u8 {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
-	pub user: U256,
+	pub account_id: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub order_type: OrderType,
@@ -161,6 +175,8 @@ pub struct Order {
  
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
+	pub direction: Direction,
+	pub side: Side,
 	pub avg_execution_price: FixedI128,
 	pub size: FixedI128,
 	pub margin_amount: FixedI128,
@@ -170,14 +186,24 @@ pub struct Position {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ErrorEventList {
+pub struct FailedOrder {
 	pub order_id: u128,
 	pub error_code: u16,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct OrderEventList {
-	pub user: U256,
+pub struct ExecutedBatch {
+	batch_id: U256,
+	market_id: U256,
+	size: FixedI128,
+	execution_price: FixedI128,
+	direction: Direction,
+	side: Side,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ExecutedOrder {
+	pub account_id: U256,
 	pub order_id: u128,
 	pub market_id: U256,
 	pub size: FixedI128,

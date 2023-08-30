@@ -1,5 +1,5 @@
 [package]
-name = "pallet-trading"
+name = "pallet-market-prices"
 version = "0.0.1-dev"
 edition = "2021"
 
@@ -13,14 +13,15 @@ primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-arithmetic = { version = "16.0.0", default-features = false }
 
-pallet-asset = { default-features = false, path = "../asset" }
-pallet-market-prices = { default-features = false, path = "../market-prices" }
 zkx-support= { path="../support"}
 
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+pallet-asset = { default-features = false, path = "../asset" }
+pallet-market = { default-features = false, path = "../market" }
+pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 
 [features]
 default = ["std"]

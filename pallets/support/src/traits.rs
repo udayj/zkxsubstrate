@@ -22,6 +22,11 @@ pub trait MarketInterface {
 	fn get_market(id: U256) -> Option<Market>;
 }
 
+pub trait MarketPricesInterface {
+	fn get_market_price(market_id: U256) -> FixedI128;
+	fn update_market_price(market_id: U256, price: FixedI128);
+}
+
 pub trait FixedI128Ext<T> {
 	fn round_to_precision(t: T, precision: u32) -> T;
 }
