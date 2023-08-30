@@ -1,15 +1,15 @@
 use codec::{Decode, Encode};
-use frame_support::pallet_prelude::*;
 use frame_support::inherent::Vec;
+use frame_support::pallet_prelude::*;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
-use starknet_ff::{FieldElement, FromByteSliceError};
 use starknet_crypto::poseidon_hash_many;
+use starknet_ff::{FieldElement, FromByteSliceError};
 
+use super::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
 use super::traits::Hashable;
-use super::helpers::{fixed_i128_to_u256, u256_to_field_element, pedersen_hash_multiple};
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -91,12 +91,10 @@ pub enum Direction {
 }
 
 impl From<Direction> for u8 {
-
 	fn from(value: Direction) -> u8 {
-
 		match value {
 			Direction::Long => 0_u8,
-			Direction::Short => 1_u8
+			Direction::Short => 1_u8,
 		}
 	}
 }
@@ -109,12 +107,10 @@ pub enum Side {
 }
 
 impl From<Side> for u8 {
-
 	fn from(value: Side) -> u8 {
-
 		match value {
 			Side::Buy => 0_u8,
-			Side::Sell => 1_u8
+			Side::Sell => 1_u8,
 		}
 	}
 }
@@ -127,12 +123,10 @@ pub enum OrderType {
 }
 
 impl From<OrderType> for u8 {
-
 	fn from(value: OrderType) -> u8 {
-
 		match value {
 			OrderType::Limit => 0_u8,
-			OrderType::Market => 1_u8
+			OrderType::Market => 1_u8,
 		}
 	}
 }
@@ -146,13 +140,11 @@ pub enum TimeInForce {
 }
 
 impl From<TimeInForce> for u8 {
-
 	fn from(value: TimeInForce) -> u8 {
-
 		match value {
 			TimeInForce::GTC => 0_u8,
 			TimeInForce::IOC => 1_u8,
-			TimeInForce::FOK => 2_u8
+			TimeInForce::FOK => 2_u8,
 		}
 	}
 }
@@ -172,7 +164,7 @@ pub struct Order {
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
 }
- 
+
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Position {
 	pub direction: Direction,
@@ -239,18 +231,104 @@ pub enum OrderSide {
 pub enum HashType {
 	#[default]
 	Pedersen,
-	Poseidon
+	Poseidon,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MarketUpdatedL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub id: u64,
+	pub market: Market,
+	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
+	pub icon_url: BoundedVec<u8, ConstU32<256>>,
+	pub version: u16,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct AssetUpdatedL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub id: u64,
+	pub asset: Asset,
+	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
+	pub icon_url: BoundedVec<u8, ConstU32<256>>,
+	pub version: u16,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MarketRemovedL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub id: u64,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct AssetRemovedL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub id: u64,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct UserDepositL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub trading_account: TradingAccount,
+	pub collateral_id: u64,
+	pub nonce: U256,
+	pub amount: U256,
+	pub balance: U256,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Copy, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum FundType {
+	Admin,
+	InsuranceFund,
+	LiquidityFund,
+	HoldingFund,
+	EmergencyFund,
+}
+
+#[derive(Clone, Copy, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct FundsTransferL2 {
+	pub event_hash: U256,
+	pub event_name: U256,
+	pub from_fund: FundType,
+	pub to_fund: FundType,
+	pub asset_id: u64,
+	pub amount: U256,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum UniversalEventL2 {
+	MarketUpdatedL2(MarketUpdatedL2),
+	AssetUpdatedL2(AssetUpdatedL2),
+	MarketRemovedL2(MarketRemovedL2),
+	AssetRemovedL2(AssetRemovedL2),
+	FundsTransferL2(FundsTransferL2),
+	UserDepositL2(UserDepositL2),
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SyncSignature {
+	pub signer_index: u8,
+	pub r: U256,
+	pub s: U256,
 }
 
 impl Hashable for Order {
-
 	// No error apart from error during conversion from U256 to FieldElement should happen
 	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
 	type ConversionError = FromByteSliceError;
-	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>{
-
+	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError> {
 		let mut elements: Vec<FieldElement> = Vec::new();
-		
+
 		elements.push(u256_to_field_element(&self.account_id)?);
 
 		elements.push(FieldElement::from(self.order_id));
@@ -275,14 +353,62 @@ impl Hashable for Order {
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
-			false => elements.push(FieldElement::from(0_u8))
+			false => elements.push(FieldElement::from(0_u8)),
 		}
 
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
-		
+
 		match hash_type {
 			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
-			HashType::Poseidon => Ok(poseidon_hash_many(&elements))
-		}		
+			HashType::Poseidon => Ok(poseidon_hash_many(&elements)),
+		}
 	}
 }
+
+
+// impl From<MarketUpdatedL2> For Vec<u64> {
+// 	fn from(event: MarketUpdatedL2) -> Self {
+// 		let mut result: Vec<FieldElement> = Vec::new();
+
+// 		result.push(FieldElement::from(event.event_hash));
+// 		result.push(FieldElement::from(event.event_name));
+// 		result.push(FieldElement::from(event.id));
+// 		result.push(FieldElement::from(event.version));
+// 		result.push(FieldElement::from(event.block_number));
+
+// 		result
+// 	}
+// }
+
+// impl From<Vec<UniversalEventL2>> for Vec<FieldElement> {
+// 	fn from(events: Vec<UniversalEventL2>) -> Self {
+// 		// Initialize the array
+//         let mut result: Vec<FieldElement> = Vec::new();
+
+// 		// Push the length of the array
+// 		result.push(FieldElement::from(usize::from(events.len())));
+
+// 		for event in events {
+// 			match event {
+// 				UniversalEventL2::MarketUpdatedL2(e) => {
+// 						// Add code here
+// 				},
+// 				UniversalEventL2::AssetUpdatedL2(e) => {
+// 					// Add code here
+// 				},
+// 				UniversalEventL2::MarketRemovedL2(e) => {
+// 					// Add code here
+// 				},
+// 				UniversalEventL2::AssetRemovedL2(e) => {
+// 					// Add code here
+// 				},
+// 				UniversalEventL2::FundsTransferL2(e) => {
+// 					// Add code here
+// 				},
+// 				UniversalEventL2::UserDepositL2(e) => {
+// 					// Add code here
+// 				},
+// 			}
+// 		}
+//     }
+// }
