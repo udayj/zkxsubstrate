@@ -1,4 +1,5 @@
 use crate::types::{Asset, Market, OrderSide, Side};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 

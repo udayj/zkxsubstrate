@@ -135,13 +135,23 @@ pub struct Position {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ErrorEventList {
+pub struct FailedOrder {
 	pub order_id: u128,
 	pub error_code: u16,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct OrderEventList {
+pub struct ExecutedBatch {
+	batch_id: U256,
+	market_id: U256,
+	size: FixedI128,
+	execution_price: FixedI128,
+	direction: Direction,
+	side: Side,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ExecutedOrder {
 	pub account_id: U256,
 	pub order_id: u128,
 	pub market_id: U256,

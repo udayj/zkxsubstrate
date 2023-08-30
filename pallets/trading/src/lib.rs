@@ -20,8 +20,8 @@ pub mod pallet {
 		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
 	};
 	use zkx_support::types::{
-		Direction, ErrorEventList, Market, Order, OrderEventList, OrderSide, OrderType, Position,
-		Side, TimeInForce,
+		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
+		TimeInForce,
 	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -227,8 +227,8 @@ pub mod pallet {
 			let mut taker_quantity: FixedI128 = 0.into();
 			let mut taker_execution_price: FixedI128 = 0.into();
 
-			let mut error_events: Vec<ErrorEventList> = Vec::new();
-			let mut order_events: Vec<OrderEventList> = Vec::new();
+			let mut failed_orders: Vec<FailedOrder> = Vec::new();
+			let mut executed_orders: Vec<ExecutedOrder> = Vec::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
@@ -251,7 +251,7 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						error_events.push(ErrorEventList {
+						failed_orders.push(FailedOrder {
 							order_id: element.order_id,
 							error_code: Self::get_error_code(e),
 						});
@@ -278,7 +278,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -298,7 +298,7 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -324,7 +324,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -335,10 +335,10 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == 0.into() {
-						if error_events.is_empty() {
+						if failed_orders.is_empty() {
 							return Err(DispatchError::Other("UnknownError"));
 						} else {
-							let error = &error_events[0];
+							let error = &failed_orders[0];
 							ensure!(
 								true == false,
 								Error::<T>::OrderError {
@@ -371,7 +371,7 @@ pub mod pallet {
 						match limit_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(ErrorEventList {
+								failed_orders.push(FailedOrder {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -389,7 +389,7 @@ pub mod pallet {
 						match slippage_validation {
 							Ok(()) => (),
 							Err(e) => {
-								error_events.push(ErrorEventList {
+								failed_orders.push(FailedOrder {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
@@ -433,7 +433,7 @@ pub mod pallet {
 							realized_pnl = trading_fee;
 						},
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -501,7 +501,7 @@ pub mod pallet {
 							realized_pnl = current_pnl;
 						},
 						Err(e) => {
-							error_events.push(ErrorEventList {
+							failed_orders.push(FailedOrder {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
@@ -598,7 +598,7 @@ pub mod pallet {
 				);
 				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
 
-				order_events.push(OrderEventList {
+				executed_orders.push(ExecutedOrder {
 					account_id: element.account_id,
 					order_id: element.order_id,
 					market_id: element.market_id,
@@ -619,14 +619,14 @@ pub mod pallet {
 
 			BatchStatusMap::<T>::insert(batch_id, true);
 
-			for element in &error_events {
+			for element in &failed_orders {
 				Self::deposit_event(Event::OrderError {
 					order_id: element.order_id,
 					error_code: element.error_code,
 				});
 			}
 
-			for element in &order_events {
+			for element in &executed_orders {
 				let direction = if element.direction == Direction::Long { 1_u8 } else { 2_u8 };
 				let side = if element.side == Side::Buy { 1_u8 } else { 2_u8 };
 				let order_type = if element.order_type == OrderType::Market { 1_u8 } else { 2_u8 };
