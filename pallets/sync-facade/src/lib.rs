@@ -14,6 +14,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use frame_system::EnsureRoot;
 	use primitive_types::U256;
+	use zkx_support::helpers;
+	use zkx_support::types::SyncSignature;
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
 	#[pallet::pallet]
@@ -124,8 +126,51 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		fn verify_signature(public_key: FieldElement, hash: FieldElement, signature: Signature) {
-			ecdsa_verify(&public_key, &hash, &signature).unwrap();
+		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
+			// Get the required data
+			let total_len = SignersCount::<T>::get();
+			let quorum = SignersQuorum::<T>::get();
+
+			let mut iterator = 0;
+			let mut valid_sigs = 0;
+
+			loop {
+				if iterator == total_len || valid_sigs == quorum {
+					break;
+				}
+
+				// Get the corresponding signer pub key
+				let curr_signature = &signatures[usize::from(iterator)];
+				let pub_key = Signers::<T>::try_get(curr_signature.signer_index).unwrap();
+
+				// Convert the data to felt252
+				let pub_key_felt252 = helpers::u256_to_field_element(&pub_key).unwrap();
+				let signature_felt252 = Signature {
+					r: helpers::u256_to_field_element(&curr_signature.r).unwrap(),
+					s: helpers::u256_to_field_element(&curr_signature.s).unwrap(),
+				};
+
+				// Check if the sig is valid, if yes increment valid_sigs
+				let result = Self::verify_signature(pub_key_felt252, hash, signature_felt252);
+				if result {
+					valid_sigs += 1;
+				}
+
+				iterator += 1;
+			}
+
+			return valid_sigs == quorum;
+		}
+
+		fn verify_signature(
+			public_key: FieldElement,
+			hash: FieldElement,
+			signature: Signature,
+		) -> bool {
+			match ecdsa_verify(&public_key, &hash, &signature) {
+				Ok(_) => true,
+				Err(_) => false,
+			}
 		}
 	}
 }
