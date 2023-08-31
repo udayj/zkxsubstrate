@@ -18,7 +18,7 @@ pub trait TradingApi<BlockHash> {
 		&self,
 		at: Option<BlockHash>,
 		account_id: U256,
-		markets: Vec<U256>,
+		// markets: Vec<U256>,
 	) -> RpcResult<Vec<Position>>;
 
 	#[method(name = "trading_collateral_to_market")]
@@ -51,7 +51,7 @@ where
 		&self,
 		at: Option<<Block as BlockT>::Hash>,
 		account_id: U256,
-		markets: Vec<U256>,
+		// markets: Vec<U256>,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
@@ -61,7 +61,11 @@ where
 			.map_err(runtime_error_into_rpc_err)
 			.unwrap();
 
-		api.positions(at, account_id, markets).map_err(runtime_error_into_rpc_err)
+		let positions = api
+			.positions(at, account_id, markets)
+			.map_err(runtime_error_into_rpc_err)
+			.unwrap();
+		Ok(positions)
 	}
 
 	fn collateral_to_market(
@@ -72,7 +76,11 @@ where
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
-		api.collateral_to_market(at, account_id).map_err(runtime_error_into_rpc_err)
+		let markets = api
+			.collateral_to_market(at, account_id)
+			.map_err(runtime_error_into_rpc_err)
+			.unwrap();
+		Ok(markets)
 	}
 }
 
