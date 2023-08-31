@@ -66,9 +66,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn collateral_to_market)]
-	// k1 - account_id, v - vector of market ids
+	// k1 - account_id, k2 - collateral_id, v - vector of market ids
 	pub(super) type CollateralToMarketMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
@@ -471,9 +471,14 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							markets.push(market_id);
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 					}
 
@@ -546,13 +551,18 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							for index in 0..markets.len() {
 								if markets[index] == market_id {
 									markets.remove(index);
 								}
 							}
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 						updated_position = Position {
 							direction: element.direction,
@@ -1050,8 +1060,8 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingInterface for Pallet<T> {
-		fn get_markets_of_collateral(collateral_id: U256) -> Vec<U256> {
-			let markets = CollateralToMarketMap::<T>::get(collateral_id);
+		fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256> {
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
 			markets
 		}
 

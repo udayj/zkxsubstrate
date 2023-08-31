@@ -447,7 +447,8 @@ pub mod pallet {
 			FixedI128,
 		) {
 			// Get markets corresponding of the collateral
-			let markets: Vec<U256> = T::TradingPallet::get_markets_of_collateral(collateral_id);
+			let markets: Vec<U256> =
+				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
 
 			// Get balance for the given collateral
 			let collateral_balance = BalancesMap::<T>::get(account_id, collateral_id);
