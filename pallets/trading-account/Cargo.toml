@@ -29,11 +29,13 @@ fixed = {version="1.23.1"}
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
 pallet-trading = { default-features = false, path = "../trading" }
+pallet-trading-fees = { default-features = false, path = "../trading-fees" }
 pallet-market-prices = { default-features = false, path = "../market-prices" }
 
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 
 [features]
 default = ["std"]
