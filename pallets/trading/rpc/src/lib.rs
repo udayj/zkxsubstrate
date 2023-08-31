@@ -13,17 +13,8 @@ use zkx_support::types::Position;
 
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {
-	#[method(name = "trading_positions")]
-	fn positions(
-		&self,
-		at: Option<BlockHash>,
-		account_id: U256,
-		// markets: Vec<U256>,
-	) -> RpcResult<Vec<Position>>;
-
-	#[method(name = "trading_collateral_to_market")]
-	fn collateral_to_market(&self, at: Option<BlockHash>, account_id: U256)
-		-> RpcResult<Vec<U256>>;
+	#[method(name = "trading_get_positions")]
+	fn positions(&self, at: Option<BlockHash>, account_id: U256) -> RpcResult<Vec<Position>>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -51,36 +42,12 @@ where
 		&self,
 		at: Option<<Block as BlockT>::Hash>,
 		account_id: U256,
-		// markets: Vec<U256>,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
-		let markets: Vec<U256> = api
-			.collateral_to_market(at, account_id)
-			.map_err(runtime_error_into_rpc_err)
-			.unwrap();
-
-		let positions = api
-			.positions(at, account_id, markets)
-			.map_err(runtime_error_into_rpc_err)
-			.unwrap();
+		let positions = api.positions(at, account_id).map_err(runtime_error_into_rpc_err).unwrap();
 		Ok(positions)
-	}
-
-	fn collateral_to_market(
-		&self,
-		at: Option<<Block as BlockT>::Hash>,
-		account_id: U256,
-	) -> RpcResult<Vec<U256>> {
-		let api = self.client.runtime_api();
-		let at = self.client.info().best_hash;
-
-		let markets = api
-			.collateral_to_market(at, account_id)
-			.map_err(runtime_error_into_rpc_err)
-			.unwrap();
-		Ok(markets)
 	}
 }
 

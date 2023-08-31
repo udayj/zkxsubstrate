@@ -4,7 +4,8 @@
   "description": "",
   "main": "generateAccount.js",
   "scripts": {
-    "trading": "ts-node test.ts"
+    "trading": "ts-node test.ts",
+    "positions": "ts-node positions.ts"
   },
   "author": "",
   "license": "ISC",

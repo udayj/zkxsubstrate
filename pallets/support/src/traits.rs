@@ -52,6 +52,10 @@ pub trait TradingInterface {
 	) -> LiquidatablePosition;
 }
 
+pub trait TradingInterface {
+	fn get_positions(account_id: U256) -> Vec<Position>;
+}
+
 pub trait AssetInterface {
 	fn get_default_collateral() -> U256;
 	fn get_asset(id: U256) -> Option<Asset>;

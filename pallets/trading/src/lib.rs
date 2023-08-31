@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+use zkx_support::traits::TradingInterface;
 
 // #[cfg(test)]
 // mod mock;
@@ -1476,6 +1477,23 @@ pub mod pallet {
 		) -> LiquidatablePosition {
 			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
 		}
+
+		fn get_positions(account_id: U256) -> Vec<Position> {
+			let markets = CollateralToMarketMap::<T>::get(account_id);
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+			let mut pos_vec = Vec::<Position>::new();
+			for element in markets {
+				let long_pos: Position = PositionsMap::<T>::get(account_id, [element, LONG]);
+				let short_pos: Position = PositionsMap::<T>::get(account_id, [element, SHORT]);
+				if long_pos.size != 0.into() {
+					pos_vec.push(long_pos);
+				}
+				if short_pos.size != 0.into() {
+					pos_vec.push(short_pos);
+				}
+			}
+			return pos_vec;
+		}
 	}
 }
-//

@@ -390,19 +390,4 @@ process.nextTick(async () => {
   console.log('executeTradeResultAsHex', executeTradeResultAsHex);
 
   console.log('...');
-
-  const marketsMap = await api.query.markets.marketMap;
-  const marketsMapEntries = (await marketsMap.entries()).map((kek) => {
-    const obj = kek[1].toPrimitive() as any;
-    obj.id = convertU256ToString(obj.id);
-    obj.asset = convertU256ToString(obj.asset);
-    obj.assetCollateral = convertU256ToString(obj.assetCollateral);
-    obj.tickSize = convertFromFixedI128(obj.tickSize);
-    obj.stepSize = convertFromFixedI128(obj.stepSize);
-    obj.minimumOrderSize = convertFromFixedI128(obj.minimumOrderSize);
-    obj.minimumLeverage = convertFromFixedI128(obj.minimumLeverage);
-    return obj;
-  });
-  
-  console.log(marketsMapEntries);
 });
