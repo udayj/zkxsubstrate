@@ -4569,6 +4569,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-market",
  "pallet-market-prices",
+ "pallet-risk-management",
  "pallet-sudo",
  "pallet-sync-facade",
  "pallet-timestamp",
@@ -4891,6 +4892,23 @@ dependencies = [
  "pallet-asset",
  "pallet-market",
  "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic 16.0.0",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "zkx-support",
+]
+
+[[package]]
+name = "pallet-risk-management"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-trading",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",

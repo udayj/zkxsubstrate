@@ -48,6 +48,7 @@ pub use sp_runtime::{Perbill, Permill};
 pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_market_prices;
+pub use pallet_risk_management;
 pub use pallet_trading;
 pub use pallet_trading_fees;
 pub use pallet_zkx_trading_account;
@@ -281,6 +282,13 @@ impl pallet_zkx_trading_account::Config for Runtime {
 	type MarketPricesPallet = MarketPrices;
 }
 
+impl pallet_risk_management::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = ZkxTradingAccount;
+	type MarketPallet = Markets;
+}
+
 impl pallet_asset::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
@@ -329,6 +337,7 @@ construct_runtime!(
 		Trading: pallet_trading,
 		TradingFees: pallet_trading_fees,
 		MarketPrices: pallet_market_prices,
+		RiskManagement: pallet_risk_management,
 	}
 );
 

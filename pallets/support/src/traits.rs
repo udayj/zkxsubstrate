@@ -1,5 +1,6 @@
 use crate::types::{
-	Asset, Direction, HashType, Market, OrderSide, Position, PositionDetailsForRiskManagement, Side,
+	Asset, Direction, HashType, LiquidatablePosition, Market, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -37,9 +38,13 @@ pub trait TradingInterface {
 	fn liquidate_position(
 		account_id: U256,
 		collateral_id: U256,
-		position: PositionDetailsForRiskManagement,
+		position: &PositionDetailsForRiskManagement,
 		amount_to_be_sold: FixedI128,
 	);
+	fn get_deleveragable_or_liquidatable_position(
+		account_id: U256,
+		collateral_id: U256,
+	) -> LiquidatablePosition;
 }
 
 pub trait AssetInterface {
