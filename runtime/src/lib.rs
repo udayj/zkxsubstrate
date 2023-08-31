@@ -394,12 +394,25 @@ mod benches {
 
 impl_runtime_apis! {
 	impl pallet_trading_runtime_api::TradingApi<Block> for Runtime {
-		fn positions() -> Vec<Position> {
+		fn positions(account_id: U256, markets: Vec<U256>,) -> Vec<Position> {
 			let LONG: U256 = U256::from(1_u8);
-			let pos = Trading::positions(LONG, [LONG, LONG]);
-			let mut pos_vec = Vec::new();
-			pos_vec.push(pos);
+			let SHORT: U256 = U256::from(2_u8);
+			let mut pos_vec = Vec::<Position>::new();
+			for element in markets {
+				let long_pos: Position = Trading::positions(account_id, [element, LONG]);
+				let short_pos: Position = Trading::positions(account_id, [element, SHORT]);
+				if long_pos.size != 0.into() {
+					pos_vec.push(long_pos);
+				}
+				if short_pos.size != 0.into() {
+					pos_vec.push(short_pos);
+				}
+			}
 			return pos_vec;
+		}
+
+		fn collateral_to_market(account_id: U256) -> Vec<U256> {
+			Trading::collateral_to_market(account_id)
 		}
 	}
 

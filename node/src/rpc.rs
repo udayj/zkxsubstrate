@@ -37,6 +37,7 @@ where
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BlockBuilder<Block>,
+	C::Api: pallet_trading_rpc::TradingRuntimeApi<Block>,
 	P: TransactionPool + 'static,
 {
 	use pallet_trading_rpc::{TradingApiServer, TradingPallet};

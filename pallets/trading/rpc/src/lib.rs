@@ -4,6 +4,7 @@ use jsonrpsee::{
 	types::error::{CallError, ErrorObject},
 };
 pub use pallet_trading_runtime_api::TradingApi as TradingRuntimeApi;
+use primitive_types::U256;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
@@ -13,7 +14,16 @@ use zkx_support::types::Position;
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {
 	#[method(name = "trading_positions")]
-	fn positions(&self, at: Option<BlockHash>) -> RpcResult<Vec<Position>>;
+	fn positions(
+		&self,
+		at: Option<BlockHash>,
+		account_id: U256,
+		markets: Vec<U256>,
+	) -> RpcResult<Vec<Position>>;
+
+	#[method(name = "trading_collateral_to_market")]
+	fn collateral_to_market(&self, at: Option<BlockHash>, account_id: U256)
+		-> RpcResult<Vec<U256>>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -37,11 +47,32 @@ where
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: TradingRuntimeApi<Block>,
 {
-	fn positions(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<Position>> {
+	fn positions(
+		&self,
+		at: Option<<Block as BlockT>::Hash>,
+		account_id: U256,
+		markets: Vec<U256>,
+	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = self.client.info().best_hash;
 
-		api.positions(at).map_err(runtime_error_into_rpc_err)
+		let markets: Vec<U256> = api
+			.collateral_to_market(at, account_id)
+			.map_err(runtime_error_into_rpc_err)
+			.unwrap();
+
+		api.positions(at, account_id, markets).map_err(runtime_error_into_rpc_err)
+	}
+
+	fn collateral_to_market(
+		&self,
+		at: Option<<Block as BlockT>::Hash>,
+		account_id: U256,
+	) -> RpcResult<Vec<U256>> {
+		let api = self.client.runtime_api();
+		let at = self.client.info().best_hash;
+
+		api.collateral_to_market(at, account_id).map_err(runtime_error_into_rpc_err)
 	}
 }
 
