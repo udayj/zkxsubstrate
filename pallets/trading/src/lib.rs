@@ -21,8 +21,8 @@ pub mod pallet {
 		TradingInterface,
 	};
 	use zkx_support::types::{
-		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
-		TimeInForce,
+		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
+		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -75,6 +75,19 @@ pub mod pallet {
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
+	// Here, key1 is account_id,  key2 is collateral_id and value is the LiquidatablePosition
+	pub(super) type DeleveragableOrLiquidatableMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		U256,
+		Blake2_128Concat,
+		U256,
+		LiquidatablePosition,
+		ValueQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -1048,6 +1061,36 @@ pub mod pallet {
 			let direction = if direction == Direction::Long { LONG } else { SHORT };
 			let position_details = PositionsMap::<T>::get(account_id, [market_id, direction]);
 			position_details
+		}
+
+		fn liquidate_position(
+			account_id: U256,
+			collateral_id: U256,
+			position: PositionDetailsForRiskManagement,
+			amount_to_be_sold: FixedI128,
+		) {
+			let amount;
+			let liquidatable;
+			if amount_to_be_sold == 0.into() {
+				amount = position.size;
+				liquidatable = true;
+			} else {
+				amount = amount_to_be_sold;
+				liquidatable = false;
+			}
+
+			let liquidatable_position: LiquidatablePosition = LiquidatablePosition {
+				market_id: position.market_id,
+				direction: position.direction,
+				amount_to_be_sold: amount,
+				liquidatable,
+			};
+
+			DeleveragableOrLiquidatableMap::<T>::insert(
+				account_id,
+				collateral_id,
+				liquidatable_position,
+			);
 		}
 	}
 }

@@ -238,6 +238,14 @@ pub enum OrderSide {
 	Taker,
 }
 
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct LiquidatablePosition {
+	pub market_id: U256,
+	pub direction: Direction,
+	pub amount_to_be_sold: FixedI128,
+	pub liquidatable: bool,
+}
+
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum HashType {
 	#[default]
