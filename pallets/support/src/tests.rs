@@ -1,11 +1,11 @@
 use starknet_ff::FieldElement;
-use starknet_crypto::{pedersen_hash, poseidon_hash_many, poseidon_hash, get_public_key, Signature};
+use starknet_crypto::{pedersen_hash, poseidon_hash_many, poseidon_hash, get_public_key};
 use starknet_core::crypto::{ecdsa_sign};
 use sp_arithmetic::fixed_point::FixedI128;
 use crate::helpers::{fixed_i128_to_u256, u256_to_field_element, pedersen_hash_multiple};
 use crate::types::{ Side, Order, OrderType, Direction, TimeInForce, HashType};
 use crate::traits::Hashable;
-use crate::ecdsa_verify;
+use crate::{ecdsa_verify, Signature};
 use primitive_types::U256;
 use frame_support::inherent::Vec;
 
@@ -84,10 +84,13 @@ fn test_order_signature() {
         leverage: FixedI128::from_inner(-100_i128),
         slippage: FixedI128::from_inner(-200_i128),
         post_only: true,
-        time_in_force: TimeInForce::GTC
+        time_in_force: TimeInForce::GTC,
+        sig_r: U256::from_dec_str("0").unwrap(),
+        sig_s: U256::from_dec_str("0").unwrap(),
+        hash_type:HashType::Pedersen
     };
 
-    let order_hash = order.hash(HashType::Pedersen).unwrap();
+    let order_hash = order.hash(&HashType::Pedersen).unwrap();
 
     // correct value of order_hash is the hash as calculated using compute_hash_on_elements (from cairo-lang package) using the 
     // serialized values of the different types

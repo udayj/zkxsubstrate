@@ -171,6 +171,9 @@ pub struct Order {
 	pub slippage: FixedI128,
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
+	pub sig_r: U256,
+	pub sig_s: U256,
+	pub hash_type: HashType
 }
  
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -247,7 +250,7 @@ impl Hashable for Order {
 	// No error apart from error during conversion from U256 to FieldElement should happen
 	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
 	type ConversionError = FromByteSliceError;
-	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>{
+	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>{
 
 		let mut elements: Vec<FieldElement> = Vec::new();
 		
@@ -280,7 +283,7 @@ impl Hashable for Order {
 
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
 		
-		match hash_type {
+		match &hash_type {
 			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
 			HashType::Poseidon => Ok(poseidon_hash_many(&elements))
 		}		

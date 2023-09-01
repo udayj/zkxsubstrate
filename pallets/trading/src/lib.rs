@@ -17,13 +17,14 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{
-		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface, Hashable
 	};
 	use zkx_support::types::{
 		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
 		TimeInForce,
 	};
-
+	use zkx_support::helpers::{u256_to_field_element, sig_u256_to_sig_felt};
+	use zkx_support::{ecdsa_verify,Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
@@ -123,6 +124,16 @@ pub mod pallet {
 		OrderError { error_code: u16 },
 		/// Invalid oracle price
 		InvalidOraclePrice { error_code: u16 },
+		/// Invalid order hash - order could not be hashed into a Field Element
+		InvalidOrderHash,
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		InvalidSignatureFelt,
+		/// ECDSA Signature could not be verified
+		InvalidSignature,
+		/// Public Key not found for account id
+		NoPublicKeyFound,
+		/// Invalid public key - publickey u256 could not be converted to Field Element
+		InvalidPublicKey
 	}
 
 	#[pallet::event]
@@ -737,6 +748,38 @@ pub mod pallet {
 				Error::<T>::InvalidLeverage
 			);
 
+			// Signature validation
+			let sig_felt = sig_u256_to_sig_felt(&order.sig_r, &order.sig_s);
+
+			// Sig_r and/or Sig_s could not be converted to FieldElement
+			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+
+			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+			let sig = Signature {
+					r: sig_r_felt,
+					s: sig_s_felt
+					};
+			
+			let order_hash = order.hash(&order.hash_type);
+
+			// Order could not be hashed
+			ensure!(order_hash.is_ok(),Error::<T>::InvalidOrderHash);
+			
+			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
+
+			// Public key not found for this account_id
+			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
+			
+			let public_key_felt = u256_to_field_element(&public_key.unwrap());
+
+			// Public Key U256 could not be converted to FieldElement
+			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
+			
+			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
+
+			// Signature verification returned error or false
+			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
+			
 			Ok(())
 		}
 
@@ -1030,6 +1073,11 @@ pub mod pallet {
 				Error::<T>::ClosingEmptyPosition => 524,
 				Error::<T>::NotEnoughMargin => 532,
 				Error::<T>::OrderFullyExecuted => 533,
+				Error::<T>::InvalidOrderHash => 534,
+				Error::<T>::InvalidSignatureFelt => 535,
+				Error::<T>::InvalidSignature => 536,
+				Error::<T>::NoPublicKeyFound => 537,
+				Error::<T>::InvalidPublicKey => 538,
 				_ => 500,
 			}
 		}
