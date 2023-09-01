@@ -56,7 +56,7 @@ impl pallet_asset::Config for Test {
 
 impl markets::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type Asset = Assets;
+	type AssetPallet = Assets;
 }
 
 // Build genesis storage according to the mock runtime.

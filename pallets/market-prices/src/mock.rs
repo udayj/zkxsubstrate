@@ -60,7 +60,7 @@ impl pallet_asset::Config for Test {
 
 impl pallet_market::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type Asset = AssetModule;
+	type AssetPallet = AssetModule;
 }
 
 impl pallet_timestamp::Config for Test {
