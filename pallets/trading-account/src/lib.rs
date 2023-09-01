@@ -260,10 +260,7 @@ pub mod pallet {
 					leverage: 0.into(),
 				};
 			let mut least_collateral_ratio_position_asset_price: FixedI128 = 0.into();
-			let mut index = 0;
-			while index < markets.len() {
-				let curr_market_id = markets[index];
-
+			for curr_market_id in markets {
 				// Get Long position
 				let long_position: Position =
 					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Long);
@@ -303,16 +300,13 @@ pub mod pallet {
 					long_pnl = 0.into();
 				} else {
 					// Get risk parameters of the position
-					let (pnl, maintanence_requirement, collateral_ratio) =
+					(long_pnl, long_maintanence_requirement, long_collateral_ratio) =
 						Self::get_risk_parameters_position(
 							&long_position,
 							Direction::Long,
 							market_price,
 							curr_market_id,
 						);
-					long_collateral_ratio = collateral_ratio;
-					long_maintanence_requirement = maintanence_requirement;
-					long_pnl = pnl;
 				}
 
 				let short_maintanence_requirement;
@@ -325,16 +319,13 @@ pub mod pallet {
 					short_pnl = 0.into();
 				} else {
 					// Get risk parameters of the position
-					let (pnl, maintanence_requirement, collateral_ratio) =
+					(short_pnl, short_maintanence_requirement, short_collateral_ratio) =
 						Self::get_risk_parameters_position(
 							&short_position,
 							Direction::Short,
 							market_price,
 							curr_market_id,
 						);
-					short_collateral_ratio = collateral_ratio;
-					short_maintanence_requirement = maintanence_requirement;
-					short_pnl = pnl;
 				}
 
 				let curr_long_position: PositionDetailsForRiskManagement =
@@ -378,19 +369,16 @@ pub mod pallet {
 					new_least_collateral_ratio_position = curr_long_position;
 				}
 
-				let unrealized_pnl_sum_temp = short_pnl + long_pnl;
-				unrealized_pnl_sum = unrealized_pnl_sum + unrealized_pnl_sum_temp;
+				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
 
-				let maintenance_margin_requirement_temp =
-					short_maintanence_requirement + long_maintanence_requirement;
-				maintenance_margin_requirement =
-					maintenance_margin_requirement + maintenance_margin_requirement_temp;
+				maintenance_margin_requirement = maintenance_margin_requirement
+					+ short_maintanence_requirement
+					+ long_maintanence_requirement;
 
 				least_collateral_ratio = new_least_collateral_ratio;
 				least_collateral_ratio_position = new_least_collateral_ratio_position;
 				least_collateral_ratio_position_asset_price =
 					new_least_collateral_ratio_position_asset_price;
-				index += 1;
 			}
 			return (
 				unrealized_pnl_sum,
@@ -519,21 +507,15 @@ pub mod pallet {
 			// Compute available margin of the given collateral
 			let available_margin = total_margin - total_initial_margin_sum;
 
-			let is_liquidation;
+			let mut is_liquidation = false;
 
 			// If it's a long position with 1x leverage, ignore it
 			if total_margin <= maintenance_margin_requirement {
-				if least_collateral_ratio_position.direction == Direction::Long {
-					if least_collateral_ratio_position.leverage == 1.into() {
-						is_liquidation = false;
-					} else {
-						is_liquidation = true;
-					}
-				} else {
+				if !((least_collateral_ratio_position.direction == Direction::Long)
+					&& (least_collateral_ratio_position.leverage == 1.into()))
+				{
 					is_liquidation = true;
 				}
-			} else {
-				is_liquidation = false;
 			}
 
 			return (
