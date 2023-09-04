@@ -425,7 +425,7 @@ pub mod pallet {
 			Some(trading_account.pub_key)
 			
 		}
-	}
+	
 
 		fn get_margin_info(
 			account_id: U256,
@@ -539,3 +539,4 @@ pub mod pallet {
 		}
 	}
 }
+
