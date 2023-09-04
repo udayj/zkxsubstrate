@@ -15,6 +15,7 @@ pub trait TradingAccountInterface {
 	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
+	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
 		account_id: U256,
 		collateral_id: U256,
@@ -76,5 +77,5 @@ pub trait TradingFeesInterface {
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
-	fn hash(&self, hash_type: HashType) -> Result<FieldElement, Self::ConversionError>;
+	fn hash(&self, hash_type:&HashType) -> Result<FieldElement, Self::ConversionError>;
 }

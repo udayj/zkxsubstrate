@@ -7,6 +7,7 @@ use starknet_ff:: {FieldElement, FromByteSliceError};
 
 // Re-export ecdsa_verify to be used as is
 pub use starknet_core::crypto::{ecdsa_verify};
+pub use starknet_crypto::Signature;
 pub mod types;
 
 #[cfg(test)]
@@ -104,4 +105,11 @@ pub mod helpers{
 		pedersen_hash(&a, b)
 
 	}
+
+	pub fn sig_u256_to_sig_felt(sig_r: &U256, sig_s:&U256) -> Result<(FieldElement, FieldElement), FromByteSliceError> {
+
+		let sig_r_felt = u256_to_field_element(sig_r)?;
+		let sig_s_felt = u256_to_field_element(sig_s)?;
+		Ok((sig_r_felt, sig_s_felt))
+	} 
 }

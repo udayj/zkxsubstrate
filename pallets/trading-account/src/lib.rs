@@ -419,6 +419,14 @@ pub mod pallet {
 			AccountPresenceMap::<T>::contains_key(&account)
 		}
 
+		fn get_public_key(account: &U256) -> Option<U256> {
+
+			let trading_account = AccountMap::<T>::get(&account)?;
+			Some(trading_account.pub_key)
+			
+		}
+	
+
 		fn get_margin_info(
 			account_id: U256,
 			collateral_id: U256,
@@ -531,3 +539,4 @@ pub mod pallet {
 		}
 	}
 }
+
