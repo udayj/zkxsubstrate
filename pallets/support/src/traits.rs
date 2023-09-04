@@ -1,4 +1,8 @@
-use crate::types::{Asset, Market, OrderSide, Side, HashType};
+use crate::types::{
+	Asset, Direction, HashType, LiquidatablePosition, Market, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side,
+};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_ff::FieldElement;
@@ -12,6 +16,36 @@ pub trait TradingAccountInterface {
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
 	fn get_public_key(account: &U256) -> Option<U256>;
+	fn get_margin_info(
+		account_id: U256,
+		collateral_id: U256,
+		new_position_maintanence_requirement: FixedI128,
+		new_position_margin: FixedI128,
+	) -> (
+		bool,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		FixedI128,
+		PositionDetailsForRiskManagement,
+		FixedI128,
+	);
+}
+
+pub trait TradingInterface {
+	fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256>;
+	fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position;
+	fn liquidate_position(
+		account_id: U256,
+		collateral_id: U256,
+		position: &PositionDetailsForRiskManagement,
+		amount_to_be_sold: FixedI128,
+	);
+	fn get_deleveragable_or_liquidatable_position(
+		account_id: U256,
+		collateral_id: U256,
+	) -> LiquidatablePosition;
 }
 
 pub trait AssetInterface {

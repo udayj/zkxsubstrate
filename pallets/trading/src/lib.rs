@@ -17,11 +17,12 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::traits::{
-		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface, Hashable
+		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface, Hashable,
+    TradingInterface,
 	};
 	use zkx_support::types::{
-		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
-		TimeInForce,
+		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
+		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::helpers::{u256_to_field_element, sig_u256_to_sig_felt};
 	use zkx_support::{ecdsa_verify,Signature};
@@ -66,15 +67,28 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn collateral_to_market)]
-	// k1 - account_id, v - vector of market ids
+	// k1 - account_id, k2 - collateral_id, v - vector of market ids
 	pub(super) type CollateralToMarketMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
+	// Here, key1 is account_id,  key2 is collateral_id and value is the LiquidatablePosition
+	pub(super) type DeleveragableOrLiquidatableMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		U256,
+		Blake2_128Concat,
+		U256,
+		LiquidatablePosition,
+		ValueQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -468,9 +482,14 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							markets.push(market_id);
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 					}
 
@@ -543,13 +562,18 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							for index in 0..markets.len() {
 								if markets[index] == market_id {
 									markets.remove(index);
 								}
 							}
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 						updated_position = Position {
 							direction: element.direction,
@@ -1080,6 +1104,58 @@ pub mod pallet {
 				Error::<T>::InvalidPublicKey => 538,
 				_ => 500,
 			}
+		}
+	}
+
+	impl<T: Config> TradingInterface for Pallet<T> {
+		fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256> {
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
+			markets
+		}
+
+		fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+			let direction = if direction == Direction::Long { LONG } else { SHORT };
+			let position_details = PositionsMap::<T>::get(account_id, [market_id, direction]);
+			position_details
+		}
+
+		fn liquidate_position(
+			account_id: U256,
+			collateral_id: U256,
+			position: &PositionDetailsForRiskManagement,
+			amount_to_be_sold: FixedI128,
+		) {
+			let amount;
+			let liquidatable;
+			if amount_to_be_sold == 0.into() {
+				amount = position.size;
+				liquidatable = true;
+			} else {
+				amount = amount_to_be_sold;
+				liquidatable = false;
+			}
+
+			let liquidatable_position: LiquidatablePosition = LiquidatablePosition {
+				market_id: position.market_id,
+				direction: position.direction,
+				amount_to_be_sold: amount,
+				liquidatable,
+			};
+
+			DeleveragableOrLiquidatableMap::<T>::insert(
+				account_id,
+				collateral_id,
+				liquidatable_position,
+			);
+		}
+
+		fn get_deleveragable_or_liquidatable_position(
+			account_id: U256,
+			collateral_id: U256,
+		) -> LiquidatablePosition {
+			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
 		}
 	}
 }
