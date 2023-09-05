@@ -16,16 +16,16 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
+	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
-		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface, Hashable,
-    TradingInterface,
+		Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
 		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
 		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
-	use zkx_support::helpers::{u256_to_field_element, sig_u256_to_sig_felt};
-	use zkx_support::{ecdsa_verify,Signature};
+	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
@@ -147,7 +147,7 @@ pub mod pallet {
 		/// Public Key not found for account id
 		NoPublicKeyFound,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
-		InvalidPublicKey
+		InvalidPublicKey,
 	}
 
 	#[pallet::event]
@@ -276,11 +276,17 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						failed_orders.push(FailedOrder {
-							order_id: element.order_id,
-							error_code: Self::get_error_code(e),
-						});
-						continue;
+						// if maker order, push error code to vector
+						if element.order_id != orders[orders.len() - 1].order_id {
+							failed_orders.push(FailedOrder {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
+						} else {
+							// if taker order, revert with error
+							return Err(e.into());
+						}
 					},
 				}
 
@@ -348,13 +354,7 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => {
-							failed_orders.push(FailedOrder {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
-							});
-							continue;
-						},
+						Err(e) => return Err(e.into()),
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
@@ -366,10 +366,7 @@ pub mod pallet {
 							let error = &failed_orders[0];
 							ensure!(
 								true == false,
-								Error::<T>::OrderError {
-									// order_id: error.order_id,
-									error_code: error.error_code,
-								}
+								Error::<T>::OrderError { error_code: error.error_code }
 							);
 						}
 					}
@@ -395,13 +392,7 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => {
-								failed_orders.push(FailedOrder {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
-								});
-								continue;
-							},
+							Err(e) => return Err(e.into()),
 						}
 					} else {
 						let slippage_validation = Self::validate_within_slippage(
@@ -413,13 +404,7 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => {
-								failed_orders.push(FailedOrder {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
-								});
-								continue;
-							},
+							Err(e) => return Err(e.into()),
 						}
 					}
 
@@ -662,9 +647,9 @@ pub mod pallet {
 			}
 
 			for element in &executed_orders {
-				let direction = if element.direction == Direction::Long { 1_u8 } else { 2_u8 };
-				let side = if element.side == Side::Buy { 1_u8 } else { 2_u8 };
-				let order_type = if element.order_type == OrderType::Market { 1_u8 } else { 2_u8 };
+				let direction = if element.direction == Direction::Long { 0_u8 } else { 1_u8 };
+				let side = if element.side == Side::Buy { 0_u8 } else { 1_u8 };
+				let order_type = if element.order_type == OrderType::Market { 0_u8 } else { 1_u8 };
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
 					order_id: element.order_id,
@@ -680,8 +665,8 @@ pub mod pallet {
 			}
 
 			let taker_direction =
-				if orders[orders.len() - 1].direction == Direction::Long { 1_u8 } else { 2_u8 };
-			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 1_u8 } else { 2_u8 };
+				if orders[orders.len() - 1].direction == Direction::Long { 0_u8 } else { 1_u8 };
+			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 0_u8 } else { 1_u8 };
 
 			Self::deposit_event(Event::TradeExecuted {
 				batch_id,
@@ -743,7 +728,8 @@ pub mod pallet {
 			} else {
 				// To Do - handle Liquidation/Deleveraging scenario
 
-				let quantity_to_execute = quantity_to_execute - position_details.size;
+				let quantity_to_execute =
+					FixedI128::min(quantity_to_execute, position_details.size);
 				ensure!(quantity_to_execute > 0.into(), Error::<T>::ClosingEmptyPosition);
 
 				Ok(quantity_to_execute)
@@ -779,31 +765,28 @@ pub mod pallet {
 			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
 
 			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
-			let sig = Signature {
-					r: sig_r_felt,
-					s: sig_s_felt
-					};
-			
+			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
+
 			let order_hash = order.hash(&order.hash_type);
 
 			// Order could not be hashed
-			ensure!(order_hash.is_ok(),Error::<T>::InvalidOrderHash);
-			
+			ensure!(order_hash.is_ok(), Error::<T>::InvalidOrderHash);
+
 			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
 
 			// Public key not found for this account_id
 			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
-			
+
 			let public_key_felt = u256_to_field_element(&public_key.unwrap());
 
 			// Public Key U256 could not be converted to FieldElement
 			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
-			
+
 			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
 
 			// Signature verification returned error or false
 			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
-			
+
 			Ok(())
 		}
 
