@@ -2,7 +2,9 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
-use zkx_support::types::{Asset, Market, MarketPrice, MultipleMarketPrices};
+use zkx_support::types::asset::Asset;
+use zkx_support::types::market::Market;
+use zkx_support::types::market_prices::{MarketPrice, MultipleMarketPrices};
 
 fn setup() -> (Market, Market) {
 	let eth_id: U256 = 4543560.into();

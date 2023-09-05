@@ -10,7 +10,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::FixedI128;
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingInterface};
-	use zkx_support::types::{Direction, PositionDetailsForRiskManagement};
+	use zkx_support::types::trading::{Direction, PositionDetailsForRiskManagement};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

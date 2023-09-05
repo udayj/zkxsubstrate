@@ -25,11 +25,10 @@ pub mod pallet {
 		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
 		TradingInterface,
 	};
-	use zkx_support::types::{
-		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
-		TradingAccountWithoutId,
+	use zkx_support::types::trading::{Direction, Position, PositionDetailsForRiskManagement};
+	use zkx_support::types::trading_account::{
+		BalanceUpdate, TradingAccount, TradingAccountWithoutId,
 	};
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -420,12 +419,9 @@ pub mod pallet {
 		}
 
 		fn get_public_key(account: &U256) -> Option<U256> {
-
 			let trading_account = AccountMap::<T>::get(&account)?;
 			Some(trading_account.pub_key)
-			
 		}
-	
 
 		fn get_margin_info(
 			account_id: U256,
@@ -539,4 +535,3 @@ pub mod pallet {
 		}
 	}
 }
-

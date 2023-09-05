@@ -1,6 +1,8 @@
-use super::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use super::traits::Hashable;
+use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
+use crate::traits::Hashable;
+use crate::types::common::HashType;
 use codec::{Decode, Encode};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;

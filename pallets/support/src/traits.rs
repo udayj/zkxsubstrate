@@ -1,6 +1,8 @@
-use crate::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, OrderSide, Position,
-	PositionDetailsForRiskManagement, Side,
+use crate::types::asset::Asset;
+use crate::types::common::HashType;
+use crate::types::market::Market;
+use crate::types::trading::{
+	Direction, LiquidatablePosition, OrderSide, Position, PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -77,5 +79,5 @@ pub trait TradingFeesInterface {
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
-	fn hash(&self, hash_type:&HashType) -> Result<FieldElement, Self::ConversionError>;
+	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
 }

@@ -17,7 +17,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::{AssetInterface, MarketInterface};
-	use zkx_support::types::Market;
+	use zkx_support::types::market::Market;
 
 	static DELETION_LIMIT: u32 = 100;
 

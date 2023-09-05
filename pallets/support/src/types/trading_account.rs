@@ -1,4 +1,5 @@
 use codec::{Decode, Encode};
+use frame_support::pallet_prelude::MaxEncodedLen;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
