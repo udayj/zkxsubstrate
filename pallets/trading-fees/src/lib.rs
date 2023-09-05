@@ -17,8 +17,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::TradingFeesInterface;
-	use zkx_support::types::trading::{OrderSide, Side};
-	use zkx_support::types::trading_fees::{BaseFee, Discount};
+	use zkx_support::types::{BaseFee, Discount, OrderSide, Side};
 
 	static DELETION_LIMIT: u32 = 100;
 

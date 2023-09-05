@@ -25,9 +25,9 @@ pub mod pallet {
 		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
 		TradingInterface,
 	};
-	use zkx_support::types::trading::{Direction, Position, PositionDetailsForRiskManagement};
-	use zkx_support::types::trading_account::{
-		BalanceUpdate, TradingAccount, TradingAccountWithoutId,
+	use zkx_support::types::{
+		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
+		TradingAccountWithoutId,
 	};
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

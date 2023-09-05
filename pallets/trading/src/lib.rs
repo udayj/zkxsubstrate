@@ -21,10 +21,9 @@ pub mod pallet {
 		Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
 		TradingFeesInterface, TradingInterface,
 	};
-	use zkx_support::types::market::Market;
-	use zkx_support::types::trading::{
-		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Order, OrderSide, OrderType,
-		Position, PositionDetailsForRiskManagement, Side, TimeInForce,
+	use zkx_support::types::{
+		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
+		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);

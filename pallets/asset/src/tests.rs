@@ -1,7 +1,7 @@
 use crate::{mock::*, Error, Event};
 use frame_support::{assert_noop, assert_ok};
 use primitive_types::U256;
-use zkx_support::types::asset::Asset;
+use zkx_support::types::Asset;
 
 fn setup() -> (Asset, Asset, Asset, Asset) {
 	let ETH_ID: U256 = 4543560.into();

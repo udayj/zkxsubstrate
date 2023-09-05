@@ -18,7 +18,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::{MarketInterface, MarketPricesInterface};
-	use zkx_support::types::market_prices::{MarketPrice, MultipleMarketPrices};
+	use zkx_support::types::{MarketPrice, MultipleMarketPrices};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

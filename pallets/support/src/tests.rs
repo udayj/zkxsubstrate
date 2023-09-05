@@ -1,7 +1,6 @@
 use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
 use crate::traits::Hashable;
-use crate::types::common::HashType;
-use crate::types::trading::{Direction, Order, OrderType, Side, TimeInForce};
+use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
 use primitive_types::U256;

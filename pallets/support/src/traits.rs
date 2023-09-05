@@ -1,8 +1,6 @@
-use crate::types::asset::Asset;
-use crate::types::common::HashType;
-use crate::types::market::Market;
-use crate::types::trading::{
-	Direction, LiquidatablePosition, OrderSide, Position, PositionDetailsForRiskManagement, Side,
+use crate::types::{
+	Asset, Direction, HashType, LiquidatablePosition, Market, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;

@@ -18,7 +18,7 @@ pub mod pallet {
 	use scale_info::prelude::string::String;
 	use zkx_support::str_to_felt;
 	use zkx_support::traits::AssetInterface;
-	use zkx_support::types::asset::Asset;
+	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
 

@@ -3,8 +3,7 @@ use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
-use zkx_support::types::asset::Asset;
-use zkx_support::types::trading_account::{BalanceUpdate, TradingAccount, TradingAccountWithoutId};
+use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 fn setup() -> Vec<TradingAccountWithoutId> {
 	let mut trading_accounts: Vec<TradingAccountWithoutId> = Vec::new();
