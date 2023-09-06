@@ -16,7 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use scale_info::prelude::string::String;
-	use zkx_support::str_to_felt;
+	use zkx_support::helpers::str_to_felt;
 	use zkx_support::traits::AssetInterface;
 	use zkx_support::types::Asset;
 

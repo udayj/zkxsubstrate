@@ -16,14 +16,16 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
+	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
-		MarketInterface, MarketPricesInterface, TradingAccountInterface, TradingFeesInterface,
+		Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
-		Direction, ExecutedOrder, FailedOrder, Market, Order, OrderSide, OrderType, Position, Side,
-		TimeInForce,
+		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
+		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
-
+	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
@@ -65,15 +67,28 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn collateral_to_market)]
-	// k1 - account_id, v - vector of market ids
+	// k1 - account_id, k2 - collateral_id, v - vector of market ids
 	pub(super) type CollateralToMarketMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
+	// Here, key1 is account_id,  key2 is collateral_id and value is the LiquidatablePosition
+	pub(super) type DeleveragableOrLiquidatableMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		U256,
+		Blake2_128Concat,
+		U256,
+		LiquidatablePosition,
+		ValueQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -123,6 +138,16 @@ pub mod pallet {
 		OrderError { error_code: u16 },
 		/// Invalid oracle price
 		InvalidOraclePrice { error_code: u16 },
+		/// Invalid order hash - order could not be hashed into a Field Element
+		InvalidOrderHash,
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		InvalidSignatureFelt,
+		/// ECDSA Signature could not be verified
+		InvalidSignature,
+		/// Public Key not found for account id
+		NoPublicKeyFound,
+		/// Invalid public key - publickey u256 could not be converted to Field Element
+		InvalidPublicKey,
 	}
 
 	#[pallet::event]
@@ -251,11 +276,17 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						failed_orders.push(FailedOrder {
-							order_id: element.order_id,
-							error_code: Self::get_error_code(e),
-						});
-						continue;
+						// if maker order, push error code to vector
+						if element.order_id != orders[orders.len() - 1].order_id {
+							failed_orders.push(FailedOrder {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							continue;
+						} else {
+							// if taker order, revert with error
+							return Err(e.into());
+						}
 					},
 				}
 
@@ -323,13 +354,7 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => {
-							failed_orders.push(FailedOrder {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
-							});
-							continue;
-						},
+						Err(e) => return Err(e.into()),
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
@@ -341,10 +366,7 @@ pub mod pallet {
 							let error = &failed_orders[0];
 							ensure!(
 								true == false,
-								Error::<T>::OrderError {
-									// order_id: error.order_id,
-									error_code: error.error_code,
-								}
+								Error::<T>::OrderError { error_code: error.error_code }
 							);
 						}
 					}
@@ -370,13 +392,7 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => {
-								failed_orders.push(FailedOrder {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
-								});
-								continue;
-							},
+							Err(e) => return Err(e.into()),
 						}
 					} else {
 						let slippage_validation = Self::validate_within_slippage(
@@ -388,13 +404,7 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => {
-								failed_orders.push(FailedOrder {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
-								});
-								continue;
-							},
+							Err(e) => return Err(e.into()),
 						}
 					}
 
@@ -457,9 +467,14 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							markets.push(market_id);
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 					}
 
@@ -532,13 +547,18 @@ pub mod pallet {
 							[market_id, opposite_direction],
 						);
 						if opposite_position.size == 0.into() {
-							let mut markets = CollateralToMarketMap::<T>::get(&element.account_id);
+							let mut markets =
+								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							for index in 0..markets.len() {
 								if markets[index] == market_id {
 									markets.remove(index);
 								}
 							}
-							CollateralToMarketMap::<T>::insert(&element.account_id, markets);
+							CollateralToMarketMap::<T>::insert(
+								&element.account_id,
+								collateral_id,
+								markets,
+							);
 						}
 						updated_position = Position {
 							direction: element.direction,
@@ -627,9 +647,9 @@ pub mod pallet {
 			}
 
 			for element in &executed_orders {
-				let direction = if element.direction == Direction::Long { 1_u8 } else { 2_u8 };
-				let side = if element.side == Side::Buy { 1_u8 } else { 2_u8 };
-				let order_type = if element.order_type == OrderType::Market { 1_u8 } else { 2_u8 };
+				let direction = if element.direction == Direction::Long { 0_u8 } else { 1_u8 };
+				let side = if element.side == Side::Buy { 0_u8 } else { 1_u8 };
+				let order_type = if element.order_type == OrderType::Market { 0_u8 } else { 1_u8 };
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
 					order_id: element.order_id,
@@ -645,8 +665,8 @@ pub mod pallet {
 			}
 
 			let taker_direction =
-				if orders[orders.len() - 1].direction == Direction::Long { 1_u8 } else { 2_u8 };
-			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 1_u8 } else { 2_u8 };
+				if orders[orders.len() - 1].direction == Direction::Long { 0_u8 } else { 1_u8 };
+			let taker_side = if orders[orders.len() - 1].side == Side::Buy { 0_u8 } else { 1_u8 };
 
 			Self::deposit_event(Event::TradeExecuted {
 				batch_id,
@@ -708,7 +728,8 @@ pub mod pallet {
 			} else {
 				// To Do - handle Liquidation/Deleveraging scenario
 
-				let quantity_to_execute = quantity_to_execute - position_details.size;
+				let quantity_to_execute =
+					FixedI128::min(quantity_to_execute, position_details.size);
 				ensure!(quantity_to_execute > 0.into(), Error::<T>::ClosingEmptyPosition);
 
 				Ok(quantity_to_execute)
@@ -736,6 +757,35 @@ pub mod pallet {
 					&& order.leverage <= market.currently_allowed_leverage,
 				Error::<T>::InvalidLeverage
 			);
+
+			// Signature validation
+			let sig_felt = sig_u256_to_sig_felt(&order.sig_r, &order.sig_s);
+
+			// Sig_r and/or Sig_s could not be converted to FieldElement
+			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+
+			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
+
+			let order_hash = order.hash(&order.hash_type);
+
+			// Order could not be hashed
+			ensure!(order_hash.is_ok(), Error::<T>::InvalidOrderHash);
+
+			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
+
+			// Public key not found for this account_id
+			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
+
+			let public_key_felt = u256_to_field_element(&public_key.unwrap());
+
+			// Public Key U256 could not be converted to FieldElement
+			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
+
+			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
+
+			// Signature verification returned error or false
+			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
 
 			Ok(())
 		}
@@ -1030,8 +1080,65 @@ pub mod pallet {
 				Error::<T>::ClosingEmptyPosition => 524,
 				Error::<T>::NotEnoughMargin => 532,
 				Error::<T>::OrderFullyExecuted => 533,
+				Error::<T>::InvalidOrderHash => 534,
+				Error::<T>::InvalidSignatureFelt => 535,
+				Error::<T>::InvalidSignature => 536,
+				Error::<T>::NoPublicKeyFound => 537,
+				Error::<T>::InvalidPublicKey => 538,
 				_ => 500,
 			}
+		}
+	}
+
+	impl<T: Config> TradingInterface for Pallet<T> {
+		fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256> {
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
+			markets
+		}
+
+		fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position {
+			let LONG: U256 = U256::from(1_u8);
+			let SHORT: U256 = U256::from(2_u8);
+			let direction = if direction == Direction::Long { LONG } else { SHORT };
+			let position_details = PositionsMap::<T>::get(account_id, [market_id, direction]);
+			position_details
+		}
+
+		fn liquidate_position(
+			account_id: U256,
+			collateral_id: U256,
+			position: &PositionDetailsForRiskManagement,
+			amount_to_be_sold: FixedI128,
+		) {
+			let amount;
+			let liquidatable;
+			if amount_to_be_sold == 0.into() {
+				amount = position.size;
+				liquidatable = true;
+			} else {
+				amount = amount_to_be_sold;
+				liquidatable = false;
+			}
+
+			let liquidatable_position: LiquidatablePosition = LiquidatablePosition {
+				market_id: position.market_id,
+				direction: position.direction,
+				amount_to_be_sold: amount,
+				liquidatable,
+			};
+
+			DeleveragableOrLiquidatableMap::<T>::insert(
+				account_id,
+				collateral_id,
+				liquidatable_position,
+			);
+		}
+
+		fn get_deleveragable_or_liquidatable_position(
+			account_id: U256,
+			collateral_id: U256,
+		) -> LiquidatablePosition {
+			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
 		}
 	}
 }

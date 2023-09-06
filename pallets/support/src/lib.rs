@@ -8,17 +8,15 @@ use starknet_ff::FromByteSliceError;
 // Re-export ecdsa_verify to be used as is
 pub use starknet_core::crypto::{ecdsa_verify, Signature};
 pub use starknet_ff::FieldElement;
+
+// Custom types and data structures.
 pub mod types;
 
 #[cfg(test)]
 mod tests;
 
+/// Trait definitions.
 pub mod traits;
-
-pub fn str_to_felt(text: &str) -> u128 {
-	let a = FieldElement::from_byte_slice_be(text.as_bytes());
-	u128::try_from(a.unwrap()).unwrap()
-}
 
 impl FixedI128Ext<FixedI128> for FixedI128 {
 	fn round_to_precision(t: FixedI128, precision: u32) -> FixedI128 {
@@ -48,11 +46,15 @@ impl FixedI128Ext<FixedI128> for FixedI128 {
 }
 
 pub mod helpers {
-
 	use super::{FieldElement, FixedI128, FixedPointNumber, FromByteSliceError, U256};
 	use frame_support::inherent::Vec;
 	use itertools::fold;
 	use starknet_crypto::pedersen_hash;
+
+	pub fn str_to_felt(text: &str) -> u128 {
+		let a = FieldElement::from_byte_slice_be(text.as_bytes());
+		u128::try_from(a.unwrap()).unwrap()
+	}
 
 	// Function to convert from fixed point number to U256 inside the PRIME field
 	// This function does the appropriate mod arithmetic to ensure the returned value is actually less than PRIME
@@ -100,5 +102,14 @@ pub mod helpers {
 	// It is required due to the fn sig requirement of fold
 	fn foldable_pedersen_hash(a: FieldElement, b: &FieldElement) -> FieldElement {
 		pedersen_hash(&a, b)
+	}
+
+	pub fn sig_u256_to_sig_felt(
+		sig_r: &U256,
+		sig_s: &U256,
+	) -> Result<(FieldElement, FieldElement), FromByteSliceError> {
+		let sig_r_felt = u256_to_field_element(sig_r)?;
+		let sig_s_felt = u256_to_field_element(sig_s)?;
+		Ok((sig_r_felt, sig_s_felt))
 	}
 }

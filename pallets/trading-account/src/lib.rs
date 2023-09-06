@@ -19,10 +19,16 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
+	use sp_arithmetic::traits::Bounded;
 	use sp_io::hashing::blake2_256;
-	use zkx_support::traits::{AssetInterface, TradingAccountInterface};
-	use zkx_support::types::{BalanceUpdate, TradingAccount, TradingAccountWithoutId};
-
+	use zkx_support::traits::{
+		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		TradingInterface,
+	};
+	use zkx_support::types::{
+		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
+		TradingAccountWithoutId,
+	};
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -30,7 +36,10 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type WeightInfo: WeightInfo;
-		type Asset: AssetInterface;
+		type AssetPallet: AssetInterface;
+		type TradingPallet: TradingInterface;
+		type MarketPallet: MarketInterface;
+		type MarketPricesPallet: MarketPricesInterface;
 	}
 
 	#[pallet::storage]
@@ -131,7 +140,7 @@ pub mod pallet {
 				current_length += 1;
 
 				// Add predefined balance for default collateral to the account
-				let default_collateral = T::Asset::get_default_collateral();
+				let default_collateral = T::AssetPallet::get_default_collateral();
 				BalancesMap::<T>::set(account_id, default_collateral, 10000.into());
 				let mut collaterals: Vec<U256> = Vec::new();
 				collaterals.push(default_collateral);
@@ -162,7 +171,7 @@ pub mod pallet {
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
-				let asset_collateral = T::Asset::get_asset(element.asset_id);
+				let asset_collateral = T::AssetPallet::get_asset(element.asset_id);
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 
@@ -178,6 +187,205 @@ pub mod pallet {
 			Self::deposit_event(Event::BalancesUpdated { account_id });
 
 			Ok(())
+		}
+	}
+
+	// Pallet internal functions
+	impl<T: Config> Pallet<T> {
+		fn add_collateral(account_id: U256, collateral_id: U256) {
+			let mut collaterals = AccountCollateralsMap::<T>::get(account_id);
+			for element in &collaterals {
+				if element == &collateral_id {
+					return;
+				}
+			}
+
+			collaterals.push(collateral_id);
+			AccountCollateralsMap::<T>::insert(account_id, collaterals);
+		}
+
+		fn get_risk_parameters_position(
+			position: &Position,
+			direction: Direction,
+			market_price: FixedI128,
+			market_id: U256,
+		) -> (FixedI128, FixedI128, FixedI128) {
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			let req_margin = market.maintenance_margin_fraction;
+
+			// Calculate the maintenance requirement
+			let maintenance_position = position.avg_execution_price * position.size;
+			let maintenance_requirement = req_margin * maintenance_position;
+
+			if market_price == 0.into() {
+				return (0.into(), maintenance_requirement, 0.into());
+			}
+
+			// Calculate pnl to check if it is the least collateralized position
+			let price_diff: FixedI128;
+			if direction == Direction::Long {
+				price_diff = market_price - position.avg_execution_price;
+			} else {
+				price_diff = position.avg_execution_price - market_price;
+			}
+
+			let pnl = price_diff * position.size;
+
+			// Margin ratio calculation
+			let numerator = position.margin_amount + pnl;
+			let denominator = position.size * market_price;
+			let collateral_ratio_position = numerator / denominator;
+
+			return (pnl, maintenance_requirement, collateral_ratio_position);
+		}
+
+		fn calculate_margin_info(
+			account_id: U256,
+			new_position_maintanence_requirement: FixedI128,
+			markets: Vec<U256>,
+		) -> (FixedI128, FixedI128, FixedI128, PositionDetailsForRiskManagement, FixedI128) {
+			let mut unrealized_pnl_sum: FixedI128 = 0.into();
+			let mut maintenance_margin_requirement: FixedI128 =
+				new_position_maintanence_requirement;
+			let mut least_collateral_ratio: FixedI128 = FixedI128::max_value();
+			let mut least_collateral_ratio_position: PositionDetailsForRiskManagement =
+				PositionDetailsForRiskManagement {
+					market_id: 0.into(),
+					direction: Direction::Long,
+					avg_execution_price: 0.into(),
+					size: 0.into(),
+					margin_amount: 0.into(),
+					borrowed_amount: 0.into(),
+					leverage: 0.into(),
+				};
+			let mut least_collateral_ratio_position_asset_price: FixedI128 = 0.into();
+			for curr_market_id in markets {
+				// Get Long position
+				let long_position: Position =
+					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Long);
+
+				// Get Short position
+				let short_position: Position =
+					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Short);
+
+				// Get Market price
+				let market_price = T::MarketPricesPallet::get_market_price(curr_market_id);
+
+				if market_price == 0.into() {
+					return (
+						0.into(),
+						0.into(),
+						1.into(),
+						PositionDetailsForRiskManagement {
+							market_id: 0.into(),
+							direction: Direction::Long,
+							avg_execution_price: 0.into(),
+							size: 0.into(),
+							margin_amount: 0.into(),
+							borrowed_amount: 0.into(),
+							leverage: 0.into(),
+						},
+						0.into(),
+					);
+				}
+
+				let long_maintanence_requirement;
+				let long_pnl;
+				let long_collateral_ratio;
+
+				if long_position.size == 0.into() {
+					long_collateral_ratio = FixedI128::max_value();
+					long_maintanence_requirement = 0.into();
+					long_pnl = 0.into();
+				} else {
+					// Get risk parameters of the position
+					(long_pnl, long_maintanence_requirement, long_collateral_ratio) =
+						Self::get_risk_parameters_position(
+							&long_position,
+							Direction::Long,
+							market_price,
+							curr_market_id,
+						);
+				}
+
+				let short_maintanence_requirement;
+				let short_pnl;
+				let short_collateral_ratio;
+
+				if short_position.size == 0.into() {
+					short_collateral_ratio = FixedI128::max_value();
+					short_maintanence_requirement = 0.into();
+					short_pnl = 0.into();
+				} else {
+					// Get risk parameters of the position
+					(short_pnl, short_maintanence_requirement, short_collateral_ratio) =
+						Self::get_risk_parameters_position(
+							&short_position,
+							Direction::Short,
+							market_price,
+							curr_market_id,
+						);
+				}
+
+				let curr_long_position: PositionDetailsForRiskManagement =
+					PositionDetailsForRiskManagement {
+						market_id: curr_market_id,
+						direction: Direction::Long,
+						avg_execution_price: long_position.avg_execution_price,
+						size: long_position.size,
+						margin_amount: long_position.margin_amount,
+						borrowed_amount: long_position.borrowed_amount,
+						leverage: long_position.leverage,
+					};
+
+				let curr_short_position: PositionDetailsForRiskManagement =
+					PositionDetailsForRiskManagement {
+						market_id: curr_market_id,
+						direction: Direction::Short,
+						avg_execution_price: short_position.avg_execution_price,
+						size: short_position.size,
+						margin_amount: short_position.margin_amount,
+						borrowed_amount: short_position.borrowed_amount,
+						leverage: short_position.leverage,
+					};
+
+				let new_least_collateral_ratio_position: PositionDetailsForRiskManagement;
+				let new_least_collateral_ratio_position_asset_price;
+				let mut new_least_collateral_ratio =
+					FixedI128::min(least_collateral_ratio, short_collateral_ratio);
+				new_least_collateral_ratio =
+					FixedI128::min(new_least_collateral_ratio, long_collateral_ratio);
+
+				if new_least_collateral_ratio == least_collateral_ratio {
+					new_least_collateral_ratio_position = least_collateral_ratio_position;
+					new_least_collateral_ratio_position_asset_price =
+						least_collateral_ratio_position_asset_price;
+				} else if new_least_collateral_ratio == short_collateral_ratio {
+					new_least_collateral_ratio_position_asset_price = market_price;
+					new_least_collateral_ratio_position = curr_short_position;
+				} else {
+					new_least_collateral_ratio_position_asset_price = market_price;
+					new_least_collateral_ratio_position = curr_long_position;
+				}
+
+				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
+
+				maintenance_margin_requirement = maintenance_margin_requirement
+					+ short_maintanence_requirement
+					+ long_maintanence_requirement;
+
+				least_collateral_ratio = new_least_collateral_ratio;
+				least_collateral_ratio_position = new_least_collateral_ratio_position;
+				least_collateral_ratio_position_asset_price =
+					new_least_collateral_ratio_position_asset_price;
+			}
+			return (
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			);
 		}
 	}
 
@@ -209,20 +417,121 @@ pub mod pallet {
 		fn is_registered_user(account: U256) -> bool {
 			AccountPresenceMap::<T>::contains_key(&account)
 		}
-	}
 
-	// Pallet internal functions
-	impl<T: Config> Pallet<T> {
-		fn add_collateral(account_id: U256, collateral_id: U256) {
-			let mut collaterals = AccountCollateralsMap::<T>::get(account_id);
-			for element in &collaterals {
-				if element == &collateral_id {
-					return;
+		fn get_public_key(account: &U256) -> Option<U256> {
+			let trading_account = AccountMap::<T>::get(&account)?;
+			Some(trading_account.pub_key)
+		}
+
+		fn get_margin_info(
+			account_id: U256,
+			collateral_id: U256,
+			new_position_maintanence_requirement: FixedI128,
+			new_position_margin: FixedI128,
+		) -> (
+			bool,
+			FixedI128,
+			FixedI128,
+			FixedI128,
+			FixedI128,
+			FixedI128,
+			PositionDetailsForRiskManagement,
+			FixedI128,
+		) {
+			// Get markets corresponding of the collateral
+			let markets: Vec<U256> =
+				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
+
+			// Get balance for the given collateral
+			let collateral_balance = BalancesMap::<T>::get(account_id, collateral_id);
+
+			// Get the sum of initial margin of all positions under the given collateral
+			let initial_margin_sum = LockedMarginMap::<T>::get(account_id, collateral_id);
+
+			if markets.len() == 0 {
+				let available_margin = collateral_balance + new_position_margin;
+				return (
+					false,              // is_liquidation
+					collateral_balance, // total_margin
+					available_margin,   // available_margin
+					0.into(),           // unrealized_pnl_sum
+					0.into(),           // maintenance_margin_requirement
+					0.into(),           // least_collateral_ratio
+					PositionDetailsForRiskManagement {
+						market_id: 0.into(),
+						direction: Direction::Long,
+						avg_execution_price: 0.into(),
+						size: 0.into(),
+						margin_amount: 0.into(),
+						borrowed_amount: 0.into(),
+						leverage: 0.into(),
+					}, // least_collateral_ratio_position
+					0.into(),           // least_collateral_ratio_position_asset_price
+				);
+			}
+
+			let (
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			) = Self::calculate_margin_info(account_id, new_position_maintanence_requirement, markets);
+
+			// If any of the position's ttl is outdated
+			if least_collateral_ratio_position_asset_price == 0.into() {
+				let available_margin_temp = collateral_balance - new_position_margin;
+				let available_margin = available_margin_temp - initial_margin_sum;
+				return (
+					false,              // is_liquidation
+					collateral_balance, // total_margin
+					available_margin,   // available_margin
+					0.into(),           // unrealized_pnl_sum
+					0.into(),           // maintenance_margin_requirement
+					0.into(),           // least_collateral_ratio
+					PositionDetailsForRiskManagement {
+						market_id: 0.into(),
+						direction: Direction::Long,
+						avg_execution_price: 0.into(),
+						size: 0.into(),
+						margin_amount: 0.into(),
+						borrowed_amount: 0.into(),
+						leverage: 0.into(),
+					}, // least_collateral_ratio_position
+					0.into(),           // least_collateral_ratio_position_asset_price
+				);
+			}
+
+			// Add the new position's margin
+			let total_initial_margin_sum = initial_margin_sum + new_position_margin;
+
+			// Compute total margin of the given collateral
+			let total_margin = collateral_balance + unrealized_pnl_sum;
+
+			// Compute available margin of the given collateral
+			let available_margin = total_margin - total_initial_margin_sum;
+
+			let mut is_liquidation = false;
+
+			// If it's a long position with 1x leverage, ignore it
+			if total_margin <= maintenance_margin_requirement {
+				if !((least_collateral_ratio_position.direction == Direction::Long)
+					&& (least_collateral_ratio_position.leverage == 1.into()))
+				{
+					is_liquidation = true;
 				}
 			}
 
-			collaterals.push(collateral_id);
-			AccountCollateralsMap::<T>::insert(account_id, collaterals);
+			return (
+				is_liquidation,
+				total_margin,
+				available_margin,
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			);
 		}
 	}
 }

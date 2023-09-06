@@ -22,13 +22,12 @@ pub mod pallet {
 	static DELETION_LIMIT: u32 = 100;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type Asset: AssetInterface;
+		type AssetPallet: AssetInterface;
 	}
 
 	#[pallet::storage]
@@ -72,7 +71,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn replace_all_markets(origin: OriginFor<T>, markets: Vec<Market>) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let sender = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 
 			// Clear market map
 			let _ = MarketMap::<T>::clear(DELETION_LIMIT, None);
@@ -86,9 +85,9 @@ pub mod pallet {
 				// Check market id is non zero
 				ensure!(element.id > 0.into(), Error::<T>::InvalidMarketId);
 				// Validate asset and asset collateral
-				let asset = T::Asset::get_asset(element.asset);
+				let asset = T::AssetPallet::get_asset(element.asset);
 				ensure!(asset.is_some(), Error::<T>::AssetNotFound);
-				let asset_collateral = T::Asset::get_asset(element.asset_collateral);
+				let asset_collateral = T::AssetPallet::get_asset(element.asset_collateral);
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 				ensure!(

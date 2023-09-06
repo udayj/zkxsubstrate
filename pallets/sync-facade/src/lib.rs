@@ -10,9 +10,9 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
+	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use frame_system::EnsureRoot;
 	use primitive_types::U256;
 	use zkx_support::helpers;
 	use zkx_support::types::SyncSignature;
