@@ -5,7 +5,7 @@ use crate::types::{
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use starknet_ff::FieldElement;
+use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
@@ -77,4 +77,12 @@ pub trait TradingFeesInterface {
 pub trait Hashable {
 	type ConversionError;
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
+}
+
+pub trait IntoFelt {
+	fn into_felt(&self, result: &mut Vec<FieldElement>);
+}
+
+pub trait TryIntoFelt {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError>;
 }

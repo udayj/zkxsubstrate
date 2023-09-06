@@ -1,4 +1,7 @@
+use crate::traits::{IntoFelt, TryIntoFelt};
+use crate::FieldElement;
 use codec::{Decode, Encode};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -26,4 +29,18 @@ pub struct Market {
 	pub incremental_position_size: FixedI128,
 	pub baseline_position_size: FixedI128,
 	pub maximum_position_size: FixedI128,
+}
+
+impl IntoFelt for Market {
+	fn into_felt(&self, result: &mut Vec<FieldElement>) {
+		self.id.try_into_felt(result);
+		self.asset.try_into_felt(result);
+		self.asset_collateral.try_into_felt(result);
+		self.is_tradable.into_felt(result);
+		self.is_archived.into_felt(result);
+		result.push(FieldElement::from(self.ttl));
+		// TODO (merkle-groot): Add impl to convert i128 to felt252
+		result.push(FieldElement::from(self.tick_precision));
+		result.push(FieldElement::from(self.step_precision));
+	}
 }

@@ -1,4 +1,7 @@
+use crate::traits::{IntoFelt, TryIntoFelt};
+use crate::FieldElement;
 use codec::{Decode, Encode};
+use frame_support::inherent::Vec;
 use frame_support::pallet_prelude::MaxEncodedLen;
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -24,8 +27,23 @@ pub struct TradingAccountWithoutId {
 	pub pub_key: U256,
 }
 
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
+pub struct TradingAccountMinimal {
+	pub account_address: U256,
+	pub index: u8,
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
 pub struct BalanceUpdate {
 	pub asset_id: U256,
 	pub balance_value: FixedI128,
+}
+
+impl IntoFelt for TradingAccountMinimal {
+	fn into_felt(&self, result: &mut Vec<FieldElement>) {
+		self.account_address.try_into_felt(result);
+		result.push(FieldElement::from(self.index));
+	}
 }
