@@ -77,5 +77,5 @@ pub trait TradingFeesInterface {
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
-	fn hash(&self, hash_type:&HashType) -> Result<FieldElement, Self::ConversionError>;
+	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
 }
