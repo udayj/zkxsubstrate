@@ -17,8 +17,9 @@ pub mod pallet {
 	use zkx_support::helpers::{
 		field_element_to_u256, pedersen_hash_multiple, u256_to_field_element,
 	};
-	use zkx_support::types::{ConvertToFelt252, SyncSignature, UniversalEventL2};
-	use zkx_support::{ecdsa_verify, FieldElement, FromByteSliceError, Signature};
+	use zkx_support::traits::ConvertToFelt252;
+	use zkx_support::types::{SyncSignature, UniversalEventL2};
+	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub (super) trait Store)]

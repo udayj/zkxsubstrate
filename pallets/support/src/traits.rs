@@ -86,3 +86,7 @@ pub trait IntoFelt {
 pub trait TryIntoFelt {
 	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError>;
 }
+
+pub trait ConvertToFelt252 {
+	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError>;
+}

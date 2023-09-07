@@ -1,4 +1,4 @@
-use crate::traits::{IntoFelt, TryIntoFelt};
+use crate::traits::{ConvertToFelt252, IntoFelt, TryIntoFelt};
 use crate::types::{Asset, Market, TradingAccountMinimal};
 use crate::FieldElement;
 use codec::{Decode, Encode};
@@ -95,10 +95,6 @@ pub struct AssetUpdatedL2 {
 	pub icon_url: BoundedVec<u8, ConstU32<256>>,
 	pub version: u16,
 	pub block_number: u64,
-}
-
-pub trait ConvertToFelt252 {
-	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError>;
 }
 
 impl TryIntoFelt for AssetUpdatedL2 {
