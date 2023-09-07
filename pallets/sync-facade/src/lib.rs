@@ -14,7 +14,9 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use zkx_support::helpers::{pedersen_hash_multiple, u256_to_field_element};
+	use zkx_support::helpers::{
+		field_element_to_u256, pedersen_hash_multiple, u256_to_field_element,
+	};
 	use zkx_support::types::{ConvertToFelt252, SyncSignature, UniversalEventL2};
 	use zkx_support::{ecdsa_verify, FieldElement, FromByteSliceError, Signature};
 
@@ -60,7 +62,17 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
-	pub enum Event<T: Config> {}
+	pub enum Event<T: Config> {
+		/// Signer added by the admin successfully
+		SignerAdded {
+			signer: U256,
+			signer_index: u8,
+		},
+		SignerRemoved {
+			signer: U256,
+			signer_index: u8,
+		},
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -72,6 +84,10 @@ pub mod pallet {
 		InsufficientSigners,
 		/// No events provided
 		EmptyBatch,
+		/// Batch sent again
+		DuplicateBatch,
+		/// Not enough signatures for a sync tx
+		InsufficientSignatures,
 	}
 
 	// Pallet callable functions
@@ -84,7 +100,7 @@ pub mod pallet {
 			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// The pub key cannot be 0
-			ensure!(pub_key != 0.into(), Error::<T>::ZeroSigner);
+			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
 
 			// Read the state of signers
 			let new_index = NextSignerIndex::<T>::get();
@@ -94,6 +110,9 @@ pub mod pallet {
 			SignersCount::<T>::put(prev_signers_count + 1);
 			NextSignerIndex::<T>::put(new_index + 1);
 			Signers::<T>::insert(new_index, pub_key);
+
+			// Emit the SignerAdded event
+			Self::deposit_event(Event::SignerAdded { signer: pub_key, signer_index: new_index });
 
 			// Return ok
 			Ok(())
@@ -107,7 +126,7 @@ pub mod pallet {
 
 			// Check if the signer exists
 			let signer = Signers::<T>::get(index);
-			ensure!(signer != 0.into(), Error::<T>::ZeroSigner);
+			ensure!(signer != U256::zero(), Error::<T>::ZeroSigner);
 
 			// Read the state of signers
 			let signers_count = SignersCount::<T>::get();
@@ -119,8 +138,11 @@ pub mod pallet {
 			// Update the state
 			SignersCount::<T>::put(signers_count - 1);
 
-			let new_signer: U256 = 0.into();
-			Signers::<T>::insert(index, new_signer);
+			// Update the map with 0 signer
+			Signers::<T>::insert(index, U256::zero());
+
+			// Emit the SignerRemoved event
+			Self::deposit_event(Event::SignerRemoved { signer, signer_index: index });
 
 			// Return ok
 			Ok(())
@@ -141,7 +163,26 @@ pub mod pallet {
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
 
 			// Compute the batch hash
-			let batch_hash = self.compute_batch_hash(events_batch)?;
+			let batch_hash = Self::compute_batch_hash(&events_batch).unwrap();
+
+			// Check if the batch is already processed
+			let batch_hash_u256 = field_element_to_u256(batch_hash);
+			ensure!(
+				IsBatchProcessed::<T>::get(batch_hash_u256) == false,
+				Error::<T>::DuplicateBatch
+			);
+
+			// Check if there are enough sigs
+			ensure!(
+				Self::has_quorum(signatures, batch_hash) == true,
+				Error::<T>::InsufficientSignatures
+			);
+
+			// Mark the batch hash as being processed
+			IsBatchProcessed::<T>::insert(batch_hash_u256, true);
+
+			// Store the block number and the batch hash
+			LastProcessed::<T>::put((block_number, batch_hash_u256));
 
 			Ok(())
 		}
@@ -151,7 +192,7 @@ pub mod pallet {
 		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
 			// Get the required data
 			let total_len = SignersCount::<T>::get();
-			let quorum = SignersQuorum::<T>::get();
+			let quorum: u8 = SignersQuorum::<T>::get();
 
 			let mut iterator = 0;
 			let mut valid_sigs = 0;
@@ -162,8 +203,8 @@ pub mod pallet {
 				}
 
 				// Get the corresponding signer pub key
-				let curr_signature = &signatures[usize::from(iterator)];
-				let pub_key = Signers::<T>::try_get(curr_signature.signer_index).unwrap();
+				let curr_signature: &SyncSignature = &signatures[usize::from(iterator)];
+				let pub_key = Signers::<T>::get(curr_signature.signer_index);
 
 				// Convert the data to felt252
 				let pub_key_felt252 = u256_to_field_element(&pub_key).unwrap();
@@ -202,7 +243,7 @@ pub mod pallet {
 			let flattened_felt252_array = events_batch.serialize_to_felt_array()?;
 
 			// Compute hash of the array and return
-			let pedersen_hash = pedersen_hash_multiple(&flattened_felt252_array);
+			let pedersen_hash: FieldElement = pedersen_hash_multiple(&flattened_felt252_array);
 
 			Ok(pedersen_hash)
 		}

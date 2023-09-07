@@ -81,6 +81,11 @@ pub mod helpers {
 		FieldElement::from_byte_slice_be(&buffer)
 	}
 
+	pub fn field_element_to_u256(val: FieldElement) -> U256 {
+		let buffer = val.to_bytes_be();
+		U256::from_big_endian(&buffer)
+	}
+
 	// Function to perform pedersen hash of an array of field elements
 	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
 		// hash is computed as follows
