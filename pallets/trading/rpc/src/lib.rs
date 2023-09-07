@@ -44,7 +44,7 @@ where
 		account_id: U256,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
-		let at = self.client.info().best_hash;
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
 		let positions = api.positions(at, account_id).map_err(runtime_error_into_rpc_err).unwrap();
 		Ok(positions)

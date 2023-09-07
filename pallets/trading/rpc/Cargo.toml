@@ -2,7 +2,7 @@
 name = "pallet-trading-rpc"
 version = "1.0.0"
 edition = "2021"
-authors = ["Alex Bean <https://github.com/AlexD10S>"]
+authors = ["ZKX"]
 description = 'RPC methods for the template pallet'
 
 [package.metadata.docs.rs]

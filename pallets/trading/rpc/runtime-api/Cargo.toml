@@ -1,6 +1,6 @@
 [package]
 name = "pallet-trading-runtime-api"
-authors = ["Alex Bean <https://github.com/AlexD10S>"]
+authors = ["ZKX"]
 version = "1.0.0"
 edition = "2021"
 
