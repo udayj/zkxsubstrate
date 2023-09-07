@@ -163,7 +163,7 @@ pub mod pallet {
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
 
 			// Compute the batch hash
-			let batch_hash = Self::compute_batch_hash(&events_batch).unwrap();
+			let batch_hash = Self::compute_batch_hash(&events_batch);
 
 			// Check if the batch is already processed
 			let batch_hash_u256 = field_element_to_u256(batch_hash);
@@ -236,16 +236,12 @@ pub mod pallet {
 			}
 		}
 
-		fn compute_batch_hash(
-			events_batch: &Vec<UniversalEventL2>,
-		) -> Result<FieldElement, FromByteSliceError> {
+		fn compute_batch_hash(events_batch: &Vec<UniversalEventL2>) -> FieldElement {
 			// Convert the array of enums to array of felts
-			let flattened_felt252_array = events_batch.serialize_to_felt_array()?;
+			let flattened_felt252_array = events_batch.serialize_to_felt_array().unwrap();
 
 			// Compute hash of the array and return
-			let pedersen_hash: FieldElement = pedersen_hash_multiple(&flattened_felt252_array);
-
-			Ok(pedersen_hash)
+			pedersen_hash_multiple(&flattened_felt252_array)
 		}
 	}
 }
