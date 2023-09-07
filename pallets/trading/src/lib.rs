@@ -805,7 +805,6 @@ pub mod pallet {
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
 			} else {
-				// To Do - handle Liquidation/Deleveraging scenario
 				if order.order_type == OrderType::Liquidation {
 					ensure!(liq_position.market_id == market_id, Error::<T>::InvalidLiqOrDelMarket);
 					ensure!(
@@ -1064,7 +1063,6 @@ pub mod pallet {
 			let borrowed_amount: FixedI128;
 			let margin_amount: FixedI128;
 
-			// To do - handle deleveraging order
 			if order.order_type == OrderType::Deleveraging {
 				// In delevereaging, we only reduce borrowed field
 				borrowed_amount = position_details.borrowed_amount - leveraged_order_value;
@@ -1140,7 +1138,6 @@ pub mod pallet {
 						T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
 					}
 				} else {
-					// To do - Handle liquidation and deleveraging orders
 					if order.order_type == OrderType::Liquidation {
 						// if balance >= margin amount, deposit remaining margin in insurance
 						if margin_amount_to_reduce <= balance {
