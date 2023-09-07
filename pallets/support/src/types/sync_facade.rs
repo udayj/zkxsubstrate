@@ -7,6 +7,7 @@ use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_runtime::traits::ConstU32;
 use sp_runtime::{BoundedVec, RuntimeDebug};
+use starknet_ff::FromByteSliceError;
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SyncSignature {
@@ -97,63 +98,73 @@ pub struct AssetUpdatedL2 {
 }
 
 pub trait ConvertToFelt252 {
-	fn serialize_to_felt_array(&self) -> Vec<FieldElement>;
+	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError>;
 }
 
-impl IntoFelt for AssetUpdatedL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
+impl TryIntoFelt for AssetUpdatedL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
 		result.push(FieldElement::from(self.id));
-		self.asset.into_felt(result);
+		self.asset.try_into_felt(result)?;
 		self.metadata_url.into_felt(result);
 		self.icon_url.into_felt(result);
 		result.push(FieldElement::from(self.version));
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
-impl IntoFelt for MarketUpdatedL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
+impl TryIntoFelt for MarketUpdatedL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
 		result.push(FieldElement::from(self.id));
-		self.market.into_felt(result);
+		self.market.try_into_felt(result)?;
 		self.metadata_url.into_felt(result);
 		self.icon_url.into_felt(result);
 		result.push(FieldElement::from(self.version));
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
-impl IntoFelt for MarketRemovedL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
+impl TryIntoFelt for MarketRemovedL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
 		result.push(FieldElement::from(self.id));
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
-impl IntoFelt for AssetRemovedL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
+impl TryIntoFelt for AssetRemovedL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
 		result.push(FieldElement::from(self.id));
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
-impl IntoFelt for UserDepositL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
-		self.trading_account.into_felt(result);
+impl TryIntoFelt for UserDepositL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
+		self.trading_account.try_into_felt(result)?;
 		result.push(FieldElement::from(self.collateral_id));
-		self.nonce.try_into_felt(result);
-		self.amount.try_into_felt(result);
-		self.balance.try_into_felt(result);
+		self.nonce.try_into_felt(result)?;
+		self.amount.try_into_felt(result)?;
+		self.balance.try_into_felt(result)?;
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
@@ -168,44 +179,46 @@ impl IntoFelt for FundType {
 	}
 }
 
-impl IntoFelt for FundsTransferL2 {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.event_hash.try_into_felt(result);
-		self.event_name.try_into_felt(result);
+impl TryIntoFelt for FundsTransferL2 {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_into_felt(result)?;
+		self.event_name.try_into_felt(result)?;
 		self.from_fund.into_felt(result);
 		self.to_fund.into_felt(result);
 		result.push(FieldElement::from(self.asset_id));
-		self.amount.try_into_felt(result);
+		self.amount.try_into_felt(result)?;
 		result.push(FieldElement::from(self.block_number));
+
+		Ok(())
 	}
 }
 
 impl ConvertToFelt252 for [UniversalEventL2] {
-	fn serialize_to_felt_array(&self) -> Vec<FieldElement> {
+	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError> {
 		let result: &mut Vec<FieldElement> = &mut Vec::new();
 		for event in self.iter() {
 			match event {
 				UniversalEventL2::MarketUpdatedL2(market_updated) => {
-					market_updated.into_felt(result);
+					market_updated.try_into_felt(result)?;
 				},
 				UniversalEventL2::AssetUpdatedL2(asset_updated) => {
-					asset_updated.into_felt(result);
+					asset_updated.try_into_felt(result)?;
 				},
 				UniversalEventL2::MarketRemovedL2(market_removed) => {
-					market_removed.into_felt(result);
+					market_removed.try_into_felt(result)?;
 				},
 				UniversalEventL2::AssetRemovedL2(asset_removed) => {
-					asset_removed.into_felt(result);
+					asset_removed.try_into_felt(result)?;
 				},
 				UniversalEventL2::FundsTransferL2(funds_transfer) => {
-					funds_transfer.into_felt(result);
+					funds_transfer.try_into_felt(result)?;
 				},
 				UniversalEventL2::UserDepositL2(user_deposit) => {
-					user_deposit.into_felt(result);
+					user_deposit.try_into_felt(result)?;
 				},
 			}
 		}
 
-		result.to_vec()
+		Ok(result.to_vec())
 	}
 }

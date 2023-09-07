@@ -14,9 +14,9 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use zkx_support::helpers;
-	use zkx_support::types::SyncSignature;
-	use zkx_support::{ecdsa_verify, FieldElement, Signature};
+	use zkx_support::helpers::{pedersen_hash_multiple, u256_to_field_element};
+	use zkx_support::types::{ConvertToFelt252, SyncSignature, UniversalEventL2};
+	use zkx_support::{ecdsa_verify, FieldElement, FromByteSliceError, Signature};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub (super) trait Store)]
@@ -70,6 +70,8 @@ pub mod pallet {
 		ZeroSigner,
 		/// No of signers less than required quorum
 		InsufficientSigners,
+		/// No events provided
+		EmptyBatch,
 	}
 
 	// Pallet callable functions
@@ -123,6 +125,26 @@ pub mod pallet {
 			// Return ok
 			Ok(())
 		}
+
+		/// External function to be called by Synchronizer network to sync events from L2
+		#[pallet::weight(0)]
+		pub fn synchronize_events(
+			origin: OriginFor<T>,
+			events_batch: Vec<UniversalEventL2>,
+			signatures: Vec<SyncSignature>,
+			block_number: u64,
+		) -> DispatchResult {
+			// Make sure the caller is an admin
+			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+
+			// Check if there are events in the batch
+			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
+
+			// Compute the batch hash
+			let batch_hash = self.compute_batch_hash(events_batch)?;
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -144,10 +166,10 @@ pub mod pallet {
 				let pub_key = Signers::<T>::try_get(curr_signature.signer_index).unwrap();
 
 				// Convert the data to felt252
-				let pub_key_felt252 = helpers::u256_to_field_element(&pub_key).unwrap();
+				let pub_key_felt252 = u256_to_field_element(&pub_key).unwrap();
 				let signature_felt252 = Signature {
-					r: helpers::u256_to_field_element(&curr_signature.r).unwrap(),
-					s: helpers::u256_to_field_element(&curr_signature.s).unwrap(),
+					r: u256_to_field_element(&curr_signature.r).unwrap(),
+					s: u256_to_field_element(&curr_signature.s).unwrap(),
 				};
 
 				// Check if the sig is valid, if yes increment valid_sigs
@@ -171,6 +193,18 @@ pub mod pallet {
 				Ok(_) => true,
 				Err(_) => false,
 			}
+		}
+
+		fn compute_batch_hash(
+			events_batch: &Vec<UniversalEventL2>,
+		) -> Result<FieldElement, FromByteSliceError> {
+			// Convert the array of enums to array of felts
+			let flattened_felt252_array = events_batch.serialize_to_felt_array()?;
+
+			// Compute hash of the array and return
+			let pedersen_hash = pedersen_hash_multiple(&flattened_felt252_array);
+
+			Ok(pedersen_hash)
 		}
 	}
 }

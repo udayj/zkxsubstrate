@@ -7,6 +7,7 @@ use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
+use starknet_ff::FromByteSliceError;
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
@@ -41,9 +42,11 @@ pub struct BalanceUpdate {
 	pub balance_value: FixedI128,
 }
 
-impl IntoFelt for TradingAccountMinimal {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
-		self.account_address.try_into_felt(result);
+impl TryIntoFelt for TradingAccountMinimal {
+	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+		self.account_address.try_into_felt(result)?;
 		result.push(FieldElement::from(self.index));
+
+		Ok(())
 	}
 }
