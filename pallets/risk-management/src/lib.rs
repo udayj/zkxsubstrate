@@ -8,6 +8,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
+	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::FixedI128;
 	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingInterface};
 	use zkx_support::types::{Direction, PositionDetailsForRiskManagement};
@@ -60,7 +61,7 @@ pub mod pallet {
 				);
 
 			ensure!(
-				liquidatable_position.amount_to_be_sold == 0.into(),
+				liquidatable_position.amount_to_be_sold == FixedI128::zero(),
 				Error::<T>::PositionMarkedToBeDeleveraged
 			);
 
@@ -76,17 +77,17 @@ pub mod pallet {
 			) = T::TradingAccountPallet::get_margin_info(
 				account_id,
 				collateral_id,
-				0.into(),
-				0.into(),
+				FixedI128::zero(),
+				FixedI128::zero(),
 			);
 
-			if least_collateral_ratio_position_asset_price == 0.into() {
+			if least_collateral_ratio_position_asset_price == FixedI128::zero() {
 				return Ok(());
 			}
 
 			if liq_result == true {
 				// if margin ratio is <=0, we directly perform liquidation else we check for deleveraging
-				if least_collateral_ratio > 0.into() {
+				if least_collateral_ratio > FixedI128::zero() {
 					let amount_to_be_sold = Self::check_deleveraging(
 						&least_collateral_ratio_position,
 						least_collateral_ratio_position_asset_price,
@@ -102,7 +103,7 @@ pub mod pallet {
 						account_id,
 						collateral_id,
 						&least_collateral_ratio_position,
-						0.into(),
+						FixedI128::zero(),
 					);
 				}
 			}
@@ -149,7 +150,7 @@ pub mod pallet {
 			let leverage_after_deleveraging = remaining_position_value / margin_amount;
 
 			if leverage_after_deleveraging <= 2.into() {
-				0.into()
+				FixedI128::zero()
 			} else {
 				amount_to_be_sold
 			}
