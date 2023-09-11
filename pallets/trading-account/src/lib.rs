@@ -394,6 +394,12 @@ pub mod pallet {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
+		fn get_unused_balance(account: U256, asset_id: U256) -> FixedI128 {
+			let total_balance = BalancesMap::<T>::get(account, asset_id);
+			let locked_balance = LockedMarginMap::<T>::get(account, asset_id);
+			total_balance - locked_balance
+		}
+
 		fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128 {
 			LockedMarginMap::<T>::get(account, asset_id)
 		}
