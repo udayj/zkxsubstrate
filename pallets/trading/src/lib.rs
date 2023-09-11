@@ -93,14 +93,6 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Batch with same ID already execute
-		BatchAlreadyExecuted { error_code: u16 },
-		/// Invalid input for market
-		MarketNotFound { error_code: u16 },
-		/// Market not tradable
-		MarketNotTradable { error_code: u16 },
-		/// Quantity locked cannot be 0
-		QuantityLockedError { error_code: u16 },
 		/// Balance not enough to open the position
 		InsufficientBalance,
 		/// User's account is not registered
@@ -157,6 +149,10 @@ pub mod pallet {
 		InvalidDeleveragingOrder,
 		/// Position marked to be liquidated, but deleveraging order passed
 		InvalidLiquidationOrder,
+		/// Revert error related to trade batch
+		TradeBatchError { error_code: u16 },
+		/// Revert error related to orders
+		TradeOrderError,
 	}
 
 	#[pallet::event]
@@ -209,19 +205,19 @@ pub mod pallet {
 
 			ensure!(
 				!BatchStatusMap::<T>::contains_key(batch_id),
-				Error::<T>::BatchAlreadyExecuted { error_code: 525 }
+				Error::<T>::TradeBatchError { error_code: 525 }
 			);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
-			ensure!(market.is_some(), Error::<T>::MarketNotFound { error_code: 509 });
+			ensure!(market.is_some(), Error::<T>::TradeBatchError { error_code: 509 });
 			let market = market.unwrap();
-			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable { error_code: 509 });
+			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
 
 			// validates oracle_price
 			ensure!(
 				oracle_price > FixedI128::zero(),
-				Error::<T>::InvalidOraclePrice { error_code: 513 }
+				Error::<T>::TradeBatchError { error_code: 513 }
 			);
 
 			//Update market price
@@ -235,7 +231,7 @@ pub mod pallet {
 
 			ensure!(
 				quantity_locked != FixedI128::checked_from_integer(0).unwrap(),
-				Error::<T>::QuantityLockedError { error_code: 522 }
+				Error::<T>::TradeBatchError { error_code: 522 }
 			);
 
 			let taker_order = &orders[orders.len() - 1];
@@ -249,11 +245,7 @@ pub mod pallet {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
 				Err(e) => {
 					let error_code = Self::get_error_code(e);
-					match error_code {
-						523 => return Err(DispatchError::Other("523")),
-						524 => return Err(DispatchError::Other("524")),
-						_ => return Err(DispatchError::Other("UnknownError")),
-					}
+					return Err((Error::<T>::TradeBatchError { error_code }).into());
 				},
 			}
 
@@ -289,16 +281,17 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						// if maker order, push error code to vector
+						failed_orders.push(FailedOrder {
+							order_id: element.order_id,
+							error_code: Self::get_error_code(e),
+						});
+						// if maker order, push error code to vector and continue
 						if element.order_id != orders[orders.len() - 1].order_id {
-							failed_orders.push(FailedOrder {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
-							});
 							continue;
 						} else {
-							// if taker order, revert with error
-							return Err(e.into());
+							// if taker order, push error code to vector and revert with error
+							Self::emit_order_error_events(&failed_orders);
+							return Err(Error::<T>::TradeOrderError.into());
 						}
 					},
 				}
@@ -373,7 +366,14 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => return Err(e.into()),
+						Err(e) => {
+							failed_orders.push(FailedOrder {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
+							Self::emit_order_error_events(&failed_orders);
+							return Err(Error::<T>::TradeOrderError.into());
+						},
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
@@ -382,20 +382,18 @@ pub mod pallet {
 						if failed_orders.is_empty() {
 							return Err(DispatchError::Other("UnknownError"));
 						} else {
-							let error = &failed_orders[0];
-							ensure!(
-								true == false,
-								Error::<T>::OrderError { error_code: error.error_code }
-							);
+							Self::emit_order_error_events(&failed_orders);
+							return Err(Error::<T>::TradeOrderError.into());
 						}
 					}
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
-						ensure!(
-							quantity_to_execute == element.size,
-							Error::<T>::FOKError { error_code: 516 }
-						);
+						if quantity_to_execute != element.size {
+							failed_orders
+								.push(FailedOrder { order_id: element.order_id, error_code: 516 });
+							return Err(Error::<T>::TradeOrderError.into());
+						}
 					}
 
 					// Calculate execution price for taker
@@ -411,7 +409,14 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => return Err(e.into()),
+							Err(e) => {
+								failed_orders.push(FailedOrder {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							},
 						}
 					} else {
 						let slippage_validation = Self::validate_within_slippage(
@@ -423,7 +428,14 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => return Err(e.into()),
+							Err(e) => {
+								failed_orders.push(FailedOrder {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							},
 						}
 					}
 
@@ -466,7 +478,14 @@ pub mod pallet {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
-							continue;
+							// if maker order, push error code to vector and continue
+							if element.order_id != orders[orders.len() - 1].order_id {
+								continue;
+							} else {
+								// if taker order, push error code to vector and revert with error
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							}
 						},
 					}
 
@@ -539,7 +558,14 @@ pub mod pallet {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
-							continue;
+							// if maker order, push error code to vector and continue
+							if element.order_id != orders[orders.len() - 1].order_id {
+								continue;
+							} else {
+								// if taker order, push error code to vector and revert with error
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							}
 						},
 					}
 
@@ -573,19 +599,27 @@ pub mod pallet {
 						);
 						if element.order_type == OrderType::Deleveraging {
 							// Position not marked as 'deleveragable'
-							ensure!(
-								liq_position.liquidatable == false,
-								Error::<T>::InvalidDeleveragingOrder
-							);
+							if liq_position.liquidatable != false {
+								failed_orders.push(FailedOrder {
+									order_id: element.order_id,
+									error_code: 526,
+								});
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							}
 							let total_value = margin_amount + borrowed_amount;
 							new_leverage = total_value / margin_amount;
 							new_margin_locked = current_margin_locked;
 						} else {
 							// Position not marked as 'liquidatable'
-							ensure!(
-								liq_position.liquidatable == true,
-								Error::<T>::InvalidLiquidationOrder
-							);
+							if liq_position.liquidatable != true {
+								failed_orders.push(FailedOrder {
+									order_id: element.order_id,
+									error_code: 527,
+								});
+								Self::emit_order_error_events(&failed_orders);
+								return Err(Error::<T>::TradeOrderError.into());
+							}
 							new_leverage = position_details.leverage;
 							new_margin_locked = current_margin_locked - margin_lock_amount;
 						}
@@ -1192,6 +1226,15 @@ pub mod pallet {
 				margin_amount_to_reduce,
 				pnl,
 			))
+		}
+
+		fn emit_order_error_events(failed_orders: &Vec<FailedOrder>) {
+			for element in failed_orders {
+				Self::deposit_event(Event::OrderError {
+					order_id: element.order_id,
+					error_code: element.error_code,
+				});
+			}
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {
