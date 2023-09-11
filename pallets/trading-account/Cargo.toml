@@ -23,16 +23,17 @@ primitive-types = { version = "0.12.1", default-features = false }
 sp-arithmetic = { version = "16.0.0", default-features = false }
 sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false, branch = "polkadot-v0.9.42" }
 
-
 zkx-support= { path="../support"}
 fixed = {version="1.23.1"}
+
+
+[dev-dependencies]
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
 pallet-trading = { default-features = false, path = "../trading" }
 pallet-trading-fees = { default-features = false, path = "../trading-fees" }
 pallet-market-prices = { default-features = false, path = "../market-prices" }
-
-[dev-dependencies]
+pallet-risk-management = { default-features = false, path = "../risk-management" }
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
