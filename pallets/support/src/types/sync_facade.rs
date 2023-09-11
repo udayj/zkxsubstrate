@@ -11,7 +11,7 @@ use starknet_ff::FromByteSliceError;
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SyncSignature {
-	pub signer_index: u8,
+	pub signer_pub_key: U256,
 	pub r: U256,
 	pub s: U256,
 }

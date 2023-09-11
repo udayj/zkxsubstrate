@@ -31,9 +31,15 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
+	#[pallet::getter(fn accounts_count)]
+	// Array of U256
+	pub(super) type Signers<T: Config> = StorageValue<_, Vec<U256>, ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn get_signer)]
-	// k1 - index, v - signer's pub key
-	pub(super) type Signers<T: Config> = StorageMap<_, Twox64Concat, u8, U256, ValueQuery>;
+	// k1 - U256, v - bool
+	pub(super) type IsSignerWhitelisted<T: Config> =
+		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_batch_status)]
@@ -47,16 +53,6 @@ pub mod pallet {
 	pub(super) type LastProcessed<T: Config> = StorageValue<_, (u64, U256), ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn get_signes_count)]
-	// v - Length of signers array
-	pub(super) type SignersCount<T: Config> = StorageValue<_, u8, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn get_next_signer_index)]
-	// v - Index at which a new signer can be added
-	pub(super) type NextSignerIndex<T: Config> = StorageValue<_, u8, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn get_signers_quorum)]
 	// v - No of signers required for quorum
 	pub(super) type SignersQuorum<T: Config> = StorageValue<_, u8, ValueQuery>;
@@ -67,11 +63,9 @@ pub mod pallet {
 		/// Signer added by the admin successfully
 		SignerAdded {
 			signer: U256,
-			signer_index: u8,
 		},
 		SignerRemoved {
 			signer: U256,
-			signer_index: u8,
 		},
 	}
 
@@ -81,8 +75,12 @@ pub mod pallet {
 		NotAdmin,
 		/// Signer passed is 0
 		ZeroSigner,
+		/// Duplicate signer
+		DuplicateSigner,
 		/// No of signers less than required quorum
 		InsufficientSigners,
+		/// Signer not whitelisted
+		SignerNotWhitelisted,
 		/// No events provided
 		EmptyBatch,
 		/// Batch sent again
@@ -103,17 +101,15 @@ pub mod pallet {
 			// The pub key cannot be 0
 			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
 
-			// Read the state of signers
-			let new_index = NextSignerIndex::<T>::get();
-			let prev_signers_count = SignersCount::<T>::get();
+			// Ensure that the pub_key is not already whitelisted
+			ensure!(!IsSignerWhitelisted::<T>::get(pub_key), Error::<T>::DuplicateSigner);
 
-			// Update the state
-			SignersCount::<T>::put(prev_signers_count + 1);
-			NextSignerIndex::<T>::put(new_index + 1);
-			Signers::<T>::insert(new_index, pub_key);
+			// Store the new signer
+			Signers::<T>::append(pub_key);
+			IsSignerWhitelisted::<T>::insert(pub_key, true);
 
 			// Emit the SignerAdded event
-			Self::deposit_event(Event::SignerAdded { signer: pub_key, signer_index: new_index });
+			Self::deposit_event(Event::SignerAdded { signer: pub_key });
 
 			// Return ok
 			Ok(())
@@ -121,29 +117,31 @@ pub mod pallet {
 
 		/// External function to be called by admin to remove a signer
 		#[pallet::weight(0)]
-		pub fn remove_signer(origin: OriginFor<T>, index: u8) -> DispatchResult {
+		pub fn remove_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
 			// Make sure the caller is an admin
 			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// Check if the signer exists
-			let signer = Signers::<T>::get(index);
-			ensure!(signer != U256::zero(), Error::<T>::ZeroSigner);
+			ensure!(IsSignerWhitelisted::<T>::get(pub_key), Error::<T>::SignerNotWhitelisted);
 
 			// Read the state of signers
-			let signers_count = SignersCount::<T>::get();
+			let signers_array = Signers::<T>::get();
+			let signers_count = signers_array.len();
 			let signers_quorum = SignersQuorum::<T>::get();
 
 			// Ensure there are enough signers remaining
-			ensure!(signers_count - 1 >= signers_quorum, Error::<T>::InsufficientSigners);
+			ensure!(signers_count - 1 >= signers_quorum as usize, Error::<T>::InsufficientSigners);
+
+			// remove the signer from the array
+			let updated_array: Vec<U256> =
+				signers_array.into_iter().filter(|&signer| signer != pub_key).collect();
 
 			// Update the state
-			SignersCount::<T>::put(signers_count - 1);
-
-			// Update the map with 0 signer
-			Signers::<T>::insert(index, U256::zero());
+			IsSignerWhitelisted::<T>::insert(pub_key, false);
+			Signers::<T>::put(updated_array);
 
 			// Emit the SignerRemoved event
-			Self::deposit_event(Event::SignerRemoved { signer, signer_index: index });
+			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
 
 			// Return ok
 			Ok(())
@@ -174,10 +172,7 @@ pub mod pallet {
 			);
 
 			// Check if there are enough sigs
-			ensure!(
-				Self::has_quorum(signatures, batch_hash) == true,
-				Error::<T>::InsufficientSignatures
-			);
+			ensure!(Self::has_quorum(signatures, batch_hash), Error::<T>::InsufficientSignatures);
 
 			// Mark the batch hash as being processed
 			IsBatchProcessed::<T>::insert(batch_hash_u256, true);
@@ -192,7 +187,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
 			// Get the required data
-			let total_len = SignersCount::<T>::get();
+			let total_len = signatures.len();
 			let quorum: u8 = SignersQuorum::<T>::get();
 
 			let mut iterator = 0;
@@ -205,10 +200,10 @@ pub mod pallet {
 
 				// Get the corresponding signer pub key
 				let curr_signature: &SyncSignature = &signatures[usize::from(iterator)];
-				let pub_key = Signers::<T>::get(curr_signature.signer_index);
 
 				// Convert the data to felt252
-				let pub_key_felt252 = u256_to_field_element(&pub_key).unwrap();
+				let pub_key_felt252 =
+					u256_to_field_element(&curr_signature.signer_pub_key).unwrap();
 				let signature_felt252 = Signature {
 					r: u256_to_field_element(&curr_signature.r).unwrap(),
 					s: u256_to_field_element(&curr_signature.s).unwrap(),
