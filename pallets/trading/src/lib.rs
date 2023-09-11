@@ -15,6 +15,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::{ValueQuery, *};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
+	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
@@ -148,6 +149,14 @@ pub mod pallet {
 		NoPublicKeyFound,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		InvalidPublicKey,
+		/// Invalid liquidation or deleveraging market
+		InvalidLiqOrDelMarket,
+		/// Invalid liquidation or deleveraging market direction
+		InvalidLiqOrDelDirection,
+		/// Position marked to be deleveraged, but liquidation order passed
+		InvalidDeleveragingOrder,
+		/// Position marked to be liquidated, but deleveraging order passed
+		InvalidLiquidationOrder,
 	}
 
 	#[pallet::event]
@@ -210,11 +219,14 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable { error_code: 509 });
 
 			// validates oracle_price
-			ensure!(oracle_price > 0.into(), Error::<T>::InvalidOraclePrice { error_code: 513 });
+			ensure!(
+				oracle_price > FixedI128::zero(),
+				Error::<T>::InvalidOraclePrice { error_code: 513 }
+			);
 
 			//Update market price
 			let market_price = T::MarketPricesPallet::get_market_price(market_id);
-			if market_price == 0.into() {
+			if market_price == FixedI128::zero() {
 				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
 			}
 
@@ -245,28 +257,29 @@ pub mod pallet {
 				},
 			}
 
-			let mut quantity_executed: FixedI128 = 0.into();
-			let mut total_order_volume: FixedI128 = 0.into();
+			let mut quantity_executed: FixedI128 = FixedI128::zero();
+			let mut total_order_volume: FixedI128 = FixedI128::zero();
 			let mut updated_position: Position;
-			let mut open_interest: FixedI128 = 0.into();
-			let mut taker_quantity: FixedI128 = 0.into();
-			let mut taker_execution_price: FixedI128 = 0.into();
+			let mut open_interest: FixedI128 = FixedI128::zero();
+			let mut taker_quantity: FixedI128 = FixedI128::zero();
+			let mut taker_execution_price: FixedI128 = FixedI128::zero();
 
 			let mut failed_orders: Vec<FailedOrder> = Vec::new();
 			let mut executed_orders: Vec<ExecutedOrder> = Vec::new();
 
 			for element in &orders {
-				let mut margin_amount: FixedI128 = 0.into(); // To do - don't assign value
-				let mut borrowed_amount: FixedI128 = 0.into(); // To do - don't assign value
-				let mut avg_execution_price: FixedI128 = 0.into(); // To do - don't assign value
-				let mut execution_price: FixedI128 = 0.into(); // To do - don't assign value
-				let mut quantity_to_execute: FixedI128 = 0.into(); // To do - don't assign value
-				let mut user_available_balance: FixedI128 = 0.into(); // To do - don't assign value
-				let mut margin_lock_amount: FixedI128 = 0.into(); // To do - don't assign value
-				let mut new_position_size: FixedI128 = 0.into(); // To do - don't assign value
-				let mut new_leverage: FixedI128 = 0.into(); // To do - don't assign value
-				let mut new_margin_locked: FixedI128 = 0.into(); // To do - don't assign value
-				let mut new_portion_executed: FixedI128 = 0.into(); // To do - don't assign value
+				let mut margin_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut borrowed_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut avg_execution_price: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut execution_price: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut quantity_to_execute: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut user_available_balance: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut margin_lock_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut new_position_size: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut new_leverage: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut new_margin_locked: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut new_portion_executed: FixedI128 = FixedI128::zero(); // To do - don't assign value
+				let mut new_liquidatable_position: LiquidatablePosition;
 				let realized_pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
 				let opening_fee: FixedI128;
@@ -297,6 +310,10 @@ pub mod pallet {
 				let current_margin_locked =
 					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
+				// Get liquidatable position details
+				let liq_position: LiquidatablePosition =
+					DeleveragableOrLiquidatableMap::<T>::get(&element.account_id, collateral_id);
+
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
 					let validation_response = Self::validate_maker(
@@ -318,12 +335,14 @@ pub mod pallet {
 					}
 					// Calculate quantity left to be executed
 					let quantity_remaining = initial_taker_locked_quantity - quantity_executed;
+
 					// Calculate quantity that needs to be executed for the current maker
 					let maker_quantity_to_execute_response = Self::calculate_quantity_to_execute(
 						order_portion_executed,
 						market_id,
 						&position_details,
 						element,
+						liq_position,
 						quantity_remaining,
 					);
 					match maker_quantity_to_execute_response {
@@ -359,7 +378,7 @@ pub mod pallet {
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
-					if quantity_to_execute == 0.into() {
+					if quantity_to_execute == FixedI128::zero() {
 						if failed_orders.is_empty() {
 							return Err(DispatchError::Other("UnknownError"));
 						} else {
@@ -459,14 +478,14 @@ pub mod pallet {
 
 					// If the user previously does not have any position in this market
 					// then add the market to CollateralToMarketMap
-					if position_details.size == 0.into() {
+					if position_details.size == FixedI128::zero() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
 							[market_id, opposite_direction],
 						);
-						if opposite_position.size == 0.into() {
+						if opposite_position.size == FixedI128::zero() {
 							let mut markets =
 								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							markets.push(market_id);
@@ -527,26 +546,96 @@ pub mod pallet {
 					new_position_size = position_details.size - quantity_to_execute;
 
 					// To do - handle liquidation/deleveraging order
+					if (element.order_type == OrderType::Liquidation)
+						|| (element.order_type == OrderType::Deleveraging)
+					{
+						new_position_size = liq_position.amount_to_be_sold - quantity_to_execute;
 
-					new_leverage = position_details.leverage;
-					new_margin_locked = current_margin_locked - margin_lock_amount;
+						if new_position_size == FixedI128::zero() {
+							new_liquidatable_position = LiquidatablePosition {
+								market_id: 0.into(),
+								direction: Direction::Long,
+								amount_to_be_sold: FixedI128::zero(),
+								liquidatable: false,
+							};
+						} else {
+							new_liquidatable_position = LiquidatablePosition {
+								market_id: liq_position.market_id,
+								direction: liq_position.direction,
+								amount_to_be_sold: new_position_size,
+								liquidatable: liq_position.liquidatable,
+							};
+						}
+						DeleveragableOrLiquidatableMap::<T>::insert(
+							element.account_id,
+							collateral_id,
+							new_liquidatable_position,
+						);
+						if element.order_type == OrderType::Deleveraging {
+							// Position not marked as 'deleveragable'
+							ensure!(
+								liq_position.liquidatable == false,
+								Error::<T>::InvalidDeleveragingOrder
+							);
+							let total_value = margin_amount + borrowed_amount;
+							new_leverage = total_value / margin_amount;
+							new_margin_locked = current_margin_locked;
+						} else {
+							// Position not marked as 'liquidatable'
+							ensure!(
+								liq_position.liquidatable == true,
+								Error::<T>::InvalidLiquidationOrder
+							);
+							new_leverage = position_details.leverage;
+							new_margin_locked = current_margin_locked - margin_lock_amount;
+						}
+					} else {
+						new_leverage = position_details.leverage;
+						new_margin_locked = current_margin_locked - margin_lock_amount;
+
+						if (liq_position.market_id == market_id)
+							&& (liq_position.direction == element.direction)
+						{
+							new_position_size =
+								liq_position.amount_to_be_sold - quantity_to_execute;
+
+							if new_position_size == FixedI128::zero() {
+								new_liquidatable_position = LiquidatablePosition {
+									market_id: 0.into(),
+									direction: Direction::Long,
+									amount_to_be_sold: FixedI128::zero(),
+									liquidatable: false,
+								};
+							} else {
+								new_liquidatable_position = LiquidatablePosition {
+									market_id: liq_position.market_id,
+									direction: liq_position.direction,
+									amount_to_be_sold: new_position_size,
+									liquidatable: liq_position.liquidatable,
+								};
+							}
+						} else {
+							new_liquidatable_position = liq_position;
+						}
+						DeleveragableOrLiquidatableMap::<T>::insert(
+							element.account_id,
+							collateral_id,
+							new_liquidatable_position,
+						);
+					}
 					new_realized_pnl = position_details.realized_pnl + realized_pnl;
-					opening_fee = 0.into();
-
-					// To do - handle the case when liquidatable position is present
-					// if amount to be sold is 0, do nothing
-					// else check whether current market and direction is liquidatable position and update
+					opening_fee = FixedI128::zero();
 
 					// If the user does not have any position in this market
-					// hen remove the market from CollateralToMarketMap
-					if new_position_size == 0.into() {
+					// then remove the market from CollateralToMarketMap
+					if new_position_size == FixedI128::zero() {
 						let opposite_direction =
 							if element.direction == Direction::Long { SHORT } else { LONG };
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
 							[market_id, opposite_direction],
 						);
-						if opposite_position.size == 0.into() {
+						if opposite_position.size == FixedI128::zero() {
 							let mut markets =
 								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
 							for index in 0..markets.len() {
@@ -563,12 +652,12 @@ pub mod pallet {
 						updated_position = Position {
 							direction: element.direction,
 							side: element.side,
-							avg_execution_price: 0.into(),
-							size: 0.into(),
-							margin_amount: 0.into(),
-							borrowed_amount: 0.into(),
-							leverage: 0.into(),
-							realized_pnl: 0.into(),
+							avg_execution_price: FixedI128::zero(),
+							size: FixedI128::zero(),
+							margin_amount: FixedI128::zero(),
+							borrowed_amount: FixedI128::zero(),
+							leverage: FixedI128::zero(),
+							realized_pnl: FixedI128::zero(),
 						};
 					} else {
 						// To do - Calculate pnl
@@ -593,7 +682,7 @@ pub mod pallet {
 						if new_portion_executed == element.size {
 							is_final = true;
 						} else {
-							if new_position_size == 0.into() {
+							if new_position_size == FixedI128::zero() {
 								is_final = true;
 							} else {
 								is_final = false;
@@ -697,11 +786,16 @@ pub mod pallet {
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
+			// Get liquidatable position details
+			let liq_position: LiquidatablePosition =
+				DeleveragableOrLiquidatableMap::<T>::get(&order.account_id, collateral_id);
+
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
 				market_id,
 				&position_details,
 				&order,
+				liq_position,
 				quantity_locked,
 			);
 			match quantity_response {
@@ -715,23 +809,31 @@ pub mod pallet {
 			market_id: U256,
 			position_details: &Position,
 			order: &Order,
+			liq_position: LiquidatablePosition,
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > 0.into(), Error::<T>::OrderFullyExecuted); // Modify code with tick/step size
+			ensure!(executable_quantity > FixedI128::zero(), Error::<T>::OrderFullyExecuted); // Modify code with tick/step size
 
-			let quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > 0.into(), Error::<T>::MakerOrderSkipped);
+			let mut quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
+			ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::MakerOrderSkipped);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
 			} else {
-				// To Do - handle Liquidation/Deleveraging scenario
-
-				let quantity_to_execute =
-					FixedI128::min(quantity_to_execute, position_details.size);
-				ensure!(quantity_to_execute > 0.into(), Error::<T>::ClosingEmptyPosition);
-
+				if order.order_type == OrderType::Liquidation {
+					ensure!(liq_position.market_id == market_id, Error::<T>::InvalidLiqOrDelMarket);
+					ensure!(
+						liq_position.direction == order.direction,
+						Error::<T>::InvalidLiqOrDelDirection
+					);
+					quantity_to_execute =
+						FixedI128::min(quantity_to_execute, liq_position.amount_to_be_sold);
+				} else {
+					quantity_to_execute =
+						FixedI128::min(quantity_to_execute, position_details.size);
+				}
+				ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::ClosingEmptyPosition);
 				Ok(quantity_to_execute)
 			}
 		}
@@ -888,8 +990,8 @@ pub mod pallet {
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
-			let mut margin_amount: FixedI128 = 0.into();
-			let mut borrowed_amount: FixedI128 = 0.into();
+			let mut margin_amount: FixedI128 = FixedI128::zero();
+			let mut borrowed_amount: FixedI128 = FixedI128::zero();
 			let mut average_execution_price: FixedI128 = execution_price;
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
@@ -897,7 +999,7 @@ pub mod pallet {
 				PositionsMap::<T>::get(&order.account_id, [market_id, direction]);
 
 			// Calculate average execution price
-			if position_details.size == 0.into() {
+			if position_details.size == FixedI128::zero() {
 				average_execution_price = execution_price;
 			} else {
 				let cumulative_order_value = (position_details.size
@@ -974,16 +1076,23 @@ pub mod pallet {
 			// Calculate pnl
 			let pnl = order_size * price_diff;
 			let margin_plus_pnl = margin_amount_to_reduce + pnl;
+			let borrowed_amount: FixedI128;
+			let margin_amount: FixedI128;
 
-			// To do - handle deleveraging order
-
-			let borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
-			let margin_amount = position_details.margin_amount - margin_amount_to_reduce;
+			if order.order_type == OrderType::Deleveraging {
+				// In delevereaging, we only reduce borrowed field
+				borrowed_amount = position_details.borrowed_amount - leveraged_order_value;
+				margin_amount = position_details.margin_amount;
+			} else {
+				borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
+				margin_amount = position_details.margin_amount - margin_amount_to_reduce;
+			}
 
 			// To do - deduct fund from holding contract
 			// To do - deposit fund to liquidity fund if position is leveraged
 
-			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
+			let unused_balance =
+				T::TradingAccountPallet::get_unused_balance(order.account_id, collateral_id);
 
 			// Check if user is under water, ie,
 			// user has lost some borrowed funds
@@ -991,12 +1100,12 @@ pub mod pallet {
 				let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
 
 				// Check if user's balance can cover the deficit
-				if amount_to_transfer_from > balance {
+				if amount_to_transfer_from > unused_balance {
 					if order.order_type == OrderType::Limit {
 						ensure!(false, Error::<T>::NotEnoughMargin);
 					}
 
-					if balance.is_negative() {
+					if unused_balance.is_negative() {
 						// To do - withdraw amount_to_transfer_from from insurance fund
 					} else {
 						// To do - withdraw (amount_to_transfer_from - balance) from insurance fund
@@ -1015,48 +1124,71 @@ pub mod pallet {
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
 				);
-			// To do - calculate realized pnl
+			// To do - calculate PnL
 			} else {
-				// User is not under water
-				// User is in loss
-				if pnl.is_negative() {
-					// Loss cannot be covered by the user
-					if pnl.saturating_abs() > balance {
-						// If balance is negative, deduct whole loss from insurance fund
-						if balance.is_negative() {
-							// To do - deduct abs(pnl) from insurance fund
-						} else {
-							// To do - deduct (abs(pnl) - balance) from insurance fund
+				let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
+				if (order.order_type == OrderType::Market) || (order.order_type == OrderType::Limit)
+				{
+					// User is not under water
+					// User is in loss
+					if pnl.is_negative() {
+						// Loss cannot be covered by the user
+						if pnl.saturating_abs() > balance {
+							// If balance is negative, deduct whole loss from insurance fund
+							if balance.is_negative() {
+								// To do - deduct abs(pnl) from insurance fund
+							} else {
+								// To do - deduct (abs(pnl) - balance) from insurance fund
+							}
 						}
+
+						// Deduct required funds from user
+						T::TradingAccountPallet::transfer_from(
+							order.account_id,
+							collateral_id,
+							pnl.saturating_abs(),
+						);
+					} else {
+						// User is in profit
+						// Transfer the profit to user
+						T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
 					}
-
-					// Deduct required funds from user
-					T::TradingAccountPallet::transfer_from(
-						order.account_id,
-						collateral_id,
-						pnl.saturating_abs(),
-					);
 				} else {
-					// User is in profit
-					// Transfer the profit to user
-					T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
+					if order.order_type == OrderType::Liquidation {
+						// if balance >= margin amount, deposit remaining margin in insurance
+						if margin_amount_to_reduce <= balance {
+							// To do - deposit margin_plus_pnl to insurance fund
+						} else {
+							if balance.is_negative() {
+								// To do - withdraw margin_amount_to_reduce from insurance fund
+							} else {
+								// if user has some balance
+								let pnl_abs = pnl.saturating_abs();
+								if balance <= pnl_abs {
+									// To do - withdraw (pnl_abs -  balance) from insurance fund
+								} else {
+									// To do - deposit (balance - pnl_abs) to insurance fund
+								}
+							}
+						}
+						// Deduct proportionate margin amount from user
+						T::TradingAccountPallet::transfer_from(
+							order.account_id,
+							collateral_id,
+							margin_amount_to_reduce,
+						);
+					// To do - calculate PnL
+					} else {
+						// To do - calculate PnL
+					}
 				}
-
-				// To do - Handle liquidation and deleveraging orders
-
-				// Deduct  proportionate margin amount from user
-				T::TradingAccountPallet::transfer_from(
-					order.account_id,
-					collateral_id,
-					margin_amount_to_reduce,
-				);
 			}
 
 			Ok((
 				margin_amount,
 				borrowed_amount,
 				position_details.avg_execution_price,
-				balance,
+				unused_balance,
 				margin_amount_to_reduce,
 				pnl,
 			))
@@ -1078,6 +1210,10 @@ pub mod pallet {
 				Error::<T>::InvalidMakerOrderType => 518,
 				Error::<T>::MakerOrderSkipped => 523,
 				Error::<T>::ClosingEmptyPosition => 524,
+				Error::<T>::InvalidDeleveragingOrder => 526,
+				Error::<T>::InvalidLiquidationOrder => 527,
+				Error::<T>::InvalidLiqOrDelMarket => 528,
+				Error::<T>::InvalidLiqOrDelDirection => 529,
 				Error::<T>::NotEnoughMargin => 532,
 				Error::<T>::OrderFullyExecuted => 533,
 				Error::<T>::InvalidOrderHash => 534,
@@ -1112,7 +1248,7 @@ pub mod pallet {
 		) {
 			let amount;
 			let liquidatable;
-			if amount_to_be_sold == 0.into() {
+			if amount_to_be_sold == FixedI128::zero() {
 				amount = position.size;
 				liquidatable = true;
 			} else {

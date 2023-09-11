@@ -10,6 +10,7 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: U256) -> FixedI128;
+	fn get_unused_balance(account: U256, asset_id: U256) -> FixedI128;
 	fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128;
 	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
