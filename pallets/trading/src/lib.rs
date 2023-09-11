@@ -215,7 +215,10 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
 
 			// validates oracle_price
-			ensure!(oracle_price > 0.into(), Error::<T>::TradeBatchError { error_code: 513 });
+			ensure!(
+				oracle_price > FixedI128::zero(),
+				Error::<T>::TradeBatchError { error_code: 513 }
+			);
 
 			//Update market price
 			let market_price = T::MarketPricesPallet::get_market_price(market_id);
