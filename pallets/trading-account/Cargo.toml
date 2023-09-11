@@ -26,7 +26,6 @@ sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git"
 zkx-support= { path="../support"}
 fixed = {version="1.23.1"}
 
-
 [dev-dependencies]
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }

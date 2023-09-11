@@ -1074,19 +1074,14 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
-			ensure!(margin_order_value + fee <= balance, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				margin_order_value + fee,
-			);
+			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
+			T::TradingAccountPallet::transfer_from(order.account_id, collateral_id, fee);
 
 			Ok((
 				margin_amount,
 				borrowed_amount,
 				average_execution_price,
-				balance,
+				available_margin,
 				margin_order_value,
 				trading_fee,
 			))
