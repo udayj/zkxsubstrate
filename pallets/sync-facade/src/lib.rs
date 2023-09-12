@@ -212,7 +212,7 @@ pub mod pallet {
 					valid_sigs += 1;
 				}
 
-				iterator += 1;
+				index += 1;
 			}
 
 			return valid_sigs == quorum;
