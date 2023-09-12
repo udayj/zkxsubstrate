@@ -190,7 +190,7 @@ pub mod pallet {
 			// Find the number of valid sigs
 			let valid_sigs = signatures
 				.iter()
-				.take_while(|&curr_signature| {
+				.filter(|&curr_signature| {
 					// Convert the data to felt252
 					let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
 					let signature_felt252 = Signature {
