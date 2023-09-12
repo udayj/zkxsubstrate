@@ -185,35 +185,24 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
 			// Get the required data
-			let total_len = signatures.len();
-			let quorum: u8 = SignersQuorum::<T>::get();
+			let quorum = SignersQuorum::<T>::get() as usize;
 
-			let mut index = 0;
-			let mut valid_sigs = 0;
+			// Find the number of valid sigs
+			let valid_sigs = signatures
+				.iter()
+				.take_while(|&curr_signature| {
+					// Convert the data to felt252
+					let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
+					let signature_felt252 = Signature {
+						r: curr_signature.r.try_to_felt().unwrap(),
+						s: curr_signature.s.try_to_felt().unwrap(),
+					};
 
-			loop {
-				if index == total_len || valid_sigs == quorum {
-					break;
-				}
-
-				// Get the corresponding signer pub key
-				let curr_signature: &SyncSignature = &signatures[usize::from(index)];
-
-				// Convert the data to felt252
-				let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
-				let signature_felt252 = Signature {
-					r: curr_signature.r.try_to_felt().unwrap(),
-					s: curr_signature.s.try_to_felt().unwrap(),
-				};
-
-				// Check if the sig is valid, if yes increment valid_sigs
-				let result = Self::verify_signature(pub_key_felt252, hash, signature_felt252);
-				if result {
-					valid_sigs += 1;
-				}
-
-				index += 1;
-			}
+					// Check if the sig is valid
+					Self::verify_signature(pub_key_felt252, hash, signature_felt252)
+				})
+				.take(quorum)
+				.count();
 
 			return valid_sigs == quorum;
 		}
