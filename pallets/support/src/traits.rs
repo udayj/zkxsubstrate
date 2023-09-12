@@ -62,8 +62,9 @@ pub trait MarketPricesInterface {
 	fn update_market_price(market_id: U256, price: FixedI128);
 }
 
-pub trait FixedI128Ext<T> {
-	fn round_to_precision(t: T, precision: u32) -> T;
+pub trait FixedI128Ext {
+	fn round_to_precision(&self, precision: u32) -> Self;
+	fn to_u256(&self) -> U256;
 }
 
 pub trait TradingFeesInterface {

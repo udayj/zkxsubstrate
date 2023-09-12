@@ -1,5 +1,5 @@
-use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::Hashable;
+use crate::helpers::{pedersen_hash_multiple, u256_to_field_element};
+use crate::traits::{FixedI128Ext, Hashable};
 use crate::types::common::HashType;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -189,16 +189,16 @@ impl Hashable for Order {
 		elements.push(FieldElement::from(u8::from(self.direction)));
 		elements.push(FieldElement::from(u8::from(self.side)));
 
-		let u256_representation = fixed_i128_to_u256(&self.price);
+		let u256_representation = &self.price.to_u256();
 		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = fixed_i128_to_u256(&self.size);
+		let u256_representation = &self.size.to_u256();
 		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = fixed_i128_to_u256(&self.leverage);
+		let u256_representation = &self.leverage.to_u256();
 		elements.push(u256_to_field_element(&u256_representation)?);
 
-		let u256_representation = fixed_i128_to_u256(&self.slippage);
+		let u256_representation = &self.slippage.to_u256();
 		elements.push(u256_to_field_element(&u256_representation)?);
 
 		match self.post_only {

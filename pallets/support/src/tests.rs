@@ -1,5 +1,5 @@
-use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::Hashable;
+use crate::helpers::{pedersen_hash_multiple, u256_to_field_element};
+use crate::traits::{FixedI128Ext, Hashable};
 use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
@@ -50,9 +50,9 @@ fn test_felt_and_hash_values() {
 	let fixed1 = FixedI128::from_inner(-100);
 	let fixed2 = FixedI128::from_inner(100);
 
-	let fixed1_u256 = fixed_i128_to_u256(&fixed1);
+	let fixed1_u256 = fixed1.to_u256();
 
-	let fixed2_u256 = fixed_i128_to_u256(&fixed2);
+	let fixed2_u256 = fixed2.to_u256();
 
 	let fixed1_fe = u256_to_field_element(&fixed1_u256).unwrap();
 	let fixed2_fe = u256_to_field_element(&fixed2_u256).unwrap();

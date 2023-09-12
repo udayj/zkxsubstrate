@@ -69,10 +69,10 @@ impl TryIntoFelt for FixedI128 {
 	}
 }
 
-impl FixedI128Ext<FixedI128> for FixedI128 {
-	fn round_to_precision(t: FixedI128, precision: u32) -> FixedI128 {
+impl FixedI128Ext for FixedI128 {
+	fn round_to_precision(&self, precision: u32) -> FixedI128 {
 		// Get the inner value (number * 10^18) from FixedI128 representation
-		let inner_value: i128 = FixedI128::into_inner(t);
+		let inner_value: i128 = FixedI128::into_inner(*self);
 		// Get the integer part and decimal part separately
 		let divisor: i128 = 10_u64.pow(18).into();
 		let integer_part: i128 = inner_value / divisor;
@@ -93,5 +93,25 @@ impl FixedI128Ext<FixedI128> for FixedI128 {
 		// Add both the parts together to get the final result
 		let res: FixedI128 = FixedI128::add(integer_part, decimal_part);
 		res
+	}
+
+	// Function to convert from fixed point number to U256 inside the PRIME field
+	// This function does the appropriate mod arithmetic to ensure the returned value is actually less than PRIME
+	fn to_u256(&self) -> U256 {
+		let inner_val: U256;
+		// Max prime 2^251 + 17*2^192 + 1
+		let prime: U256 = U256::from_dec_str(
+			"3618502788666131213697322783095070105623107215331596699973092056135872020481",
+		)
+		.unwrap();
+		// If the fixed point number is positive, we directly convert the inner val to U256
+		if !self.is_negative() {
+			inner_val = U256::from(self.into_inner());
+		} else {
+			// If the fixed point number is negative then we need to wrap the value
+			// i.e. -x is equivalent to PRIME - x (or -x % PRIME) where x is a positive number
+			inner_val = prime - (U256::from(-self.into_inner()));
+		}
+		inner_val
 	}
 }

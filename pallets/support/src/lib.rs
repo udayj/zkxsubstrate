@@ -28,26 +28,6 @@ pub mod helpers {
 		u128::try_from(a.unwrap()).unwrap()
 	}
 
-	// Function to convert from fixed point number to U256 inside the PRIME field
-	// This function does the appropriate mod arithmetic to ensure the returned value is actually less than PRIME
-	pub fn fixed_i128_to_u256(val: &FixedI128) -> U256 {
-		let inner_val: U256;
-		// Max prime 2^251 + 17*2^192 + 1
-		let prime: U256 = U256::from_dec_str(
-			"3618502788666131213697322783095070105623107215331596699973092056135872020481",
-		)
-		.unwrap();
-		// If the fixed point number is positive, we directly convert the inner val to U256
-		if !val.is_negative() {
-			inner_val = U256::from(val.into_inner());
-		} else {
-			// If the fixed point number is negative then we need to wrap the value
-			// i.e. -x is equivalent to PRIME - x (or -x % PRIME) where x is a positive number
-			inner_val = prime - (U256::from(-val.into_inner()));
-		}
-		inner_val
-	}
-
 	pub fn u256_to_field_element(val: &U256) -> Result<FieldElement, FromByteSliceError> {
 		let mut buffer: [u8; 32] = [0; 32];
 		val.to_big_endian(&mut buffer);
