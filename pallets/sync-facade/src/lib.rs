@@ -188,16 +188,16 @@ pub mod pallet {
 			let total_len = signatures.len();
 			let quorum: u8 = SignersQuorum::<T>::get();
 
-			let mut iterator = 0;
+			let mut index = 0;
 			let mut valid_sigs = 0;
 
 			loop {
-				if iterator == total_len || valid_sigs == quorum {
+				if index == total_len || valid_sigs == quorum {
 					break;
 				}
 
 				// Get the corresponding signer pub key
-				let curr_signature: &SyncSignature = &signatures[usize::from(iterator)];
+				let curr_signature: &SyncSignature = &signatures[usize::from(index)];
 
 				// Convert the data to felt252
 				let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
