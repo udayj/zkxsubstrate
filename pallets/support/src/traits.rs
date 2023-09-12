@@ -1,5 +1,5 @@
 use crate::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, OrderSide, Position,
+	Asset, Direction, HashType, LiquidatablePosition, Market, Order, OrderSide, Position,
 	PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
@@ -51,6 +51,16 @@ pub trait TradingInterface {
 pub trait AssetInterface {
 	fn get_default_collateral() -> U256;
 	fn get_asset(id: U256) -> Option<Asset>;
+}
+
+pub trait RiskManagementInterface {
+	fn check_for_risk(
+		order: &Order,
+		size: FixedI128,
+		execution_price: FixedI128,
+		oracle_price: FixedI128,
+		margin_amount: FixedI128,
+	) -> (FixedI128, bool);
 }
 
 pub trait MarketInterface {

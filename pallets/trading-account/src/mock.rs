@@ -1,6 +1,7 @@
 use crate as pallet_trading_account;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
+use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading_fees;
 use sp_core::H256;
@@ -26,7 +27,8 @@ frame_support::construct_runtime!(
 		Markets: pallet_market,
 		Trading: pallet_trading,
 		MarketPrices: pallet_market_prices,
-		TradingFees: pallet_trading_fees
+		TradingFees: pallet_trading_fees,
+		RiskManagement: pallet_risk_management
 	}
 );
 
@@ -98,6 +100,14 @@ impl pallet_trading::Config for Test {
 	type TradingAccountPallet = TradingAccountModule;
 	type TradingFeesPallet = TradingFees;
 	type MarketPricesPallet = MarketPrices;
+	type RiskManagementPallet = RiskManagement;
+}
+
+impl pallet_risk_management::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = TradingAccountModule;
+	type MarketPallet = Markets;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -16,11 +16,12 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::traits::Zero;
-	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
+	use sp_arithmetic::FixedI128;
+	use sp_arithmetic::FixedPointNumber;
 	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
-		Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
-		TradingFeesInterface, TradingInterface,
+		Hashable, MarketInterface, MarketPricesInterface, RiskManagementInterface,
+		TradingAccountInterface, TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
 		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
@@ -40,6 +41,7 @@ pub mod pallet {
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
 		type MarketPricesPallet: MarketPricesInterface;
+		type RiskManagementPallet: RiskManagementInterface;
 	}
 
 	#[pallet::storage]
@@ -153,6 +155,8 @@ pub mod pallet {
 		TradeBatchError { error_code: u16 },
 		/// Revert error related to orders
 		TradeOrderError,
+		/// Position cannot be opened becuase of passive risk management
+		PassiveRiskError,
 	}
 
 	#[pallet::event]
@@ -454,6 +458,7 @@ pub mod pallet {
 						quantity_to_execute,
 						order_side,
 						execution_price,
+						oracle_price,
 						market_id,
 						collateral_id,
 					);
@@ -1019,6 +1024,7 @@ pub mod pallet {
 			order_size: FixedI128,
 			order_side: OrderSide,
 			execution_price: FixedI128,
+			oracle_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
@@ -1049,6 +1055,17 @@ pub mod pallet {
 			margin_amount = position_details.margin_amount + margin_order_value;
 			borrowed_amount = position_details.borrowed_amount + amount_to_be_borrowed;
 
+			// Check if the position can be opened
+			let (available_margin, is_liquidation) = T::RiskManagementPallet::check_for_risk(
+				order,
+				order_size,
+				execution_price,
+				oracle_price,
+				margin_order_value,
+			);
+
+			ensure!(is_liquidation == false, Error::<T>::PassiveRiskError);
+
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::from(0));
 			let fee = fee_rate * leveraged_order_value;
@@ -1057,19 +1074,14 @@ pub mod pallet {
 			// To do - If leveraged order, deduct from liquidity fund
 			// To do - deposit to holding fund
 
-			let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
-			ensure!(margin_order_value + fee <= balance, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				margin_order_value + fee,
-			);
+			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
+			T::TradingAccountPallet::transfer_from(order.account_id, collateral_id, fee);
 
 			Ok((
 				margin_amount,
 				borrowed_amount,
 				average_execution_price,
-				balance,
+				available_margin,
 				margin_order_value,
 				trading_fee,
 			))
