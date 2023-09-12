@@ -1,4 +1,4 @@
-use crate::traits::{FixedI128Ext, IntoFelt, TryIntoFelt};
+use crate::traits::{FieldElementExt, FixedI128Ext, IntoFelt, StringExt, TryIntoFelt, U256Ext};
 use crate::FieldElement;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -8,6 +8,8 @@ use sp_arithmetic::{fixed_point::FixedI128, traits::CheckedDiv, FixedPointNumber
 use sp_runtime::traits::ConstU32;
 use sp_runtime::{BoundedVec, RuntimeDebug};
 use starknet_ff::FromByteSliceError;
+
+use super::SyncSignature;
 
 fn convert_to_u128_pair(
 	u256_value: U256,
@@ -113,5 +115,27 @@ impl FixedI128Ext for FixedI128 {
 			inner_val = prime - (U256::from(-self.into_inner()));
 		}
 		inner_val
+	}
+}
+
+impl StringExt for &str {
+	fn to_felt_rep(&self) -> u128 {
+		let a = FieldElement::from_byte_slice_be(self.as_bytes());
+		u128::try_from(a.unwrap()).unwrap()
+	}
+}
+
+impl U256Ext for U256 {
+	fn try_to_felt(&self) -> Result<FieldElement, FromByteSliceError> {
+		let mut buffer: [u8; 32] = [0; 32];
+		self.to_big_endian(&mut buffer);
+		FieldElement::from_byte_slice_be(&buffer)
+	}
+}
+
+impl FieldElementExt for FieldElement {
+	fn to_u256(&self) -> U256 {
+		let buffer = self.to_bytes_be();
+		U256::from_big_endian(&buffer)
 	}
 }

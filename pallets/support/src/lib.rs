@@ -17,27 +17,11 @@ pub mod traits;
 // helper fns to be used by other pallets
 pub mod helpers {
 	use super::{FieldElement, FromByteSliceError};
+	use crate::traits::U256Ext;
 	use frame_support::inherent::Vec;
 	use itertools::fold;
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use starknet_crypto::pedersen_hash;
-
-	pub fn str_to_felt(text: &str) -> u128 {
-		let a = FieldElement::from_byte_slice_be(text.as_bytes());
-		u128::try_from(a.unwrap()).unwrap()
-	}
-
-	pub fn u256_to_field_element(val: &U256) -> Result<FieldElement, FromByteSliceError> {
-		let mut buffer: [u8; 32] = [0; 32];
-		val.to_big_endian(&mut buffer);
-		FieldElement::from_byte_slice_be(&buffer)
-	}
-
-	pub fn field_element_to_u256(val: FieldElement) -> U256 {
-		let buffer = val.to_bytes_be();
-		U256::from_big_endian(&buffer)
-	}
 
 	// Function to perform pedersen hash of an array of field elements
 	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
@@ -65,8 +49,8 @@ pub mod helpers {
 		sig_r: &U256,
 		sig_s: &U256,
 	) -> Result<(FieldElement, FieldElement), FromByteSliceError> {
-		let sig_r_felt = u256_to_field_element(sig_r)?;
-		let sig_s_felt = u256_to_field_element(sig_s)?;
+		let sig_r_felt = sig_r.try_to_felt()?;
+		let sig_s_felt = sig_s.try_to_felt()?;
 		Ok((sig_r_felt, sig_s_felt))
 	}
 }

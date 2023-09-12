@@ -67,6 +67,18 @@ pub trait FixedI128Ext {
 	fn to_u256(&self) -> U256;
 }
 
+pub trait StringExt {
+	fn to_felt_rep(&self) -> u128;
+}
+
+pub trait U256Ext {
+	fn try_to_felt(&self) -> Result<FieldElement, FromByteSliceError>;
+}
+
+pub trait FieldElementExt {
+	fn to_u256(&self) -> U256;
+}
+
 pub trait TradingFeesInterface {
 	fn get_fee_rate(
 		side: Side,

@@ -16,8 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use scale_info::prelude::string::String;
-	use zkx_support::helpers::str_to_felt;
-	use zkx_support::traits::AssetInterface;
+	use zkx_support::traits::{AssetInterface, StringExt};
 	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
@@ -83,7 +82,7 @@ pub mod pallet {
 				ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
 				let name_string =
 					String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
-				let name_felt: U256 = str_to_felt(name_string.as_str()).into();
+				let name_felt: U256 = name_string.as_str().to_felt_rep().into();
 				ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
 
 				AssetMap::<T>::insert(element.id, element.clone());

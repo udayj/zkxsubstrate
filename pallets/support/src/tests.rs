@@ -1,5 +1,5 @@
-use crate::helpers::{pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::{FixedI128Ext, Hashable};
+use crate::helpers::pedersen_hash_multiple;
+use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
@@ -36,10 +36,10 @@ fn test_felt_and_hash_values() {
 	let u256_1 = U256::from_dec_str("1").unwrap();
 	let u256_2 = U256::from_dec_str("2").unwrap();
 
-	let u256_fe1 = u256_to_field_element(&u256_1).unwrap();
-	assert_eq!(val1, u256_fe1);
+	let u256_fe1 = &u256_1.try_to_felt().unwrap();
+	assert_eq!(val1, *u256_fe1);
 
-	let u256_fe2 = u256_to_field_element(&u256_2).unwrap();
+	let u256_fe2 = &u256_2.try_to_felt().unwrap();
 	assert_eq!(
 		pedersen_hash(&u256_fe1, &u256_fe2),
 		FieldElement::from_dec_str(
@@ -54,8 +54,8 @@ fn test_felt_and_hash_values() {
 
 	let fixed2_u256 = fixed2.to_u256();
 
-	let fixed1_fe = u256_to_field_element(&fixed1_u256).unwrap();
-	let fixed2_fe = u256_to_field_element(&fixed2_u256).unwrap();
+	let fixed1_fe = fixed1_u256.try_to_felt().unwrap();
+	let fixed2_fe = fixed2_u256.try_to_felt().unwrap();
 	assert_ne!(fixed1_fe, fixed2_fe);
 
 	// -100 = -100 % PRIME == PRIME - 100

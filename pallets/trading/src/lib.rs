@@ -17,10 +17,10 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
+	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
 		Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
-		TradingFeesInterface, TradingInterface,
+		TradingFeesInterface, TradingInterface, U256Ext,
 	};
 	use zkx_support::types::{
 		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
@@ -879,7 +879,7 @@ pub mod pallet {
 			// Public key not found for this account_id
 			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
 
-			let public_key_felt = u256_to_field_element(&public_key.unwrap());
+			let public_key_felt = public_key.unwrap().try_to_felt();
 
 			// Public Key U256 could not be converted to FieldElement
 			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);

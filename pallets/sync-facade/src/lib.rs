@@ -14,10 +14,8 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use zkx_support::helpers::{
-		field_element_to_u256, pedersen_hash_multiple, u256_to_field_element,
-	};
-	use zkx_support::traits::ConvertToFelt252;
+	use zkx_support::helpers::pedersen_hash_multiple;
+	use zkx_support::traits::{ConvertToFelt252, FieldElementExt, U256Ext};
 	use zkx_support::types::{SyncSignature, UniversalEventL2};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
@@ -165,7 +163,7 @@ pub mod pallet {
 			let batch_hash = Self::compute_batch_hash(&events_batch);
 
 			// Check if the batch is already processed
-			let batch_hash_u256 = field_element_to_u256(batch_hash);
+			let batch_hash_u256 = batch_hash.to_u256();
 			ensure!(
 				IsBatchProcessed::<T>::get(batch_hash_u256) == false,
 				Error::<T>::DuplicateBatch
@@ -202,11 +200,10 @@ pub mod pallet {
 				let curr_signature: &SyncSignature = &signatures[usize::from(iterator)];
 
 				// Convert the data to felt252
-				let pub_key_felt252 =
-					u256_to_field_element(&curr_signature.signer_pub_key).unwrap();
+				let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
 				let signature_felt252 = Signature {
-					r: u256_to_field_element(&curr_signature.r).unwrap(),
-					s: u256_to_field_element(&curr_signature.s).unwrap(),
+					r: curr_signature.r.try_to_felt().unwrap(),
+					s: curr_signature.s.try_to_felt().unwrap(),
 				};
 
 				// Check if the sig is valid, if yes increment valid_sigs
