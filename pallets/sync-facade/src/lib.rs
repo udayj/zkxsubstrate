@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
-	use zkx_support::traits::{ConvertToFelt252, FieldElementExt, U256Ext};
+	use zkx_support::traits::{ArraySerialized, FieldElementExt, U256Ext};
 	use zkx_support::types::{SyncSignature, UniversalEventL2};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 

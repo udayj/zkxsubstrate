@@ -1,4 +1,4 @@
-use crate::traits::{IntoFelt, TryIntoFelt};
+use crate::traits::{FeltSerializable, TryFeltSerializable};
 use crate::FieldElement;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -17,12 +17,15 @@ pub struct Asset {
 	pub token_decimal: u8,
 }
 
-impl TryIntoFelt for Asset {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.id.try_into_felt(result)?;
-		self.name.into_felt(result);
-		self.is_tradable.into_felt(result);
-		self.is_collateral.into_felt(result);
+impl TryFeltSerializable for Asset {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.id.try_felt_serialized(result)?;
+		self.name.felt_serialized(result);
+		self.is_tradable.felt_serialized(result);
+		self.is_collateral.felt_serialized(result);
 		result.push(FieldElement::from(self.token_decimal));
 
 		Ok(())

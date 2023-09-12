@@ -1,4 +1,4 @@
-use crate::traits::{IntoFelt, TryIntoFelt};
+use crate::traits::{FeltSerializable, TryFeltSerializable};
 use crate::FieldElement;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -42,9 +42,12 @@ pub struct BalanceUpdate {
 	pub balance_value: FixedI128,
 }
 
-impl TryIntoFelt for TradingAccountMinimal {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.account_address.try_into_felt(result)?;
+impl TryFeltSerializable for TradingAccountMinimal {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.account_address.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.index));
 
 		Ok(())

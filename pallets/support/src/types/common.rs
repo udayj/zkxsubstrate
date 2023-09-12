@@ -1,4 +1,6 @@
-use crate::traits::{FieldElementExt, FixedI128Ext, IntoFelt, StringExt, TryIntoFelt, U256Ext};
+use crate::traits::{
+	FeltSerializable, FieldElementExt, FixedI128Ext, StringExt, TryFeltSerializable, U256Ext,
+};
 use crate::FieldElement;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -33,14 +35,14 @@ pub enum HashType {
 	Poseidon,
 }
 
-impl IntoFelt for BoundedVec<u8, ConstU32<256>> {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
+impl FeltSerializable for BoundedVec<u8, ConstU32<256>> {
+	fn felt_serialized(&self, result: &mut Vec<FieldElement>) {
 		result.extend(self.iter().map(|&value| FieldElement::from(value)));
 	}
 }
 
-impl IntoFelt for bool {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
+impl FeltSerializable for bool {
+	fn felt_serialized(&self, result: &mut Vec<FieldElement>) {
 		match &self {
 			true => result.push(FieldElement::ONE),
 			false => result.push(FieldElement::ZERO),
@@ -48,8 +50,11 @@ impl IntoFelt for bool {
 	}
 }
 
-impl TryIntoFelt for U256 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+impl TryFeltSerializable for U256 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
 		let (low_bytes_felt, high_bytes_felt) = convert_to_u128_pair(*self)?;
 		result.push(low_bytes_felt);
 		result.push(high_bytes_felt);
@@ -58,8 +63,11 @@ impl TryIntoFelt for U256 {
 	}
 }
 
-impl TryIntoFelt for FixedI128 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
+impl TryFeltSerializable for FixedI128 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
 		let inner_value: U256 = U256::from(self.into_inner().abs());
 		let u256_value = inner_value * 10_u8.pow(8);
 

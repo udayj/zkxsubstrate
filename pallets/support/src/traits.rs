@@ -93,14 +93,15 @@ pub trait Hashable {
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
 }
 
-pub trait IntoFelt {
-	fn into_felt(&self, result: &mut Vec<FieldElement>);
+pub trait FeltSerializable {
+	fn felt_serialized(&self, result: &mut Vec<FieldElement>);
 }
 
-pub trait TryIntoFelt {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError>;
+pub trait TryFeltSerializable {
+	fn try_felt_serialized(&self, result: &mut Vec<FieldElement>)
+		-> Result<(), FromByteSliceError>;
 }
 
-pub trait ConvertToFelt252 {
+pub trait ArraySerialized {
 	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError>;
 }

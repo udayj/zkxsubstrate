@@ -1,4 +1,4 @@
-use crate::traits::{ConvertToFelt252, IntoFelt, TryIntoFelt};
+use crate::traits::{ArraySerialized, FeltSerializable, TryFeltSerializable};
 use crate::types::{Asset, Market, TradingAccountMinimal};
 use crate::FieldElement;
 use codec::{Decode, Encode};
@@ -97,14 +97,17 @@ pub struct AssetUpdatedL2 {
 	pub block_number: u64,
 }
 
-impl TryIntoFelt for AssetUpdatedL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
+impl TryFeltSerializable for AssetUpdatedL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.id));
-		self.asset.try_into_felt(result)?;
-		self.metadata_url.into_felt(result);
-		self.icon_url.into_felt(result);
+		self.asset.try_felt_serialized(result)?;
+		self.metadata_url.felt_serialized(result);
+		self.icon_url.felt_serialized(result);
 		result.push(FieldElement::from(self.version));
 		result.push(FieldElement::from(self.block_number));
 
@@ -112,14 +115,17 @@ impl TryIntoFelt for AssetUpdatedL2 {
 	}
 }
 
-impl TryIntoFelt for MarketUpdatedL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
+impl TryFeltSerializable for MarketUpdatedL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.id));
-		self.market.try_into_felt(result)?;
-		self.metadata_url.into_felt(result);
-		self.icon_url.into_felt(result);
+		self.market.try_felt_serialized(result)?;
+		self.metadata_url.felt_serialized(result);
+		self.icon_url.felt_serialized(result);
 		result.push(FieldElement::from(self.version));
 		result.push(FieldElement::from(self.block_number));
 
@@ -127,10 +133,13 @@ impl TryIntoFelt for MarketUpdatedL2 {
 	}
 }
 
-impl TryIntoFelt for MarketRemovedL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
+impl TryFeltSerializable for MarketRemovedL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.id));
 		result.push(FieldElement::from(self.block_number));
 
@@ -138,10 +147,13 @@ impl TryIntoFelt for MarketRemovedL2 {
 	}
 }
 
-impl TryIntoFelt for AssetRemovedL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
+impl TryFeltSerializable for AssetRemovedL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.id));
 		result.push(FieldElement::from(self.block_number));
 
@@ -149,23 +161,26 @@ impl TryIntoFelt for AssetRemovedL2 {
 	}
 }
 
-impl TryIntoFelt for UserDepositL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
-		self.trading_account.try_into_felt(result)?;
+impl TryFeltSerializable for UserDepositL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
+		self.trading_account.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.collateral_id));
-		self.nonce.try_into_felt(result)?;
-		self.amount.try_into_felt(result)?;
-		self.balance.try_into_felt(result)?;
+		self.nonce.try_felt_serialized(result)?;
+		self.amount.try_felt_serialized(result)?;
+		self.balance.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.block_number));
 
 		Ok(())
 	}
 }
 
-impl IntoFelt for FundType {
-	fn into_felt(&self, result: &mut Vec<FieldElement>) {
+impl FeltSerializable for FundType {
+	fn felt_serialized(&self, result: &mut Vec<FieldElement>) {
 		match self {
 			FundType::Admin => result.push(FieldElement::ZERO),
 			FundType::InsuranceFund => result.push(FieldElement::ONE),
@@ -175,42 +190,45 @@ impl IntoFelt for FundType {
 	}
 }
 
-impl TryIntoFelt for FundsTransferL2 {
-	fn try_into_felt(&self, result: &mut Vec<FieldElement>) -> Result<(), FromByteSliceError> {
-		self.event_hash.try_into_felt(result)?;
-		self.event_name.try_into_felt(result)?;
-		self.from_fund.into_felt(result);
-		self.to_fund.into_felt(result);
+impl TryFeltSerializable for FundsTransferL2 {
+	fn try_felt_serialized(
+		&self,
+		result: &mut Vec<FieldElement>,
+	) -> Result<(), FromByteSliceError> {
+		self.event_hash.try_felt_serialized(result)?;
+		self.event_name.try_felt_serialized(result)?;
+		self.from_fund.felt_serialized(result);
+		self.to_fund.felt_serialized(result);
 		result.push(FieldElement::from(self.asset_id));
-		self.amount.try_into_felt(result)?;
+		self.amount.try_felt_serialized(result)?;
 		result.push(FieldElement::from(self.block_number));
 
 		Ok(())
 	}
 }
 
-impl ConvertToFelt252 for [UniversalEventL2] {
+impl ArraySerialized for [UniversalEventL2] {
 	fn serialize_to_felt_array(&self) -> Result<Vec<FieldElement>, FromByteSliceError> {
 		let result: &mut Vec<FieldElement> = &mut Vec::new();
 		for event in self.iter() {
 			match event {
 				UniversalEventL2::MarketUpdatedL2(market_updated) => {
-					market_updated.try_into_felt(result)?;
+					market_updated.try_felt_serialized(result)?;
 				},
 				UniversalEventL2::AssetUpdatedL2(asset_updated) => {
-					asset_updated.try_into_felt(result)?;
+					asset_updated.try_felt_serialized(result)?;
 				},
 				UniversalEventL2::MarketRemovedL2(market_removed) => {
-					market_removed.try_into_felt(result)?;
+					market_removed.try_felt_serialized(result)?;
 				},
 				UniversalEventL2::AssetRemovedL2(asset_removed) => {
-					asset_removed.try_into_felt(result)?;
+					asset_removed.try_felt_serialized(result)?;
 				},
 				UniversalEventL2::FundsTransferL2(funds_transfer) => {
-					funds_transfer.try_into_felt(result)?;
+					funds_transfer.try_felt_serialized(result)?;
 				},
 				UniversalEventL2::UserDepositL2(user_deposit) => {
-					user_deposit.try_into_felt(result)?;
+					user_deposit.try_felt_serialized(result)?;
 				},
 			}
 		}
