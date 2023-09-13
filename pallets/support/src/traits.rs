@@ -1,6 +1,6 @@
 use crate::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, Order, OrderSide, Position,
-	PositionDetailsForRiskManagement, Side,
+	AbnormalCloseOrder, AbnormalCloseOrderType, Asset, Direction, HashType, LiquidatablePosition,
+	Market, Order, OrderSide, Position, PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -88,4 +88,12 @@ pub trait TradingFeesInterface {
 pub trait Hashable {
 	type ConversionError;
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
+}
+
+pub trait AbnormalCloseOrderExt {
+	fn new(
+		order_type: AbnormalCloseOrderType,
+		collateral_id: U256,
+		amount: FixedI128,
+	) -> AbnormalCloseOrder;
 }

@@ -20,12 +20,13 @@ pub mod pallet {
 	use sp_arithmetic::FixedPointNumber;
 	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
-		Hashable, MarketInterface, MarketPricesInterface, RiskManagementInterface,
-		TradingAccountInterface, TradingFeesInterface, TradingInterface,
+		AbnormalCloseOrderExt, Hashable, MarketInterface, MarketPricesInterface,
+		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
-		AbnormalCloseOrder, Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market,
-		Order, OrderSide, OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
+		AbnormalCloseOrder, AbnormalCloseOrderType, Direction, ExecutedOrder, FailedOrder,
+		LiquidatablePosition, Market, Order, OrderSide, OrderType, Position,
+		PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -829,7 +830,7 @@ pub mod pallet {
 			}
 
 			for element in &abnormal_close_orders {
-				if element.to_insurance {
+				if element.order_type == AbnormalCloseOrderType::Increase {
 					Self::deposit_event(Event::AmountToInsurance {
 						collateral_id: element.collateral_id,
 						amount: element.amount,
@@ -1198,19 +1199,19 @@ pub mod pallet {
 
 					if unused_balance.is_negative() {
 						// Complete funds lost by user should be taken from insurance fund
-						abnormal_close_orders.push(AbnormalCloseOrder {
-							to_insurance: false,
+						abnormal_close_orders.push(AbnormalCloseOrder::new(
+							AbnormalCloseOrderType::Decrease,
 							collateral_id,
-							amount: amount_to_transfer_from,
-						});
+							amount_to_transfer_from,
+						));
 					} else {
 						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
-						abnormal_close_orders.push(AbnormalCloseOrder {
-							to_insurance: false,
+						abnormal_close_orders.push(AbnormalCloseOrder::new(
+							AbnormalCloseOrderType::Decrease,
 							collateral_id,
-							amount: amount_to_transfer_from - unused_balance,
-						});
+							amount_to_transfer_from - unused_balance,
+						));
 					}
 				}
 
@@ -1234,19 +1235,19 @@ pub mod pallet {
 							if balance.is_negative() {
 								// User balance is negative, so deduct funds
 								// from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder {
-									to_insurance: false,
+								abnormal_close_orders.push(AbnormalCloseOrder::new(
+									AbnormalCloseOrderType::Decrease,
 									collateral_id,
-									amount: pnl.saturating_abs(),
-								});
+									pnl.saturating_abs(),
+								));
 							} else {
 								// User has some balance to cover losses, remaining
 								// should be taken from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder {
-									to_insurance: false,
+								abnormal_close_orders.push(AbnormalCloseOrder::new(
+									AbnormalCloseOrderType::Decrease,
 									collateral_id,
-									amount: pnl.saturating_abs() - balance,
-								});
+									pnl.saturating_abs() - balance,
+								));
 							}
 						}
 
@@ -1266,36 +1267,36 @@ pub mod pallet {
 						// if balance >= margin amount, deposit remaining margin in insurance
 						if margin_amount_to_reduce <= balance {
 							// Deposit margin_plus_pnl to insurance fund
-							abnormal_close_orders.push(AbnormalCloseOrder {
-								to_insurance: true,
+							abnormal_close_orders.push(AbnormalCloseOrder::new(
+								AbnormalCloseOrderType::Increase,
 								collateral_id,
-								amount: margin_plus_pnl,
-							});
+								margin_plus_pnl,
+							));
 						} else {
 							if balance.is_negative() {
 								// Deduct margin_amount_to_reduce from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder {
-									to_insurance: false,
+								abnormal_close_orders.push(AbnormalCloseOrder::new(
+									AbnormalCloseOrderType::Decrease,
 									collateral_id,
-									amount: margin_plus_pnl,
-								});
+									margin_plus_pnl,
+								));
 							} else {
 								// if user has some balance
 								let pnl_abs = pnl.saturating_abs();
 								if balance <= pnl_abs {
 									// Deduct (pnl_abs -  balance) from insurance fund
-									abnormal_close_orders.push(AbnormalCloseOrder {
-										to_insurance: false,
+									abnormal_close_orders.push(AbnormalCloseOrder::new(
+										AbnormalCloseOrderType::Decrease,
 										collateral_id,
-										amount: pnl_abs - balance,
-									});
+										pnl_abs - balance,
+									));
 								} else {
 									// Deposit (balance - pnl_abs) to insurance fund
-									abnormal_close_orders.push(AbnormalCloseOrder {
-										to_insurance: true,
+									abnormal_close_orders.push(AbnormalCloseOrder::new(
+										AbnormalCloseOrderType::Increase,
 										collateral_id,
-										amount: balance - pnl_abs,
-									});
+										balance - pnl_abs,
+									));
 								}
 							}
 						}

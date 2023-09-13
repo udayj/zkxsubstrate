@@ -1,5 +1,5 @@
 use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::Hashable;
+use crate::traits::{AbnormalCloseOrderExt, Hashable};
 use crate::types::common::HashType;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -50,9 +50,16 @@ pub struct ExecutedOrder {
 	pub opening_fee: FixedI128,
 }
 
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum AbnormalCloseOrderType {
+	#[default]
+	Increase,
+	Decrease,
+}
+
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AbnormalCloseOrder {
-	pub to_insurance: bool,
+	pub order_type: AbnormalCloseOrderType,
 	pub collateral_id: U256,
 	pub amount: FixedI128,
 }
@@ -175,6 +182,16 @@ impl From<TimeInForce> for u8 {
 			TimeInForce::IOC => 1_u8,
 			TimeInForce::FOK => 2_u8,
 		}
+	}
+}
+
+impl AbnormalCloseOrderExt for AbnormalCloseOrder {
+	fn new(
+		order_type: AbnormalCloseOrderType,
+		collateral_id: U256,
+		amount: FixedI128,
+	) -> AbnormalCloseOrder {
+		AbnormalCloseOrder { order_type, collateral_id, amount }
 	}
 }
 
