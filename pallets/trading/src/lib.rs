@@ -24,8 +24,8 @@ pub mod pallet {
 		TradingAccountInterface, TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
-		Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market, Order, OrderSide,
-		OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
+		AbnormalCloseOrder, Direction, ExecutedOrder, FailedOrder, LiquidatablePosition, Market,
+		Order, OrderSide, OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -79,6 +79,12 @@ pub mod pallet {
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn initial_margin)]
+	// k1 - 2 element array [market id, 1(LONG)/2(SHORT)], v - initial margin locked
+	pub(super) type InitialMarginMap<T: Config> =
+		StorageMap<_, Twox64Concat, [U256; 2], FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
@@ -186,6 +192,10 @@ pub mod pallet {
 			pnl: FixedI128,
 			opening_fee: FixedI128,
 		},
+		/// Amount to be transferred to insurance fund for timely liquidation
+		AmountToInsurance { collateral_id: U256, amount: FixedI128 },
+		/// Amount to be transferred from insurance fund due to user underwater
+		AmountFromInsurance { collateral_id: U256, amount: FixedI128 },
 	}
 
 	// Pallet callable functions
@@ -259,9 +269,14 @@ pub mod pallet {
 			let mut open_interest: FixedI128 = FixedI128::zero();
 			let mut taker_quantity: FixedI128 = FixedI128::zero();
 			let mut taker_execution_price: FixedI128 = FixedI128::zero();
+			let mut initial_margin_locked_long: FixedI128 =
+				InitialMarginMap::<T>::get([market_id, LONG]);
+			let mut initial_margin_locked_short: FixedI128 =
+				InitialMarginMap::<T>::get([market_id, SHORT]);
 
 			let mut failed_orders: Vec<FailedOrder> = Vec::new();
 			let mut executed_orders: Vec<ExecutedOrder> = Vec::new();
+			let mut abnormal_close_orders: Vec<AbnormalCloseOrder> = Vec::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
@@ -533,6 +548,14 @@ pub mod pallet {
 					};
 
 					open_interest = open_interest + quantity_to_execute;
+
+					// Update initial margin locked amount map
+					if element.direction == Direction::Long {
+						initial_margin_locked_long = initial_margin_locked_long + margin_lock_amount
+					} else {
+						initial_margin_locked_short =
+							initial_margin_locked_short + margin_lock_amount
+					}
 				} else {
 					// SELL order
 					let response = Self::process_close_orders(
@@ -541,6 +564,7 @@ pub mod pallet {
 						execution_price,
 						market_id,
 						collateral_id,
+						&mut abnormal_close_orders,
 					);
 					match response {
 						Ok((
@@ -730,6 +754,14 @@ pub mod pallet {
 					}
 
 					open_interest = open_interest - quantity_to_execute;
+
+					// Update initial margin locked amount map
+					if element.direction == Direction::Long {
+						initial_margin_locked_long = initial_margin_locked_long - margin_lock_amount
+					} else {
+						initial_margin_locked_short =
+							initial_margin_locked_short - margin_lock_amount
+					}
 				}
 
 				// Update position, locked margin and portion executed
@@ -765,6 +797,10 @@ pub mod pallet {
 			let current_open_interest = OpenInterestMap::<T>::get(market_id);
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
+			// Update initial margin locked
+			InitialMarginMap::<T>::insert([market_id, LONG], initial_margin_locked_long);
+			InitialMarginMap::<T>::insert([market_id, SHORT], initial_margin_locked_short);
+
 			BatchStatusMap::<T>::insert(batch_id, true);
 
 			for element in &failed_orders {
@@ -790,6 +826,20 @@ pub mod pallet {
 					pnl: element.pnl,
 					opening_fee: element.opening_fee,
 				});
+			}
+
+			for element in &abnormal_close_orders {
+				if element.to_insurance {
+					Self::deposit_event(Event::AmountToInsurance {
+						collateral_id: element.collateral_id,
+						amount: element.amount,
+					});
+				} else {
+					Self::deposit_event(Event::AmountFromInsurance {
+						collateral_id: element.collateral_id,
+						amount: element.amount,
+					});
+				}
 			}
 
 			let taker_direction =
@@ -1071,9 +1121,6 @@ pub mod pallet {
 			let fee = fee_rate * leveraged_order_value;
 			let trading_fee = FixedI128::from_inner(0) - fee;
 
-			// To do - If leveraged order, deduct from liquidity fund
-			// To do - deposit to holding fund
-
 			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(order.account_id, collateral_id, fee);
 
@@ -1093,6 +1140,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
+			abnormal_close_orders: &mut Vec<AbnormalCloseOrder>,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
@@ -1134,9 +1182,6 @@ pub mod pallet {
 				margin_amount = position_details.margin_amount - margin_amount_to_reduce;
 			}
 
-			// To do - deduct fund from holding contract
-			// To do - deposit fund to liquidity fund if position is leveraged
-
 			let unused_balance =
 				T::TradingAccountPallet::get_unused_balance(order.account_id, collateral_id);
 
@@ -1152,16 +1197,21 @@ pub mod pallet {
 					}
 
 					if unused_balance.is_negative() {
-						// To do - withdraw amount_to_transfer_from from insurance fund
+						// Complete funds lost by user should be taken from insurance fund
+						abnormal_close_orders.push(AbnormalCloseOrder {
+							to_insurance: false,
+							collateral_id,
+							amount: amount_to_transfer_from,
+						});
 					} else {
-						// To do - withdraw (amount_to_transfer_from - balance) from insurance fund
+						// Some amount of lost funds can be taken from user available balance
+						// Rest of the funds should be taken from insurance fund
+						abnormal_close_orders.push(AbnormalCloseOrder {
+							to_insurance: false,
+							collateral_id,
+							amount: amount_to_transfer_from - unused_balance,
+						});
 					}
-				}
-
-				// If user's position value has become negative
-				// it's a deficit for holding contract
-				if leveraged_order_value.is_negative() {
-					// To do - deposit abs(leveraged_order_value) to holding
 				}
 
 				// Deduct under water amount (if any) + margin amt to reduce from user
@@ -1182,9 +1232,21 @@ pub mod pallet {
 						if pnl.saturating_abs() > balance {
 							// If balance is negative, deduct whole loss from insurance fund
 							if balance.is_negative() {
-								// To do - deduct abs(pnl) from insurance fund
+								// User balance is negative, so deduct funds
+								// from insurance fund
+								abnormal_close_orders.push(AbnormalCloseOrder {
+									to_insurance: false,
+									collateral_id,
+									amount: pnl.saturating_abs(),
+								});
 							} else {
-								// To do - deduct (abs(pnl) - balance) from insurance fund
+								// User has some balance to cover losses, remaining
+								// should be taken from insurance fund
+								abnormal_close_orders.push(AbnormalCloseOrder {
+									to_insurance: false,
+									collateral_id,
+									amount: pnl.saturating_abs() - balance,
+								});
 							}
 						}
 
@@ -1203,17 +1265,37 @@ pub mod pallet {
 					if order.order_type == OrderType::Liquidation {
 						// if balance >= margin amount, deposit remaining margin in insurance
 						if margin_amount_to_reduce <= balance {
-							// To do - deposit margin_plus_pnl to insurance fund
+							// Deposit margin_plus_pnl to insurance fund
+							abnormal_close_orders.push(AbnormalCloseOrder {
+								to_insurance: true,
+								collateral_id,
+								amount: margin_plus_pnl,
+							});
 						} else {
 							if balance.is_negative() {
-								// To do - withdraw margin_amount_to_reduce from insurance fund
+								// Deduct margin_amount_to_reduce from insurance fund
+								abnormal_close_orders.push(AbnormalCloseOrder {
+									to_insurance: false,
+									collateral_id,
+									amount: margin_plus_pnl,
+								});
 							} else {
 								// if user has some balance
 								let pnl_abs = pnl.saturating_abs();
 								if balance <= pnl_abs {
-									// To do - withdraw (pnl_abs -  balance) from insurance fund
+									// Deduct (pnl_abs -  balance) from insurance fund
+									abnormal_close_orders.push(AbnormalCloseOrder {
+										to_insurance: false,
+										collateral_id,
+										amount: pnl_abs - balance,
+									});
 								} else {
-									// To do - deposit (balance - pnl_abs) to insurance fund
+									// Deposit (balance - pnl_abs) to insurance fund
+									abnormal_close_orders.push(AbnormalCloseOrder {
+										to_insurance: true,
+										collateral_id,
+										amount: balance - pnl_abs,
+									});
 								}
 							}
 						}

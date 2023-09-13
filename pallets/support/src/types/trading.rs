@@ -50,6 +50,13 @@ pub struct ExecutedOrder {
 	pub opening_fee: FixedI128,
 }
 
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct AbnormalCloseOrder {
+	pub to_insurance: bool,
+	pub collateral_id: U256,
+	pub amount: FixedI128,
+}
+
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderSide {
 	#[default]
