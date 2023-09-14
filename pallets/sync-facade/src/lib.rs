@@ -59,12 +59,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Signer added by the admin successfully
-		SignerAdded {
-			signer: U256,
-		},
-		SignerRemoved {
-			signer: U256,
-		},
+		SignerAdded { signer: U256 },
+		/// Signer removed by the admin succesfully
+		SignerRemoved { signer: U256 },
+		/// New Quorum requirement set by the admin
+		QuorumSet { quorum: u8 },
 	}
 
 	#[pallet::error]
@@ -108,6 +107,25 @@ pub mod pallet {
 
 			// Emit the SignerAdded event
 			Self::deposit_event(Event::SignerAdded { signer: pub_key });
+
+			// Return ok
+			Ok(())
+		}
+
+		/// External function to be called by admin to set the signer's quorum
+		#[pallet::weight(0)]
+		pub fn set_signers_quorum(origin: OriginFor<T>, new_quorum: u8) -> DispatchResult {
+			// Make sure the caller is an admin
+			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+
+			// It cannot be more than existing number of signers
+			ensure!(new_quorum <= SignersQuorum::<T>::get(), Error::<T>::InsufficientSigners);
+
+			// Update the state
+			SignersQuorum::<T>::put(new_quorum);
+
+			// Emit the QuorumSet event
+			Self::deposit_event(Event::QuorumSet { quorum: new_quorum });
 
 			// Return ok
 			Ok(())
