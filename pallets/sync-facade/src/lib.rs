@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
-	use zkx_support::traits::{ArraySerialized, FieldElementExt, U256Ext};
+	use zkx_support::traits::{FeltSerializedArrayExt, FieldElementExt, U256Ext};
 	use zkx_support::types::{SyncSignature, UniversalEventL2};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
@@ -220,10 +220,11 @@ pub mod pallet {
 
 		fn compute_batch_hash(events_batch: &Vec<UniversalEventL2>) -> FieldElement {
 			// Convert the array of enums to array of felts
-			let flattened_felt252_array = events_batch.serialize_to_felt_array().unwrap();
+			let mut flattened_array: Vec<FieldElement> = Vec::new();
+			flattened_array.try_append_universal_event_array(&events_batch).unwrap();
 
 			// Compute hash of the array and return
-			pedersen_hash_multiple(&flattened_felt252_array)
+			pedersen_hash_multiple(&flattened_array)
 		}
 	}
 }

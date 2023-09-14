@@ -2,6 +2,7 @@ pub mod asset;
 pub mod common;
 pub mod market;
 pub mod market_prices;
+pub mod serialization;
 pub mod sync_facade;
 pub mod trading;
 pub mod trading_account;
