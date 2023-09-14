@@ -1,6 +1,6 @@
 use crate::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, Order, OrderSide, Position,
-	PositionDetailsForRiskManagement, Side,
+	AbnormalCloseOrder, AbnormalCloseOrderType, Asset, Direction, HashType, LiquidatablePosition,
+	Market, Order, OrderSide, Position, PositionDetailsForRiskManagement, Side,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
