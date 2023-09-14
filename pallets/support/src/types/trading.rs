@@ -1,5 +1,5 @@
 use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::{AbnormalCloseOrderExt, Hashable};
+use crate::traits::Hashable;
 use crate::types::common::HashType;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -185,8 +185,8 @@ impl From<TimeInForce> for u8 {
 	}
 }
 
-impl AbnormalCloseOrderExt for AbnormalCloseOrder {
-	fn new(
+impl AbnormalCloseOrder {
+	pub fn new(
 		order_type: AbnormalCloseOrderType,
 		collateral_id: U256,
 		amount: FixedI128,

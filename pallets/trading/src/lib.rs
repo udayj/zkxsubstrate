@@ -20,8 +20,8 @@ pub mod pallet {
 	use sp_arithmetic::FixedPointNumber;
 	use zkx_support::helpers::{sig_u256_to_sig_felt, u256_to_field_element};
 	use zkx_support::traits::{
-		AbnormalCloseOrderExt, Hashable, MarketInterface, MarketPricesInterface,
-		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
+		Hashable, MarketInterface, MarketPricesInterface, RiskManagementInterface,
+		TradingAccountInterface, TradingFeesInterface, TradingInterface,
 	};
 	use zkx_support::types::{
 		AbnormalCloseOrder, AbnormalCloseOrderType, Direction, ExecutedOrder, FailedOrder,
