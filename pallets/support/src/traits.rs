@@ -1,6 +1,6 @@
 use crate::types::{
-	AbnormalCloseOrder, AbnormalCloseOrderType, Asset, Direction, HashType, LiquidatablePosition,
-	Market, Order, OrderSide, Position, PositionDetailsForRiskManagement, Side,
+	Asset, Direction, HashType, LiquidatablePosition, Market, Order, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side, TradingAccount,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -15,6 +15,7 @@ pub trait TradingAccountInterface {
 	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
+	fn get_account(account_id: &U256) -> Option<TradingAccount>;
 	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
 		account_id: U256,
