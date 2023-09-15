@@ -1,11 +1,14 @@
 use crate::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, Order, OrderSide, Position,
-	PositionDetailsForRiskManagement, Side, TradingAccount,
+	Asset, AssetRemovedL2, AssetUpdatedL2, Direction, HashType, LiquidatablePosition, Market,
+	MarketRemovedL2, MarketUpdatedL2, Order, OrderSide, Position, PositionDetailsForRiskManagement,
+	Side, TradingAccount, TradingAccountMinimal, UniversalEventL2, UserDepositL2,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use starknet_ff::FieldElement;
+use sp_runtime::traits::ConstU32;
+use sp_runtime::BoundedVec;
+use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
@@ -73,8 +76,21 @@ pub trait MarketPricesInterface {
 	fn update_market_price(market_id: U256, price: FixedI128);
 }
 
-pub trait FixedI128Ext<T> {
-	fn round_to_precision(t: T, precision: u32) -> T;
+pub trait FixedI128Ext {
+	fn round_to_precision(&self, precision: u32) -> Self;
+	fn to_u256(&self) -> U256;
+}
+
+pub trait StringExt {
+	fn to_felt_rep(&self) -> u128;
+}
+
+pub trait U256Ext {
+	fn try_to_felt(&self) -> Result<FieldElement, FromByteSliceError>;
+}
+
+pub trait FieldElementExt {
+	fn to_u256(&self) -> U256;
 }
 
 pub trait TradingFeesInterface {
@@ -89,4 +105,41 @@ pub trait TradingFeesInterface {
 pub trait Hashable {
 	type ConversionError;
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
+}
+
+pub trait FeltSerializedArrayExt {
+	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
+	fn append_bool(&mut self, boolean_value: bool);
+	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
+	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError>;
+	fn try_append_asset(&mut self, asset: &Asset) -> Result<(), FromByteSliceError>;
+	fn try_append_market(&mut self, market: &Market) -> Result<(), FromByteSliceError>;
+	fn try_append_trading_account(
+		&mut self,
+		trading_account: &TradingAccountMinimal,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_market_updated_event(
+		&mut self,
+		market_updated_event: &MarketUpdatedL2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_asset_updated_event(
+		&mut self,
+		asset_updated_event: &AssetUpdatedL2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_market_removed_event(
+		&mut self,
+		market_removed_event: &MarketRemovedL2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_asset_removed_event(
+		&mut self,
+		asset_removed_event: &AssetRemovedL2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_user_deposit_event(
+		&mut self,
+		user_deposit_event: &UserDepositL2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_universal_event_array(
+		&mut self,
+		universal_event_array: &Vec<UniversalEventL2>,
+	) -> Result<(), FromByteSliceError>;
 }

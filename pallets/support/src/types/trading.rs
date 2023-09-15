@@ -1,5 +1,5 @@
-use crate::helpers::{fixed_i128_to_u256, pedersen_hash_multiple, u256_to_field_element};
-use crate::traits::Hashable;
+use crate::helpers::pedersen_hash_multiple;
+use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::HashType;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
@@ -222,27 +222,27 @@ impl Hashable for Order {
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
 		let mut elements: Vec<FieldElement> = Vec::new();
 
-		elements.push(u256_to_field_element(&self.account_id)?);
+		elements.push(self.account_id.try_to_felt()?);
 
 		elements.push(FieldElement::from(self.order_id));
 
-		elements.push(u256_to_field_element(&self.market_id)?);
+		elements.push(self.market_id.try_to_felt()?);
 
 		elements.push(FieldElement::from(u8::from(self.order_type)));
 		elements.push(FieldElement::from(u8::from(self.direction)));
 		elements.push(FieldElement::from(u8::from(self.side)));
 
-		let u256_representation = fixed_i128_to_u256(&self.price);
-		elements.push(u256_to_field_element(&u256_representation)?);
+		let u256_representation = &self.price.to_u256();
+		elements.push(u256_representation.try_to_felt()?);
 
-		let u256_representation = fixed_i128_to_u256(&self.size);
-		elements.push(u256_to_field_element(&u256_representation)?);
+		let u256_representation = &self.size.to_u256();
+		elements.push(u256_representation.try_to_felt()?);
 
-		let u256_representation = fixed_i128_to_u256(&self.leverage);
-		elements.push(u256_to_field_element(&u256_representation)?);
+		let u256_representation = &self.leverage.to_u256();
+		elements.push(u256_representation.try_to_felt()?);
 
-		let u256_representation = fixed_i128_to_u256(&self.slippage);
-		elements.push(u256_to_field_element(&u256_representation)?);
+		let u256_representation = &self.slippage.to_u256();
+		elements.push(u256_representation.try_to_felt()?);
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
