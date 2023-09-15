@@ -193,22 +193,20 @@ pub mod pallet {
 			pnl: FixedI128,
 			opening_fee: FixedI128,
 		},
-		/// Amount to be transferred to insurance fund for timely liquidation
-		AmountToInsurance { collateral_id: U256, amount: FixedI128, block_number: T::BlockNumber },
-		/// Amount to be transferred from insurance fund due to user underwater
-		AmountFromInsurance { collateral_id: U256, amount: FixedI128, block_number: T::BlockNumber },
-		/// User balance being increased
-		UserBalanceIncrease {
-			account: TradingAccountMinimal,
+		/// Insurance fund updation event
+		InsuranceFundChange {
 			collateral_id: U256,
 			amount: FixedI128,
+			modify_type: FundModifyType,
 			block_number: T::BlockNumber,
 		},
-		/// User balance being decreased
-		UserBalanceDecrease {
-			account: TradingAccountMinimal,
+		/// User balance updation event
+		UserBalanceChange {
+			trading_account: TradingAccountMinimal,
 			collateral_id: U256,
 			amount: FixedI128,
+			modify_type: FundModifyType,
+			reason: u8,
 			block_number: T::BlockNumber,
 		},
 	}
@@ -852,40 +850,31 @@ pub mod pallet {
 
 			// Emit events required for fund transfers
 			for element in &abnormal_close_orders {
-				if element.order_type == FundModifyType::Increase {
-					Self::deposit_event(Event::AmountToInsurance {
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				} else {
-					Self::deposit_event(Event::AmountFromInsurance {
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				}
+				Self::deposit_event(Event::InsuranceFundChange {
+					collateral_id: element.collateral_id,
+					amount: element.amount,
+					modify_type: element.modify_type,
+					block_number,
+				});
 			}
 
 			// Emit events for user balance transfers
 			for element in &balance_transfers {
-				let account = T::TradingAccountPallet::get_account(&element.account_id).unwrap();
-				let account = TradingAccountMinimal::new(account.account_address, account.index);
-				if element.modify_type == FundModifyType::Increase {
-					Self::deposit_event(Event::UserBalanceIncrease {
-						account,
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				} else {
-					Self::deposit_event(Event::UserBalanceDecrease {
-						account,
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				}
+				let trading_account =
+					T::TradingAccountPallet::get_account(&element.account_id).unwrap();
+				let trading_account = TradingAccountMinimal::new(
+					trading_account.account_address,
+					trading_account.index,
+				);
+
+				Self::deposit_event(Event::UserBalanceChange {
+					trading_account,
+					collateral_id: element.collateral_id,
+					amount: element.amount,
+					modify_type: element.modify_type,
+					reason: element.reason,
+					block_number,
+				});
 			}
 
 			// Emit trade executed event
@@ -1176,6 +1165,7 @@ pub mod pallet {
 				collateral_id,
 				fee,
 				FundModifyType::Decrease,
+				1,
 			));
 
 			Ok((
@@ -1280,6 +1270,7 @@ pub mod pallet {
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
 					FundModifyType::Decrease,
+					2,
 				));
 			// To do - calculate PnL
 			} else {
@@ -1322,6 +1313,7 @@ pub mod pallet {
 							collateral_id,
 							pnl.saturating_abs(),
 							FundModifyType::Decrease,
+							2,
 						));
 					} else {
 						// User is in profit
@@ -1332,6 +1324,7 @@ pub mod pallet {
 							collateral_id,
 							pnl,
 							FundModifyType::Increase,
+							2,
 						))
 					}
 				} else {
@@ -1383,6 +1376,7 @@ pub mod pallet {
 							collateral_id,
 							margin_amount_to_reduce,
 							FundModifyType::Decrease,
+							2,
 						));
 					// To do - calculate PnL
 					} else {

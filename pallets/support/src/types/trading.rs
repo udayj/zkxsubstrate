@@ -50,7 +50,7 @@ pub struct ExecutedOrder {
 	pub opening_fee: FixedI128,
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum FundModifyType {
 	#[default]
 	Increase,
@@ -59,7 +59,7 @@ pub enum FundModifyType {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AbnormalCloseOrder {
-	pub order_type: FundModifyType,
+	pub modify_type: FundModifyType,
 	pub collateral_id: U256,
 	pub amount: FixedI128,
 }
@@ -70,6 +70,7 @@ pub struct UserBalanceChange {
 	pub collateral_id: U256,
 	pub amount: FixedI128,
 	pub modify_type: FundModifyType,
+	pub reason: u8,
 }
 
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -195,11 +196,11 @@ impl From<TimeInForce> for u8 {
 
 impl AbnormalCloseOrder {
 	pub fn new(
-		order_type: FundModifyType,
+		modify_type: FundModifyType,
 		collateral_id: U256,
 		amount: FixedI128,
 	) -> AbnormalCloseOrder {
-		AbnormalCloseOrder { order_type, collateral_id, amount }
+		AbnormalCloseOrder { modify_type, collateral_id, amount }
 	}
 }
 
@@ -209,8 +210,9 @@ impl UserBalanceChange {
 		collateral_id: U256,
 		amount: FixedI128,
 		modify_type: FundModifyType,
+		reason: u8,
 	) -> UserBalanceChange {
-		UserBalanceChange { account_id, collateral_id, amount, modify_type }
+		UserBalanceChange { account_id, collateral_id, amount, modify_type, reason }
 	}
 }
 
