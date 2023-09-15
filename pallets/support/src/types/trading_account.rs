@@ -37,3 +37,9 @@ pub struct BalanceUpdate {
 	pub asset_id: U256,
 	pub balance_value: FixedI128,
 }
+
+impl TradingAccountMinimal {
+	pub fn new(account_address: U256, index: u8) -> TradingAccountMinimal {
+		TradingAccountMinimal { account_address, index }
+	}
+}

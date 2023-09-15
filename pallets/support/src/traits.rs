@@ -1,7 +1,7 @@
 use crate::types::{
 	Asset, AssetRemovedL2, AssetUpdatedL2, Direction, HashType, LiquidatablePosition, Market,
-	MarketRemovedL2, MarketUpdatedL2, OrderSide, Position, PositionDetailsForRiskManagement, Side,
-	TradingAccountMinimal, UniversalEventL2, UserDepositL2,
+	MarketRemovedL2, MarketUpdatedL2, Order, OrderSide, Position, PositionDetailsForRiskManagement,
+	Side, TradingAccount, TradingAccountMinimal, UniversalEventL2, UserDepositL2,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -18,6 +18,7 @@ pub trait TradingAccountInterface {
 	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
 	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
+	fn get_account(account_id: &U256) -> Option<TradingAccount>;
 	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
 		account_id: U256,
@@ -54,6 +55,16 @@ pub trait TradingInterface {
 pub trait AssetInterface {
 	fn get_default_collateral() -> U256;
 	fn get_asset(id: U256) -> Option<Asset>;
+}
+
+pub trait RiskManagementInterface {
+	fn check_for_risk(
+		order: &Order,
+		size: FixedI128,
+		execution_price: FixedI128,
+		oracle_price: FixedI128,
+		margin_amount: FixedI128,
+	) -> (FixedI128, bool);
 }
 
 pub trait MarketInterface {

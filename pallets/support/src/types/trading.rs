@@ -51,6 +51,28 @@ pub struct ExecutedOrder {
 }
 
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum FundModifyType {
+	#[default]
+	Increase,
+	Decrease,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct AbnormalCloseOrder {
+	pub order_type: FundModifyType,
+	pub collateral_id: U256,
+	pub amount: FixedI128,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct UserBalanceChange {
+	pub account_id: U256,
+	pub collateral_id: U256,
+	pub amount: FixedI128,
+	pub modify_type: FundModifyType,
+}
+
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderSide {
 	#[default]
 	Maker,
@@ -168,6 +190,27 @@ impl From<TimeInForce> for u8 {
 			TimeInForce::IOC => 1_u8,
 			TimeInForce::FOK => 2_u8,
 		}
+	}
+}
+
+impl AbnormalCloseOrder {
+	pub fn new(
+		order_type: FundModifyType,
+		collateral_id: U256,
+		amount: FixedI128,
+	) -> AbnormalCloseOrder {
+		AbnormalCloseOrder { order_type, collateral_id, amount }
+	}
+}
+
+impl UserBalanceChange {
+	pub fn new(
+		account_id: U256,
+		collateral_id: U256,
+		amount: FixedI128,
+		modify_type: FundModifyType,
+	) -> UserBalanceChange {
+		UserBalanceChange { account_id, collateral_id, amount, modify_type }
 	}
 }
 

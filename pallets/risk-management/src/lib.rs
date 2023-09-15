@@ -10,8 +10,10 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::FixedI128;
-	use zkx_support::traits::{MarketInterface, TradingAccountInterface, TradingInterface};
-	use zkx_support::types::{Direction, PositionDetailsForRiskManagement};
+	use zkx_support::traits::{
+		MarketInterface, RiskManagementInterface, TradingAccountInterface, TradingInterface,
+	};
+	use zkx_support::types::{Direction, Order, OrderType, PositionDetailsForRiskManagement, Side};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -154,6 +156,48 @@ pub mod pallet {
 			} else {
 				amount_to_be_sold
 			}
+		}
+	}
+
+	impl<T: Config> RiskManagementInterface for Pallet<T> {
+		fn check_for_risk(
+			order: &Order,
+			size: FixedI128,
+			execution_price: FixedI128,
+			oracle_price: FixedI128,
+			margin_amount: FixedI128,
+		) -> (FixedI128, bool) {
+			// Fetch the maintanence margin requirement from Markets pallet
+			let market = T::MarketPallet::get_market(order.market_id).unwrap();
+			let req_margin = market.maintenance_margin_fraction;
+
+			let leveraged_position_value = execution_price * size;
+			let maintenance_requirement = req_margin * leveraged_position_value;
+
+			let (liq_result, _, available_margin, _, _, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					order.account_id,
+					market.asset_collateral,
+					maintenance_requirement,
+					margin_amount,
+				);
+
+			let mut is_error: bool = false;
+			if liq_result == true {
+				is_error = true;
+			} else {
+				if (order.direction == Direction::Short)
+					&& (order.side == Side::Buy)
+					&& (order.order_type == OrderType::Limit)
+				{
+					let price_diff = oracle_price - execution_price;
+					let pnl = price_diff * size;
+
+					// check whether user have enough balance to cover the immediate losses.
+					is_error = if available_margin <= pnl { true } else { false };
+				}
+			}
+			return (available_margin, is_error);
 		}
 	}
 }
