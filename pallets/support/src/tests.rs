@@ -1,6 +1,6 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
+use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce, convert_to_u128_pair};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -116,10 +116,10 @@ fn test_order_signature() {
 
 	// correct value of order_hash is the hash as calculated using compute_hash_on_elements (from cairo-lang package) using the
 	// serialized values of the different types
-	// compute_hash_on_elements([100,200,300,1,0,0,10000000,0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
+	// compute_hash_on_elements([100,0,200,300,1,0,0,10000000,1,0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
 	// 0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff39,1,0])
 	let expected_hash = FieldElement::from_dec_str(
-		"779455944553865873074074863659363906459964867916460440519908583353736546068",
+		"1562465184451062490240891191379126127199787496518743214458262873007936909803",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);
