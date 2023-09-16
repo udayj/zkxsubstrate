@@ -1,6 +1,6 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::common::HashType;
+use crate::types::common::{HashType,convert_to_u128_pair};
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -222,7 +222,9 @@ impl Hashable for Order {
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
 		let mut elements: Vec<FieldElement> = Vec::new();
 
-		elements.push(self.account_id.try_to_felt()?);
+		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id)?;
+		elements.push(account_id_low);
+		elements.push(account_id_high);
 
 		elements.push(FieldElement::from(self.order_id));
 
