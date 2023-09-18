@@ -14,7 +14,12 @@ use zkx_support::types::Position;
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {
 	#[method(name = "trading_get_positions")]
-	fn positions(&self, at: Option<BlockHash>, account_id: U256) -> RpcResult<Vec<Position>>;
+	fn positions(
+		&self,
+		at: Option<BlockHash>,
+		account_id: U256,
+		collateral_id: U256,
+	) -> RpcResult<Vec<Position>>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -42,11 +47,15 @@ where
 		&self,
 		at: Option<<Block as BlockT>::Hash>,
 		account_id: U256,
+		collateral_id: U256,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-		let positions = api.positions(at, account_id).map_err(runtime_error_into_rpc_err).unwrap();
+		let positions = api
+			.positions(at, account_id, collateral_id)
+			.map_err(runtime_error_into_rpc_err)
+			.unwrap();
 		Ok(positions)
 	}
 }

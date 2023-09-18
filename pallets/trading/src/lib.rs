@@ -1478,8 +1478,8 @@ pub mod pallet {
 			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_positions(account_id: U256) -> Vec<Position> {
-			let markets = CollateralToMarketMap::<T>::get(account_id);
+		fn get_positions(account_id: U256, collateral_id: U256) -> Vec<Position> {
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let mut pos_vec = Vec::<Position>::new();

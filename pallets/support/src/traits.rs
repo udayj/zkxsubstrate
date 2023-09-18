@@ -40,6 +40,7 @@ pub trait TradingAccountInterface {
 pub trait TradingInterface {
 	fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256>;
 	fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position;
+	fn get_positions(account_id: U256, collateral_id: U256) -> Vec<Position>;
 	fn liquidate_position(
 		account_id: U256,
 		collateral_id: U256,
@@ -50,10 +51,6 @@ pub trait TradingInterface {
 		account_id: U256,
 		collateral_id: U256,
 	) -> LiquidatablePosition;
-}
-
-pub trait TradingInterface {
-	fn get_positions(account_id: U256) -> Vec<Position>;
 }
 
 pub trait AssetInterface {
