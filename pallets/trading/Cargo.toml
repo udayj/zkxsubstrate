@@ -12,12 +12,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-arithmetic = { version = "16.0.0", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42", default-features = false }
 zkx-support= { path="../support"}
 
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
 
 [features]
 default = ["std"]
@@ -27,4 +28,5 @@ std = [
     "codec/std",
     "scale-info/std",
     "sp-arithmetic/std",
+    "sp-runtime/std"
 ]

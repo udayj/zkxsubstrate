@@ -17,14 +17,15 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
+	use sp_runtime::traits::SaturatedConversion;
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
 		Hashable, MarketInterface, MarketPricesInterface, RiskManagementInterface,
 		TradingAccountInterface, TradingFeesInterface, TradingInterface, U256Ext,
 	};
 	use zkx_support::types::{
-		AbnormalCloseOrder, Direction, ExecutedOrder, FailedOrder, FundModifyType,
-		LiquidatablePosition, Market, Order, OrderSide, OrderType, Position,
+		BalanceChangeReason, Direction, ExecutedOrder, FailedOrder, FundModifyType,
+		InsuranceFundChange, LiquidatablePosition, Market, Order, OrderSide, OrderType, Position,
 		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
 		UserBalanceChange,
 	};
@@ -193,24 +194,10 @@ pub mod pallet {
 			pnl: FixedI128,
 			opening_fee: FixedI128,
 		},
-		/// Amount to be transferred to insurance fund for timely liquidation
-		AmountToInsurance { collateral_id: U256, amount: FixedI128, block_number: T::BlockNumber },
-		/// Amount to be transferred from insurance fund due to user underwater
-		AmountFromInsurance { collateral_id: U256, amount: FixedI128, block_number: T::BlockNumber },
-		/// User balance being increased
-		UserBalanceIncrease {
-			account: TradingAccountMinimal,
-			collateral_id: U256,
-			amount: FixedI128,
-			block_number: T::BlockNumber,
-		},
-		/// User balance being decreased
-		UserBalanceDecrease {
-			account: TradingAccountMinimal,
-			collateral_id: U256,
-			amount: FixedI128,
-			block_number: T::BlockNumber,
-		},
+		/// Insurance fund updation event
+		InsuranceFundChange(InsuranceFundChange),
+		/// User balance updation event
+		UserBalanceChange(UserBalanceChange),
 	}
 
 	// Pallet callable functions
@@ -291,7 +278,7 @@ pub mod pallet {
 
 			let mut failed_orders: Vec<FailedOrder> = Vec::new();
 			let mut executed_orders: Vec<ExecutedOrder> = Vec::new();
-			let mut abnormal_close_orders: Vec<AbnormalCloseOrder> = Vec::new();
+			let mut insurance_fund_change: Vec<InsuranceFundChange> = Vec::new();
 			let mut balance_transfers: Vec<UserBalanceChange> = Vec::new();
 
 			for element in &orders {
@@ -581,7 +568,7 @@ pub mod pallet {
 						execution_price,
 						market_id,
 						collateral_id,
-						&mut abnormal_close_orders,
+						&mut insurance_fund_change,
 						&mut balance_transfers,
 					);
 					match response {
@@ -848,44 +835,14 @@ pub mod pallet {
 				});
 			}
 
-			let block_number = <frame_system::Pallet<T>>::block_number();
-
 			// Emit events required for fund transfers
-			for element in &abnormal_close_orders {
-				if element.order_type == FundModifyType::Increase {
-					Self::deposit_event(Event::AmountToInsurance {
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				} else {
-					Self::deposit_event(Event::AmountFromInsurance {
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				}
+			for element in insurance_fund_change {
+				Self::deposit_event(Event::InsuranceFundChange(element));
 			}
 
 			// Emit events for user balance transfers
-			for element in &balance_transfers {
-				let account = T::TradingAccountPallet::get_account(&element.account_id).unwrap();
-				let account = TradingAccountMinimal::new(account.account_address, account.index);
-				if element.modify_type == FundModifyType::Increase {
-					Self::deposit_event(Event::UserBalanceIncrease {
-						account,
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				} else {
-					Self::deposit_event(Event::UserBalanceDecrease {
-						account,
-						collateral_id: element.collateral_id,
-						amount: element.amount,
-						block_number,
-					});
-				}
+			for element in balance_transfers {
+				Self::deposit_event(Event::UserBalanceChange(element));
 			}
 
 			// Emit trade executed event
@@ -1131,6 +1088,8 @@ pub mod pallet {
 			let mut margin_amount: FixedI128 = FixedI128::zero();
 			let mut borrowed_amount: FixedI128 = FixedI128::zero();
 			let mut average_execution_price: FixedI128 = execution_price;
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			let block_number = block_number.saturated_into::<u64>();
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
 			let position_details =
@@ -1172,10 +1131,12 @@ pub mod pallet {
 			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
 			T::TradingAccountPallet::transfer_from(order.account_id, collateral_id, fee);
 			balance_transfers.push(UserBalanceChange::new(
-				order.account_id,
+				Self::get_trading_account(&order.account_id),
 				collateral_id,
 				fee,
 				FundModifyType::Decrease,
+				BalanceChangeReason::Fee.into(),
+				block_number,
 			));
 
 			Ok((
@@ -1194,13 +1155,15 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: U256,
 			collateral_id: U256,
-			abnormal_close_orders: &mut Vec<AbnormalCloseOrder>,
+			insurance_fund_change: &mut Vec<InsuranceFundChange>,
 			balance_transfers: &mut Vec<UserBalanceChange>,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let LONG: U256 = U256::from(1_u8);
 			let SHORT: U256 = U256::from(2_u8);
 			let actual_execution_price: FixedI128;
 			let price_diff: FixedI128;
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			let block_number = block_number.saturated_into::<u64>();
 
 			let direction = if order.direction == Direction::Long { LONG } else { SHORT };
 			let position_details =
@@ -1253,18 +1216,20 @@ pub mod pallet {
 
 					if unused_balance.is_negative() {
 						// Complete funds lost by user should be taken from insurance fund
-						abnormal_close_orders.push(AbnormalCloseOrder::new(
+						insurance_fund_change.push(InsuranceFundChange::new(
 							FundModifyType::Decrease,
 							collateral_id,
 							amount_to_transfer_from,
+							block_number,
 						));
 					} else {
 						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
-						abnormal_close_orders.push(AbnormalCloseOrder::new(
+						insurance_fund_change.push(InsuranceFundChange::new(
 							FundModifyType::Decrease,
 							collateral_id,
 							amount_to_transfer_from - unused_balance,
+							block_number,
 						));
 					}
 				}
@@ -1276,10 +1241,12 @@ pub mod pallet {
 					amount_to_transfer_from + margin_amount_to_reduce,
 				);
 				balance_transfers.push(UserBalanceChange::new(
-					order.account_id,
+					Self::get_trading_account(&order.account_id),
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
 					FundModifyType::Decrease,
+					BalanceChangeReason::PnlRealization.into(),
+					block_number,
 				));
 			// To do - calculate PnL
 			} else {
@@ -1295,18 +1262,20 @@ pub mod pallet {
 							if balance.is_negative() {
 								// User balance is negative, so deduct funds
 								// from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder::new(
+								insurance_fund_change.push(InsuranceFundChange::new(
 									FundModifyType::Decrease,
 									collateral_id,
 									pnl.saturating_abs(),
+									block_number,
 								));
 							} else {
 								// User has some balance to cover losses, remaining
 								// should be taken from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder::new(
+								insurance_fund_change.push(InsuranceFundChange::new(
 									FundModifyType::Decrease,
 									collateral_id,
 									pnl.saturating_abs() - balance,
+									block_number,
 								));
 							}
 						}
@@ -1318,20 +1287,24 @@ pub mod pallet {
 							pnl.saturating_abs(),
 						);
 						balance_transfers.push(UserBalanceChange::new(
-							order.account_id,
+							Self::get_trading_account(&order.account_id),
 							collateral_id,
 							pnl.saturating_abs(),
 							FundModifyType::Decrease,
+							BalanceChangeReason::PnlRealization.into(),
+							block_number,
 						));
 					} else {
 						// User is in profit
 						// Transfer the profit to user
 						T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
 						balance_transfers.push(UserBalanceChange::new(
-							order.account_id,
+							Self::get_trading_account(&order.account_id),
 							collateral_id,
 							pnl,
 							FundModifyType::Increase,
+							BalanceChangeReason::PnlRealization.into(),
+							block_number,
 						))
 					}
 				} else {
@@ -1339,35 +1312,39 @@ pub mod pallet {
 						// if balance >= margin amount, deposit remaining margin in insurance
 						if margin_amount_to_reduce <= balance {
 							// Deposit margin_plus_pnl to insurance fund
-							abnormal_close_orders.push(AbnormalCloseOrder::new(
+							insurance_fund_change.push(InsuranceFundChange::new(
 								FundModifyType::Increase,
 								collateral_id,
 								margin_plus_pnl,
+								block_number,
 							));
 						} else {
 							if balance.is_negative() {
 								// Deduct margin_amount_to_reduce from insurance fund
-								abnormal_close_orders.push(AbnormalCloseOrder::new(
+								insurance_fund_change.push(InsuranceFundChange::new(
 									FundModifyType::Decrease,
 									collateral_id,
 									margin_plus_pnl,
+									block_number,
 								));
 							} else {
 								// if user has some balance
 								let pnl_abs = pnl.saturating_abs();
 								if balance <= pnl_abs {
 									// Deduct (pnl_abs -  balance) from insurance fund
-									abnormal_close_orders.push(AbnormalCloseOrder::new(
+									insurance_fund_change.push(InsuranceFundChange::new(
 										FundModifyType::Decrease,
 										collateral_id,
 										pnl_abs - balance,
+										block_number,
 									));
 								} else {
 									// Deposit (balance - pnl_abs) to insurance fund
-									abnormal_close_orders.push(AbnormalCloseOrder::new(
+									insurance_fund_change.push(InsuranceFundChange::new(
 										FundModifyType::Increase,
 										collateral_id,
 										balance - pnl_abs,
+										block_number,
 									));
 								}
 							}
@@ -1379,10 +1356,12 @@ pub mod pallet {
 							margin_amount_to_reduce,
 						);
 						balance_transfers.push(UserBalanceChange::new(
-							order.account_id,
+							Self::get_trading_account(&order.account_id),
 							collateral_id,
 							margin_amount_to_reduce,
 							FundModifyType::Decrease,
+							BalanceChangeReason::PnlRealization.into(),
+							block_number,
 						));
 					// To do - calculate PnL
 					} else {
@@ -1408,6 +1387,11 @@ pub mod pallet {
 					error_code: element.error_code,
 				});
 			}
+		}
+
+		fn get_trading_account(account_id: &U256) -> TradingAccountMinimal {
+			let trading_account = T::TradingAccountPallet::get_account(account_id).unwrap();
+			TradingAccountMinimal::new(trading_account.account_address, trading_account.index)
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {

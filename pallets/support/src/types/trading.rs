@@ -1,6 +1,7 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::common::{HashType,convert_to_u128_pair};
+use crate::types::common::{convert_to_u128_pair, HashType};
+use crate::types::trading_account::TradingAccountMinimal;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -50,7 +51,7 @@ pub struct ExecutedOrder {
 	pub opening_fee: FixedI128,
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum FundModifyType {
 	#[default]
 	Increase,
@@ -58,18 +59,21 @@ pub enum FundModifyType {
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct AbnormalCloseOrder {
-	pub order_type: FundModifyType,
+pub struct InsuranceFundChange {
+	pub modify_type: FundModifyType,
 	pub collateral_id: U256,
 	pub amount: FixedI128,
+	pub block_number: u64,
 }
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct UserBalanceChange {
-	pub account_id: U256,
+	pub account: TradingAccountMinimal,
 	pub collateral_id: U256,
 	pub amount: FixedI128,
 	pub modify_type: FundModifyType,
+	pub reason: u8,
+	pub block_number: u64,
 }
 
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -108,6 +112,13 @@ pub enum TimeInForce {
 	GTC,
 	IOC,
 	FOK,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum BalanceChangeReason {
+	#[default]
+	Fee,
+	PnlRealization,
 }
 
 // Position Related
@@ -193,24 +204,36 @@ impl From<TimeInForce> for u8 {
 	}
 }
 
-impl AbnormalCloseOrder {
+impl From<BalanceChangeReason> for u8 {
+	fn from(value: BalanceChangeReason) -> u8 {
+		match value {
+			BalanceChangeReason::Fee => 0_u8,
+			BalanceChangeReason::PnlRealization => 1_u8,
+		}
+	}
+}
+
+impl InsuranceFundChange {
 	pub fn new(
-		order_type: FundModifyType,
+		modify_type: FundModifyType,
 		collateral_id: U256,
 		amount: FixedI128,
-	) -> AbnormalCloseOrder {
-		AbnormalCloseOrder { order_type, collateral_id, amount }
+		block_number: u64,
+	) -> InsuranceFundChange {
+		InsuranceFundChange { modify_type, collateral_id, amount, block_number }
 	}
 }
 
 impl UserBalanceChange {
 	pub fn new(
-		account_id: U256,
+		account: TradingAccountMinimal,
 		collateral_id: U256,
 		amount: FixedI128,
 		modify_type: FundModifyType,
+		reason: u8,
+		block_number: u64,
 	) -> UserBalanceChange {
-		UserBalanceChange { account_id, collateral_id, amount, modify_type }
+		UserBalanceChange { account, collateral_id, amount, modify_type, reason, block_number }
 	}
 }
 
