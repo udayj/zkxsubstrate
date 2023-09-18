@@ -1,17 +1,15 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::common::{HashType,convert_to_u128_pair};
+use crate::types::common::{convert_to_u128_pair, HashType};
+use crate::types::trading_account::TradingAccountMinimal;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::traits::BlockNumberProvider;
 use sp_runtime::RuntimeDebug;
 use starknet_crypto::poseidon_hash_many;
 use starknet_ff::{FieldElement, FromByteSliceError};
-
-use super::TradingAccountMinimal;
 
 // Order related
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
