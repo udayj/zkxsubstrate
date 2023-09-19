@@ -56,8 +56,8 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - run: aws eks update-kubeconfig --region eu-north-1 --name dev
-    # - run: helm uninstall zkxl3-main -n zkxl3-stage
-    # - run: helm uninstall zkxl3-follower -n zkxl3-stage
+    - run: helm uninstall zkxl3-main -n zkxl3-stage
+    - run: helm uninstall zkxl3-follower -n zkxl3-stage
     - run: helm upgrade -i root .helm/root/ -f .helm/root/values.yml -n zkxl3-stage --set dockerhub_token=${{ secrets.DOCKERHUB_TOKEN_K8S }} --wait --atomic --timeout 600s --create-namespace
     - run: helm upgrade -i zkxl3-main .helm/l3/ -f .helm/l3/values-main-stage.yml -n zkxl3-stage --wait --atomic --timeout 600s
     - run: helm upgrade -i zkxl3-follower .helm/l3/ -f .helm/l3/values-follower-stage.yml -n zkxl3-stage --wait --atomic --timeout 600s
