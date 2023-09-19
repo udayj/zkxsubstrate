@@ -5121,6 +5121,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "starknet-crypto",
  "zkx-support",
 ]
 
