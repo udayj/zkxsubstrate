@@ -6,6 +6,7 @@ use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 use starknet_crypto::poseidon_hash_many;
@@ -83,14 +84,18 @@ pub enum OrderSide {
 	Taker,
 }
 
-#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Copy, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub enum Side {
 	#[default]
 	Buy,
 	Sell,
 }
 
-#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Copy, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub enum Direction {
 	#[default]
 	Long,
@@ -122,7 +127,9 @@ pub enum BalanceChangeReason {
 }
 
 // Position Related
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub struct Position {
 	pub direction: Direction,
 	pub side: Side,
