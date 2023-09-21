@@ -59,24 +59,6 @@ pub enum FundModifyType {
 	Decrease,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct InsuranceFundChange {
-	pub modify_type: FundModifyType,
-	pub collateral_id: U256,
-	pub amount: FixedI128,
-	pub block_number: u64,
-}
-
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct UserBalanceChange {
-	pub account: TradingAccountMinimal,
-	pub collateral_id: U256,
-	pub amount: FixedI128,
-	pub modify_type: FundModifyType,
-	pub reason: u8,
-	pub block_number: u64,
-}
-
 #[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderSide {
 	#[default]
@@ -217,30 +199,6 @@ impl From<BalanceChangeReason> for u8 {
 			BalanceChangeReason::Fee => 0_u8,
 			BalanceChangeReason::PnlRealization => 1_u8,
 		}
-	}
-}
-
-impl InsuranceFundChange {
-	pub fn new(
-		modify_type: FundModifyType,
-		collateral_id: U256,
-		amount: FixedI128,
-		block_number: u64,
-	) -> InsuranceFundChange {
-		InsuranceFundChange { modify_type, collateral_id, amount, block_number }
-	}
-}
-
-impl UserBalanceChange {
-	pub fn new(
-		account: TradingAccountMinimal,
-		collateral_id: U256,
-		amount: FixedI128,
-		modify_type: FundModifyType,
-		reason: u8,
-		block_number: u64,
-	) -> UserBalanceChange {
-		UserBalanceChange { account, collateral_id, amount, modify_type, reason, block_number }
 	}
 }
 
