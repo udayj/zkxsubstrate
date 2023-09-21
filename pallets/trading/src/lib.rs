@@ -58,7 +58,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
-	// k1 - account id, k2 - 2 element array [market id, 1(LONG)/2(SHORT)], v - position object
+	// k1 - account id, k2 - (market_id, direction), v - position object
 	pub(super) type PositionsMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
@@ -83,13 +83,13 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn initial_margin)]
-	// k1 - 2 element array [market id, 1(LONG)/2(SHORT)], v - initial margin locked
+	// k1 - (market_id, direction), v - initial margin locked
 	pub(super) type InitialMarginMap<T: Config> =
 		StorageMap<_, Twox64Concat, (U256, Direction), FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
-	// Here, key1 is account_id,  key2 is collateral_id and value is the LiquidatablePosition
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  LiquidatablePosition
 	pub(super) type DeleveragableOrLiquidatableMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
@@ -286,18 +286,18 @@ pub mod pallet {
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 
 			for element in &orders {
-				let mut margin_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut borrowed_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut avg_execution_price: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut execution_price: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut quantity_to_execute: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut user_available_balance: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut margin_lock_amount: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut new_position_size: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut new_leverage: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut new_margin_locked: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut new_portion_executed: FixedI128 = FixedI128::zero(); // To do - don't assign value
-				let mut new_liquidatable_position: LiquidatablePosition;
+				let margin_amount: FixedI128;
+				let borrowed_amount: FixedI128;
+				let avg_execution_price: FixedI128;
+				let execution_price: FixedI128;
+				let quantity_to_execute: FixedI128;
+				let user_available_balance: FixedI128;
+				let margin_lock_amount: FixedI128;
+				let new_position_size: FixedI128;
+				let new_leverage: FixedI128;
+				let new_margin_locked: FixedI128;
+				let mut new_portion_executed: FixedI128;
+				let new_liquidatable_position: LiquidatablePosition;
 				let realized_pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
 				let opening_fee: FixedI128;
@@ -506,7 +506,7 @@ pub mod pallet {
 							if element.order_id != orders[orders.len() - 1].order_id {
 								continue;
 							} else {
-								// if taker order, stop exe
+								// if taker order, stop execute_trade
 								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 								return Ok(());
 							}
@@ -610,9 +610,10 @@ pub mod pallet {
 					if (element.order_type == OrderType::Liquidation)
 						|| (element.order_type == OrderType::Deleveraging)
 					{
-						new_position_size = liq_position.amount_to_be_sold - quantity_to_execute;
+						let new_liq_position_size =
+							liq_position.amount_to_be_sold - quantity_to_execute;
 
-						if new_position_size == FixedI128::zero() {
+						if new_liq_position_size == FixedI128::zero() {
 							new_liquidatable_position = LiquidatablePosition {
 								market_id: 0.into(),
 								direction: Direction::Long,
@@ -623,7 +624,7 @@ pub mod pallet {
 							new_liquidatable_position = LiquidatablePosition {
 								market_id: liq_position.market_id,
 								direction: liq_position.direction,
-								amount_to_be_sold: new_position_size,
+								amount_to_be_sold: new_liq_position_size,
 								liquidatable: liq_position.liquidatable,
 							};
 						}
@@ -665,10 +666,10 @@ pub mod pallet {
 						if (liq_position.market_id == market_id)
 							&& (liq_position.direction == element.direction)
 						{
-							new_position_size =
+							let new_liq_position_size =
 								liq_position.amount_to_be_sold - quantity_to_execute;
 
-							if new_position_size == FixedI128::zero() {
+							if new_liq_position_size == FixedI128::zero() {
 								new_liquidatable_position = LiquidatablePosition {
 									market_id: 0.into(),
 									direction: Direction::Long,
@@ -679,7 +680,7 @@ pub mod pallet {
 								new_liquidatable_position = LiquidatablePosition {
 									market_id: liq_position.market_id,
 									direction: liq_position.direction,
-									amount_to_be_sold: new_position_size,
+									amount_to_be_sold: new_liq_position_size,
 									liquidatable: liq_position.liquidatable,
 								};
 							}
@@ -1043,9 +1044,9 @@ pub mod pallet {
 			market_id: U256,
 			collateral_id: U256,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
-			let mut margin_amount: FixedI128 = FixedI128::zero();
-			let mut borrowed_amount: FixedI128 = FixedI128::zero();
-			let mut average_execution_price: FixedI128 = execution_price;
+			let margin_amount: FixedI128;
+			let borrowed_amount: FixedI128;
+			let average_execution_price: FixedI128;
 			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			let position_details =
