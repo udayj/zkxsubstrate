@@ -29,9 +29,9 @@ fn setup() -> Vec<TradingAccountWithoutId> {
 }
 
 fn create_assets() -> Vec<Asset> {
-	let eth_id: U256 = 4543560.into();
-	let usdc_id: U256 = 1431520323.into();
-	let usdt_id: U256 = 1431520340.into();
+	let eth_id: u128 = 4543560;
+	let usdc_id: u128 = 1431520323;
+	let usdt_id: u128 = 1431520340;
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: eth_id,
@@ -102,7 +102,7 @@ fn test_add_accounts() {
 		assert_eq!(trading_accounts.get(0).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(0).unwrap().pub_key, trading_account.pub_key);
 
-		let usdc_id: U256 = 1431520323.into();
+		let usdc_id: u128 = 1431520323;
 		let expected_balance: FixedI128 = 10000.into();
 		let balance: FixedI128 =
 			TradingAccountModule::balances(trading_account.account_id, usdc_id);
@@ -136,7 +136,7 @@ fn test_add_balances_with_unknown_asset() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let usdt_id: U256 = 123.into();
+		let usdt_id: u128 = 123;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -168,7 +168,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let eth_id: U256 = 4543560.into();
+		let eth_id: u128 = 4543560;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -198,8 +198,8 @@ fn test_add_balances() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let usdc_id: U256 = 1431520323.into();
-		let usdt_id: U256 = 1431520340.into();
+		let usdc_id: u128 = 1431520323;
+		let usdt_id: u128 = 1431520340;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.

@@ -37,7 +37,7 @@ pub mod pallet {
 	/// Maps the Assets struct to the unique_id.
 	#[pallet::storage]
 	#[pallet::getter(fn assets)]
-	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, U256, Asset>;
+	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u128, Asset>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn default_collateral_asset)]
@@ -82,7 +82,7 @@ pub mod pallet {
 				ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
 				let name_string =
 					String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
-				let name_felt: U256 = name_string.as_str().to_felt_rep().into();
+				let name_felt: u128 = name_string.as_str().to_felt_rep();
 				ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
 
 				AssetMap::<T>::insert(element.id, element.clone());
@@ -97,11 +97,11 @@ pub mod pallet {
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
-		fn get_default_collateral() -> U256 {
-			1431520323_u32.into()
+		fn get_default_collateral() -> u128 {
+			1431520323_u128
 		}
 
-		fn get_asset(id: U256) -> Option<Asset> {
+		fn get_asset(id: u128) -> Option<Asset> {
 			let result = AssetMap::<T>::try_get(id);
 			match result {
 				Ok(result) => return Some(result),

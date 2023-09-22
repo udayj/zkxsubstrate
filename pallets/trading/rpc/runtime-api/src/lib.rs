@@ -8,6 +8,6 @@ use zkx_support::types::Position;
 // runtime file (the `runtime-api/src/lib.rs`)
 sp_api::decl_runtime_apis! {
 	pub trait TradingApi {
-		fn positions(account_id: U256, collateral_id: U256) -> Vec<Position>;
+		fn positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
 	}
 }

@@ -43,7 +43,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	}
 
 	fn try_append_asset(&mut self, asset: &Asset) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(asset.id)?;
+		self.push(FieldElement::from(asset.id));
 		self.append_bounded_vec(&asset.name);
 		self.append_bool(asset.is_tradable);
 		self.append_bool(asset.is_collateral);
@@ -53,9 +53,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	}
 
 	fn try_append_market(&mut self, market: &Market) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(market.id)?;
-		self.try_append_u256(market.asset)?;
-		self.try_append_u256(market.asset_collateral)?;
+		self.push(FieldElement::from(market.id));
+		self.push(FieldElement::from(market.asset));
+		self.push(FieldElement::from(market.asset_collateral));
 		self.append_bool(market.is_tradable);
 		self.append_bool(market.is_archived);
 		self.push(FieldElement::from(market.ttl));

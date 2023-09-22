@@ -51,7 +51,7 @@ pub mod pallet {
 		pub fn mark_under_collateralized_position(
 			origin: OriginFor<T>,
 			account_id: U256,
-			collateral_id: U256,
+			collateral_id: u128,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;

@@ -34,7 +34,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn market_price)]
 	pub(super) type MarketPricesMap<T: Config> =
-		StorageMap<_, Twox64Concat, U256, MarketPrice, ValueQuery>;
+		StorageMap<_, Twox64Concat, u128, MarketPrice, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -48,7 +48,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Market price was successfully updated
-		MarketPriceUpdated { market_id: U256, price: MarketPrice },
+		MarketPriceUpdated { market_id: u128, price: MarketPrice },
 
 		/// Multiple market prices were successfully updated
 		MultipleMarketPricesUpdated { market_prices: Vec<MultipleMarketPrices> },
@@ -97,7 +97,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> MarketPricesInterface for Pallet<T> {
-		fn get_market_price(market_id: U256) -> FixedI128 {
+		fn get_market_price(market_id: u128) -> FixedI128 {
 			let market_price = MarketPricesMap::<T>::get(market_id);
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
@@ -114,7 +114,7 @@ pub mod pallet {
 			}
 		}
 
-		fn update_market_price(market_id: U256, price: FixedI128) {
+		fn update_market_price(market_id: u128, price: FixedI128) {
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 

@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-use zkx_support::traits::TradingInterface;
 
 // #[cfg(test)]
 // mod mock;
@@ -64,7 +63,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		U256, // account_id
 		Blake2_128Concat,
-		(U256, Direction), // market_id and direction
+		(u128, Direction), // market_id and direction
 		Position,
 		ValueQuery,
 	>;
@@ -73,19 +72,19 @@ pub mod pallet {
 	#[pallet::getter(fn collateral_to_market)]
 	// k1 - account_id, k2 - collateral_id, v - vector of market ids
 	pub(super) type CollateralToMarketMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, Vec<u128>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
-		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn initial_margin)]
 	// k1 - (market_id, direction), v - initial margin locked
 	pub(super) type InitialMarginMap<T: Config> =
-		StorageMap<_, Twox64Concat, (U256, Direction), FixedI128, ValueQuery>;
+		StorageMap<_, Twox64Concat, (u128, Direction), FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
@@ -95,7 +94,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		U256,
 		Blake2_128Concat,
-		U256,
+		u128,
 		LiquidatablePosition,
 		ValueQuery,
 	>;
@@ -170,7 +169,7 @@ pub mod pallet {
 		/// Trade batch executed successfully
 		TradeExecuted {
 			batch_id: U256,
-			market_id: U256,
+			market_id: u128,
 			size: FixedI128,
 			execution_price: FixedI128,
 			direction: u8,
@@ -184,7 +183,7 @@ pub mod pallet {
 		OrderExecuted {
 			account_id: U256,
 			order_id: u128,
-			market_id: U256,
+			market_id: u128,
 			size: FixedI128,
 			direction: u8,
 			side: u8,
@@ -195,7 +194,7 @@ pub mod pallet {
 		},
 		/// Insurance fund updation event
 		InsuranceFundChange {
-			collateral_id: U256,
+			collateral_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
 			block_number: T::BlockNumber,
@@ -203,7 +202,7 @@ pub mod pallet {
 		/// User balance updation event
 		UserBalanceChange {
 			account: TradingAccountMinimal,
-			collateral_id: U256,
+			collateral_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
 			reason: u8,
@@ -220,7 +219,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			batch_id: U256,
 			quantity_locked: FixedI128,
-			market_id: U256,
+			market_id: u128,
 			oracle_price: FixedI128,
 			orders: Vec<Order>,
 		) -> DispatchResult {
@@ -250,7 +249,7 @@ pub mod pallet {
 				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
 			}
 
-			let collateral_id: U256 = market.asset_collateral;
+			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
 			ensure!(
@@ -544,6 +543,7 @@ pub mod pallet {
 					}
 
 					updated_position = Position {
+						market_id,
 						direction: element.direction,
 						side: element.side,
 						avg_execution_price,
@@ -615,7 +615,7 @@ pub mod pallet {
 
 						if new_liq_position_size == FixedI128::zero() {
 							new_liquidatable_position = LiquidatablePosition {
-								market_id: 0.into(),
+								market_id: 0,
 								direction: Direction::Long,
 								amount_to_be_sold: FixedI128::zero(),
 								liquidatable: false,
@@ -671,7 +671,7 @@ pub mod pallet {
 
 							if new_liq_position_size == FixedI128::zero() {
 								new_liquidatable_position = LiquidatablePosition {
-									market_id: 0.into(),
+									market_id: 0,
 									direction: Direction::Long,
 									amount_to_be_sold: FixedI128::zero(),
 									liquidatable: false,
@@ -723,6 +723,7 @@ pub mod pallet {
 							);
 						}
 						updated_position = Position {
+							market_id,
 							direction: element.direction,
 							side: element.side,
 							avg_execution_price: FixedI128::zero(),
@@ -736,6 +737,7 @@ pub mod pallet {
 						// To do - Calculate pnl
 
 						updated_position = Position {
+							market_id,
 							direction: element.direction,
 							side: element.side,
 							avg_execution_price,
@@ -833,8 +835,8 @@ pub mod pallet {
 		fn calculate_initial_taker_locked_size(
 			order: &Order,
 			quantity_locked: FixedI128,
-			market_id: U256,
-			collateral_id: U256,
+			market_id: u128,
+			collateral_id: u128,
 		) -> Result<FixedI128, Error<T>> {
 			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id);
 
@@ -861,7 +863,7 @@ pub mod pallet {
 
 		fn calculate_quantity_to_execute(
 			portion_executed: FixedI128,
-			market_id: U256,
+			market_id: u128,
 			position_details: &Position,
 			order: &Order,
 			liq_position: LiquidatablePosition,
@@ -1041,8 +1043,8 @@ pub mod pallet {
 			order_side: OrderSide,
 			execution_price: FixedI128,
 			oracle_price: FixedI128,
-			market_id: U256,
-			collateral_id: U256,
+			market_id: u128,
+			collateral_id: u128,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
@@ -1112,8 +1114,8 @@ pub mod pallet {
 			order: &Order,
 			order_size: FixedI128,
 			execution_price: FixedI128,
-			market_id: U256,
-			collateral_id: U256,
+			market_id: u128,
+			collateral_id: u128,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let actual_execution_price: FixedI128;
 			let price_diff: FixedI128;
@@ -1379,19 +1381,19 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingInterface for Pallet<T> {
-		fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256> {
+		fn get_markets_of_collateral(account_id: U256, collateral_id: u128) -> Vec<u128> {
 			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
 			markets
 		}
 
-		fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position {
+		fn get_position(account_id: U256, market_id: u128, direction: Direction) -> Position {
 			let position_details = PositionsMap::<T>::get(account_id, (market_id, direction));
 			position_details
 		}
 
 		fn liquidate_position(
 			account_id: U256,
-			collateral_id: U256,
+			collateral_id: u128,
 			position: &PositionDetailsForRiskManagement,
 			amount_to_be_sold: FixedI128,
 		) {
@@ -1421,12 +1423,12 @@ pub mod pallet {
 
 		fn get_deleveragable_or_liquidatable_position(
 			account_id: U256,
-			collateral_id: U256,
+			collateral_id: u128,
 		) -> LiquidatablePosition {
 			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_positions(account_id: U256, collateral_id: U256) -> Vec<Position> {
+		fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position> {
 			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
 			let mut pos_vec = Vec::<Position>::new();
 			for element in markets {

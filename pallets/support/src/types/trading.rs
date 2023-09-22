@@ -1,7 +1,6 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
-use crate::types::trading_account::TradingAccountMinimal;
 use codec::{Decode, Encode};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -17,7 +16,7 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 pub struct Order {
 	pub account_id: U256,
 	pub order_id: u128,
-	pub market_id: U256,
+	pub market_id: u128,
 	pub order_type: OrderType,
 	pub direction: Direction,
 	pub side: Side,
@@ -42,7 +41,7 @@ pub struct FailedOrder {
 pub struct ExecutedOrder {
 	pub account_id: U256,
 	pub order_id: u128,
-	pub market_id: U256,
+	pub market_id: u128,
 	pub size: FixedI128,
 	pub direction: Direction,
 	pub side: Side,
@@ -113,6 +112,7 @@ pub enum BalanceChangeReason {
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]
 pub struct Position {
+	pub market_id: u128,
 	pub direction: Direction,
 	pub side: Side,
 	pub avg_execution_price: FixedI128,
@@ -125,7 +125,7 @@ pub struct Position {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct PositionDetailsForRiskManagement {
-	pub market_id: U256,
+	pub market_id: u128,
 	pub direction: Direction,
 	pub avg_execution_price: FixedI128,
 	pub size: FixedI128,
@@ -136,7 +136,7 @@ pub struct PositionDetailsForRiskManagement {
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct LiquidatablePosition {
-	pub market_id: U256,
+	pub market_id: u128,
 	pub direction: Direction,
 	pub amount_to_be_sold: FixedI128,
 	pub liquidatable: bool,
@@ -146,7 +146,7 @@ pub struct LiquidatablePosition {
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ExecutedBatch {
 	batch_id: U256,
-	market_id: U256,
+	market_id: u128,
 	size: FixedI128,
 	execution_price: FixedI128,
 	direction: Direction,
@@ -216,7 +216,7 @@ impl Hashable for Order {
 
 		elements.push(FieldElement::from(self.order_id));
 
-		elements.push(self.market_id.try_to_felt()?);
+		elements.push(FieldElement::from(self.market_id));
 
 		elements.push(FieldElement::from(u8::from(self.order_type)));
 		elements.push(FieldElement::from(u8::from(self.direction)));

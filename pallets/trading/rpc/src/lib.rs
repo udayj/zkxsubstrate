@@ -18,7 +18,7 @@ pub trait TradingApi<BlockHash> {
 		&self,
 		at: Option<BlockHash>,
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
 	) -> RpcResult<Vec<Position>>;
 }
 
@@ -47,7 +47,7 @@ where
 		&self,
 		at: Option<<Block as BlockT>::Hash>,
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
