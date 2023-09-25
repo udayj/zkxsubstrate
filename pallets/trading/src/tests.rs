@@ -10,10 +10,10 @@ use zkx_support::types::{
 };
 
 fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
-	let ETH_ID: U256 = 4543560.into();
-	let USDC_ID: U256 = 1431520323.into();
-	let LINK_ID: U256 = 1279872587.into();
-	let BTC_ID: U256 = 4346947.into();
+	let ETH_ID: u128 = 4543560;
+	let USDC_ID: u128 = 1431520323;
+	let LINK_ID: u128 = 1279872587;
+	let BTC_ID: u128 = 4346947;
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: ETH_ID,
@@ -51,7 +51,7 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	let market1: Market = Market {
-		id: 1.into(),
+		id: 1,
 		asset: ETH_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: true,
@@ -73,7 +73,7 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		maximum_position_size: 1.into(),
 	};
 	let market2: Market = Market {
-		id: 2.into(),
+		id: 2,
 		asset: LINK_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: false,
@@ -223,8 +223,9 @@ fn it_works_for_open_trade_1() {
 
 		// System::assert_has_event(Event::OrderError { order_id: 12, error_code: 25 }.into());
 
-		let position1 = Trading::positions(account_id_1, [markets[0].id, U256::from(1_u8)]);
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
 		let expected_position: Position = Position {
+			market_id: markets[0].id,
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Long,
@@ -236,8 +237,9 @@ fn it_works_for_open_trade_1() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, [markets[0].id, U256::from(2_u8)]);
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		let expected_position: Position = Position {
+			market_id: markets[0].id,
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Short,
@@ -313,8 +315,9 @@ fn it_works_for_open_trade_2() {
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, [markets[0].id, U256::from(1_u8)]);
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
 		let expected_position: Position = Position {
+			market_id: markets[0].id,
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Long,
@@ -327,8 +330,9 @@ fn it_works_for_open_trade_2() {
 		assert_eq!(expected_position, position1);
 		println!("{:?}", position1);
 
-		let position2 = Trading::positions(account_id_2, [markets[0].id, U256::from(2_u8)]);
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		let expected_position: Position = Position {
+			market_id: markets[0].id,
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Short,
@@ -407,10 +411,10 @@ fn it_works_for_close_trade_1() {
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, [markets[0].id, U256::from(1_u8)]);
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
 		println!("{:?}", position1);
 
-		let position2 = Trading::positions(account_id_2, [markets[0].id, U256::from(2_u8)]);
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		println!("{:?}", position2);
 
 		// let usdc_id: U256 = 1431520323.into();
@@ -479,7 +483,7 @@ fn it_works_for_close_trade_1() {
 			orders
 		));
 
-		let usdc_id: U256 = 1431520323.into();
+		let usdc_id: u128 = 1431520323;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		println!("Balance {:?}", (balance_1));
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
