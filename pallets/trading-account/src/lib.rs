@@ -20,6 +20,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use sp_arithmetic::traits::Bounded;
+	use sp_arithmetic::traits::Zero;
 	use sp_io::hashing::blake2_256;
 	use zkx_support::traits::{
 		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
@@ -54,12 +55,6 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn account_presence)]
-	// Here, key is the account_id and value is the true/false
-	pub(super) type AccountPresenceMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn balances)]
 	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
@@ -82,6 +77,8 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Account already exists
 		DuplicateAccount,
+		/// Account does not exist
+		AccountDoesNotExist,
 		/// Asset not created
 		AssetNotFound,
 		/// Asset provided as collateral is not marked as collateral in the system
@@ -123,12 +120,8 @@ pub mod pallet {
 
 				account_id = blake2_256(&result).into();
 
-				// Check if the account exists in the presence storage map
-				ensure!(
-					!AccountPresenceMap::<T>::contains_key(account_id),
-					Error::<T>::DuplicateAccount
-				);
-				AccountPresenceMap::<T>::insert(account_id, true);
+				// Check if the account already exists
+				ensure!(!AccountMap::<T>::contains_key(account_id), Error::<T>::DuplicateAccount);
 				let trading_account: TradingAccount = TradingAccount {
 					account_id,
 					account_address: element.account_address,
@@ -163,11 +156,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
-			// Check if the account exists in the presence storage map
-			ensure!(
-				AccountPresenceMap::<T>::contains_key(account_id),
-				Error::<T>::DuplicateAccount
-			);
+			// Check if the account already exists
+			ensure!(AccountMap::<T>::contains_key(account_id), Error::<T>::AccountDoesNotExist);
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
@@ -184,6 +174,51 @@ pub mod pallet {
 				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
 			}
 
+			Self::deposit_event(Event::BalancesUpdated { account_id });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn deposit(
+			origin: OriginFor<T>,
+			account_address: U256,
+			index: u8,
+			pub_key: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			// Create trading account id
+			let mut account_array: [u8; 32] = [0; 32];
+			account_address.to_little_endian(&mut account_array);
+
+			let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+			concatenated_bytes.push(index);
+			let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
+
+			let account_id = blake2_256(&result).into();
+
+			// Check if the account already exists, if it doesn't exist then create an account
+			if !AccountMap::<T>::contains_key(&account_id) {
+				let trading_account: TradingAccount =
+					TradingAccount { account_id, account_address, index, pub_key };
+				AccountMap::<T>::insert(account_id, trading_account);
+			}
+
+			// Get the current balance
+			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+
+			// If the current balance is 0, then add collateral to the AccountCollateralsMap
+			if current_balance == FixedI128::zero() {
+				Self::add_collateral(account_id, collateral_id);
+			}
+
+			// Update the balance
+			BalancesMap::<T>::set(account_id, collateral_id, amount + current_balance);
+
+			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalancesUpdated { account_id });
 
 			Ok(())
@@ -421,7 +456,7 @@ pub mod pallet {
 		}
 
 		fn is_registered_user(account: U256) -> bool {
-			AccountPresenceMap::<T>::contains_key(&account)
+			AccountMap::<T>::contains_key(&account)
 		}
 
 		fn get_account(account_id: &U256) -> Option<TradingAccount> {
