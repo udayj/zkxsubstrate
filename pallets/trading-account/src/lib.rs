@@ -63,19 +63,19 @@ pub mod pallet {
 	#[pallet::getter(fn balances)]
 	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn locked_margin)]
 	// Here, key1 is account_id,  key2 is asset_id and value is the locked margin
 	pub(super) type LockedMarginMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, U256, FixedI128, ValueQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn account_collaterals)]
 	// Here, key1 is account_id and value is vector of collateral_ids
 	pub(super) type AccountCollateralsMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, U256, Vec<u128>, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -142,7 +142,7 @@ pub mod pallet {
 				// Add predefined balance for default collateral to the account
 				let default_collateral = T::AssetPallet::get_default_collateral();
 				BalancesMap::<T>::set(account_id, default_collateral, 10000.into());
-				let mut collaterals: Vec<U256> = Vec::new();
+				let mut collaterals: Vec<u128> = Vec::new();
 				collaterals.push(default_collateral);
 				AccountCollateralsMap::<T>::insert(account_id, collaterals);
 			}
@@ -192,7 +192,7 @@ pub mod pallet {
 
 	// Pallet internal functions
 	impl<T: Config> Pallet<T> {
-		fn add_collateral(account_id: U256, collateral_id: U256) {
+		fn add_collateral(account_id: U256, collateral_id: u128) {
 			let mut collaterals = AccountCollateralsMap::<T>::get(account_id);
 			for element in &collaterals {
 				if element == &collateral_id {
@@ -208,7 +208,7 @@ pub mod pallet {
 			position: &Position,
 			direction: Direction,
 			market_price: FixedI128,
-			market_id: U256,
+			market_id: u128,
 		) -> (FixedI128, FixedI128, FixedI128) {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 			let req_margin = market.maintenance_margin_fraction;
@@ -242,7 +242,7 @@ pub mod pallet {
 		fn calculate_margin_info(
 			account_id: U256,
 			new_position_maintanence_requirement: FixedI128,
-			markets: Vec<U256>,
+			markets: Vec<u128>,
 		) -> (FixedI128, FixedI128, FixedI128, PositionDetailsForRiskManagement, FixedI128) {
 			let mut unrealized_pnl_sum: FixedI128 = 0.into();
 			let mut maintenance_margin_requirement: FixedI128 =
@@ -250,7 +250,7 @@ pub mod pallet {
 			let mut least_collateral_ratio: FixedI128 = FixedI128::max_value();
 			let mut least_collateral_ratio_position: PositionDetailsForRiskManagement =
 				PositionDetailsForRiskManagement {
-					market_id: 0.into(),
+					market_id: 0,
 					direction: Direction::Long,
 					avg_execution_price: 0.into(),
 					size: 0.into(),
@@ -277,7 +277,7 @@ pub mod pallet {
 						0.into(),
 						1.into(),
 						PositionDetailsForRiskManagement {
-							market_id: 0.into(),
+							market_id: 0,
 							direction: Direction::Long,
 							avg_execution_price: 0.into(),
 							size: 0.into(),
@@ -390,31 +390,31 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: U256, asset_id: U256) -> FixedI128 {
+		fn get_balance(account: U256, asset_id: u128) -> FixedI128 {
 			BalancesMap::<T>::get(account, asset_id)
 		}
 
-		fn get_unused_balance(account: U256, asset_id: U256) -> FixedI128 {
+		fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128 {
 			let total_balance = BalancesMap::<T>::get(account, asset_id);
 			let locked_balance = LockedMarginMap::<T>::get(account, asset_id);
 			total_balance - locked_balance
 		}
 
-		fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128 {
+		fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128 {
 			LockedMarginMap::<T>::get(account, asset_id)
 		}
 
-		fn set_locked_margin(account: U256, asset_id: U256, new_amount: FixedI128) {
+		fn set_locked_margin(account: U256, asset_id: u128, new_amount: FixedI128) {
 			LockedMarginMap::<T>::set(account, asset_id, new_amount);
 		}
 
-		fn transfer(account: U256, asset_id: U256, amount: FixedI128) {
+		fn transfer(account: U256, asset_id: u128, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.add(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
 		}
 
-		fn transfer_from(account: U256, asset_id: U256, amount: FixedI128) {
+		fn transfer_from(account: U256, asset_id: u128, amount: FixedI128) {
 			let current_balance = BalancesMap::<T>::get(&account, asset_id);
 			let new_balance = current_balance.sub(amount);
 			BalancesMap::<T>::set(account, asset_id, new_balance);
@@ -436,7 +436,7 @@ pub mod pallet {
 
 		fn get_margin_info(
 			account_id: U256,
-			collateral_id: U256,
+			collateral_id: u128,
 			new_position_maintanence_requirement: FixedI128,
 			new_position_margin: FixedI128,
 		) -> (
@@ -450,7 +450,7 @@ pub mod pallet {
 			FixedI128,
 		) {
 			// Get markets corresponding of the collateral
-			let markets: Vec<U256> =
+			let markets: Vec<u128> =
 				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
 
 			// Get balance for the given collateral
@@ -469,7 +469,7 @@ pub mod pallet {
 					0.into(),           // maintenance_margin_requirement
 					0.into(),           // least_collateral_ratio
 					PositionDetailsForRiskManagement {
-						market_id: 0.into(),
+						market_id: 0,
 						direction: Direction::Long,
 						avg_execution_price: 0.into(),
 						size: 0.into(),
@@ -501,7 +501,7 @@ pub mod pallet {
 					0.into(),           // maintenance_margin_requirement
 					0.into(),           // least_collateral_ratio
 					PositionDetailsForRiskManagement {
-						market_id: 0.into(),
+						market_id: 0,
 						direction: Direction::Long,
 						avg_execution_price: 0.into(),
 						size: 0.into(),

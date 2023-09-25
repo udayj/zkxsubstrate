@@ -4,10 +4,10 @@ use primitive_types::U256;
 use zkx_support::types::{Asset, Market};
 
 fn setup() -> (Market, Market) {
-	let ETH_ID: U256 = 4543560.into();
-	let USDC_ID: U256 = 1431520323.into();
-	let LINK_ID: U256 = 1279872587.into();
-	let BTC_ID: U256 = 4346947.into();
+	let ETH_ID: u128 = 4543560;
+	let USDC_ID: u128 = 1431520323;
+	let LINK_ID: u128 = 1279872587;
+	let BTC_ID: u128 = 4346947;
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: ETH_ID,
@@ -45,7 +45,7 @@ fn setup() -> (Market, Market) {
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	let market1: Market = Market {
-		id: 1.into(),
+		id: 1,
 		asset: ETH_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: true,
@@ -67,7 +67,7 @@ fn setup() -> (Market, Market) {
 		maximum_position_size: 1.into(),
 	};
 	let market2: Market = Market {
-		id: 2.into(),
+		id: 2,
 		asset: LINK_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: false,
@@ -102,7 +102,7 @@ fn it_works_for_replace_markets() {
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
 		assert_eq!(MarketModule::markets_count(), 1);
-		let market_storage = MarketModule::markets(U256::from(1_u8));
+		let market_storage = MarketModule::markets(1);
 		assert_eq!(market_storage.unwrap(), market1);
 
 		// Assert that the correct event was deposited
@@ -121,9 +121,9 @@ fn it_works_for_replace_markets_multiple_markets() {
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
 		assert_eq!(MarketModule::markets_count(), 2);
-		let market_storage1 = MarketModule::markets(U256::from(1_u8));
+		let market_storage1 = MarketModule::markets(1);
 		assert_eq!(market_storage1.unwrap(), market1);
-		let market_storage2 = MarketModule::markets(U256::from(2_u8));
+		let market_storage2 = MarketModule::markets(2);
 		assert_eq!(market_storage2.unwrap(), market2);
 	});
 }
@@ -148,7 +148,7 @@ fn it_does_not_work_for_replace_markets_zero_id() {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { id: 0.into(), ..market1 };
+		let market: Market = Market { id: 0, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -162,7 +162,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset() {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { asset: 12345678.into(), ..market1 };
+		let market: Market = Market { asset: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -176,7 +176,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { asset_collateral: 12345678.into(), ..market1 };
+		let market: Market = Market { asset_collateral: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -187,7 +187,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 #[should_panic(expected = "AssetNotCollateral")]
 fn it_does_not_work_for_replace_markets_not_collateral() {
 	new_test_ext().execute_with(|| {
-		let LINK_ID: U256 = 1279872587.into();
+		let LINK_ID: u128 = 1279872587;
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);

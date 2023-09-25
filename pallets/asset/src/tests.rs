@@ -4,10 +4,10 @@ use primitive_types::U256;
 use zkx_support::types::Asset;
 
 fn setup() -> (Asset, Asset, Asset, Asset) {
-	let ETH_ID: U256 = 4543560.into();
-	let USDC_ID: U256 = 1431520323.into();
-	let LINK_ID: U256 = 1279872587.into();
-	let BTC_ID: U256 = 4346947.into();
+	let ETH_ID: u128 = 4543560;
+	let USDC_ID: u128 = 1431520323;
+	let LINK_ID: u128 = 1279872587;
+	let BTC_ID: u128 = 4346947;
 
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
@@ -47,7 +47,7 @@ fn setup() -> (Asset, Asset, Asset, Asset) {
 #[test]
 fn it_works_for_replace_assets() {
 	new_test_ext().execute_with(|| {
-		let ETH_ID: U256 = 4543560.into();
+		let ETH_ID: u128 = 4543560;
 		let (asset1, _, _, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -67,9 +67,9 @@ fn it_works_for_replace_assets() {
 #[test]
 fn it_works_for_replace_assets_multiple_assets() {
 	new_test_ext().execute_with(|| {
-		let ETH_ID: U256 = 4543560.into();
-		let USDC_ID: U256 = 1431520323.into();
-		let LINK_ID: U256 = 1279872587.into();
+		let ETH_ID: u128 = 4543560;
+		let USDC_ID: u128 = 1431520323;
+		let LINK_ID: u128 = 1279872587;
 		let (asset1, asset2, asset3, asset4) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -99,7 +99,7 @@ fn it_works_for_replace_assets_multiple_assets() {
 #[should_panic(expected = "DuplicateAsset")]
 fn it_does_not_work_for_replace_assets_duplicate() {
 	new_test_ext().execute_with(|| {
-		let ETH_ID: U256 = 4543560.into();
+		let ETH_ID: u128 = 4543560;
 		let (asset1, _, _, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -121,7 +121,7 @@ fn it_does_not_work_for_replace_assets_duplicate() {
 #[should_panic(expected = "InvalidAsset")]
 fn it_does_not_work_for_replace_assets_invalid_id() {
 	new_test_ext().execute_with(|| {
-		let ETH_ID: U256 = 4543560.into();
+		let ETH_ID: u128 = 4543560;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -142,7 +142,7 @@ fn it_does_not_work_for_replace_assets_invalid_id() {
 #[should_panic(expected = "InvalidAsset")]
 fn it_does_not_work_for_replace_assets_invalid_decimal() {
 	new_test_ext().execute_with(|| {
-		let ETH_ID: U256 = 4543560.into();
+		let ETH_ID: u128 = 4543560;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.

@@ -395,7 +395,7 @@ mod benches {
 
 impl_runtime_apis! {
 	impl pallet_trading_runtime_api::TradingApi<Block> for Runtime {
-		fn positions(account_id: U256, collateral_id: U256) -> Vec<Position> {
+		fn positions(account_id: U256, collateral_id: u128) -> Vec<Position> {
 			Trading::get_positions(account_id, collateral_id)
 		}
 	}

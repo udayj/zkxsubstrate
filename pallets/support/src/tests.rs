@@ -1,6 +1,8 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce, convert_to_u128_pair};
+use crate::types::{
+	convert_to_u128_pair, Direction, HashType, Order, OrderType, Side, TimeInForce,
+};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -97,7 +99,7 @@ fn test_order_signature() {
 	let order = Order {
 		account_id: U256::from_dec_str("100").unwrap(),
 		order_id: 200_u128,
-		market_id: U256::from_dec_str("300").unwrap(),
+		market_id: 300_u128,
 		order_type: OrderType::Market,
 		direction: Direction::Long,
 		side: Side::Buy,

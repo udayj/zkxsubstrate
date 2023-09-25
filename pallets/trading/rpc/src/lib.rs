@@ -16,9 +16,9 @@ pub trait TradingApi<BlockHash> {
 	#[method(name = "trading_get_positions")]
 	fn positions(
 		&self,
-		at: Option<BlockHash>,
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
+		at: Option<BlockHash>,
 	) -> RpcResult<Vec<Position>>;
 }
 
@@ -45,18 +45,14 @@ where
 {
 	fn positions(
 		&self,
-		at: Option<<Block as BlockT>::Hash>,
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
+		at: Option<<Block as BlockT>::Hash>,
 	) -> RpcResult<Vec<Position>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-		let positions = api
-			.positions(at, account_id, collateral_id)
-			.map_err(runtime_error_into_rpc_err)
-			.unwrap();
-		Ok(positions)
+		api.positions(at, account_id, collateral_id).map_err(runtime_error_into_rpc_err)
 	}
 }
 

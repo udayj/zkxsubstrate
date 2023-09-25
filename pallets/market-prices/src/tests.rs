@@ -5,9 +5,9 @@ use sp_arithmetic::FixedI128;
 use zkx_support::types::{Asset, Market, MarketPrice, MultipleMarketPrices};
 
 fn setup() -> (Market, Market) {
-	let eth_id: U256 = 4543560.into();
-	let usdc_id: U256 = 1431520323.into();
-	let link_id: U256 = 1279872587.into();
+	let eth_id: u128 = 4543560;
+	let usdc_id: u128 = 1431520323;
+	let link_id: u128 = 1279872587;
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: eth_id,
@@ -36,7 +36,7 @@ fn setup() -> (Market, Market) {
 	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	let market1: Market = Market {
-		id: 1.into(),
+		id: 1,
 		asset: eth_id,
 		asset_collateral: usdc_id,
 		is_tradable: true,
@@ -58,7 +58,7 @@ fn setup() -> (Market, Market) {
 		maximum_position_size: 1.into(),
 	};
 	let market2: Market = Market {
-		id: 2.into(),
+		id: 2,
 		asset: link_id,
 		asset_collateral: usdc_id,
 		is_tradable: false,
@@ -93,7 +93,7 @@ fn test_update_multiple_market_prices_with_invalid_market_id() {
 		let markets: Vec<Market> = vec![market1.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: 0.into(), price: 1000.into() };
+		let market_price1 = MultipleMarketPrices { market_id: 0, price: 1000.into() };
 		market_prices.push(market_price1);
 
 		assert_ok!(MarketPricesModule::update_multiple_market_prices(

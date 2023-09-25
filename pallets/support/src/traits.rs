@@ -12,17 +12,17 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
 	fn is_registered_user(account: U256) -> bool;
-	fn get_balance(account: U256, asset_id: U256) -> FixedI128;
-	fn get_unused_balance(account: U256, asset_id: U256) -> FixedI128;
-	fn get_locked_margin(account: U256, asset_id: U256) -> FixedI128;
-	fn set_locked_margin(account: U256, asset_id: U256, amount: FixedI128);
-	fn transfer(account: U256, asset_id: U256, amount: FixedI128);
-	fn transfer_from(account: U256, asset_id: U256, amount: FixedI128);
+	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
+	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
+	fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128;
+	fn set_locked_margin(account: U256, asset_id: u128, amount: FixedI128);
+	fn transfer(account: U256, asset_id: u128, amount: FixedI128);
+	fn transfer_from(account: U256, asset_id: u128, amount: FixedI128);
 	fn get_account(account_id: &U256) -> Option<TradingAccount>;
 	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
 		new_position_maintanence_requirement: FixedI128,
 		new_position_margin: FixedI128,
 	) -> (
@@ -38,24 +38,24 @@ pub trait TradingAccountInterface {
 }
 
 pub trait TradingInterface {
-	fn get_markets_of_collateral(account_id: U256, collateral_id: U256) -> Vec<U256>;
-	fn get_position(account_id: U256, market_id: U256, direction: Direction) -> Position;
-	fn get_positions(account_id: U256, collateral_id: U256) -> Vec<Position>;
+	fn get_markets_of_collateral(account_id: U256, collateral_id: u128) -> Vec<u128>;
+	fn get_position(account_id: U256, market_id: u128, direction: Direction) -> Position;
+	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
 	fn liquidate_position(
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
 		position: &PositionDetailsForRiskManagement,
 		amount_to_be_sold: FixedI128,
 	);
 	fn get_deleveragable_or_liquidatable_position(
 		account_id: U256,
-		collateral_id: U256,
+		collateral_id: u128,
 	) -> LiquidatablePosition;
 }
 
 pub trait AssetInterface {
-	fn get_default_collateral() -> U256;
-	fn get_asset(id: U256) -> Option<Asset>;
+	fn get_default_collateral() -> u128;
+	fn get_asset(id: u128) -> Option<Asset>;
 }
 
 pub trait RiskManagementInterface {
@@ -69,12 +69,12 @@ pub trait RiskManagementInterface {
 }
 
 pub trait MarketInterface {
-	fn get_market(id: U256) -> Option<Market>;
+	fn get_market(id: u128) -> Option<Market>;
 }
 
 pub trait MarketPricesInterface {
-	fn get_market_price(market_id: U256) -> FixedI128;
-	fn update_market_price(market_id: U256, price: FixedI128);
+	fn get_market_price(market_id: u128) -> FixedI128;
+	fn update_market_price(market_id: u128, price: FixedI128);
 }
 
 pub trait FixedI128Ext {
