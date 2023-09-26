@@ -191,6 +191,7 @@ pub mod pallet {
 			execution_price: FixedI128,
 			pnl: FixedI128,
 			opening_fee: FixedI128,
+			is_final: bool,
 		},
 		/// Insurance fund updation event
 		InsuranceFundChange {
@@ -469,6 +470,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
+				let mut is_final: bool = false;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -749,7 +751,6 @@ pub mod pallet {
 						};
 					}
 
-					let is_final: bool;
 					if element.time_in_force == TimeInForce::IOC {
 						new_portion_executed = element.size;
 						is_final = true;
@@ -800,6 +801,7 @@ pub mod pallet {
 					execution_price,
 					pnl: realized_pnl,
 					opening_fee,
+					is_final,
 				});
 			}
 

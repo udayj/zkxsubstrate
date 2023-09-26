@@ -22,14 +22,17 @@ pub mod pallet {
 	use sp_arithmetic::traits::Bounded;
 	use sp_arithmetic::traits::Zero;
 	use sp_io::hashing::blake2_256;
+	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
-		TradingInterface,
+		AssetInterface, Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		TradingInterface, U256Ext,
 	};
+	use zkx_support::types::WithdrawalRequest;
 	use zkx_support::types::{
 		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
 		TradingAccountWithoutId,
 	};
+	use zkx_support::{ecdsa_verify, Signature};
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -83,6 +86,18 @@ pub mod pallet {
 		AssetNotFound,
 		/// Asset provided as collateral is not marked as collateral in the system
 		AssetNotCollateral,
+		/// Withdrawal amount is less than available balance
+		InsufficientBalance,
+		/// Invalid withdrawal request hash - withdrawal request could not be hashed into a Field Element
+		InvalidWithdrawalRequestHash,
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		InvalidSignatureFelt,
+		/// ECDSA Signature could not be verified
+		InvalidSignature,
+		/// Public Key not found for account id
+		NoPublicKeyFound,
+		/// Invalid public key - publickey u256 could not be converted to Field Element
+		InvalidPublicKey,
 	}
 
 	#[pallet::event]
@@ -91,7 +106,14 @@ pub mod pallet {
 		/// Several accounts added
 		AccountsAdded { length: u128 },
 		/// Balances for an account updated
-		BalancesUpdated { account_id: U256 },
+		BalanceUpdated {
+			account_id: U256,
+			collateral_id: u128,
+			previous_balance: FixedI128,
+			new_balance: FixedI128,
+		},
+		/// Account created
+		AccountCreated { account_id: U256, account_address: U256, index: u8 },
 	}
 
 	#[pallet::call]
@@ -172,9 +194,14 @@ pub mod pallet {
 				}
 				// Update the map with new balance
 				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
-			}
 
-			Self::deposit_event(Event::BalancesUpdated { account_id });
+				Self::deposit_event(Event::BalanceUpdated {
+					account_id,
+					collateral_id: element.asset_id,
+					previous_balance: current_balance,
+					new_balance: element.balance_value,
+				});
+			}
 
 			Ok(())
 		}
@@ -205,6 +232,7 @@ pub mod pallet {
 				let trading_account: TradingAccount =
 					TradingAccount { account_id, account_address, index, pub_key };
 				AccountMap::<T>::insert(account_id, trading_account);
+				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
 			}
 
 			// Get the current balance
@@ -219,7 +247,53 @@ pub mod pallet {
 			BalancesMap::<T>::set(account_id, collateral_id, amount + current_balance);
 
 			// BalanceUpdated event is emitted
-			Self::deposit_event(Event::BalancesUpdated { account_id });
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id,
+				collateral_id,
+				previous_balance: current_balance,
+				new_balance: amount + current_balance,
+			});
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn withdraw(
+			origin: OriginFor<T>,
+			withdrawal_request: WithdrawalRequest,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			// Check if the account already exists
+			ensure!(
+				AccountMap::<T>::contains_key(withdrawal_request.account_id),
+				Error::<T>::AccountDoesNotExist
+			);
+
+			let _ = Self::verify_signature(&withdrawal_request);
+
+			// Get the current balance
+			let current_balance: FixedI128 = BalancesMap::<T>::get(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+			);
+
+			ensure!(withdrawal_request.amount <= current_balance, Error::<T>::InsufficientBalance);
+
+			// Update the balance
+			BalancesMap::<T>::set(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+				current_balance - withdrawal_request.amount,
+			);
+
+			// BalanceUpdated event is emitted
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id: withdrawal_request.account_id,
+				collateral_id: withdrawal_request.collateral_id,
+				previous_balance: current_balance,
+				new_balance: current_balance - withdrawal_request.amount,
+			});
 
 			Ok(())
 		}
@@ -421,6 +495,41 @@ pub mod pallet {
 				least_collateral_ratio_position,
 				least_collateral_ratio_position_asset_price,
 			);
+		}
+
+		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
+			// Signature validation
+			let sig_felt =
+				sig_u256_to_sig_felt(&withdrawal_request.sig_r, &withdrawal_request.sig_s);
+
+			// Sig_r and/or Sig_s could not be converted to FieldElement
+			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+
+			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
+
+			let withdrawal_request_hash = withdrawal_request.hash(&withdrawal_request.hash_type);
+
+			// withdrawal_request could not be hashed
+			ensure!(withdrawal_request_hash.is_ok(), Error::<T>::InvalidWithdrawalRequestHash);
+
+			let public_key = Self::get_public_key(&withdrawal_request.account_id);
+
+			// Public key not found for this account_id
+			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
+
+			let public_key_felt = public_key.unwrap().try_to_felt();
+
+			// Public Key U256 could not be converted to FieldElement
+			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
+
+			let verification =
+				ecdsa_verify(&public_key_felt.unwrap(), &withdrawal_request_hash.unwrap(), &sig);
+
+			// Signature verification returned error or false
+			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
+
+			Ok(())
 		}
 	}
 
