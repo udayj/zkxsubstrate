@@ -217,6 +217,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
+			// Validate that the asset exists and it is a collateral
+			let asset_collateral = T::AssetPallet::get_asset(collateral_id);
+			ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+			ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+
 			// Create trading account id
 			let mut account_array: [u8; 32] = [0; 32];
 			account_address.to_little_endian(&mut account_array);
@@ -236,22 +241,23 @@ pub mod pallet {
 			}
 
 			// Get the current balance
-			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+			let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
 
 			// If the current balance is 0, then add collateral to the AccountCollateralsMap
 			if current_balance == FixedI128::zero() {
 				Self::add_collateral(account_id, collateral_id);
 			}
 
+			let new_balance: FixedI128 = amount + current_balance;
 			// Update the balance
-			BalancesMap::<T>::set(account_id, collateral_id, amount + current_balance);
+			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
 
 			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalanceUpdated {
 				account_id,
 				collateral_id,
 				previous_balance: current_balance,
-				new_balance: amount + current_balance,
+				new_balance,
 			});
 
 			Ok(())
