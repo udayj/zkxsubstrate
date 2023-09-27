@@ -9,6 +9,12 @@ use zkx_support::types::{
 	TimeInForce, TradingAccountWithoutId,
 };
 
+const order_id_1: u128 = 200_u128;
+const order_id_2: u128 = 201_u128;
+const order_id_3: u128 = 202_u128;
+const order_id_4: u128 = 203_u128;
+const order_id_5: u128 = 204_u128;
+
 fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	let ETH_ID: u128 = 4543560;
 	let USDC_ID: u128 = 1431520323;
@@ -118,6 +124,26 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	.unwrap();
 	let user_address_2: U256 = U256::from(101_u8);
 
+	let user_pub_key_3: U256 = U256::from_dec_str(
+		"1927799101328918885926814969993421873905724180750168745093131010179897850144",
+	)
+	.unwrap();
+	let user_pri_key_3: U256 = U256::from_dec_str(
+		"3388506857955987752046415916181604993164423072000548640801744803879383940670",
+	)
+	.unwrap();
+	let user_address_3: U256 = U256::from(102_u8);
+
+	let user_pub_key_4: U256 = U256::from_dec_str(
+		"824120678599933675767871867465569325984720238047137957464936400424120564339",
+	)
+	.unwrap();
+	let user_pri_key_4: U256 = U256::from_dec_str(
+		"84035867551811388210596922086133550045728262314839423570645036080104955628",
+	)
+	.unwrap();
+	let user_address_4: U256 = U256::from(103_u8);
+
 	let user_1 = TradingAccountWithoutId {
 		account_address: user_address_1,
 		index: 0,
@@ -128,10 +154,21 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		index: 0,
 		pub_key: user_pub_key_2,
 	};
-	let accounts: Vec<TradingAccountWithoutId> = vec![user_1, user_2];
+	let user_3 = TradingAccountWithoutId {
+		account_address: user_address_3,
+		index: 0,
+		pub_key: user_pub_key_3,
+	};
+	let user_4 = TradingAccountWithoutId {
+		account_address: user_address_4,
+		index: 0,
+		pub_key: user_pub_key_4,
+	};
+	let accounts: Vec<TradingAccountWithoutId> = vec![user_1, user_2, user_3, user_4];
 	assert_ok!(TradingAccounts::add_accounts(RuntimeOrigin::signed(1), accounts.clone()));
 
-	let private_keys: Vec<U256> = vec![user_pri_key_1, user_pri_key_2];
+	let private_keys: Vec<U256> =
+		vec![user_pri_key_1, user_pri_key_2, user_pri_key_3, user_pri_key_4];
 
 	(markets, accounts, private_keys)
 }
@@ -161,11 +198,8 @@ fn sign_order(order: Order, private_key: U256) -> Order {
 
 #[test]
 // basic open trade without any leverage
-fn it_works_for_open_trade_1() {
+fn it_works_for_open_trade_simple() {
 	new_test_ext().execute_with(|| {
-		let order_id_1 = 200_u128;
-		let order_id_2 = 201_u128;
-
 		let (markets, accounts, private_keys) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -255,11 +289,8 @@ fn it_works_for_open_trade_1() {
 
 #[test]
 // basic open trade with leverage
-fn it_works_for_open_trade_2() {
+fn it_works_for_open_trade_with_leverage() {
 	new_test_ext().execute_with(|| {
-		let order_id_1 = 200_u128;
-		let order_id_2 = 201_u128;
-
 		let (markets, accounts, private_keys) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -328,7 +359,6 @@ fn it_works_for_open_trade_2() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position1);
-		println!("{:?}", position1);
 
 		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		let expected_position: Position = Position {
@@ -343,19 +373,13 @@ fn it_works_for_open_trade_2() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position2);
-		println!("{:?}", position2);
 	});
 }
 
 #[test]
 // basic open and close trade without any leverage
-fn it_works_for_close_trade_1() {
+fn it_works_for_close_trade_simple() {
 	new_test_ext().execute_with(|| {
-		let order_id_1 = 200_u128;
-		let order_id_2 = 201_u128;
-		let order_id_3 = 202_u128;
-		let order_id_4 = 203_u128;
-
 		let (markets, accounts, private_keys) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -411,32 +435,9 @@ fn it_works_for_close_trade_1() {
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
-		println!("{:?}", position1);
-
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
-		println!("{:?}", position2);
-
-		// let usdc_id: U256 = 1431520323.into();
-		// let user_id_1 = TradingAccounts::accounts(0).unwrap().account_id;
-		// let user_id_2 = TradingAccounts::accounts(1).unwrap().account_id;
-		// println!("Users {:?} {:?}", user_id_1, user_id_2);
-		// let balance_1 = TradingAccounts::balances(user_id_1, usdc_id);
-		// println!("Balance {:?}", (balance_1));
-		// let balance_2 = TradingAccounts::balances(user_id_2, usdc_id);
-		// println!("Balance {:?}", (balance_2));
-		// let locked_1 = TradingAccounts::locked_margin(user_id_1, usdc_id);
-		// println!("Locked margin {:?}", (locked_1));
-		// let locked_2 = TradingAccounts::locked_margin(user_id_2, usdc_id);
-		// println!("Locked margin {:?}", (locked_2));
-		// let portion = Trading::portion_executed(order_id_3);
-		// println!("Portion executed {:?}", (portion));
-		// let portion1 = Trading::portion_executed(order_id_4);
-		// println!("Portion executed {:?}", (portion1));
-
 		// Close orders
 		let order_3 = Order {
-			account_id: account_id_2,
+			account_id: account_id_1,
 			order_id: order_id_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
@@ -485,10 +486,473 @@ fn it_works_for_close_trade_1() {
 
 		let usdc_id: u128 = 1431520323;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
-		println!("Balance {:?}", (balance_1));
+		assert_eq!(balance_1, 10005.into());
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
-		println!("Balance {:?}", (balance_2));
+		assert_eq!(balance_2, 9995.into());
 		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
-		println!("Locked margin {:?}", (locked_1));
+		assert_eq!(locked_1, 0.into());
+
+		// let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
+		// println!("Events: {:?}", event_record);
+	});
+}
+
+#[test]
+// partially open position by executing in different batches
+fn it_works_for_open_trade_partial_open() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2.clone()];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 98.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			98.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 99.into(),
+			size: 2.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 198.into(),
+			borrowed_amount: 0.into(),
+			leverage: 1.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+	});
+}
+
+#[test]
+// partially close position by executing in different batches
+fn it_works_for_close_trade_partial_close() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2.clone()];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			2.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 104.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4.clone()];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			105.into(),
+			orders
+		));
+
+		let order_5 = Order {
+			account_id: account_id_1,
+			order_id: order_id_5,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 98.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_5 = sign_order(order_5, private_keys[0]);
+		let orders: Vec<Order> = vec![order_5, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(3_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_1, 9998.into());
+	});
+}
+
+#[test]
+// trade batch with multiple makers and a taker
+fn it_works_for_open_trade_multiple_makers() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+		let account_id_3: U256 = get_trading_account_id(accounts.clone(), 2);
+		let account_id_4: U256 = get_trading_account_id(accounts.clone(), 3);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 105.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 99.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_3 = Order {
+			account_id: account_id_3,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 104.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_4,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 3.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let order_3 = sign_order(order_3, private_keys[2]);
+		let order_4 = sign_order(order_4, private_keys[3]);
+		let orders: Vec<Order> = vec![order_1, order_2, order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			3.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
+		println!("Events: {:?}", event_record);
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+// trade batch with previously executed batch_id
+fn it_reverts_for_trade_with_same_batch_id() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 2.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			2.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: 10.into(),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
 	});
 }
