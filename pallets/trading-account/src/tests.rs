@@ -320,29 +320,20 @@ fn test_deposit() {
 		let trading_account: TradingAccount =
 			TradingAccountModule::accounts(trading_account_id).unwrap();
 
-		let balance = TradingAccountModule::balances(trading_account.account_id, usdc_id);
-		println!("balance:{}", balance);
-		println!("account_id:{:?}", trading_account.account_id);
-		println!("account_id:{:?}", trading_account_id);
-		println!("index:{:?}", trading_account.index);
-		println!("pub_key:{:?}", trading_account.pub_key);
-
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::deposit(
 			RuntimeOrigin::signed(1),
-			trading_account.account_id,
+			trading_account.account_address,
 			trading_account.index,
 			trading_account.pub_key,
 			usdc_id,
 			1000.into(),
 		));
 
-		let balance = TradingAccountModule::balances(trading_account.account_id, usdc_id);
-		println!("balance:{}", balance);
-		// assert_eq!(
-		// 	TradingAccountModule::balances(trading_account.account_id, usdc_id),
-		// 	11000.into()
-		// );
+		assert_eq!(
+			TradingAccountModule::balances(trading_account.account_id, usdc_id),
+			11000.into()
+		);
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
 		println!("Events: {:?}", event_record);
 	});

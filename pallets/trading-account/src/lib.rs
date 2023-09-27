@@ -153,6 +153,11 @@ pub mod pallet {
 
 				AccountMap::<T>::insert(account_id, trading_account);
 				current_length += 1;
+				Self::deposit_event(Event::AccountCreated {
+					account_id,
+					account_address: element.account_address,
+					index: element.index,
+				});
 
 				// Add predefined balance for default collateral to the account
 				let default_collateral = T::AssetPallet::get_default_collateral();
