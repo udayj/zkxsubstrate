@@ -22,7 +22,7 @@ pub fn convert_to_u128_pair(
 	Ok((low_bytes_felt, high_bytes_felt))
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo, Eq)]
 pub enum HashType {
 	#[default]
 	Pedersen,

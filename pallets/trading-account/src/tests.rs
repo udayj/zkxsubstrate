@@ -239,3 +239,102 @@ fn test_add_balances() {
 		);
 	});
 }
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_deposit_with_asset_not_marked_as_collateral() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let usdt_id: u128 = 123;
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			trading_account.account_id,
+			trading_account.index,
+			trading_account.pub_key,
+			usdt_id,
+			1000.into(),
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotCollateral")]
+fn test_deposit_with_unknown_asset() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let eth_id: u128 = 4543560;
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			trading_account.account_id,
+			trading_account.index,
+			trading_account.pub_key,
+			eth_id,
+			1000.into(),
+		));
+	});
+}
+
+#[test]
+fn test_deposit() {
+	new_test_ext().execute_with(|| {
+		let _assets = create_assets();
+		let trading_accounts = setup();
+		let usdc_id: u128 = 1431520323;
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::add_accounts(
+			RuntimeOrigin::signed(1),
+			trading_accounts.clone()
+		));
+
+		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		let trading_account: TradingAccount =
+			TradingAccountModule::accounts(trading_account_id).unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			trading_account.account_address,
+			trading_account.index,
+			trading_account.pub_key,
+			usdc_id,
+			1000.into(),
+		));
+
+		assert_eq!(
+			TradingAccountModule::balances(trading_account.account_id, usdc_id),
+			11000.into()
+		);
+		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
+		println!("Events: {:?}", event_record);
+	});
+}
