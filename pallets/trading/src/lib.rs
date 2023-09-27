@@ -565,6 +565,16 @@ pub mod pallet {
 						initial_margin_locked_short =
 							initial_margin_locked_short + margin_lock_amount
 					}
+
+					if element.time_in_force == TimeInForce::IOC {
+						is_final = true;
+					} else {
+						if new_portion_executed == element.size {
+							is_final = true;
+						} else {
+							is_final = false;
+						}
+					}
 				} else {
 					// SELL order
 					let response = Self::process_close_orders(
