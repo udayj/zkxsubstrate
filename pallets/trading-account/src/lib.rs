@@ -18,9 +18,9 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use sp_arithmetic::fixed_point::FixedI128;
 	use sp_arithmetic::traits::Bounded;
 	use sp_arithmetic::traits::Zero;
+	use sp_arithmetic::FixedI128;
 	use sp_io::hashing::blake2_256;
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
@@ -111,8 +111,15 @@ pub mod pallet {
 			previous_balance: FixedI128,
 			new_balance: FixedI128,
 		},
+		/// Event to be synced by L2
+		UserWithdrawal {
+			trading_account: TradingAccountWithoutId,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: u64,
+		},
 		/// Account created
-		AccountCreated { account_id: U256, account_address: U256, index: u8 },
+		AccountCreated { account_id: U256, account_address: U256, index: u8 }
 	}
 
 	#[pallet::call]
@@ -304,6 +311,8 @@ pub mod pallet {
 				previous_balance: current_balance,
 				new_balance: current_balance - withdrawal_request.amount,
 			});
+
+			Self::deposit_event(Event::UserWithdrawal { trading_account: , collateral_id: (), amount: (), block_number: () };
 
 			Ok(())
 		}

@@ -3,8 +3,10 @@ use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
-use starknet_crypto::{sign, verify, FieldElement};
+use starknet_crypto::{sign, FieldElement};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
+use zkx_support::test_helpers::asset_helper::{eth, usdc, link, btc};
+use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
 use zkx_support::types::{
 	Asset, Direction, HashType, Market, Order, OrderType, Position, Side, TimeInForce,
 	TradingAccountWithoutId,
@@ -18,92 +20,10 @@ const order_id_5: u128 = 204_u128;
 const order_id_6: u128 = 205_u128;
 
 fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
-	let ETH_ID: u128 = 4543560;
-	let USDC_ID: u128 = 1431520323;
-	let LINK_ID: u128 = 1279872587;
-	let BTC_ID: u128 = 4346947;
-	let name1: Vec<u8> = "ETH".into();
-	let asset1: Asset = Asset {
-		id: ETH_ID,
-		name: name1.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 18,
-	};
-	let name2: Vec<u8> = "USDC".into();
-	let asset2: Asset = Asset {
-		id: USDC_ID,
-		name: name2.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "LINK".into();
-	let asset3: Asset = Asset {
-		id: LINK_ID,
-		name: name3.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "BTC".into();
-	let asset4: Asset = Asset {
-		id: BTC_ID,
-		name: name3.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 6,
-	};
-
-	let assets: Vec<Asset> = vec![asset1.clone(), asset2.clone(), asset3.clone()];
+	let assets: Vec<Asset> = vec![eth(), usdc(), link(), btc()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
-	let market1: Market = Market {
-		id: 1,
-		asset: ETH_ID,
-		asset_collateral: USDC_ID,
-		is_tradable: true,
-		is_archived: false,
-		ttl: 3600,
-		tick_size: 1.into(),
-		tick_precision: 1,
-		step_size: 1.into(),
-		step_precision: 1,
-		minimum_order_size: 1.into(),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
-	};
-	let market2: Market = Market {
-		id: 2,
-		asset: LINK_ID,
-		asset_collateral: USDC_ID,
-		is_tradable: false,
-		is_archived: false,
-		ttl: 360,
-		tick_size: 1.into(),
-		tick_precision: 1,
-		step_size: 1.into(),
-		step_precision: 1,
-		minimum_order_size: 1.into(),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
-	};
-
-	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
+	let markets: Vec<Market> = vec![eth_usdc(), link_usdc()];
 	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), markets.clone()));
 
 	let user_pub_key_1: U256 = U256::from_dec_str(

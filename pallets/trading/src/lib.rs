@@ -25,13 +25,12 @@ pub mod pallet {
 	use zkx_support::types::{
 		BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition, Market, Order,
 		OrderSide, OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
-		TradingAccountMinimal,
+		TradingAccountWithoutId,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -202,7 +201,7 @@ pub mod pallet {
 		},
 		/// User balance updation event
 		UserBalanceChange {
-			account: TradingAccountMinimal,
+			account: TradingAccountWithoutId,
 			collateral_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
@@ -225,7 +224,7 @@ pub mod pallet {
 			orders: Vec<Order>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let sender = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			ensure!(
 				!BatchStatusMap::<T>::contains_key(batch_id),
@@ -1345,9 +1344,9 @@ pub mod pallet {
 			))
 		}
 
-		fn get_trading_account(account_id: &U256) -> TradingAccountMinimal {
+		fn get_trading_account(account_id: &U256) -> TradingAccountWithoutId {
 			let trading_account = T::TradingAccountPallet::get_account(account_id).unwrap();
-			TradingAccountMinimal::new(trading_account.account_address, trading_account.index)
+			TradingAccountWithoutId::new(trading_account.account_address, trading_account.pub_key, trading_account.index)
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {

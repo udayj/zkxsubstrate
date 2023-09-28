@@ -14,6 +14,9 @@ mod tests;
 // Trait definitions.
 pub mod traits;
 
+// Test Helpers
+pub mod test_helpers;
+
 // helper fns to be used by other pallets
 pub mod helpers {
 	use super::{FieldElement, FromByteSliceError};

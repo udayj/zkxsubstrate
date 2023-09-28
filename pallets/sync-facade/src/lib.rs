@@ -16,11 +16,10 @@ pub mod pallet {
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
 	use zkx_support::traits::{FeltSerializedArrayExt, FieldElementExt, U256Ext};
-	use zkx_support::types::{SyncSignature, UniversalEventL2};
+	use zkx_support::types::{SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -167,7 +166,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn synchronize_events(
 			origin: OriginFor<T>,
-			events_batch: Vec<UniversalEventL2>,
+			events_batch: Vec<UniversalEvent>,
 			signatures: Vec<SyncSignature>,
 			block_number: u64,
 		) -> DispatchResult {
@@ -236,7 +235,7 @@ pub mod pallet {
 			}
 		}
 
-		fn compute_batch_hash(events_batch: &Vec<UniversalEventL2>) -> FieldElement {
+		fn compute_batch_hash(events_batch: &Vec<UniversalEvent>) -> FieldElement {
 			// Convert the array of enums to array of felts
 			let mut flattened_array: Vec<FieldElement> = Vec::new();
 			flattened_array.try_append_universal_event_array(&events_batch).unwrap();

@@ -1,8 +1,8 @@
-use crate::traits::FeltSerializedArrayExt;
+use crate::traits::{FeltSerializedArrayExt, U256Ext};
 use crate::types::common::convert_to_u128_pair;
 use crate::types::{
-	Asset, AssetRemovedL2, AssetUpdatedL2, Market, MarketRemovedL2, MarketUpdatedL2,
-	TradingAccountMinimal, UniversalEventL2, UserDepositL2,
+	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated,
+	TradingAccountWithoutId, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -23,10 +23,17 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		};
 	}
 
-	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError> {
+	fn try_append_u256_pair(&mut self, u256_value: U256) -> Result<(), FromByteSliceError> {
 		let (low_bytes_felt, high_bytes_felt) = convert_to_u128_pair(u256_value)?;
 		self.push(low_bytes_felt);
 		self.push(high_bytes_felt);
+
+		Ok(())
+	}
+
+	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError> {
+		let felt_value = u256_value.try_to_felt()?;
+		self.push(felt_value);
 
 		Ok(())
 	}
@@ -44,10 +51,10 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_asset(&mut self, asset: &Asset) -> Result<(), FromByteSliceError> {
 		self.push(FieldElement::from(asset.id));
-		self.append_bounded_vec(&asset.name);
+		self.try_append_u256(asset.short_name)?;
 		self.append_bool(asset.is_tradable);
 		self.append_bool(asset.is_collateral);
-		self.push(FieldElement::from(asset.token_decimal));
+		self.push(FieldElement::from(asset.decimals));
 
 		Ok(())
 	}
@@ -79,9 +86,10 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_trading_account(
 		&mut self,
-		trading_account: &TradingAccountMinimal,
+		trading_account: &TradingAccountWithoutId,
 	) -> Result<(), FromByteSliceError> {
 		self.try_append_u256(trading_account.account_address)?;
+		self.try_append_u256(trading_account.pub_key)?;
 		self.push(FieldElement::from(trading_account.index));
 
 		Ok(())
@@ -89,15 +97,11 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_market_updated_event(
 		&mut self,
-		market_updated_event: &MarketUpdatedL2,
+		market_updated_event: &MarketUpdated,
 	) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(market_updated_event.event_hash)?;
-		self.try_append_u256(market_updated_event.event_name)?;
 		self.push(FieldElement::from(market_updated_event.id));
 		self.try_append_market(&market_updated_event.market)?;
 		self.append_bounded_vec(&market_updated_event.metadata_url);
-		self.append_bounded_vec(&market_updated_event.icon_url);
-		self.push(FieldElement::from(market_updated_event.version));
 		self.push(FieldElement::from(market_updated_event.block_number));
 
 		Ok(())
@@ -105,15 +109,12 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_asset_updated_event(
 		&mut self,
-		asset_updated_event: &AssetUpdatedL2,
+		asset_updated_event: &AssetUpdated,
 	) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(asset_updated_event.event_hash)?;
-		self.try_append_u256(asset_updated_event.event_name)?;
 		self.push(FieldElement::from(asset_updated_event.id));
 		self.try_append_asset(&asset_updated_event.asset)?;
 		self.append_bounded_vec(&asset_updated_event.metadata_url);
 		self.append_bounded_vec(&asset_updated_event.icon_url);
-		self.push(FieldElement::from(asset_updated_event.version));
 		self.push(FieldElement::from(asset_updated_event.block_number));
 
 		Ok(())
@@ -121,10 +122,8 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_market_removed_event(
 		&mut self,
-		market_removed_event: &MarketRemovedL2,
+		market_removed_event: &MarketRemoved,
 	) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(market_removed_event.event_hash)?;
-		self.try_append_u256(market_removed_event.event_name)?;
 		self.push(FieldElement::from(market_removed_event.id));
 		self.push(FieldElement::from(market_removed_event.block_number));
 
@@ -133,10 +132,8 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_asset_removed_event(
 		&mut self,
-		asset_removed_event: &AssetRemovedL2,
+		asset_removed_event: &AssetRemoved,
 	) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(asset_removed_event.event_hash)?;
-		self.try_append_u256(asset_removed_event.event_name)?;
 		self.push(FieldElement::from(asset_removed_event.id));
 		self.push(FieldElement::from(asset_removed_event.block_number));
 
@@ -145,15 +142,12 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_user_deposit_event(
 		&mut self,
-		user_deposit_event: &UserDepositL2,
+		user_deposit_event: &UserDeposit,
 	) -> Result<(), FromByteSliceError> {
-		self.try_append_u256(user_deposit_event.event_hash)?;
-		self.try_append_u256(user_deposit_event.event_name)?;
 		self.try_append_trading_account(&user_deposit_event.trading_account)?;
 		self.push(FieldElement::from(user_deposit_event.collateral_id));
 		self.try_append_u256(user_deposit_event.nonce)?;
 		self.try_append_u256(user_deposit_event.amount)?;
-		self.try_append_u256(user_deposit_event.balance)?;
 		self.push(FieldElement::from(user_deposit_event.block_number));
 
 		Ok(())
@@ -161,25 +155,31 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_universal_event_array(
 		&mut self,
-		universal_event_array: &Vec<UniversalEventL2>,
+		universal_event_array: &Vec<UniversalEvent>,
 	) -> Result<(), FromByteSliceError> {
 		for event in universal_event_array.iter() {
 			match event {
-				UniversalEventL2::MarketUpdatedL2(market_updated) => {
+				UniversalEvent::MarketUpdated(market_updated) => {
 					self.try_append_market_updated_event(market_updated)?;
 				},
-				UniversalEventL2::AssetUpdatedL2(asset_updated) => {
+				UniversalEvent::AssetUpdated(asset_updated) => {
 					self.try_append_asset_updated_event(asset_updated)?;
 				},
-				UniversalEventL2::MarketRemovedL2(market_removed) => {
+				UniversalEvent::MarketRemoved(market_removed) => {
 					self.try_append_market_removed_event(market_removed)?;
 				},
-				UniversalEventL2::AssetRemovedL2(asset_removed) => {
+				UniversalEvent::AssetRemoved(asset_removed) => {
 					self.try_append_asset_removed_event(asset_removed)?;
 				},
-				UniversalEventL2::UserDepositL2(user_deposit) => {
+				UniversalEvent::UserDeposit(user_deposit) => {
 					self.try_append_user_deposit_event(user_deposit)?;
 				},
+				UniversalEvent::SignerAdded(signer_added) => {
+					
+				},
+				UniversalEvent::SignerRemoved(signer_removed) => {
+					
+				}
 			}
 		}
 

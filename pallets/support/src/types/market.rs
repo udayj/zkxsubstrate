@@ -6,6 +6,7 @@ use sp_runtime::RuntimeDebug;
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Market {
 	pub id: u128,
+	pub version: u16,
 	pub asset: u128,
 	pub asset_collateral: u128,
 	pub is_tradable: bool,

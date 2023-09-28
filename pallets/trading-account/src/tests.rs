@@ -3,6 +3,7 @@ use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
+use zkx_support::test_helpers::asset_helper::{eth, usdc, usdt};
 use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
 
 fn setup() -> Vec<TradingAccountWithoutId> {
@@ -29,37 +30,7 @@ fn setup() -> Vec<TradingAccountWithoutId> {
 }
 
 fn create_assets() -> Vec<Asset> {
-	let eth_id: u128 = 4543560;
-	let usdc_id: u128 = 1431520323;
-	let usdt_id: u128 = 1431520340;
-	let name1: Vec<u8> = "ETH".into();
-	let asset1: Asset = Asset {
-		id: eth_id,
-		name: name1.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 18,
-	};
-	let name2: Vec<u8> = "USDC".into();
-	let asset2: Asset = Asset {
-		id: usdc_id,
-		name: name2.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "USDT".into();
-	let asset3: Asset = Asset {
-		id: usdt_id,
-		name: name3.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let mut assets: Vec<Asset> = Vec::new();
-	assets.push(asset1);
-	assets.push(asset2);
-	assets.push(asset3);
+	let assets: Vec<Asset> = vec![eth(), usdc(), usdt()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets.clone()));
 	assets
 }

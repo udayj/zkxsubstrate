@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, TradingAccountMinimal};
+use crate::types::{Asset, Market, TradingAccountWithoutId};
 use codec::{Decode, Encode};
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -13,70 +13,63 @@ pub struct SyncSignature {
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub enum UniversalEventL2 {
-	MarketUpdatedL2(MarketUpdatedL2),
-	AssetUpdatedL2(AssetUpdatedL2),
-	MarketRemovedL2(MarketRemovedL2),
-	AssetRemovedL2(AssetRemovedL2),
-	UserDepositL2(UserDepositL2),
+pub enum UniversalEvent {
+	MarketUpdated(MarketUpdated),
+	AssetUpdated(AssetUpdated),
+	MarketRemoved(MarketRemoved),
+	AssetRemoved(AssetRemoved),
+	UserDeposit(UserDeposit),
+	SignerAdded(SignerAdded),
+	SignerRemoved(SignerRemoved)
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct MarketRemovedL2 {
-	pub event_hash: U256,
-	pub event_name: U256,
+pub struct MarketRemoved {
 	pub id: u64,
 	pub block_number: u64,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct AssetRemovedL2 {
-	pub event_hash: U256,
-	pub event_name: U256,
+pub struct AssetRemoved {
 	pub id: u64,
 	pub block_number: u64,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct UserDepositL2 {
-	pub event_hash: U256,
-	pub event_name: U256,
-	pub trading_account: TradingAccountMinimal,
-	pub collateral_id: u64,
+pub struct UserDeposit {
+	pub trading_account: TradingAccountWithoutId,
+	pub collateral_id: u128,
 	pub nonce: U256,
 	pub amount: U256,
-	pub balance: U256,
 	pub block_number: u64,
-}
-
-#[derive(Clone, Copy, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub enum FundType {
-	Admin,
-	InsuranceFund,
-	HoldingFund,
-	EmergencyFund,
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct MarketUpdatedL2 {
-	pub event_hash: U256,
-	pub event_name: U256,
+pub struct MarketUpdated {
 	pub id: u64,
 	pub market: Market,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
-	pub icon_url: BoundedVec<u8, ConstU32<256>>,
-	pub version: u16,
 	pub block_number: u64,
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct AssetUpdatedL2 {
-	pub event_hash: U256,
-	pub event_name: U256,
+pub struct AssetUpdated {
 	pub id: u64,
 	pub asset: Asset,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
 	pub icon_url: BoundedVec<u8, ConstU32<256>>,
-	pub version: u16,
 	pub block_number: u64,
+}
+
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SignerAdded {
+    pub signer: U256,
+    pub block_number: u64
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SignerRemoved {
+    pub signer: U256,
+    pub block_number: u64
 }
