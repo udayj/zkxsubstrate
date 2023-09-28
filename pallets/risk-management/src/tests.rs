@@ -6,15 +6,22 @@ use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, verify, FieldElement};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
-	Asset, BalanceUpdate, Direction, HashType, LiquidatablePosition, Market, MarketPrice,
-	MultipleMarketPrices, Order, OrderType, Position, Side, TimeInForce, TradingAccountWithoutId,
+	Asset, Direction, HashType, LiquidatablePosition, Market, MarketPrice, MultipleMarketPrices,
+	Order, OrderType, Position, Side, TimeInForce, TradingAccountWithoutId,
 };
 
+const order_id_1: u128 = 200_u128;
+const order_id_2: u128 = 201_u128;
+const order_id_3: u128 = 202_u128;
+const order_id_4: u128 = 203_u128;
+const order_id_5: u128 = 204_u128;
+const order_id_6: u128 = 205_u128;
+
 fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
-	let ETH_ID: U256 = 4543560.into();
-	let USDC_ID: U256 = 1431520323.into();
-	let LINK_ID: U256 = 1279872587.into();
-	let BTC_ID: U256 = 4346947.into();
+	let ETH_ID: u128 = 4543560;
+	let USDC_ID: u128 = 1431520323;
+	let LINK_ID: u128 = 1279872587;
+	let BTC_ID: u128 = 4346947;
 	let name1: Vec<u8> = "ETH".into();
 	let asset1: Asset = Asset {
 		id: ETH_ID,
@@ -39,12 +46,20 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		is_collateral: false,
 		token_decimal: 6,
 	};
+	let name3: Vec<u8> = "BTC".into();
+	let asset4: Asset = Asset {
+		id: BTC_ID,
+		name: name3.try_into().unwrap(),
+		is_tradable: true,
+		is_collateral: false,
+		token_decimal: 6,
+	};
 
 	let assets: Vec<Asset> = vec![asset1.clone(), asset2.clone(), asset3.clone()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	let market1: Market = Market {
-		id: 1.into(),
+		id: 1,
 		asset: ETH_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: true,
@@ -58,15 +73,15 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		minimum_leverage: 1.into(),
 		maximum_leverage: 10.into(),
 		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
+		maintenance_margin_fraction: 1.into(),
 		initial_margin_fraction: 1.into(),
 		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 100.into(),
-		baseline_position_size: 1000.into(),
-		maximum_position_size: 10000.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
 	};
 	let market2: Market = Market {
-		id: 2.into(),
+		id: 2,
 		asset: LINK_ID,
 		asset_collateral: USDC_ID,
 		is_tradable: false,
@@ -80,12 +95,12 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		minimum_leverage: 1.into(),
 		maximum_leverage: 10.into(),
 		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
+		maintenance_margin_fraction: 1.into(),
 		initial_margin_fraction: 1.into(),
 		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 100.into(),
-		baseline_position_size: 1000.into(),
-		maximum_position_size: 10000.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
 	};
 
 	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
@@ -111,6 +126,26 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	.unwrap();
 	let user_address_2: U256 = U256::from(101_u8);
 
+	let user_pub_key_3: U256 = U256::from_dec_str(
+		"1927799101328918885926814969993421873905724180750168745093131010179897850144",
+	)
+	.unwrap();
+	let user_pri_key_3: U256 = U256::from_dec_str(
+		"3388506857955987752046415916181604993164423072000548640801744803879383940670",
+	)
+	.unwrap();
+	let user_address_3: U256 = U256::from(102_u8);
+
+	let user_pub_key_4: U256 = U256::from_dec_str(
+		"824120678599933675767871867465569325984720238047137957464936400424120564339",
+	)
+	.unwrap();
+	let user_pri_key_4: U256 = U256::from_dec_str(
+		"84035867551811388210596922086133550045728262314839423570645036080104955628",
+	)
+	.unwrap();
+	let user_address_4: U256 = U256::from(103_u8);
+
 	let user_1 = TradingAccountWithoutId {
 		account_address: user_address_1,
 		index: 0,
@@ -121,10 +156,21 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		index: 0,
 		pub_key: user_pub_key_2,
 	};
-	let accounts: Vec<TradingAccountWithoutId> = vec![user_1, user_2];
+	let user_3 = TradingAccountWithoutId {
+		account_address: user_address_3,
+		index: 0,
+		pub_key: user_pub_key_3,
+	};
+	let user_4 = TradingAccountWithoutId {
+		account_address: user_address_4,
+		index: 0,
+		pub_key: user_pub_key_4,
+	};
+	let accounts: Vec<TradingAccountWithoutId> = vec![user_1, user_2, user_3, user_4];
 	assert_ok!(TradingAccounts::add_accounts(RuntimeOrigin::signed(1), accounts.clone()));
 
-	let private_keys: Vec<U256> = vec![user_pri_key_1, user_pri_key_2];
+	let private_keys: Vec<U256> =
+		vec![user_pri_key_1, user_pri_key_2, user_pri_key_3, user_pri_key_4];
 
 	(markets, accounts, private_keys)
 }
@@ -154,11 +200,8 @@ fn sign_order(order: Order, private_key: U256) -> Order {
 
 #[test]
 // basic open trade with leverage
-fn it_works_for_open_trade_2() {
+fn it_works_for_open_trade_with_leverage() {
 	new_test_ext().execute_with(|| {
-		let order_id_1 = 200_u128;
-		let order_id_2 = 201_u128;
-
 		let (markets, accounts, private_keys) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -173,10 +216,10 @@ fn it_works_for_open_trade_2() {
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
-			price: 10000.into(),
-			size: 5.into(),
+			price: 100.into(),
+			size: 1.into(),
 			leverage: 5.into(),
-			slippage: 10.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
 			time_in_force: TimeInForce::GTC,
 			sig_r: 0.into(),
@@ -190,10 +233,10 @@ fn it_works_for_open_trade_2() {
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
-			price: 10000.into(),
-			size: 5.into(),
+			price: 100.into(),
+			size: 1.into(),
 			leverage: 5.into(),
-			slippage: 10.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
 			time_in_force: TimeInForce::GTC,
 			sig_r: 0.into(),
@@ -208,40 +251,39 @@ fn it_works_for_open_trade_2() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
-			5.into(),
+			1.into(),
 			markets[0].id,
-			10000.into(),
+			100.into(),
 			orders
 		));
 
 		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
 		let expected_position: Position = Position {
-			avg_execution_price: 10000.into(),
-			size: 5.into(),
+			market_id: markets[0].id,
+			avg_execution_price: 100.into(),
+			size: 1.into(),
 			direction: Direction::Long,
 			side: Side::Buy,
-			margin_amount: 10000.into(),
-			borrowed_amount: 40000.into(),
+			margin_amount: 20.into(),
+			borrowed_amount: 80.into(),
 			leverage: 5.into(),
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position1);
-		println!("{:?}", position1);
 
 		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		let expected_position: Position = Position {
-			avg_execution_price: 10000.into(),
-			size: 5.into(),
+			market_id: markets[0].id,
+			avg_execution_price: 100.into(),
+			size: 1.into(),
 			direction: Direction::Short,
 			side: Side::Buy,
-			margin_amount: 10000.into(),
-			borrowed_amount: 40000.into(),
+			margin_amount: 20.into(),
+			borrowed_amount: 80.into(),
 			leverage: 5.into(),
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position2);
-		println!("{:?}", position2);
-
 		// As the price of an asset didn't change. Liquidatable or deleverabale position would be zero for account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
