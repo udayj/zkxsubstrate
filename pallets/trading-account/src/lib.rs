@@ -20,22 +20,25 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use sp_arithmetic::traits::Bounded;
+	use sp_arithmetic::traits::Zero;
 	use sp_io::hashing::blake2_256;
+	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		AssetInterface, MarketInterface, MarketPricesInterface, TradingAccountInterface,
-		TradingInterface,
+		AssetInterface, Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		TradingInterface, U256Ext,
 	};
+	use zkx_support::types::WithdrawalRequest;
 	use zkx_support::types::{
 		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
 		TradingAccountWithoutId,
 	};
+	use zkx_support::{ecdsa_verify, Signature};
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type WeightInfo: WeightInfo;
 		type AssetPallet: AssetInterface;
 		type TradingPallet: TradingInterface;
 		type MarketPallet: MarketInterface;
@@ -52,12 +55,6 @@ pub mod pallet {
 	// Here, key is the trading_account_id and value is the trading account
 	pub(super) type AccountMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn account_presence)]
-	// Here, key is the account_id and value is the true/false
-	pub(super) type AccountPresenceMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
@@ -82,10 +79,24 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Account already exists
 		DuplicateAccount,
+		/// Account does not exist
+		AccountDoesNotExist,
 		/// Asset not created
 		AssetNotFound,
 		/// Asset provided as collateral is not marked as collateral in the system
 		AssetNotCollateral,
+		/// Withdrawal amount is less than available balance
+		InsufficientBalance,
+		/// Invalid withdrawal request hash - withdrawal request could not be hashed into a Field Element
+		InvalidWithdrawalRequestHash,
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		InvalidSignatureFelt,
+		/// ECDSA Signature could not be verified
+		InvalidSignature,
+		/// Public Key not found for account id
+		NoPublicKeyFound,
+		/// Invalid public key - publickey u256 could not be converted to Field Element
+		InvalidPublicKey,
 	}
 
 	#[pallet::event]
@@ -94,7 +105,14 @@ pub mod pallet {
 		/// Several accounts added
 		AccountsAdded { length: u128 },
 		/// Balances for an account updated
-		BalancesUpdated { account_id: U256 },
+		BalanceUpdated {
+			account_id: U256,
+			collateral_id: u128,
+			previous_balance: FixedI128,
+			new_balance: FixedI128,
+		},
+		/// Account created
+		AccountCreated { account_id: U256, account_address: U256, index: u8 },
 	}
 
 	#[pallet::call]
@@ -123,12 +141,8 @@ pub mod pallet {
 
 				account_id = blake2_256(&result).into();
 
-				// Check if the account exists in the presence storage map
-				ensure!(
-					!AccountPresenceMap::<T>::contains_key(account_id),
-					Error::<T>::DuplicateAccount
-				);
-				AccountPresenceMap::<T>::insert(account_id, true);
+				// Check if the account already exists
+				ensure!(!AccountMap::<T>::contains_key(account_id), Error::<T>::DuplicateAccount);
 				let trading_account: TradingAccount = TradingAccount {
 					account_id,
 					account_address: element.account_address,
@@ -138,6 +152,11 @@ pub mod pallet {
 
 				AccountMap::<T>::insert(account_id, trading_account);
 				current_length += 1;
+				Self::deposit_event(Event::AccountCreated {
+					account_id,
+					account_address: element.account_address,
+					index: element.index,
+				});
 
 				// Add predefined balance for default collateral to the account
 				let default_collateral = T::AssetPallet::get_default_collateral();
@@ -163,11 +182,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
-			// Check if the account exists in the presence storage map
-			ensure!(
-				AccountPresenceMap::<T>::contains_key(account_id),
-				Error::<T>::DuplicateAccount
-			);
+			// Check if the account already exists
+			ensure!(AccountMap::<T>::contains_key(account_id), Error::<T>::AccountDoesNotExist);
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
@@ -182,9 +198,112 @@ pub mod pallet {
 				}
 				// Update the map with new balance
 				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
+
+				Self::deposit_event(Event::BalanceUpdated {
+					account_id,
+					collateral_id: element.asset_id,
+					previous_balance: current_balance,
+					new_balance: element.balance_value,
+				});
 			}
 
-			Self::deposit_event(Event::BalancesUpdated { account_id });
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn deposit(
+			origin: OriginFor<T>,
+			account_address: U256,
+			index: u8,
+			pub_key: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			// Validate that the asset exists and it is a collateral
+			let asset_collateral = T::AssetPallet::get_asset(collateral_id);
+			ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+			ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+
+			// Create trading account id
+			let mut account_array: [u8; 32] = [0; 32];
+			account_address.to_little_endian(&mut account_array);
+
+			let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+			concatenated_bytes.push(index);
+			let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
+
+			let account_id = blake2_256(&result).into();
+
+			// Check if the account already exists, if it doesn't exist then create an account
+			if !AccountMap::<T>::contains_key(&account_id) {
+				let trading_account: TradingAccount =
+					TradingAccount { account_id, account_address, index, pub_key };
+				AccountMap::<T>::insert(account_id, trading_account);
+				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
+			}
+
+			// Get the current balance
+			let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
+
+			// If the current balance is 0, then add collateral to the AccountCollateralsMap
+			if current_balance == FixedI128::zero() {
+				Self::add_collateral(account_id, collateral_id);
+			}
+
+			let new_balance: FixedI128 = amount + current_balance;
+			// Update the balance
+			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
+
+			// BalanceUpdated event is emitted
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id,
+				collateral_id,
+				previous_balance: current_balance,
+				new_balance,
+			});
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn withdraw(
+			origin: OriginFor<T>,
+			withdrawal_request: WithdrawalRequest,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			// Check if the account already exists
+			ensure!(
+				AccountMap::<T>::contains_key(withdrawal_request.account_id),
+				Error::<T>::AccountDoesNotExist
+			);
+
+			let _ = Self::verify_signature(&withdrawal_request);
+
+			// Get the current balance
+			let current_balance: FixedI128 = BalancesMap::<T>::get(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+			);
+
+			ensure!(withdrawal_request.amount <= current_balance, Error::<T>::InsufficientBalance);
+
+			// Update the balance
+			BalancesMap::<T>::set(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+				current_balance - withdrawal_request.amount,
+			);
+
+			// BalanceUpdated event is emitted
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id: withdrawal_request.account_id,
+				collateral_id: withdrawal_request.collateral_id,
+				previous_balance: current_balance,
+				new_balance: current_balance - withdrawal_request.amount,
+			});
 
 			Ok(())
 		}
@@ -387,6 +506,41 @@ pub mod pallet {
 				least_collateral_ratio_position_asset_price,
 			);
 		}
+
+		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
+			// Signature validation
+			let sig_felt =
+				sig_u256_to_sig_felt(&withdrawal_request.sig_r, &withdrawal_request.sig_s);
+
+			// Sig_r and/or Sig_s could not be converted to FieldElement
+			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+
+			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
+
+			let withdrawal_request_hash = withdrawal_request.hash(&withdrawal_request.hash_type);
+
+			// withdrawal_request could not be hashed
+			ensure!(withdrawal_request_hash.is_ok(), Error::<T>::InvalidWithdrawalRequestHash);
+
+			let public_key = Self::get_public_key(&withdrawal_request.account_id);
+
+			// Public key not found for this account_id
+			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
+
+			let public_key_felt = public_key.unwrap().try_to_felt();
+
+			// Public Key U256 could not be converted to FieldElement
+			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
+
+			let verification =
+				ecdsa_verify(&public_key_felt.unwrap(), &withdrawal_request_hash.unwrap(), &sig);
+
+			// Signature verification returned error or false
+			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
@@ -421,7 +575,7 @@ pub mod pallet {
 		}
 
 		fn is_registered_user(account: U256) -> bool {
-			AccountPresenceMap::<T>::contains_key(&account)
+			AccountMap::<T>::contains_key(&account)
 		}
 
 		fn get_account(account_id: &U256) -> Option<TradingAccount> {
