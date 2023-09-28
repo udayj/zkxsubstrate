@@ -200,15 +200,6 @@ pub mod pallet {
 			modify_type: FundModifyType,
 			block_number: T::BlockNumber,
 		},
-		/// User balance updation event
-		UserBalanceChange {
-			account: TradingAccountMinimal,
-			collateral_id: u128,
-			amount: FixedI128,
-			modify_type: FundModifyType,
-			reason: u8,
-			block_number: T::BlockNumber,
-		},
 	}
 
 	// Pallet callable functions
@@ -1090,17 +1081,12 @@ pub mod pallet {
 			let trading_fee = FixedI128::from_inner(0) - fee;
 
 			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
-			T::TradingAccountPallet::transfer_from(order.account_id, collateral_id, fee);
-
-			// Emit user balance change event
-			Self::deposit_event(Event::UserBalanceChange {
-				account: Self::get_trading_account(&order.account_id),
+			T::TradingAccountPallet::transfer_from(
+				order.account_id,
 				collateral_id,
-				amount: fee,
-				modify_type: FundModifyType::Decrease,
-				reason: BalanceChangeReason::Fee.into(),
-				block_number,
-			});
+				fee,
+				BalanceChangeReason::Fee,
+			);
 
 			Ok((
 				margin_amount,
@@ -1196,17 +1182,8 @@ pub mod pallet {
 					order.account_id,
 					collateral_id,
 					amount_to_transfer_from + margin_amount_to_reduce,
+					BalanceChangeReason::PnlRealization,
 				);
-
-				// Emit user balance change event
-				Self::deposit_event(Event::UserBalanceChange {
-					account: Self::get_trading_account(&order.account_id),
-					collateral_id,
-					amount: amount_to_transfer_from + margin_amount_to_reduce,
-					modify_type: FundModifyType::Decrease,
-					reason: BalanceChangeReason::PnlRealization.into(),
-					block_number,
-				});
 			// To do - calculate PnL
 			} else {
 				let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
@@ -1244,31 +1221,17 @@ pub mod pallet {
 							order.account_id,
 							collateral_id,
 							pnl.saturating_abs(),
+							BalanceChangeReason::PnlRealization,
 						);
-
-						// Emit user balance change event
-						Self::deposit_event(Event::UserBalanceChange {
-							account: Self::get_trading_account(&order.account_id),
-							collateral_id,
-							amount: pnl.saturating_abs(),
-							modify_type: FundModifyType::Decrease,
-							reason: BalanceChangeReason::PnlRealization.into(),
-							block_number,
-						});
 					} else {
 						// User is in profit
 						// Transfer the profit to user
-						T::TradingAccountPallet::transfer(order.account_id, collateral_id, pnl);
-
-						// Emit user balance change event
-						Self::deposit_event(Event::UserBalanceChange {
-							account: Self::get_trading_account(&order.account_id),
+						T::TradingAccountPallet::transfer(
+							order.account_id,
 							collateral_id,
-							amount: pnl,
-							modify_type: FundModifyType::Increase,
-							reason: BalanceChangeReason::PnlRealization.into(),
-							block_number,
-						});
+							pnl,
+							BalanceChangeReason::PnlRealization,
+						);
 					}
 				} else {
 					if order.order_type == OrderType::Liquidation {
@@ -1317,17 +1280,8 @@ pub mod pallet {
 							order.account_id,
 							collateral_id,
 							margin_amount_to_reduce,
+							BalanceChangeReason::Liquidation,
 						);
-
-						// Emit user balance change event
-						Self::deposit_event(Event::UserBalanceChange {
-							account: Self::get_trading_account(&order.account_id),
-							collateral_id,
-							amount: margin_amount_to_reduce,
-							modify_type: FundModifyType::Decrease,
-							reason: BalanceChangeReason::PnlRealization.into(),
-							block_number,
-						});
 					// To do - calculate PnL
 					} else {
 						// To do - calculate PnL
