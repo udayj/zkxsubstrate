@@ -18,6 +18,14 @@ zkx-support= { path="../support"}
 [dev-dependencies]
 sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+starknet-crypto = { version = "0.6.0", default-features = false }
+pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+pallet-asset = { default-features = false, path = "../asset" }
+pallet-market = { default-features = false, path = "../market" }
+pallet-market-prices = { default-features = false, path = "../market-prices" }
+pallet-risk-management = { default-features = false, path = "../risk-management" }
+pallet-trading-fees = { default-features = false, path = "../trading-fees" }
+pallet-zkx-trading-account = { default-features = false, path = "../trading-account" }
 
 
 [features]

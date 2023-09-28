@@ -1,9 +1,12 @@
-use crate as pallet_trading_account;
+use crate as trading;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
+use pallet_market;
+use pallet_market_prices;
 use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading_fees;
+use pallet_zkx_trading_account;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -21,14 +24,14 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system,
-		TradingAccountModule: pallet_trading_account,
-		Timestamp: pallet_timestamp,
-		Assets: pallet_asset,
 		Markets: pallet_market,
-		Trading: pallet_trading,
 		MarketPrices: pallet_market_prices,
+		Assets: pallet_asset,
+		RiskManagement: pallet_risk_management,
+		Timestamp: pallet_timestamp,
+		TradingAccounts: pallet_zkx_trading_account,
 		TradingFees: pallet_trading_fees,
-		RiskManagement: pallet_risk_management
+		Trading: trading,
 	}
 );
 
@@ -59,14 +62,6 @@ impl frame_system::Config for Test {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_trading_account::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type AssetPallet = Assets;
-	type TradingPallet = Trading;
-	type MarketPallet = Markets;
-	type MarketPricesPallet = MarketPrices;
-}
-
 impl pallet_asset::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
@@ -74,13 +69,6 @@ impl pallet_asset::Config for Test {
 impl pallet_market::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
-}
-
-impl pallet_timestamp::Config for Test {
-	type Moment = u64;
-	type OnTimestampSet = ();
-	type MinimumPeriod = ConstU64<5>;
-	type WeightInfo = ();
 }
 
 impl pallet_market_prices::Config for Test {
@@ -93,20 +81,35 @@ impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
 
-impl pallet_trading::Config for Test {
+impl pallet_zkx_trading_account::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 	type MarketPallet = Markets;
-	type TradingAccountPallet = TradingAccountModule;
-	type TradingFeesPallet = TradingFees;
 	type MarketPricesPallet = MarketPrices;
-	type RiskManagementPallet = RiskManagement;
+	type TradingPallet = Trading;
 }
 
 impl pallet_risk_management::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type TradingPallet = Trading;
-	type TradingAccountPallet = TradingAccountModule;
 	type MarketPallet = Markets;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = TradingAccounts;
+}
+
+impl trading::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type MarketPallet = Markets;
+	type MarketPricesPallet = MarketPrices;
+	type RiskManagementPallet = RiskManagement;
+	type TradingAccountPallet = TradingAccounts;
+	type TradingFeesPallet = TradingFees;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = ConstU64<5>;
+	type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.

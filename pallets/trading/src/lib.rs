@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -175,7 +175,7 @@ pub mod pallet {
 			direction: u8,
 			side: u8,
 		},
-		/// Trade batch execution failed
+		/// Trade batch failed since no makers got executed
 		TradeExecutionFailed { batch_id: U256 },
 		/// Order error
 		OrderError { order_id: u128, error_code: u16 },
@@ -307,17 +307,19 @@ pub mod pallet {
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
-						Self::deposit_event(Event::OrderError {
-							order_id: element.order_id,
-							error_code: Self::get_error_code(e),
-						});
-						// if maker order, process next order
+						// if maker order, emit event and process next order
 						if element.order_id != orders[orders.len() - 1].order_id {
+							Self::deposit_event(Event::OrderError {
+								order_id: element.order_id,
+								error_code: Self::get_error_code(e),
+							});
 							continue;
 						} else {
-							// if taker order, stop execute_trade
-							Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-							return Ok(());
+							// if taker order, revert with error
+							return Err((Error::<T>::TradeBatchError {
+								error_code: Self::get_error_code(e),
+							})
+							.into());
 						}
 					},
 				}
@@ -392,30 +394,24 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
+							return Err((Error::<T>::TradeBatchError {
 								error_code: Self::get_error_code(e),
-							});
-							Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-							return Ok(());
+							})
+							.into());
 						},
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == FixedI128::zero() {
+						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 						return Ok(());
 					}
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
 						if quantity_to_execute != element.size {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: 516,
-							});
-							Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-							return Ok(());
+							return Err((Error::<T>::TradeBatchError { error_code: 516 }).into());
 						}
 					}
 
@@ -433,12 +429,10 @@ pub mod pallet {
 						match limit_validation {
 							Ok(()) => (),
 							Err(e) => {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
+								return Err((Error::<T>::TradeBatchError {
 									error_code: Self::get_error_code(e),
-								});
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								})
+								.into());
 							},
 						}
 					} else {
@@ -452,12 +446,10 @@ pub mod pallet {
 						match slippage_validation {
 							Ok(()) => (),
 							Err(e) => {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
+								return Err((Error::<T>::TradeBatchError {
 									error_code: Self::get_error_code(e),
-								});
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								})
+								.into());
 							},
 						}
 					}
@@ -499,17 +491,19 @@ pub mod pallet {
 							realized_pnl = trading_fee;
 						},
 						Err(e) => {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
-							});
-							// if maker order, process next order
+							// if maker order, emit event and process next order
 							if element.order_id != orders[orders.len() - 1].order_id {
+								Self::deposit_event(Event::OrderError {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
 								continue;
 							} else {
-								// if taker order, stop execute_trade
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								// if taker order, revert with error code
+								return Err((Error::<T>::TradeBatchError {
+									error_code: Self::get_error_code(e),
+								})
+								.into());
 							}
 						},
 					}
@@ -601,17 +595,19 @@ pub mod pallet {
 							realized_pnl = current_pnl;
 						},
 						Err(e) => {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
-							});
-							// if maker order, process next order
+							// if maker order, emit event and process next order
 							if element.order_id != orders[orders.len() - 1].order_id {
+								Self::deposit_event(Event::OrderError {
+									order_id: element.order_id,
+									error_code: Self::get_error_code(e),
+								});
 								continue;
 							} else {
-								// if taker order, stop execute_trade
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								// if taker order, revert with error code
+								return Err((Error::<T>::TradeBatchError {
+									error_code: Self::get_error_code(e),
+								})
+								.into());
 							}
 						},
 					}
@@ -648,12 +644,9 @@ pub mod pallet {
 						if element.order_type == OrderType::Deleveraging {
 							// Position not marked as 'deleveragable'
 							if liq_position.liquidatable != false {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
-									error_code: 526,
-								});
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								return Err(
+									(Error::<T>::TradeBatchError { error_code: 526 }).into()
+								);
 							}
 							let total_value = margin_amount + borrowed_amount;
 							new_leverage = total_value / margin_amount;
@@ -661,12 +654,9 @@ pub mod pallet {
 						} else {
 							// Position not marked as 'liquidatable'
 							if liq_position.liquidatable != true {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
-									error_code: 527,
-								});
-								Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-								return Ok(());
+								return Err(
+									(Error::<T>::TradeBatchError { error_code: 527 }).into()
+								);
 							}
 							new_leverage = position_details.leverage;
 							new_margin_locked = current_margin_locked - margin_lock_amount;
@@ -1380,6 +1370,7 @@ pub mod pallet {
 				Error::<T>::InvalidLiquidationOrder => 527,
 				Error::<T>::InvalidLiqOrDelMarket => 528,
 				Error::<T>::InvalidLiqOrDelDirection => 529,
+				Error::<T>::PassiveRiskError => 531,
 				Error::<T>::NotEnoughMargin => 532,
 				Error::<T>::OrderFullyExecuted => 533,
 				Error::<T>::InvalidOrderHash => 534,
