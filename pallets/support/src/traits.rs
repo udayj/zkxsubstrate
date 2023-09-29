@@ -1,7 +1,8 @@
 use crate::types::{
-	Asset, AssetRemovedL2, AssetUpdatedL2, Direction, HashType, LiquidatablePosition, Market,
-	MarketRemovedL2, MarketUpdatedL2, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	Side, TradingAccount, TradingAccountMinimal, UniversalEventL2, UserDepositL2,
+	Asset, AssetRemovedL2, AssetUpdatedL2, BalanceChangeReason, Direction, HashType,
+	LiquidatablePosition, Market, MarketRemovedL2, MarketUpdatedL2, Order, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side, TradingAccount, TradingAccountMinimal,
+	UniversalEventL2, UserDepositL2,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -16,8 +17,18 @@ pub trait TradingAccountInterface {
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128;
 	fn set_locked_margin(account: U256, asset_id: u128, amount: FixedI128);
-	fn transfer(account: U256, asset_id: u128, amount: FixedI128);
-	fn transfer_from(account: U256, asset_id: u128, amount: FixedI128);
+	fn transfer(
+		account_id: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		reason: BalanceChangeReason,
+	);
+	fn transfer_from(
+		account_id: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		reason: BalanceChangeReason,
+	);
 	fn get_account(account_id: &U256) -> Option<TradingAccount>;
 	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
