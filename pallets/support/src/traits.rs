@@ -1,7 +1,8 @@
 use crate::types::{
 	Asset, AssetRemoved, AssetUpdated, Direction, HashType, LiquidatablePosition, Market,
 	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	Side, TradingAccount, UniversalEvent, UserDeposit, TradingAccountWithoutId,
+	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountWithoutId, UniversalEvent,
+	UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -11,6 +12,7 @@ use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
+	fn deposit(trading_account: TradingAccountWithoutId, collateral_id: u128, amount: FixedI128);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -139,6 +141,14 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_user_deposit_event(
 		&mut self,
 		user_deposit_event: &UserDeposit,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_signer_added_event(
+		&mut self,
+		signer_added: &SignerAdded,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_signer_removed_event(
+		&mut self,
+		signer_added: &SignerRemoved,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,

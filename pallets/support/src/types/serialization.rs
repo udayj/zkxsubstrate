@@ -1,8 +1,8 @@
 use crate::traits::{FeltSerializedArrayExt, U256Ext};
 use crate::types::common::convert_to_u128_pair;
 use crate::types::{
-	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated,
-	TradingAccountWithoutId, UniversalEvent, UserDeposit,
+	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
+	SignerRemoved, TradingAccountWithoutId, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -147,8 +147,28 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.try_append_trading_account(&user_deposit_event.trading_account)?;
 		self.push(FieldElement::from(user_deposit_event.collateral_id));
 		self.try_append_u256(user_deposit_event.nonce)?;
-		self.try_append_u256(user_deposit_event.amount)?;
+		self.try_append_fixedi128(user_deposit_event.amount)?;
 		self.push(FieldElement::from(user_deposit_event.block_number));
+
+		Ok(())
+	}
+
+	fn try_append_signer_added_event(
+		&mut self,
+		signer_added: &SignerAdded,
+	) -> Result<(), FromByteSliceError> {
+		self.try_append_u256(signer_added.signer)?;
+		self.push(FieldElement::from(signer_added.block_number));
+
+		Ok(())
+	}
+
+	fn try_append_signer_removed_event(
+		&mut self,
+		signer_removed: &SignerRemoved,
+	) -> Result<(), FromByteSliceError> {
+		self.try_append_u256(signer_removed.signer)?;
+		self.push(FieldElement::from(signer_removed.block_number));
 
 		Ok(())
 	}
@@ -175,11 +195,11 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 					self.try_append_user_deposit_event(user_deposit)?;
 				},
 				UniversalEvent::SignerAdded(signer_added) => {
-					
+					self.try_append_signer_added_event(signer_added)?;
 				},
 				UniversalEvent::SignerRemoved(signer_removed) => {
-					
-				}
+					self.try_append_signer_removed_event(signer_removed)?;
+				},
 			}
 		}
 

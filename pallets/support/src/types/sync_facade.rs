@@ -2,6 +2,7 @@ use crate::types::{Asset, Market, TradingAccountWithoutId};
 use codec::{Decode, Encode};
 use primitive_types::U256;
 use scale_info::TypeInfo;
+use sp_arithmetic::FixedI128;
 use sp_runtime::traits::ConstU32;
 use sp_runtime::{BoundedVec, RuntimeDebug};
 
@@ -20,7 +21,7 @@ pub enum UniversalEvent {
 	AssetRemoved(AssetRemoved),
 	UserDeposit(UserDeposit),
 	SignerAdded(SignerAdded),
-	SignerRemoved(SignerRemoved)
+	SignerRemoved(SignerRemoved),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -40,7 +41,7 @@ pub struct UserDeposit {
 	pub trading_account: TradingAccountWithoutId,
 	pub collateral_id: u128,
 	pub nonce: U256,
-	pub amount: U256,
+	pub amount: FixedI128,
 	pub block_number: u64,
 }
 
@@ -61,15 +62,14 @@ pub struct AssetUpdated {
 	pub block_number: u64,
 }
 
-
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SignerAdded {
-    pub signer: U256,
-    pub block_number: u64
+	pub signer: U256,
+	pub block_number: u64,
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SignerRemoved {
-    pub signer: U256,
-    pub block_number: u64
+	pub signer: U256,
+	pub block_number: u64,
 }

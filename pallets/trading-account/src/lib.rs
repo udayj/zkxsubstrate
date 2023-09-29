@@ -27,10 +27,10 @@ pub mod pallet {
 		AssetInterface, Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
 		TradingInterface, U256Ext,
 	};
-	use zkx_support::types::WithdrawalRequest;
-	use zkx_support::types::{
+	use zkx_support::types::TradingAccountWithoutId;
+use zkx_support::types::{
 		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
-		TradingAccountWithoutId,
+		WithdrawalRequest,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	#[pallet::pallet]
@@ -116,10 +116,10 @@ pub mod pallet {
 			trading_account: TradingAccountWithoutId,
 			collateral_id: u128,
 			amount: FixedI128,
-			block_number: u64,
+			block_number: T::BlockNumber,
 		},
 		/// Account created
-		AccountCreated { account_id: U256, account_address: U256, index: u8 }
+		AccountCreated { account_id: U256, account_address: U256, index: u8 },
 	}
 
 	#[pallet::call]
@@ -218,68 +218,11 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn deposit(
-			origin: OriginFor<T>,
-			account_address: U256,
-			index: u8,
-			pub_key: U256,
-			collateral_id: u128,
-			amount: FixedI128,
-		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-
-			// Validate that the asset exists and it is a collateral
-			let asset_collateral = T::AssetPallet::get_asset(collateral_id);
-			ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
-			ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
-
-			// Create trading account id
-			let mut account_array: [u8; 32] = [0; 32];
-			account_address.to_little_endian(&mut account_array);
-
-			let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
-			concatenated_bytes.push(index);
-			let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
-
-			let account_id = blake2_256(&result).into();
-
-			// Check if the account already exists, if it doesn't exist then create an account
-			if !AccountMap::<T>::contains_key(&account_id) {
-				let trading_account: TradingAccount =
-					TradingAccount { account_id, account_address, index, pub_key };
-				AccountMap::<T>::insert(account_id, trading_account);
-				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
-			}
-
-			// Get the current balance
-			let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
-
-			// If the current balance is 0, then add collateral to the AccountCollateralsMap
-			if current_balance == FixedI128::zero() {
-				Self::add_collateral(account_id, collateral_id);
-			}
-
-			let new_balance: FixedI128 = amount + current_balance;
-			// Update the balance
-			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
-
-			// BalanceUpdated event is emitted
-			Self::deposit_event(Event::BalanceUpdated {
-				account_id,
-				collateral_id,
-				previous_balance: current_balance,
-				new_balance,
-			});
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
 			withdrawal_request: WithdrawalRequest,
 		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			// Check if the account already exists
 			ensure!(
@@ -312,7 +255,23 @@ pub mod pallet {
 				new_balance: current_balance - withdrawal_request.amount,
 			});
 
-			Self::deposit_event(Event::UserWithdrawal { trading_account: , collateral_id: (), amount: (), block_number: () };
+			// Get the trading account
+			let trading_account = Self::get_account(&withdrawal_request.account_id).unwrap();
+			let trading_account_without_id = TradingAccountWithoutId::new(
+				trading_account.account_address,
+				trading_account.pub_key,
+				trading_account.index,
+			);
+
+			// Get the block number
+			let block_number = <frame_system::Pallet<T>>::block_number();
+
+			Self::deposit_event(Event::UserWithdrawal {
+				trading_account: trading_account_without_id,
+				collateral_id: withdrawal_request.collateral_id,
+				amount: withdrawal_request.amount,
+				block_number,
+			});
 
 			Ok(())
 		}
@@ -706,6 +665,54 @@ pub mod pallet {
 				least_collateral_ratio_position,
 				least_collateral_ratio_position_asset_price,
 			);
+		}
+
+		fn deposit(
+			trading_account: TradingAccountWithoutId,
+			collateral_id: u128,
+			amount: FixedI128,
+		){
+			let account_address = trading_account.account_address;
+			let index = trading_account.index;
+			let pub_key = trading_account.pub_key;
+
+			// Create trading account id
+			let mut account_array: [u8; 32] = [0; 32];
+			account_address.to_little_endian(&mut account_array);
+
+			let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
+			concatenated_bytes.push(index);
+			let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
+
+			let account_id = blake2_256(&result).into();
+
+			// Check if the account already exists, if it doesn't exist then create an account
+			if !AccountMap::<T>::contains_key(&account_id) {
+				let trading_account: TradingAccount =
+					TradingAccount { account_id, account_address, index, pub_key };
+				AccountMap::<T>::insert(account_id, trading_account);
+				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
+			}
+
+			// Get the current balance
+			let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
+
+			// If the current balance is 0, then add collateral to the AccountCollateralsMap
+			if current_balance == FixedI128::zero() {
+				Self::add_collateral(account_id, collateral_id);
+			}
+
+			let new_balance: FixedI128 = amount + current_balance;
+			// Update the balance
+			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
+
+			// BalanceUpdated event is emitted
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id,
+				collateral_id,
+				previous_balance: current_balance,
+				new_balance,
+			});
 		}
 	}
 }

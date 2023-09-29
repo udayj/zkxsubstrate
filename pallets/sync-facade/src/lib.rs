@@ -13,9 +13,12 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use frame_system::Origin;
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
-	use zkx_support::traits::{FeltSerializedArrayExt, FieldElementExt, U256Ext};
+	use zkx_support::traits::{
+		FeltSerializedArrayExt, FieldElementExt, TradingAccountInterface, U256Ext,
+	};
 	use zkx_support::types::{SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
@@ -25,6 +28,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type TradingAccountPallet: TradingAccountInterface;
 	}
 
 	#[pallet::storage]
@@ -189,6 +193,9 @@ pub mod pallet {
 			// Check if there are enough sigs
 			ensure!(Self::has_quorum(signatures, batch_hash), Error::<T>::InsufficientSignatures);
 
+			// Handle the events
+			Self::handle_events(events_batch);
+
 			// Mark the batch hash as being processed
 			IsBatchProcessed::<T>::insert(batch_hash_u256, true);
 
@@ -200,6 +207,31 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn handle_events(events_batch: Vec<UniversalEvent>) {
+			for event in events_batch.iter() {
+				match event {
+					UniversalEvent::MarketUpdated(market_updated) => {},
+					UniversalEvent::AssetUpdated(asset_updated) => {},
+					UniversalEvent::MarketRemoved(market_removed) => {},
+					UniversalEvent::AssetRemoved(asset_removed) => {},
+					UniversalEvent::UserDeposit(user_deposit) => {
+						T::TradingAccountPallet::deposit(
+							user_deposit.trading_account,
+							user_deposit.collateral_id,
+							user_deposit.amount,
+						);
+					},
+					UniversalEvent::SignerAdded(signer_added) => {
+						Self::add_signer(Origin::<T>::Root.into(), signer_added.signer).unwrap();
+					},
+					UniversalEvent::SignerRemoved(signer_removed) => {
+						Self::remove_signer(Origin::<T>::Root.into(), signer_removed.signer)
+							.unwrap();
+					},
+				}
+			}
+		}
+
 		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
 			// Get the required data
 			let quorum = SignersQuorum::<T>::get() as usize;
