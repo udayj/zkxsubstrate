@@ -1,9 +1,8 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use zkx_support::types::Market;
-use zkx_support::test_helpers::asset_helper::{eth, usdc, link};
+use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
 use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
-
+use zkx_support::types::Market;
 
 fn setup() -> (Market, Market) {
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), link()]));

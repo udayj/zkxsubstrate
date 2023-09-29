@@ -1,7 +1,7 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use sp_arithmetic::FixedI128;
-use zkx_support::test_helpers::asset_helper::{eth, usdc, link};
+use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
 use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
 use zkx_support::types::{Asset, Market, MarketPrice, MultipleMarketPrices};
 

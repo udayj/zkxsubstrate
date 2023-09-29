@@ -1,7 +1,7 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use primitive_types::U256;
-use zkx_support::test_helpers::asset_helper::{eth, usdc, link, btc};
+use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
 use zkx_support::types::Asset;
 
 fn setup() -> (Asset, Asset, Asset, Asset) {
@@ -68,7 +68,6 @@ fn it_does_not_work_for_replace_assets_duplicate() {
 		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 	});
 }
-
 
 #[test]
 #[should_panic(expected = "InvalidAsset")]

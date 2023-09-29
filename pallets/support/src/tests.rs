@@ -1,8 +1,6 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{
-	Direction, HashType, Order, OrderType, Side, TimeInForce,
-};
+use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
