@@ -1,4 +1,4 @@
-use crate::types::{Asset, Market, TradingAccountWithoutId};
+use crate::types::{Asset, Market, TradingAccountMinimal};
 use codec::{Decode, Encode};
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -38,7 +38,7 @@ pub struct AssetRemoved {
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct UserDeposit {
-	pub trading_account: TradingAccountWithoutId,
+	pub trading_account: TradingAccountMinimal,
 	pub collateral_id: u128,
 	pub nonce: U256,
 	pub amount: FixedI128,

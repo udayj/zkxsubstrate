@@ -9,7 +9,7 @@ use zkx_support::test_helpers::asset_helper::{eth, usdc, link, btc};
 use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
 use zkx_support::types::{
 	Asset, Direction, HashType, Market, Order, OrderType, Position, Side, TimeInForce,
-	TradingAccountWithoutId,
+	TradingAccountMinimal,
 };
 
 const order_id_1: u128 = 200_u128;
@@ -19,7 +19,7 @@ const order_id_4: u128 = 203_u128;
 const order_id_5: u128 = 204_u128;
 const order_id_6: u128 = 205_u128;
 
-fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
+fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	let assets: Vec<Asset> = vec![eth(), usdc(), link(), btc()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
@@ -66,27 +66,27 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	.unwrap();
 	let user_address_4: U256 = U256::from(103_u8);
 
-	let user_1 = TradingAccountWithoutId {
+	let user_1 = TradingAccountMinimal {
 		account_address: user_address_1,
 		index: 0,
 		pub_key: user_pub_key_1,
 	};
-	let user_2 = TradingAccountWithoutId {
+	let user_2 = TradingAccountMinimal {
 		account_address: user_address_2,
 		index: 0,
 		pub_key: user_pub_key_2,
 	};
-	let user_3 = TradingAccountWithoutId {
+	let user_3 = TradingAccountMinimal {
 		account_address: user_address_3,
 		index: 0,
 		pub_key: user_pub_key_3,
 	};
-	let user_4 = TradingAccountWithoutId {
+	let user_4 = TradingAccountMinimal {
 		account_address: user_address_4,
 		index: 0,
 		pub_key: user_pub_key_4,
 	};
-	let accounts: Vec<TradingAccountWithoutId> = vec![user_1, user_2, user_3, user_4];
+	let accounts: Vec<TradingAccountMinimal> = vec![user_1, user_2, user_3, user_4];
 	assert_ok!(TradingAccounts::add_accounts(RuntimeOrigin::signed(1), accounts.clone()));
 
 	let private_keys: Vec<U256> =
@@ -95,7 +95,7 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 	(markets, accounts, private_keys)
 }
 
-fn get_trading_account_id(trading_accounts: Vec<TradingAccountWithoutId>, index: usize) -> U256 {
+fn get_trading_account_id(trading_accounts: Vec<TradingAccountMinimal>, index: usize) -> U256 {
 	let account_address = U256::from(trading_accounts[index].account_address);
 	let mut account_array: [u8; 32] = [0; 32];
 	account_address.to_little_endian(&mut account_array);

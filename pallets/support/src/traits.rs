@@ -1,8 +1,8 @@
 use crate::types::{
-	Asset, AssetRemoved, AssetUpdated, Direction, HashType, LiquidatablePosition, Market,
-	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountWithoutId, UniversalEvent,
-	UserDeposit,
+	Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, HashType,
+	LiquidatablePosition, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position,
+	PositionDetailsForRiskManagement, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -12,14 +12,24 @@ use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
-	fn deposit(trading_account: TradingAccountWithoutId, collateral_id: u128, amount: FixedI128);
+	fn deposit(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128;
 	fn set_locked_margin(account: U256, asset_id: u128, amount: FixedI128);
-	fn transfer(account: U256, asset_id: u128, amount: FixedI128);
-	fn transfer_from(account: U256, asset_id: u128, amount: FixedI128);
+	fn transfer(
+		account_id: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		reason: BalanceChangeReason,
+	);
+	fn transfer_from(
+		account_id: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		reason: BalanceChangeReason,
+	);
 	fn get_account(account_id: &U256) -> Option<TradingAccount>;
 	fn get_public_key(account: &U256) -> Option<U256>;
 	fn get_margin_info(
@@ -120,7 +130,7 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_market(&mut self, market: &Market) -> Result<(), FromByteSliceError>;
 	fn try_append_trading_account(
 		&mut self,
-		trading_account: &TradingAccountWithoutId,
+		trading_account: &TradingAccountMinimal,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_market_updated_event(
 		&mut self,

@@ -4,21 +4,21 @@ use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
 use zkx_support::test_helpers::asset_helper::{eth, usdc, usdt};
-use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
+use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountMinimal};
 
-fn setup() -> Vec<TradingAccountWithoutId> {
-	let mut trading_accounts: Vec<TradingAccountWithoutId> = Vec::new();
-	let trading_account1 = TradingAccountWithoutId {
+fn setup() -> Vec<TradingAccountMinimal> {
+	let mut trading_accounts: Vec<TradingAccountMinimal> = Vec::new();
+	let trading_account1 = TradingAccountMinimal {
 		account_address: 1000.into(),
 		index: 1.into(),
 		pub_key: 100.into(),
 	};
-	let trading_account2 = TradingAccountWithoutId {
+	let trading_account2 = TradingAccountMinimal {
 		account_address: 2000.into(),
 		index: 2.into(),
 		pub_key: 200.into(),
 	};
-	let trading_account3 = TradingAccountWithoutId {
+	let trading_account3 = TradingAccountMinimal {
 		account_address: 3000.into(),
 		index: 3.into(),
 		pub_key: 300.into(),
@@ -35,7 +35,7 @@ fn create_assets() -> Vec<Asset> {
 	assets
 }
 
-fn get_trading_account_id(trading_accounts: Vec<TradingAccountWithoutId>, index: usize) -> U256 {
+fn get_trading_account_id(trading_accounts: Vec<TradingAccountMinimal>, index: usize) -> U256 {
 	let account_address = U256::from(trading_accounts[index].account_address);
 	let mut account_array: [u8; 32] = [0; 32];
 	account_address.to_little_endian(&mut account_array);

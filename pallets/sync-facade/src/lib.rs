@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
+pub use frame_system::pallet::*;
 
 #[cfg(test)]
 mod mock;
@@ -210,10 +210,10 @@ pub mod pallet {
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
 			for event in events_batch.iter() {
 				match event {
-					UniversalEvent::MarketUpdated(market_updated) => {},
-					UniversalEvent::AssetUpdated(asset_updated) => {},
-					UniversalEvent::MarketRemoved(market_removed) => {},
-					UniversalEvent::AssetRemoved(asset_removed) => {},
+					UniversalEvent::MarketUpdated(_market_updated) => {},
+					UniversalEvent::AssetUpdated(_asset_updated) => {},
+					UniversalEvent::MarketRemoved(_market_removed) => {},
+					UniversalEvent::AssetRemoved(_asset_removed) => {},
 					UniversalEvent::UserDeposit(user_deposit) => {
 						T::TradingAccountPallet::deposit(
 							user_deposit.trading_account,

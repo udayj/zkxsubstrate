@@ -27,12 +27,12 @@ pub mod pallet {
 		AssetInterface, Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
 		TradingInterface, U256Ext,
 	};
-	use zkx_support::types::TradingAccountWithoutId;
-use zkx_support::types::{
-		BalanceUpdate, Direction, Position, PositionDetailsForRiskManagement, TradingAccount,
-		WithdrawalRequest,
+	use zkx_support::types::{
+		BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
+		PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -107,13 +107,18 @@ use zkx_support::types::{
 		/// Balances for an account updated
 		BalanceUpdated {
 			account_id: U256,
+			account: TradingAccountMinimal,
 			collateral_id: u128,
+			amount: FixedI128,
+			modify_type: u8,
+			reason: u8,
 			previous_balance: FixedI128,
 			new_balance: FixedI128,
+			block_number: T::BlockNumber,
 		},
 		/// Event to be synced by L2
 		UserWithdrawal {
-			trading_account: TradingAccountWithoutId,
+			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
 			amount: FixedI128,
 			block_number: T::BlockNumber,
@@ -128,7 +133,7 @@ use zkx_support::types::{
 		#[pallet::weight(0)]
 		pub fn add_accounts(
 			origin: OriginFor<T>,
-			accounts: Vec<TradingAccountWithoutId>,
+			accounts: Vec<TradingAccountMinimal>,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
@@ -206,11 +211,20 @@ use zkx_support::types::{
 				// Update the map with new balance
 				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
 
+				let account =
+					AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
+				let block_number = <frame_system::Pallet<T>>::block_number();
+
 				Self::deposit_event(Event::BalanceUpdated {
 					account_id,
+					account,
 					collateral_id: element.asset_id,
+					amount: element.balance_value,
+					modify_type: FundModifyType::Increase.into(),
+					reason: BalanceChangeReason::Deposit.into(),
 					previous_balance: current_balance,
 					new_balance: element.balance_value,
+					block_number,
 				});
 			}
 
@@ -247,27 +261,34 @@ use zkx_support::types::{
 				current_balance - withdrawal_request.amount,
 			);
 
+			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
+				.unwrap()
+				.to_trading_account_minimal();
+			let block_number = <frame_system::Pallet<T>>::block_number();
+
 			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalanceUpdated {
 				account_id: withdrawal_request.account_id,
+				account,
 				collateral_id: withdrawal_request.collateral_id,
+				amount: withdrawal_request.amount,
+				modify_type: FundModifyType::Decrease.into(),
+				reason: BalanceChangeReason::Withdrawal.into(),
 				previous_balance: current_balance,
 				new_balance: current_balance - withdrawal_request.amount,
+				block_number,
 			});
 
 			// Get the trading account
-			let trading_account = Self::get_account(&withdrawal_request.account_id).unwrap();
-			let trading_account_without_id = TradingAccountWithoutId::new(
-				trading_account.account_address,
-				trading_account.pub_key,
-				trading_account.index,
-			);
+			let account = Self::get_account(&withdrawal_request.account_id)
+				.unwrap()
+				.to_trading_account_minimal();
 
 			// Get the block number
 			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			Self::deposit_event(Event::UserWithdrawal {
-				trading_account: trading_account_without_id,
+				trading_account: account,
 				collateral_id: withdrawal_request.collateral_id,
 				amount: withdrawal_request.amount,
 				block_number,
@@ -512,38 +533,76 @@ use zkx_support::types::{
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
-		fn get_balance(account: U256, asset_id: u128) -> FixedI128 {
-			BalancesMap::<T>::get(account, asset_id)
+		fn get_balance(account_id: U256, collateral_id: u128) -> FixedI128 {
+			BalancesMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128 {
-			let total_balance = BalancesMap::<T>::get(account, asset_id);
-			let locked_balance = LockedMarginMap::<T>::get(account, asset_id);
+		fn get_unused_balance(account_id: U256, collateral_id: u128) -> FixedI128 {
+			let total_balance = BalancesMap::<T>::get(account_id, collateral_id);
+			let locked_balance = LockedMarginMap::<T>::get(account_id, collateral_id);
 			total_balance - locked_balance
 		}
 
-		fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128 {
-			LockedMarginMap::<T>::get(account, asset_id)
+		fn get_locked_margin(account_id: U256, collateral_id: u128) -> FixedI128 {
+			LockedMarginMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn set_locked_margin(account: U256, asset_id: u128, new_amount: FixedI128) {
-			LockedMarginMap::<T>::set(account, asset_id, new_amount);
+		fn set_locked_margin(account_id: U256, collateral_id: u128, new_amount: FixedI128) {
+			LockedMarginMap::<T>::set(account_id, collateral_id, new_amount);
 		}
 
-		fn transfer(account: U256, asset_id: u128, amount: FixedI128) {
-			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+		fn transfer(
+			account_id: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+			reason: BalanceChangeReason,
+		) {
+			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
+			let current_balance = BalancesMap::<T>::get(&account_id, collateral_id);
 			let new_balance = current_balance.add(amount);
-			BalancesMap::<T>::set(account, asset_id, new_balance);
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
+
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id,
+				account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Increase.into(),
+				reason: reason.into(),
+				previous_balance: current_balance,
+				new_balance,
+				block_number,
+			});
 		}
 
-		fn transfer_from(account: U256, asset_id: u128, amount: FixedI128) {
-			let current_balance = BalancesMap::<T>::get(&account, asset_id);
+		fn transfer_from(
+			account_id: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+			reason: BalanceChangeReason,
+		) {
+			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
+			let current_balance = BalancesMap::<T>::get(&account_id, collateral_id);
 			let new_balance = current_balance.sub(amount);
-			BalancesMap::<T>::set(account, asset_id, new_balance);
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
+
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id,
+				account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Decrease.into(),
+				reason: reason.into(),
+				previous_balance: current_balance,
+				new_balance,
+				block_number,
+			});
 		}
 
-		fn is_registered_user(account: U256) -> bool {
-			AccountMap::<T>::contains_key(&account)
+		fn is_registered_user(account_id: U256) -> bool {
+			AccountMap::<T>::contains_key(&account_id)
 		}
 
 		fn get_account(account_id: &U256) -> Option<TradingAccount> {
@@ -551,8 +610,8 @@ use zkx_support::types::{
 			Some(trading_account)
 		}
 
-		fn get_public_key(account: &U256) -> Option<U256> {
-			let trading_account = AccountMap::<T>::get(&account)?;
+		fn get_public_key(account_id: &U256) -> Option<U256> {
+			let trading_account = AccountMap::<T>::get(&account_id)?;
 			Some(trading_account.pub_key)
 		}
 
@@ -667,11 +726,7 @@ use zkx_support::types::{
 			);
 		}
 
-		fn deposit(
-			trading_account: TradingAccountWithoutId,
-			collateral_id: u128,
-			amount: FixedI128,
-		){
+		fn deposit(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128) {
 			let account_address = trading_account.account_address;
 			let index = trading_account.index;
 			let pub_key = trading_account.pub_key;
@@ -706,12 +761,21 @@ use zkx_support::types::{
 			// Update the balance
 			BalancesMap::<T>::set(account_id, collateral_id, new_balance);
 
+			// Get the user account
+			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
+			let block_number = <frame_system::Pallet<T>>::block_number();
+
 			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalanceUpdated {
 				account_id,
+				account,
 				collateral_id,
+				amount,
+				modify_type: FundModifyType::Increase.into(),
+				reason: BalanceChangeReason::Deposit.into(),
 				previous_balance: current_balance,
 				new_balance,
+				block_number,
 			});
 		}
 	}

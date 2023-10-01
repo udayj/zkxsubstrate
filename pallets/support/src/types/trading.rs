@@ -31,26 +31,6 @@ pub struct Order {
 	pub hash_type: HashType,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct FailedOrder {
-	pub order_id: u128,
-	pub error_code: u16,
-}
-
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ExecutedOrder {
-	pub account_id: U256,
-	pub order_id: u128,
-	pub market_id: u128,
-	pub size: FixedI128,
-	pub direction: Direction,
-	pub side: Side,
-	pub order_type: OrderType,
-	pub execution_price: FixedI128,
-	pub pnl: FixedI128,
-	pub opening_fee: FixedI128,
-}
-
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum FundModifyType {
 	#[default]
@@ -105,6 +85,9 @@ pub enum BalanceChangeReason {
 	#[default]
 	Fee,
 	PnlRealization,
+	Deposit,
+	Withdrawal,
+	Liquidation,
 }
 
 // Position Related
@@ -198,6 +181,18 @@ impl From<BalanceChangeReason> for u8 {
 		match value {
 			BalanceChangeReason::Fee => 0_u8,
 			BalanceChangeReason::PnlRealization => 1_u8,
+			BalanceChangeReason::Deposit => 2_u8,
+			BalanceChangeReason::Withdrawal => 3_u8,
+			BalanceChangeReason::Liquidation => 4_u8,
+		}
+	}
+}
+
+impl From<FundModifyType> for u8 {
+	fn from(value: FundModifyType) -> u8 {
+		match value {
+			FundModifyType::Increase => 0_u8,
+			FundModifyType::Decrease => 1_u8,
 		}
 	}
 }

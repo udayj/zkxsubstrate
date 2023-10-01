@@ -2,7 +2,7 @@ use crate::traits::{FeltSerializedArrayExt, U256Ext};
 use crate::types::common::convert_to_u128_pair;
 use crate::types::{
 	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
-	SignerRemoved, TradingAccountWithoutId, UniversalEvent, UserDeposit,
+	SignerRemoved, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -86,7 +86,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_trading_account(
 		&mut self,
-		trading_account: &TradingAccountWithoutId,
+		trading_account: &TradingAccountMinimal,
 	) -> Result<(), FromByteSliceError> {
 		self.try_append_u256(trading_account.account_address)?;
 		self.try_append_u256(trading_account.pub_key)?;
