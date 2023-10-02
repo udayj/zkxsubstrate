@@ -106,7 +106,9 @@ pub struct Position {
 	pub realized_pnl: FixedI128,
 }
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub struct PositionDetailsForRiskManagement {
 	pub market_id: u128,
 	pub direction: Direction,
@@ -134,6 +136,30 @@ pub struct ExecutedBatch {
 	execution_price: FixedI128,
 	direction: Direction,
 	side: Side,
+}
+
+#[derive(
+	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
+pub struct MarginInfo {
+	pub is_liquidation: bool,
+	pub total_margin: FixedI128,
+	pub available_margin: FixedI128,
+	pub unrealized_pnl_sum: FixedI128,
+	pub maintenance_margin_requirement: FixedI128,
+	pub least_collateral_ratio: FixedI128,
+	pub least_collateral_ratio_position: PositionDetailsForRiskManagement,
+	pub least_collateral_ratio_position_asset_price: FixedI128,
+}
+
+#[derive(
+	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
+pub struct AccountInfo {
+	pub positions: Vec<Position>,
+	pub available_margin: FixedI128,
+	pub total_margin: FixedI128,
+	pub collateral_balance: FixedI128,
 }
 
 // Impls

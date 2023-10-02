@@ -1,7 +1,7 @@
 use crate::types::{
-	Asset, AssetRemovedL2, AssetUpdatedL2, BalanceChangeReason, Direction, HashType,
-	LiquidatablePosition, Market, MarketRemovedL2, MarketUpdatedL2, Order, OrderSide, Position,
-	PositionDetailsForRiskManagement, Side, TradingAccount, TradingAccountMinimal,
+	AccountInfo, Asset, AssetRemovedL2, AssetUpdatedL2, BalanceChangeReason, Direction, HashType,
+	LiquidatablePosition, MarginInfo, Market, MarketRemovedL2, MarketUpdatedL2, Order, OrderSide,
+	Position, PositionDetailsForRiskManagement, Side, TradingAccount, TradingAccountMinimal,
 	UniversalEventL2, UserDepositL2,
 };
 use frame_support::inherent::Vec;
@@ -62,6 +62,8 @@ pub trait TradingInterface {
 		account_id: U256,
 		collateral_id: u128,
 	) -> LiquidatablePosition;
+	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
+	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 }
 
 pub trait AssetInterface {
