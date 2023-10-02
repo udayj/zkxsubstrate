@@ -4,6 +4,7 @@ BigNumber.set({
 });
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
+import { rpc, types } from './src/providers/rpc';
 
 process.nextTick(async () => {
   await cryptoWaitReady();
@@ -12,24 +13,8 @@ process.nextTick(async () => {
   const wsProvider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({
     provider: wsProvider,
-    rpc: {
-      trading: {
-        get_positions: {
-          description: 'Just a test method',
-          type: 'Vec<Position>',
-          params: [
-            {
-              name: 'account_id',
-              type: 'u256',
-            },
-            {
-              name: 'collateral_id',
-              type: 'u256',
-            },
-          ],
-        },
-      },
-    },
+    types,
+    rpc,
   });
   const res = await api.rpc.rpc.methods();
   console.log({ res: res.toPrimitive() });
