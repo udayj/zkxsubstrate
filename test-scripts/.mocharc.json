@@ -7,7 +7,6 @@
     "tsconfig-paths/register"
   ],
   "spec": [
-    "src/**/*.test.ts",
     "src/**/*.spec.ts"
   ]
 }
