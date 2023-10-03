@@ -1,0 +1,217 @@
+{
+  "context": {
+    "timestamp": "2023-09-19T13:14:02.026Z",
+    "service": "indexer",
+    "type": "BULL",
+    "requestId": "indexer:processingBlock:11",
+    "traceId": "indexer:processingBlock:11"
+  },
+  "payload": {
+    "message": "Transactions processing...",
+    "data": {
+      "blockNumber": 11,
+      "transactions": [
+        {
+          "blockNumber": 11,
+          "blockTimestamp": 1695129228000,
+          "transactionHash": "0xe835268473db6be4885696bf971996c4e28782d8fff2d0c1b7613dee5cb3035a",
+          "events": [],
+          "arguments": [
+            1695129228000
+          ],
+          "section": "timestamp",
+          "method": "set",
+          "success": true,
+          "error": "undefined"
+        },
+        {
+          "blockNumber": 11,
+          "blockTimestamp": 1695129228000,
+          "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+          "events": [
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "Withdraw",
+              "section": "balances",
+              "data": [
+                "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+                113638632
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "MarketPriceUpdated",
+              "section": "marketPrices",
+              "data": [
+                "4995697246202971203",
+                {
+                  "assetId": 4543560,
+                  "collateralId": 1431520323,
+                  "timestamp": 1695129228,
+                  "price": "1830000000000000000000"
+                }
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "OrderExecuted",
+              "section": "trading",
+              "data": [
+                "71944694654265300051074878787113217850681376549765782934798298718827780852559",
+                "75061353272841442091937419707475774067",
+                "4995697246202971203",
+                "10000000000000000",
+                0,
+                0,
+                1,
+                "1830000000000000000000",
+                0,
+                0
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "OrderExecuted",
+              "section": "trading",
+              "data": [
+                "18519876693817954385885332436404499634801382418672624691630219206146138415844",
+                "132146295326295266216823076752769570122",
+                "4995697246202971203",
+                "10000000000000000",
+                1,
+                0,
+                0,
+                "1830000000000000000000",
+                0,
+                0
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "UserBalanceChange",
+              "section": "trading",
+              "data": [
+                {
+                  "account": {
+                    "accountAddress": "319015099238991945053819992048907426234",
+                    "index": 0
+                  },
+                  "collateralId": 1431520323,
+                  "amount": 0,
+                  "modifyType": "Decrease",
+                  "reason": 0,
+                  "blockNumber": 11
+                }
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "UserBalanceChange",
+              "section": "trading",
+              "data": [
+                {
+                  "account": {
+                    "accountAddress": "95552503219020205929244392607432559987",
+                    "index": 0
+                  },
+                  "collateralId": 1431520323,
+                  "amount": 0,
+                  "modifyType": "Decrease",
+                  "reason": 0,
+                  "blockNumber": 11
+                }
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "TradeExecuted",
+              "section": "trading",
+              "data": [
+                "125970139891701019095799938736153719356858769040212",
+                "4995697246202971203",
+                "10000000000000000",
+                "1830000000000000000000",
+                1,
+                0
+              ]
+            },
+            {
+              "blockNumber": 11,
+              "blockTimestamp": 1695129228000,
+              "transactionHash": "0xff6416b021c002b87428775e6e891fe5513a65b1f8e18b6a83c9ddcdc07e1899",
+              "name": "TransactionFeePaid",
+              "section": "transactionPayment",
+              "data": [
+                "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+                113638632,
+                0
+              ]
+            }
+          ],
+          "arguments": [
+            "125970139891701019095799938736153719356858769040212",
+            "10000000000000000",
+            "4995697246202971203",
+            "1830000000000000000000",
+            [
+              {
+                "accountId": "71944694654265300051074878787113217850681376549765782934798298718827780852559",
+                "orderId": "75061353272841442091937419707475774067",
+                "marketId": "4995697246202971203",
+                "orderType": "Limit",
+                "direction": "Long",
+                "side": "Buy",
+                "price": "1830000000000000000000",
+                "size_": "10000000000000000",
+                "leverage": "1000000000000000000",
+                "slippage": "100000000000000000",
+                "postOnly": false,
+                "timeInForce": "GTC",
+                "sigR": "3341678248134513338409636559048496063511518369617865271082001012202325489122",
+                "sigS": "477284876032663537707598678325840806487382295415388601653558036038928085386",
+                "hashType": "Pedersen"
+              },
+              {
+                "accountId": "18519876693817954385885332436404499634801382418672624691630219206146138415844",
+                "orderId": "132146295326295266216823076752769570122",
+                "marketId": "4995697246202971203",
+                "orderType": "Market",
+                "direction": "Short",
+                "side": "Buy",
+                "price": "1830000000000000000000",
+                "size_": "10000000000000000",
+                "leverage": "1000000000000000000",
+                "slippage": "100000000000000000",
+                "postOnly": false,
+                "timeInForce": "GTC",
+                "sigR": "577299158555943447283662083656359618091267013376279870023023507688509615257",
+                "sigS": "2587951722304191680988975036786512127376766249816201144816001981258251139135",
+                "hashType": "Pedersen"
+              }
+            ]
+          ],
+          "section": "trading",
+          "method": "executeTrade",
+          "success": true,
+          "error": "undefined"
+        }
+      ]
+    }
+  },
+  "level": "DEBUG",
+  "message": "Transactions processing..."
+}

@@ -17,6 +17,7 @@
     "uuid": "^9.0.1"
   },
   "scripts": {
-    "test": "ts-node rpc.ts"
+    "substrateTradingTest": "ts-node substrate-trading-test.ts",
+    "substrateTradingTest2": "ts-node substrate-trading-test-2.ts"
   }
 }

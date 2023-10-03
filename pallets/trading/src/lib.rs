@@ -23,9 +23,9 @@ pub mod pallet {
 		TradingAccountInterface, TradingFeesInterface, TradingInterface, U256Ext,
 	};
 	use zkx_support::types::{
-		BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition, Market, Order,
-		OrderSide, OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
-		TradingAccountMinimal,
+		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
+		MarginInfo, Market, Order, OrderSide, OrderType, Position,
+		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -1401,6 +1401,65 @@ pub mod pallet {
 				}
 			}
 			return pos_vec;
+		}
+
+		fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo {
+			let (
+				is_liquidation,
+				total_margin,
+				available_margin,
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
+
+			MarginInfo {
+				is_liquidation,
+				total_margin,
+				available_margin,
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			}
+		}
+
+		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo {
+			let (_, total_margin, available_margin, _, _, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
+
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
+			let mut positions = Vec::<Position>::new();
+			for element in markets {
+				let long_pos: Position =
+					PositionsMap::<T>::get(account_id, (element, Direction::Long));
+				let short_pos: Position =
+					PositionsMap::<T>::get(account_id, (element, Direction::Short));
+				if long_pos.size != 0.into() {
+					positions.push(long_pos);
+				}
+				if short_pos.size != 0.into() {
+					positions.push(short_pos);
+				}
+			}
+
+			let collateral_balance =
+				T::TradingAccountPallet::get_balance(account_id, collateral_id);
+
+			AccountInfo { positions, available_margin, total_margin, collateral_balance }
 		}
 	}
 }

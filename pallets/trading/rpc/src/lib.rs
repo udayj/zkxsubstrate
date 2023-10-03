@@ -9,7 +9,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::sync::Arc;
-use zkx_support::types::Position;
+use zkx_support::types::{AccountInfo, MarginInfo, Position};
 
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {
@@ -20,6 +20,22 @@ pub trait TradingApi<BlockHash> {
 		collateral_id: u128,
 		at: Option<BlockHash>,
 	) -> RpcResult<Vec<Position>>;
+
+	#[method(name = "trading_get_margin_info")]
+	fn get_margin_info(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<BlockHash>,
+	) -> RpcResult<MarginInfo>;
+
+	#[method(name = "trading_get_account_info")]
+	fn get_account_info(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<BlockHash>,
+	) -> RpcResult<AccountInfo>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -53,6 +69,32 @@ where
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
 		api.positions(at, account_id, collateral_id).map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_margin_info(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<MarginInfo> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_margin_info(at, account_id, collateral_id)
+			.map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_account_info(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<AccountInfo> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_account_info(at, account_id, collateral_id)
+			.map_err(runtime_error_into_rpc_err)
 	}
 }
 
