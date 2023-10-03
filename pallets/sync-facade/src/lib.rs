@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use frame_system::pallet::*;
+pub use pallet::*;
 
 #[cfg(test)]
 mod mock;
