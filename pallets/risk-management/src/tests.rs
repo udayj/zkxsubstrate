@@ -1,9 +1,10 @@
-use crate::{mock::*, Event};
+use crate::mock::*;
 use frame_support::assert_ok;
+use frame_system::EventRecord;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
-use starknet_crypto::{sign, verify, FieldElement};
+use starknet_crypto::{sign, FieldElement};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
 	Asset, Direction, HashType, LiquidatablePosition, Market, MarketPrice, MultipleMarketPrices,
@@ -69,16 +70,16 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		tick_precision: 1,
 		step_size: 1.into(),
 		step_precision: 1,
-		minimum_order_size: 1.into(),
+		minimum_order_size: FixedI128::from_inner(100000000000000000),
 		minimum_leverage: 1.into(),
 		maximum_leverage: 10.into(),
 		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
+		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
 		initial_margin_fraction: 1.into(),
 		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
+		incremental_position_size: 100.into(),
+		baseline_position_size: 1000.into(),
+		maximum_position_size: 10000.into(),
 	};
 	let market2: Market = Market {
 		id: 2,
@@ -91,16 +92,16 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		tick_precision: 1,
 		step_size: 1.into(),
 		step_precision: 1,
-		minimum_order_size: 1.into(),
+		minimum_order_size: FixedI128::from_inner(100000000000000000),
 		minimum_leverage: 1.into(),
 		maximum_leverage: 10.into(),
 		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
+		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
 		initial_margin_fraction: 1.into(),
 		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
+		incremental_position_size: 100.into(),
+		baseline_position_size: 1000.into(),
+		maximum_position_size: 10000.into(),
 	};
 
 	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
@@ -199,8 +200,7 @@ fn sign_order(order: Order, private_key: U256) -> Order {
 }
 
 #[test]
-// basic open trade with leverage
-fn it_works_for_open_trade_with_leverage() {
+fn test_liquidation() {
 	new_test_ext().execute_with(|| {
 		let (markets, accounts, private_keys) = setup();
 		// Go past genesis block so events get deposited
@@ -216,8 +216,8 @@ fn it_works_for_open_trade_with_leverage() {
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
-			price: 100.into(),
-			size: 1.into(),
+			price: 10000.into(),
+			size: 5.into(),
 			leverage: 5.into(),
 			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
@@ -233,8 +233,8 @@ fn it_works_for_open_trade_with_leverage() {
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
-			price: 100.into(),
-			size: 1.into(),
+			price: 10000.into(),
+			size: 5.into(),
 			leverage: 5.into(),
 			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
@@ -251,21 +251,21 @@ fn it_works_for_open_trade_with_leverage() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
-			1.into(),
+			5.into(),
 			markets[0].id,
-			100.into(),
+			10000.into(),
 			orders
 		));
 
 		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
 		let expected_position: Position = Position {
 			market_id: markets[0].id,
-			avg_execution_price: 100.into(),
-			size: 1.into(),
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
 			direction: Direction::Long,
 			side: Side::Buy,
-			margin_amount: 20.into(),
-			borrowed_amount: 80.into(),
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
 			leverage: 5.into(),
 			realized_pnl: 0.into(),
 		};
@@ -274,12 +274,12 @@ fn it_works_for_open_trade_with_leverage() {
 		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
 		let expected_position: Position = Position {
 			market_id: markets[0].id,
-			avg_execution_price: 100.into(),
-			size: 1.into(),
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
 			direction: Direction::Short,
 			side: Side::Buy,
-			margin_amount: 20.into(),
-			borrowed_amount: 80.into(),
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
 			leverage: 5.into(),
 			realized_pnl: 0.into(),
 		};
@@ -297,13 +297,12 @@ fn it_works_for_open_trade_with_leverage() {
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
-			market_id: 0.into(),
+			market_id: 0,
 			direction: Direction::Long,
 			amount_to_be_sold: 0.into(),
 			liquidatable: false,
 		};
 		assert_eq!(expected_position, liquidatable_position);
-		println!("{:?}", liquidatable_position);
 
 		// As the price of an asset didn't change. Liquidatable or deleverabale position would be zero for account_id_2
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -318,17 +317,16 @@ fn it_works_for_open_trade_with_leverage() {
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
-			market_id: 0.into(),
+			market_id: 0,
 			direction: Direction::Long,
 			amount_to_be_sold: 0.into(),
 			liquidatable: false,
 		};
 		assert_eq!(expected_position, liquidatable_position);
-		println!("{:?}", liquidatable_position);
 
 		// Decrease the price of the asset
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 5000.into() };
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8000.into() };
 		market_prices.push(market_price1);
 		assert_ok!(MarketPrices::update_multiple_market_prices(
 			RuntimeOrigin::signed(1),
@@ -336,7 +334,7 @@ fn it_works_for_open_trade_with_leverage() {
 		));
 
 		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
-		let mut expected_price: FixedI128 = 5000.into();
+		let mut expected_price: FixedI128 = 8000.into();
 		assert_eq!(expected_price, market_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
@@ -351,13 +349,1226 @@ fn it_works_for_open_trade_with_leverage() {
 			markets[0].asset_collateral,
 		);
 
-		// let expected_position: LiquidatablePosition = LiquidatablePosition {
-		// 	market_id: 0.into(),
-		// 	direction: Direction::Long,
-		// 	amount_to_be_sold: 0.into(),
-		// 	liquidatable: false,
-		// };
-		// assert_eq!(expected_position, liquidatable_position);
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: 5.into(),
+			liquidatable: true,
+		};
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place liquidation order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Liquidation,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			5.into(),
+			markets[0].id,
+			8000.into(),
+			orders
+		));
+
+		// Check liquidatable position of the user whose position is liquidated
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 0,
+			direction: Direction::Long,
+			amount_to_be_sold: 0.into(),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		assert_eq!(balance_1, 0.into());
+	});
+}
+
+#[test]
+fn test_liquidation_after_deleveraging() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8500.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place Deleveraging order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8500.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Deleveraging,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8500.into(),
+			size: FixedI128::from_inner(321637426900584796),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			FixedI128::from_inner(321637426900584796),
+			markets[0].id,
+			8500.into(),
+			orders
+		));
+
+		// Check liquidatable position of the user whose position is liquidated
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 0,
+			direction: Direction::Long,
+			amount_to_be_sold: 0.into(),
+			liquidatable: false,
+		};
+		assert_eq!(expected_position, liquidatable_position);
+
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		assert_eq!(balance_1, 10000.into());
+
+		// Decrease the price of the asset again
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 7000.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 7000.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: FixedI128::from_inner(4678362573099415204),
+			liquidatable: true,
+		};
+		assert_eq!(expected_position, liquidatable_position);
 		println!("{:?}", liquidatable_position);
+
+		// Place liquidation order
+		let order_5 = Order {
+			account_id: account_id_2,
+			order_id: order_id_5,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 7000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_6 = Order {
+			account_id: account_id_1,
+			order_id: order_id_6,
+			market_id: markets[0].id,
+			order_type: OrderType::Liquidation,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 7000.into(),
+			size: FixedI128::from_inner(4678362573099415204),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_5 = sign_order(order_5, private_keys[1]);
+		let order_6 = sign_order(order_6, private_keys[0]);
+		let orders: Vec<Order> = vec![order_5, order_6];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(3_u8),
+			FixedI128::from_inner(4678362573099415204),
+			markets[0].id,
+			7000.into(),
+			orders
+		));
+
+		// Check liquidatable position of the user whose position is liquidated
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 0,
+			direction: Direction::Long,
+			amount_to_be_sold: 0.into(),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		assert_eq!(balance_1, FixedI128::from_inner(-4035087719298245612000));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+fn test_liquidation_with_invalid_order_type() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8000.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8000.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: 5.into(),
+			liquidatable: true,
+		};
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place deleveraging order instead of liquidation order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Deleveraging,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			5.into(),
+			markets[0].id,
+			8000.into(),
+			orders
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+fn test_deleveraging_with_invalid_order_type() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8500.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place Liquidation order instead of Deleveraging order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8500.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Liquidation,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8500.into(),
+			size: FixedI128::from_inner(321637426900584796),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			FixedI128::from_inner(321637426900584796),
+			markets[0].id,
+			8500.into(),
+			orders
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+fn test_deleveraging_with_invalid_market_id() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8500.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place Deleveraging order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[1].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8500.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[1].id,
+			order_type: OrderType::Deleveraging,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8500.into(),
+			size: FixedI128::from_inner(321637426900584796),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			FixedI128::from_inner(321637426900584796),
+			markets[0].id,
+			8500.into(),
+			orders
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+fn test_deleveraging_with_invalid_order_direction() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8500.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			liquidatable: false,
+		};
+
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place Deleveraging order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8500.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Deleveraging,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 8500.into(),
+			size: FixedI128::from_inner(321637426900584796),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			FixedI128::from_inner(321637426900584796),
+			markets[0].id,
+			8500.into(),
+			orders
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+fn test_shouldnt_liquidate_long_leverage_1() {
+	new_test_ext().execute_with(|| {
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 10000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			5.into(),
+			markets[0].id,
+			10000.into(),
+			orders
+		));
+
+		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Long,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position1);
+
+		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let expected_position: Position = Position {
+			market_id: markets[0].id,
+			avg_execution_price: 10000.into(),
+			size: 5.into(),
+			direction: Direction::Short,
+			side: Side::Buy,
+			margin_amount: 10000.into(),
+			borrowed_amount: 40000.into(),
+			leverage: 5.into(),
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, position2);
+
+		// Decrease the price of the asset
+		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
+		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8000.into() };
+		market_prices.push(market_price1);
+		assert_ok!(MarketPrices::update_multiple_market_prices(
+			RuntimeOrigin::signed(1),
+			market_prices.clone()
+		));
+
+		let mut market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		let mut expected_price: FixedI128 = 8000.into();
+		assert_eq!(expected_price, market_price.price);
+
+		// Call mark_under_collateralized_position for the account_id_1
+		assert_ok!(RiskManagement::mark_under_collateralized_position(
+			RuntimeOrigin::signed(1),
+			account_id_1,
+			markets[0].asset_collateral,
+		));
+
+		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
+			account_id_1,
+			markets[0].asset_collateral,
+		);
+
+		let expected_position: LiquidatablePosition = LiquidatablePosition {
+			market_id: 1,
+			direction: Direction::Long,
+			amount_to_be_sold: 5.into(),
+			liquidatable: true,
+		};
+		assert_eq!(expected_position, liquidatable_position);
+
+		// Place deleveraging order instead of liquidation order
+		let order_3 = Order {
+			account_id: account_id_2,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 5.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_1,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Deleveraging,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 8000.into(),
+			size: 5.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[1]);
+		let order_4 = sign_order(order_4, private_keys[0]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			5.into(),
+			markets[0].id,
+			8000.into(),
+			orders
+		));
 	});
 }
