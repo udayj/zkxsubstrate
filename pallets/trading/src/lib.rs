@@ -565,6 +565,7 @@ pub mod pallet {
 					let response = Self::process_close_orders(
 						element,
 						quantity_to_execute,
+						order_side,
 						execution_price,
 						market_id,
 						collateral_id,
@@ -1101,6 +1102,7 @@ pub mod pallet {
 		fn process_close_orders(
 			order: &Order,
 			order_size: FixedI128,
+			order_side: OrderSide,
 			execution_price: FixedI128,
 			market_id: u128,
 			collateral_id: u128,
@@ -1288,6 +1290,18 @@ pub mod pallet {
 					}
 				}
 			}
+
+			let (fee_rate, _, _) =
+				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::from(0));
+			let fee = fee_rate * leveraged_order_value;
+
+			// Deduct fee while closing a position
+			T::TradingAccountPallet::transfer_from(
+				order.account_id,
+				collateral_id,
+				fee,
+				BalanceChangeReason::Fee,
+			);
 
 			Ok((
 				margin_amount,
