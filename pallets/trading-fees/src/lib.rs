@@ -16,6 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
+	use sp_arithmetic::traits::Zero;
 	use zkx_support::traits::TradingFeesInterface;
 	use zkx_support::types::{BaseFee, Discount, OrderSide, Side};
 
@@ -181,11 +182,9 @@ pub mod pallet {
 		) -> (FixedI128, FixedI128, u8) {
 			let mut tier = current_max_base_fee_tier;
 			let mut fee_details = BaseFeeTierMap::<T>::get(tier, side);
-			let mut result;
 			while tier >= 1 {
 				fee_details = BaseFeeTierMap::<T>::get(tier, side);
-				result = number_of_tokens - fee_details.number_of_tokens;
-				if result >= U256::from(0) {
+				if number_of_tokens >= fee_details.number_of_tokens {
 					break;
 				}
 				tier -= 1;
@@ -200,11 +199,9 @@ pub mod pallet {
 		) -> (FixedI128, u8) {
 			let mut tier = current_max_discount_tier;
 			let mut discount_details = DiscountTierMap::<T>::get(tier, side);
-			let mut result;
 			while tier >= 1 {
 				discount_details = DiscountTierMap::<T>::get(tier, side);
-				result = number_of_tokens - discount_details.number_of_tokens;
-				if result >= U256::from(0) {
+				if number_of_tokens >= discount_details.number_of_tokens {
 					break;
 				}
 				tier -= 1;
@@ -224,11 +221,11 @@ pub mod pallet {
 				fee_info = fee_details[pos];
 				ensure!(tier > 0_u8, Error::<T>::InvalidTier);
 				ensure!(
-					fee_info.number_of_tokens >= U256::from(0),
+					fee_info.number_of_tokens >= U256::zero(),
 					Error::<T>::InvalidNumberOfTokens
 				);
-				ensure!(fee_info.maker_fee >= 0.into(), Error::<T>::InvalidFee);
-				ensure!(fee_info.taker_fee >= 0.into(), Error::<T>::InvalidFee);
+				ensure!(fee_info.maker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
+				ensure!(fee_info.taker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
 
 				// Get the max base fee tier
 				let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
@@ -246,7 +243,7 @@ pub mod pallet {
 					ensure!(fee_info.taker_fee < lower_tier_fee.taker_fee, Error::<T>::InvalidFee);
 				} else {
 					ensure!(
-						lower_tier_fee.number_of_tokens == U256::from(0),
+						lower_tier_fee.number_of_tokens == U256::zero(),
 						Error::<T>::InvalidNumberOfTokens
 					);
 				}
@@ -281,10 +278,10 @@ pub mod pallet {
 				discount_info = discount_details[pos];
 				ensure!(tier > 0_u8, Error::<T>::InvalidTier);
 				ensure!(
-					discount_info.number_of_tokens >= U256::from(0),
+					discount_info.number_of_tokens >= U256::zero(),
 					Error::<T>::InvalidNumberOfTokens
 				);
-				ensure!(discount_info.discount >= 0.into(), Error::<T>::InvalidDiscount);
+				ensure!(discount_info.discount >= FixedI128::zero(), Error::<T>::InvalidDiscount);
 
 				// Get the max base fee tier
 				let current_max_discount_tier = MaxDiscountTier::<T>::get();
@@ -304,7 +301,7 @@ pub mod pallet {
 					);
 				} else {
 					ensure!(
-						lower_tier_discount.number_of_tokens == U256::from(0),
+						lower_tier_discount.number_of_tokens == U256::zero(),
 						Error::<T>::InvalidNumberOfTokens
 					);
 				}

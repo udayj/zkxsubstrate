@@ -6,8 +6,8 @@ use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, verify, FieldElement};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
-	Asset, Direction, HashType, Market, Order, OrderType, Position, Side, TimeInForce,
-	TradingAccountWithoutId,
+	Asset, BaseFee, Direction, Discount, HashType, Market, Order, OrderSide, OrderType, Position,
+	Side, TimeInForce, TradingAccountWithoutId,
 };
 
 const order_id_1: u128 = 200_u128;
@@ -173,6 +173,52 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountWithoutId>, Vec<U256>) {
 		vec![user_pri_key_1, user_pri_key_2, user_pri_key_3, user_pri_key_4];
 
 	(markets, accounts, private_keys)
+}
+
+fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
+	let fee_tiers: Vec<u8> = vec![1, 2, 3];
+	let mut fee_details: Vec<BaseFee> = Vec::new();
+	let base_fee1 = BaseFee {
+		number_of_tokens: 0.into(),
+		maker_fee: FixedI128::from_inner(20000000000000000),
+		taker_fee: FixedI128::from_inner(50000000000000000),
+	};
+	let base_fee2 = BaseFee {
+		number_of_tokens: 1000.into(),
+		maker_fee: FixedI128::from_inner(15000000000000000),
+		taker_fee: FixedI128::from_inner(40000000000000000),
+	};
+	let base_fee3 = BaseFee {
+		number_of_tokens: 5000.into(),
+		maker_fee: FixedI128::from_inner(10000000000000000),
+		taker_fee: FixedI128::from_inner(35000000000000000),
+	};
+	fee_details.push(base_fee1);
+	fee_details.push(base_fee2);
+	fee_details.push(base_fee3);
+
+	let discount_tiers: Vec<u8> = vec![1, 2, 3, 4];
+	let mut discount_details: Vec<Discount> = Vec::new();
+	let discount1 =
+		Discount { number_of_tokens: 0.into(), discount: FixedI128::from_inner(30000000000000000) };
+	let discount2 = Discount {
+		number_of_tokens: 1000.into(),
+		discount: FixedI128::from_inner(50000000000000000),
+	};
+	let discount3 = Discount {
+		number_of_tokens: 4000.into(),
+		discount: FixedI128::from_inner(75000000000000000),
+	};
+	let discount4 = Discount {
+		number_of_tokens: 7500.into(),
+		discount: FixedI128::from_inner(100000000000000000),
+	};
+	discount_details.push(discount1);
+	discount_details.push(discount2);
+	discount_details.push(discount3);
+	discount_details.push(discount4);
+
+	(fee_tiers, fee_details, discount_tiers, discount_details)
 }
 
 fn get_trading_account_id(trading_accounts: Vec<TradingAccountWithoutId>, index: usize) -> U256 {
@@ -2227,5 +2273,283 @@ fn it_works_when_taker_long_buy_price_very_low() {
 			100.into(),
 			orders
 		));
+	});
+}
+
+#[test]
+fn test_fee_while_opening_order() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Buy;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(9998060000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9995150000000000000000));
+
+		// Close orders
+		// Since we are closing orders without setting the fee for close orders, fee won't be deducted from balance
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 105.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			105.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(10003060000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9990150000000000000000));
+		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
+		assert_eq!(locked_1, 0.into());
+	});
+}
+
+#[test]
+fn test_fee_while_closing_order() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Sell;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: order_id_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: order_id_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, 10000.into());
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, 10000.into());
+
+		// Close orders
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: order_id_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 105.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: order_id_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			105.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(10002963000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9990392500000000000000));
+		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
+		assert_eq!(locked_1, 0.into());
 	});
 }
