@@ -31,7 +31,6 @@ pub mod pallet {
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -216,7 +215,7 @@ pub mod pallet {
 			orders: Vec<Order>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let sender = ensure_signed(origin)?;
+			let _sender = ensure_signed(origin)?;
 
 			ensure!(
 				!BatchStatusMap::<T>::contains_key(batch_id),
@@ -891,7 +890,7 @@ pub mod pallet {
 
 		fn perform_validations(
 			order: &Order,
-			oracle_price: FixedI128,
+			_oracle_price: FixedI128,
 			market: &Market,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
@@ -1043,7 +1042,7 @@ pub mod pallet {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
 			let average_execution_price: FixedI128;
-			let block_number = <frame_system::Pallet<T>>::block_number();
+			let _block_number = <frame_system::Pallet<T>>::block_number();
 
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
@@ -1077,7 +1076,7 @@ pub mod pallet {
 			ensure!(is_liquidation == false, Error::<T>::PassiveRiskError);
 
 			let (fee_rate, _, _) =
-				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::from(0));
+				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
 			let trading_fee = FixedI128::from_inner(0) - fee;
 
@@ -1292,7 +1291,7 @@ pub mod pallet {
 			}
 
 			let (fee_rate, _, _) =
-				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::from(0));
+				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
 
 			// Deduct fee while closing a position
@@ -1407,10 +1406,10 @@ pub mod pallet {
 					PositionsMap::<T>::get(account_id, (element, Direction::Long));
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
-				if long_pos.size != 0.into() {
+				if long_pos.size != FixedI128::zero() {
 					pos_vec.push(long_pos);
 				}
-				if short_pos.size != 0.into() {
+				if short_pos.size != FixedI128::zero() {
 					pos_vec.push(short_pos);
 				}
 			}
