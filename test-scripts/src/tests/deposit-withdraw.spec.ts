@@ -4,6 +4,7 @@ import { SubstrateHelper } from '../helpers/substrate.helper';
 import { SubstrateService } from '../providers/substrate.service';
 import { assets, markets } from '../data';
 import { StarknetAccountEntity, TradingAccountEntity } from '../entities';
+import { config } from '../../config';
 
 let substrateService: SubstrateService;
 let tradingAccount: TradingAccountEntity;
@@ -17,8 +18,8 @@ describe('Deposit + Withdrawal', () => {
   
   before(async () => {
     substrateService = new SubstrateService({
-      wsUrl: 'ws://127.0.0.1:9944',
-      nodeAccount: '//Alice',
+      wsUrl: config.wsUrl,
+      nodeAccount: config.nodeAccount,
     });
   
     await substrateService.initApi();
