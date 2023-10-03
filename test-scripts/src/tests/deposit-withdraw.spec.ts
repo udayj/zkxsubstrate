@@ -5,11 +5,6 @@ import { SubstrateService } from '../providers/substrate.service';
 import { assets, markets } from '../data';
 import { StarknetAccountEntity, TradingAccountEntity } from '../entities';
 
-const { 
-  generateTradingAccount,
-} = SubstrateHelper;
-const { generateAccount } = StarknetTestHelper;
-
 let substrateService: SubstrateService;
 let tradingAccount: TradingAccountEntity;
 let starknetAccount: StarknetAccountEntity;
@@ -17,23 +12,29 @@ const ethAsset = assets[0];
 const usdcAsset = assets[1];
 const ethUsdcMarket = markets[0];
 
-before(async () => {
-  substrateService = new SubstrateService({
-    wsUrl: 'ws://127.0.0.1:9944',
-    nodeAccount: '//Alice',
-  });
-
-  await substrateService.initApi();
-  await substrateService.replaceAssets();
-  await new Promise((resolve) => setTimeout(resolve, 7000));
-  await substrateService.replaceMarkets();
-  await new Promise((resolve) => setTimeout(resolve, 7000));
-});
 
 describe('Deposit + Withdrawal', () => {
+  
+  before(async () => {
+    substrateService = new SubstrateService({
+      wsUrl: 'ws://127.0.0.1:9944',
+      nodeAccount: '//Alice',
+    });
+  
+    await substrateService.initApi();
+    await substrateService.replaceAssets();
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    await substrateService.replaceMarkets();
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+  });
+
+  after(async () => {
+    await substrateService.disconnectApi();
+  });
+  
   it('Should create account', async () => {
-    starknetAccount = generateAccount();
-    tradingAccount = generateTradingAccount({
+    starknetAccount = StarknetTestHelper.generateAccount();
+    tradingAccount = SubstrateHelper.generateTradingAccount({
       starkKey: starknetAccount.starkKey,
     });
 
@@ -41,7 +42,7 @@ describe('Deposit + Withdrawal', () => {
       tradingAccount
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 7000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     expect(accountResultHex).to.match(/^0x[0-9a-f]+$/i);
   });
@@ -62,7 +63,7 @@ describe('Deposit + Withdrawal', () => {
       amount: 100,
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 7000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     const afterDepositBalance = await substrateService.getBalance({
       accountId: tradingAccount.id,
@@ -81,7 +82,7 @@ describe('Deposit + Withdrawal', () => {
       privateKey: starknetAccount.privateKey,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 7000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     const afterWithdrawalBalance = await substrateService.getBalance({
       accountId: tradingAccount.id,
@@ -90,8 +91,4 @@ describe('Deposit + Withdrawal', () => {
 
     expect(afterWithdrawalBalance.value).to.equal(10089);
   });
-});
-
-after(async () => {
-  await substrateService.disconnectApi();
 });

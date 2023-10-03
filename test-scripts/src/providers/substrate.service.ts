@@ -42,6 +42,7 @@ export class SubstrateService {
       types,
       rpc,
     });
+
     this.wsProvider = wsProvider;
     this.nodeAccountKeyring = nodeAccountKeyring;
     this.wsApi = wsApi;
@@ -91,7 +92,6 @@ export class SubstrateService {
       this.nodeAccountKeyring.address,
     );
 
-    // replace all assets
     await this.wsApi.tx.assets
       .replaceAllAssets(assetsConvertedData)
       .signAndSend(this.nodeAccountKeyring, {
@@ -102,11 +102,11 @@ export class SubstrateService {
   async replaceMarkets(): Promise<void> {
     const marketsConvertedData = markets.map(market => ({
       id: SubstrateHelper.convertStringToU256(market.id),
-      asset: SubstrateHelper.convertStringToU256(market.asset),
-      asset_collateral: SubstrateHelper.convertStringToU256(
+      asset: SubstrateHelper.convertStringToU128(market.asset),
+      asset_collateral: SubstrateHelper.convertStringToU128(
         market.assetCollateral,
       ),
-      is_tradable: market.isTradable ? 1 : 0, // TODO: remove the u8 value, use bool when done in substrate
+      is_tradable: market.isTradable,
       is_archived: market.isArchived,
       ttl: market.ttl,
       tick_size: SubstrateHelper.convertNumberToI128(market.tickSize),
@@ -148,7 +148,7 @@ export class SubstrateService {
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
-    // replace all markets
+    
     await this.wsApi.tx.markets
       .replaceAllMarkets(marketsConvertedData)
       .signAndSend(this.nodeAccountKeyring, {
@@ -179,12 +179,12 @@ export class SubstrateService {
 
         return new MarketEntity({
           id: SubstrateHelper.convertU256ToString(data.id),
-          asset: SubstrateHelper.convertU256ToString(data.asset),
-          assetCollateral: SubstrateHelper.convertU256ToString(
+          asset: SubstrateHelper.convertU128ToString(data.asset),
+          assetCollateral: SubstrateHelper.convertU128ToString(
             data.assetCollateral,
           ),
-          isTradable: data.isTradable === 1 || data.isTradable === true,
-          isArchived: data.isTradable === true,
+          isTradable: data.isTradable === true,
+          isArchived: data.isArchived === true,
           ttl: data.ttl,
           tickSize: SubstrateHelper.convertI128ToNumber(data.tickSize),
           tickPrecision: data.tickPrecision,
@@ -248,7 +248,7 @@ export class SubstrateService {
     amount: number;
   }): Promise<string> {
     const { tradingAccount, assetId, amount } = params;
-    
+
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
