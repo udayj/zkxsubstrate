@@ -226,3 +226,139 @@ fn it_does_not_work_for_replace_markets_invalid_current_leverage() {
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
+
+#[test]
+fn test_add_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 1);
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateMarket")]
+fn test_add_market_with_duplicate_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidMarketId")]
+fn test_add_market_with_zero_id() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { id: 0, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_market_with_invalid_asset() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset: 12345678, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotCollateral")]
+fn test_add_market_with_asset_not_collateral() {
+	new_test_ext().execute_with(|| {
+		let LINK_ID: u128 = 1279872587;
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset_collateral: LINK_ID, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_market_with_invalid_asset_collateral() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset_collateral: 12345678, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidLeverage")]
+fn test_add_market_with_invalid_max_leverage() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market =
+			Market { minimum_leverage: 5.into(), maximum_leverage: 4.into(), ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidLeverage")]
+fn test_add_market_with_invalid_current_leverage() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { currently_allowed_leverage: 11.into(), ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+fn test_remove_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 1);
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 0);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidMarketId")]
+fn test_remove_market_with_already_removed_market_id() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
+	});
+}

@@ -61,6 +61,10 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Markets were successfully created
 		MarketsCreated { length: u64 },
+		/// Market successfully created
+		MarketCreated { market: Market },
+		/// Market successfully removed
+		MarketRemoved { market: Market },
 	}
 
 	// Pallet callable functions
@@ -105,6 +109,69 @@ pub mod pallet {
 			MarketsCount::<T>::put(length);
 
 			Self::deposit_event(Event::MarketsCreated { length });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn add_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of markets available
+			let length: u64 = MarketsCount::<T>::get();
+
+			// Check if the market exists in the storage map
+			ensure!(!MarketMap::<T>::contains_key(market.id), Error::<T>::DuplicateMarket);
+			// Check market id is non zero
+			ensure!(market.id > 0, Error::<T>::InvalidMarketId);
+			// Validate asset and asset collateral
+			let asset = T::AssetPallet::get_asset(market.asset);
+			ensure!(asset.is_some(), Error::<T>::AssetNotFound);
+			let asset_collateral = T::AssetPallet::get_asset(market.asset_collateral);
+			ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
+			ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+			ensure!(
+				market.maximum_leverage >= market.minimum_leverage,
+				Error::<T>::InvalidLeverage
+			);
+			ensure!(
+				(market.minimum_leverage..market.maximum_leverage + FixedI128::from_inner(1))
+					.contains(&market.currently_allowed_leverage),
+				Error::<T>::InvalidLeverage
+			);
+
+			// Add market to the market map
+			MarketMap::<T>::insert(market.id, market.clone());
+
+			// Increase the market count
+			MarketsCount::<T>::put(length + 1);
+
+			// Emit event
+			Self::deposit_event(Event::MarketCreated { market });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of markets available
+			let length: u64 = MarketsCount::<T>::get();
+
+			// Check if the market exists in the storage map
+			ensure!(MarketMap::<T>::contains_key(market.id), Error::<T>::InvalidMarketId);
+
+			// Remove market from the market map
+			MarketMap::<T>::remove(market.id);
+
+			// Decrease the market count
+			MarketsCount::<T>::put(length - 1);
+
+			// Emit event
+			Self::deposit_event(Event::MarketRemoved { market });
 
 			Ok(())
 		}
