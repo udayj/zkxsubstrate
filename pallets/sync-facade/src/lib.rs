@@ -174,8 +174,8 @@ pub mod pallet {
 			signatures: Vec<SyncSignature>,
 			block_number: u64,
 		) -> DispatchResult {
-			// Make sure the caller is an admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			// Make sure the call is signed
+			ensure_signed(origin)?;
 
 			// Check if there are events in the batch
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
