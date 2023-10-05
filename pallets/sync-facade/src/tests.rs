@@ -1,7 +1,5 @@
-use super::*;
-use crate::{mock::*, Event};
+use crate::mock::*;
 use frame_support::inherent::Vec;
-use frame_system::{self as system};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;
@@ -55,6 +53,7 @@ fn setup() -> sp_io::TestExternalities {
 			.expect("error while setting quorum");
 		Assets::replace_all_assets(RuntimeOrigin::signed(1), get_collaterals())
 			.expect("error while adding assets");
+		System::set_block_number(1336);
 	});
 
 	test_evn.into()
@@ -73,6 +72,19 @@ fn add_signer_authorized() {
 		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+	});
+}
+
+#[test]
+#[should_panic(expected = "NotAdmin")]
+fn add_signer_unauthorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Add a signer
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
+			.expect("error while adding signer");
 	});
 }
 
@@ -125,7 +137,20 @@ fn remove_signer_authorized_invalid_signer() {
 }
 
 #[test]
+#[should_panic(expected = "NotAdmin")]
 fn remove_signer_authorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Remove signer
+		SyncFacade::remove_signer(RuntimeOrigin::signed(1), get_signers()[0])
+			.expect("error while removing signer");
+	});
+}
+
+#[test]
+fn remove_signer_unauthorized() {
 	// Get a test environment
 	let mut env = setup();
 
@@ -155,7 +180,89 @@ fn remove_signer_authorized() {
 }
 
 #[test]
+#[should_panic(expected = "NotAdmin")]
+fn set_quorum_unauthorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		SyncFacade::add_signer(RuntimeOrigin::root(), get_signers()[1])
+			.expect("error while adding signer");
+		SyncFacade::add_signer(RuntimeOrigin::root(), get_signers()[2])
+			.expect("error while adding signer");
+		// Set quorum; error
+		SyncFacade::set_signers_quorum(RuntimeOrigin::signed(1), 3_u8)
+			.expect("error while setting quorum");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InsufficientSigners")]
+fn set_quorum_authorized_insufficient_signers() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		SyncFacade::add_signer(RuntimeOrigin::root(), get_signers()[1])
+			.expect("error while adding signer");
+		// Set quorum; error
+		SyncFacade::set_signers_quorum(RuntimeOrigin::root(), 3_u8)
+			.expect("error while setting quorum");
+	});
+}
+
+#[test]
+fn set_quorum_authorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		SyncFacade::add_signer(RuntimeOrigin::root(), get_signers()[1])
+			.expect("error while adding signer");
+		SyncFacade::add_signer(RuntimeOrigin::root(), get_signers()[2])
+			.expect("error while adding signer");
+		// Set quorum; error
+		SyncFacade::set_signers_quorum(RuntimeOrigin::root(), 3_u8)
+			.expect("error while setting quorum");
+		let quorum = SyncFacade::get_signers_quorum();
+		assert_eq!(quorum, 3_u8);
+	});
+}
+
+#[test]
 fn sync_add_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(get_signers()[1], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 2);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateBatch")]
+fn sync_add_signer_events_duplicate_batch() {
 	// Get a test environment
 	let mut env = setup();
 
@@ -177,16 +284,84 @@ fn sync_add_signer_events() {
 		// synchronize the events
 		SyncFacade::synchronize_events(
 			RuntimeOrigin::signed(1),
-			events_batch,
-			signature_array,
-			1337,
+			events_batch.clone(),
+			signature_array.clone(),
 		)
 		.expect("error while adding signer");
 
-		assert_eq!(SyncFacade::signers().len(), 2);
-		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
-		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
-		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+		// synchronize the events; error
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+	});
+}
+
+#[test]
+#[should_panic(expected = "OldBatch")]
+fn sync_batch_old_blocks() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(get_signers()[1], 1337);
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	let add_signer_event_2 = <SignerAdded as SignerAddedTrait>::new(get_signers()[2], 1336);
+	let mut events_batch_1 = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch_1.add_signer_added_event(add_signer_event_2);
+
+	let events_batch_hash_1 = events_batch.compute_hash();
+
+	let mut signature_array_1 = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array_1.add_new_signature(
+		events_batch_hash_1,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		// synchronize the events; error
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch_1, signature_array_1)
+			.expect("error while adding signer");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InsufficientSignatures")]
+fn sync_batch_insufficient_signatures() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(get_signers()[1], 1337);
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+	print!("batch hash in test: {}", events_batch_hash);
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133a"),
+		FieldElement::from(12346_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
 	});
 }
 
@@ -217,13 +392,8 @@ fn sync_remove_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(
-			RuntimeOrigin::signed(1),
-			events_batch,
-			signature_array,
-			1337,
-		)
-		.expect("error while adding signer");
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
@@ -281,13 +451,8 @@ fn sync_deposit_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(
-			RuntimeOrigin::signed(1),
-			events_batch,
-			signature_array,
-			1337,
-		)
-		.expect("error while adding signer");
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
 
 		let alice_balance = TradingAccounts::balances(alice_account_id, usdc().id);
 		let bob_balance = TradingAccounts::balances(bob_account_id, usdc().id);

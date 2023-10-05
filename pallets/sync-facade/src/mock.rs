@@ -5,8 +5,8 @@ use pallet_market;
 use pallet_market_prices;
 use pallet_risk_management;
 use pallet_timestamp;
-use pallet_trading_fees;
 use pallet_trading;
+use pallet_trading_fees;
 use pallet_zkx_trading_account;
 use sp_core::H256;
 use sp_runtime::{

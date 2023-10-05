@@ -85,6 +85,8 @@ pub mod pallet {
 		EmptyBatch,
 		/// Batch sent again
 		DuplicateBatch,
+		/// Old Batch sent
+		OldBatch,
 		/// Not enough signatures for a sync tx
 		InsufficientSignatures,
 	}
@@ -172,13 +174,20 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			events_batch: Vec<UniversalEvent>,
 			signatures: Vec<SyncSignature>,
-			block_number: u64,
+			// block_number: u64,
 		) -> DispatchResult {
 			// Make sure the call is signed
 			ensure_signed(origin)?;
 
 			// Check if there are events in the batch
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
+
+			// Fetch the block number of last event in the batch
+			let block_number = Self::get_block_number(events_batch.last().unwrap());
+
+			// The block number shouldn't be less than previous batch's block number
+			let (last_block_number, _) = LastProcessed::<T>::get();
+			ensure!(block_number >= last_block_number, Error::<T>::OldBatch);
 
 			// Compute the batch hash
 			let batch_hash = Self::compute_batch_hash(&events_batch);
@@ -262,7 +271,7 @@ pub mod pallet {
 			signature: Signature,
 		) -> bool {
 			match ecdsa_verify(&public_key, &hash, &signature) {
-				Ok(_) => true,
+				Ok(res) => res,
 				Err(_) => false,
 			}
 		}
@@ -274,6 +283,18 @@ pub mod pallet {
 
 			// Compute hash of the array and return
 			pedersen_hash_multiple(&flattened_array)
+		}
+
+		fn get_block_number(event: &UniversalEvent) -> u64 {
+			match event {
+				UniversalEvent::MarketUpdated(market_updated) => market_updated.block_number,
+				UniversalEvent::AssetUpdated(user_withdrawal) => user_withdrawal.block_number,
+				UniversalEvent::MarketRemoved(market_removed) => market_removed.block_number,
+				UniversalEvent::AssetRemoved(asset_removed) => asset_removed.block_number,
+				UniversalEvent::UserDeposit(user_deposit) => user_deposit.block_number,
+				UniversalEvent::SignerAdded(signer_added) => signer_added.block_number,
+				UniversalEvent::SignerRemoved(signer_removed) => signer_removed.block_number,
+			}
 		}
 	}
 }
