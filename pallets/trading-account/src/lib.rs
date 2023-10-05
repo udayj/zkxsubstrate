@@ -205,7 +205,7 @@ pub mod pallet {
 
 				let current_balance: FixedI128 =
 					BalancesMap::<T>::get(account_id, element.asset_id);
-				if current_balance == 0.into() {
+				if current_balance == FixedI128::zero() {
 					Self::add_collateral(account_id, element.asset_id);
 				}
 				// Update the map with new balance
@@ -246,12 +246,22 @@ pub mod pallet {
 
 			let _ = Self::verify_signature(&withdrawal_request);
 
+			// Check whether the withdrawal leads to the position to be liquidatable or deleveraged
+			let (_, withdrawable_amount) = Self::calculate_amount_to_withdraw(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+			);
+
+			assert!(
+				withdrawal_request.amount <= withdrawable_amount,
+				"AccountManager: This withdrawal will lead to either deleveraging or liquidation"
+			);
+
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-
 			ensure!(withdrawal_request.amount <= current_balance, Error::<T>::InsufficientBalance);
 
 			// Update the balance
@@ -325,7 +335,7 @@ pub mod pallet {
 			let maintenance_position = position.avg_execution_price * position.size;
 			let maintenance_requirement = req_margin * maintenance_position;
 
-			if market_price == 0.into() {
+			if market_price == FixedI128::zero() {
 				return (0.into(), maintenance_requirement, 0.into());
 			}
 
@@ -379,7 +389,7 @@ pub mod pallet {
 				// Get Market price
 				let market_price = T::MarketPricesPallet::get_market_price(curr_market_id);
 
-				if market_price == 0.into() {
+				if market_price == FixedI128::zero() {
 					return (
 						0.into(),
 						0.into(),
@@ -529,6 +539,125 @@ pub mod pallet {
 			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
 
 			Ok(())
+		}
+
+		fn calculate_amount_to_withdraw(
+			account_id: U256,
+			collateral_id: u128,
+		) -> (FixedI128, FixedI128) {
+			// Get the current balance
+			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+			if current_balance == FixedI128::zero() {
+				return (FixedI128::zero(), FixedI128::zero());
+			}
+
+			let (
+				liq_result,
+				total_account_value,
+				_,
+				_,
+				total_maintenance_requirement,
+				_,
+				least_collateral_ratio_position,
+				_,
+			) = Self::get_margin_info(account_id, collateral_id, FixedI128::zero(), FixedI128::zero());
+
+			// if TMR == 0, it means that market price is not within TTL, so user should be possible to withdraw whole balance
+			if total_maintenance_requirement == FixedI128::zero() {
+				return (current_balance, current_balance);
+			}
+
+			// if TAV <= 0, it means that user is already under water and thus withdrawal is not possible
+			if total_account_value <= FixedI128::zero() {
+				return (FixedI128::zero(), FixedI128::zero());
+			}
+
+			let safe_withdrawal_amount;
+			// Returns 0, if the position is to be deleveraged or liquiditable
+			if liq_result == true {
+				safe_withdrawal_amount = FixedI128::zero();
+			} else {
+				let safe_amount = total_account_value - total_maintenance_requirement;
+				if current_balance < safe_amount {
+					return (current_balance, current_balance);
+				}
+				safe_withdrawal_amount = current_balance;
+			}
+
+			let withdrawable_amount = Self::get_amount_to_withdraw(
+				total_account_value,
+				total_maintenance_requirement,
+				least_collateral_ratio_position,
+				current_balance,
+			);
+
+			return (safe_withdrawal_amount, withdrawable_amount);
+		}
+
+		fn get_amount_to_withdraw(
+			total_account_value: FixedI128,
+			total_maintenance_requirement: FixedI128,
+			least_collateral_ratio_position: PositionDetailsForRiskManagement,
+			current_balance: FixedI128,
+		) -> FixedI128 {
+			let two_point_five = FixedI128::from_inner(2500000000000000000);
+
+			// This function will only be called in these cases:
+			// i) if TAV < TMR ii) if (TAV - TMR) < balance
+			// we calculate maximum amount that can be sold so that the position won't get liquidated
+			// calculate new TAV and new TMR to get maximum withdrawable amount
+			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
+
+			// Get Market price
+			let market_price =
+				T::MarketPricesPallet::get_market_price(least_collateral_ratio_position.market_id);
+
+			let min_leverage_times_margin =
+				two_point_five * least_collateral_ratio_position.margin_amount;
+			let new_size = min_leverage_times_margin / market_price;
+
+			// calculate account value and maintenance requirement of least collateral position before reducing size
+			// AV = (size * current_price) - borrowed_amount
+			// MR = req_margin * size * avg_execution_price
+			let account_value_initial_temp = least_collateral_ratio_position.size * market_price;
+			let account_value_initial =
+				account_value_initial_temp - least_collateral_ratio_position.borrowed_amount;
+
+			let market =
+				T::MarketPallet::get_market(least_collateral_ratio_position.market_id).unwrap();
+			let req_margin = market.maintenance_margin_fraction;
+			let leveraged_position_value_initial = least_collateral_ratio_position.size
+				* least_collateral_ratio_position.avg_execution_price;
+			let maintenance_requirement_initial = req_margin * leveraged_position_value_initial;
+
+			// calculate account value and maintenance requirement of least collateral position after reducing size
+			let account_value_after_temp = new_size * market_price;
+
+			let amount_to_be_sold = least_collateral_ratio_position.size - new_size;
+			let amount_to_be_sold_value = amount_to_be_sold * market_price;
+			let new_borrowed_amount =
+				least_collateral_ratio_position.borrowed_amount - amount_to_be_sold_value;
+			let account_value_after = account_value_after_temp - new_borrowed_amount;
+			let leveraged_position_value_after =
+				new_size * least_collateral_ratio_position.avg_execution_price;
+			let maintenance_requirement_after = req_margin * leveraged_position_value_after;
+
+			// calculate new TAV and new TMR after reducing size
+			let account_value_difference = account_value_after - account_value_initial;
+			let maintenance_requirement_difference =
+				maintenance_requirement_after - maintenance_requirement_initial;
+			let new_tav = total_account_value + account_value_difference;
+			let new_tmr = total_maintenance_requirement + maintenance_requirement_difference;
+
+			let new_sub_result = new_tav - new_tmr;
+			if new_sub_result <= FixedI128::zero() {
+				return FixedI128::zero();
+			}
+			if current_balance <= new_sub_result {
+				return current_balance;
+			} else {
+				return new_sub_result;
+			}
 		}
 	}
 
