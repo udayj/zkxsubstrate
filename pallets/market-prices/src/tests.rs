@@ -73,12 +73,12 @@ fn test_update_multiple_market_prices() {
 			market_prices.clone()
 		));
 
-		let mut market_price: MarketPrice = MarketPricesModule::market_price(market1.id);
-		let mut expected_price: FixedI128 = 1000.into();
+		let market_price: MarketPrice = MarketPricesModule::market_price(market1.id);
+		let expected_price: FixedI128 = 1000.into();
 		assert_eq!(expected_price, market_price.price);
 
-		market_price = MarketPricesModule::market_price(market2.id);
-		expected_price = 2000.into();
+		let market_price = MarketPricesModule::market_price(market2.id);
+		let expected_price: FixedI128 = 2000.into();
 		assert_eq!(expected_price, market_price.price);
 
 		// Assert that the correct event was deposited

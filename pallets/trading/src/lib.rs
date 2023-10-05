@@ -23,9 +23,9 @@ pub mod pallet {
 		TradingAccountInterface, TradingFeesInterface, TradingInterface, U256Ext,
 	};
 	use zkx_support::types::{
-		BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition, Market, Order,
-		OrderSide, OrderType, Position, PositionDetailsForRiskManagement, Side, TimeInForce,
-		TradingAccountMinimal,
+		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
+		MarginInfo, Market, Order, OrderSide, OrderType, Position,
+		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -573,6 +573,7 @@ pub mod pallet {
 					let response = Self::process_close_orders(
 						element,
 						quantity_to_execute,
+						order_side,
 						execution_price,
 						market_id,
 						collateral_id,
@@ -898,7 +899,7 @@ pub mod pallet {
 
 		fn perform_validations(
 			order: &Order,
-			oracle_price: FixedI128,
+			_oracle_price: FixedI128,
 			market: &Market,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
@@ -1050,7 +1051,7 @@ pub mod pallet {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
 			let average_execution_price: FixedI128;
-			let block_number = <frame_system::Pallet<T>>::block_number();
+			let _block_number = <frame_system::Pallet<T>>::block_number();
 
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
@@ -1084,7 +1085,7 @@ pub mod pallet {
 			ensure!(is_liquidation == false, Error::<T>::PassiveRiskError);
 
 			let (fee_rate, _, _) =
-				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::from(0));
+				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
 			let trading_fee = FixedI128::from_inner(0) - fee;
 
@@ -1109,6 +1110,7 @@ pub mod pallet {
 		fn process_close_orders(
 			order: &Order,
 			order_size: FixedI128,
+			order_side: OrderSide,
 			execution_price: FixedI128,
 			market_id: u128,
 			collateral_id: u128,
@@ -1297,6 +1299,18 @@ pub mod pallet {
 				}
 			}
 
+			let (fee_rate, _, _) =
+				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::zero());
+			let fee = fee_rate * leveraged_order_value;
+
+			// Deduct fee while closing a position
+			T::TradingAccountPallet::transfer_from(
+				order.account_id,
+				collateral_id,
+				fee,
+				BalanceChangeReason::Fee,
+			);
+
 			Ok((
 				margin_amount,
 				borrowed_amount,
@@ -1396,14 +1410,73 @@ pub mod pallet {
 					PositionsMap::<T>::get(account_id, (element, Direction::Long));
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
-				if long_pos.size != 0.into() {
+				if long_pos.size != FixedI128::zero() {
 					pos_vec.push(long_pos);
 				}
-				if short_pos.size != 0.into() {
+				if short_pos.size != FixedI128::zero() {
 					pos_vec.push(short_pos);
 				}
 			}
 			return pos_vec;
+		}
+
+		fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo {
+			let (
+				is_liquidation,
+				total_margin,
+				available_margin,
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
+
+			MarginInfo {
+				is_liquidation,
+				total_margin,
+				available_margin,
+				unrealized_pnl_sum,
+				maintenance_margin_requirement,
+				least_collateral_ratio,
+				least_collateral_ratio_position,
+				least_collateral_ratio_position_asset_price,
+			}
+		}
+
+		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo {
+			let (_, total_margin, available_margin, _, _, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
+
+			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
+			let mut positions = Vec::<Position>::new();
+			for element in markets {
+				let long_pos: Position =
+					PositionsMap::<T>::get(account_id, (element, Direction::Long));
+				let short_pos: Position =
+					PositionsMap::<T>::get(account_id, (element, Direction::Short));
+				if long_pos.size != 0.into() {
+					positions.push(long_pos);
+				}
+				if short_pos.size != 0.into() {
+					positions.push(short_pos);
+				}
+			}
+
+			let collateral_balance =
+				T::TradingAccountPallet::get_balance(account_id, collateral_id);
+
+			AccountInfo { positions, available_margin, total_margin, collateral_balance }
 		}
 	}
 }

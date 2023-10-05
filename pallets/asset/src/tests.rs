@@ -89,3 +89,84 @@ fn it_does_not_work_for_replace_assets_invalid_decimal() {
 		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 	});
 }
+
+#[test]
+fn test_add_asset() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1));
+		let count = AssetModule::assets_count();
+		assert_eq!(count, 1);
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateAsset")]
+fn test_add_duplicate_asset() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
+		// Add the same asset again
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidAsset")]
+fn test_add_asset_with_invalid_decimal() {
+	new_test_ext().execute_with(|| {
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		let asset: Asset = Asset {
+			id: eth().id,
+			version: 1,
+			short_name: eth().short_name,
+			is_tradable: false,
+			is_collateral: true,
+			l2_address: U256::from(104),
+			decimals: 19,
+		};
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset));
+	});
+}
+
+#[test]
+fn test_remove_asset() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
+		let count = AssetModule::assets_count();
+		assert_eq!(count, 1);
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1));
+		let count = AssetModule::assets_count();
+		assert_eq!(count, 0);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidAsset")]
+fn test_remove_already_removed_asset() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
+		let count = AssetModule::assets_count();
+		assert_eq!(count, 1);
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1.clone()));
+		let count = AssetModule::assets_count();
+		assert_eq!(count, 0);
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1));
+	});
+}

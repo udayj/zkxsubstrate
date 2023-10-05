@@ -5,25 +5,72 @@ use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, FieldElement};
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
-use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
-	Asset, Direction, HashType, Market, Order, OrderType, Position, Side, TimeInForce,
-	TradingAccountMinimal,
+	Asset, BaseFee, Direction, Discount, HashType, Market, Order, OrderType, Position, Side,
+	TimeInForce, TradingAccountMinimal,
 };
 
-const order_id_1: u128 = 200_u128;
-const order_id_2: u128 = 201_u128;
-const order_id_3: u128 = 202_u128;
-const order_id_4: u128 = 203_u128;
-const order_id_5: u128 = 204_u128;
-const order_id_6: u128 = 205_u128;
+const ORDER_ID_1: u128 = 200_u128;
+const ORDER_ID_2: u128 = 201_u128;
+const ORDER_ID_3: u128 = 202_u128;
+const ORDER_ID_4: u128 = 203_u128;
+const ORDER_ID_5: u128 = 204_u128;
+const ORDER_ID_6: u128 = 205_u128;
 
 fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	let assets: Vec<Asset> = vec![eth(), usdc(), link(), btc()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
-	let markets: Vec<Market> = vec![eth_usdc(), link_usdc()];
+	let market1: Market = Market {
+		id: 1,
+		version: 1,
+		asset: 0x4554480A,
+		asset_collateral: 0x555344430A0A,
+		is_tradable: true,
+		is_archived: false,
+		ttl: 3600,
+		tick_size: 1.into(),
+		tick_precision: 1,
+		step_size: 1.into(),
+		step_precision: 1,
+		minimum_order_size: 1.into(),
+		minimum_leverage: 1.into(),
+		maximum_leverage: 10.into(),
+		currently_allowed_leverage: 8.into(),
+		maintenance_margin_fraction: 1.into(),
+		initial_margin_fraction: 1.into(),
+		incremental_initial_margin_fraction: 1.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
+	};
+
+	let market2: Market = Market {
+		id: 2,
+		version: 1,
+		asset: 0x4C494E4B,
+		asset_collateral: 0x555344430A0A,
+		is_tradable: false,
+		is_archived: false,
+		ttl: 360,
+		tick_size: 1.into(),
+		tick_precision: 1,
+		step_size: 1.into(),
+		step_precision: 1,
+		minimum_order_size: 1.into(),
+		minimum_leverage: 1.into(),
+		maximum_leverage: 10.into(),
+		currently_allowed_leverage: 8.into(),
+		maintenance_margin_fraction: 1.into(),
+		initial_margin_fraction: 1.into(),
+		incremental_initial_margin_fraction: 1.into(),
+		incremental_position_size: 1.into(),
+		baseline_position_size: 1.into(),
+		maximum_position_size: 1.into(),
+	};
+
+	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
 	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), markets.clone()));
 
 	let user_pub_key_1: U256 = U256::from_dec_str(
@@ -95,6 +142,52 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	(markets, accounts, private_keys)
 }
 
+fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
+	let fee_tiers: Vec<u8> = vec![1, 2, 3];
+	let mut fee_details: Vec<BaseFee> = Vec::new();
+	let base_fee1 = BaseFee {
+		number_of_tokens: 0.into(),
+		maker_fee: FixedI128::from_inner(20000000000000000),
+		taker_fee: FixedI128::from_inner(50000000000000000),
+	};
+	let base_fee2 = BaseFee {
+		number_of_tokens: 1000.into(),
+		maker_fee: FixedI128::from_inner(15000000000000000),
+		taker_fee: FixedI128::from_inner(40000000000000000),
+	};
+	let base_fee3 = BaseFee {
+		number_of_tokens: 5000.into(),
+		maker_fee: FixedI128::from_inner(10000000000000000),
+		taker_fee: FixedI128::from_inner(35000000000000000),
+	};
+	fee_details.push(base_fee1);
+	fee_details.push(base_fee2);
+	fee_details.push(base_fee3);
+
+	let discount_tiers: Vec<u8> = vec![1, 2, 3, 4];
+	let mut discount_details: Vec<Discount> = Vec::new();
+	let discount1 =
+		Discount { number_of_tokens: 0.into(), discount: FixedI128::from_inner(30000000000000000) };
+	let discount2 = Discount {
+		number_of_tokens: 1000.into(),
+		discount: FixedI128::from_inner(50000000000000000),
+	};
+	let discount3 = Discount {
+		number_of_tokens: 4000.into(),
+		discount: FixedI128::from_inner(75000000000000000),
+	};
+	let discount4 = Discount {
+		number_of_tokens: 7500.into(),
+		discount: FixedI128::from_inner(100000000000000000),
+	};
+	discount_details.push(discount1);
+	discount_details.push(discount2);
+	discount_details.push(discount3);
+	discount_details.push(discount4);
+
+	(fee_tiers, fee_details, discount_tiers, discount_details)
+}
+
 fn get_trading_account_id(trading_accounts: Vec<TradingAccountMinimal>, index: usize) -> U256 {
 	let account_address = U256::from(trading_accounts[index].account_address);
 	let mut account_array: [u8; 32] = [0; 32];
@@ -131,7 +224,7 @@ fn it_works_for_open_trade_simple() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -148,7 +241,7 @@ fn it_works_for_open_trade_simple() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -222,7 +315,7 @@ fn it_works_for_open_trade_with_leverage() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -239,7 +332,7 @@ fn it_works_for_open_trade_with_leverage() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -311,7 +404,7 @@ fn it_works_for_close_trade_simple() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -328,7 +421,7 @@ fn it_works_for_close_trade_simple() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -360,7 +453,7 @@ fn it_works_for_close_trade_simple() {
 		// Close orders
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -377,7 +470,7 @@ fn it_works_for_close_trade_simple() {
 		};
 		let order_4 = Order {
 			account_id: account_id_2,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -432,7 +525,7 @@ fn it_works_for_open_trade_partial_open() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -449,7 +542,7 @@ fn it_works_for_open_trade_partial_open() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -480,7 +573,7 @@ fn it_works_for_open_trade_partial_open() {
 
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -537,7 +630,7 @@ fn it_works_for_close_trade_partial_close() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -554,7 +647,7 @@ fn it_works_for_close_trade_partial_close() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -585,7 +678,7 @@ fn it_works_for_close_trade_partial_close() {
 
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -602,7 +695,7 @@ fn it_works_for_close_trade_partial_close() {
 		};
 		let order_4 = Order {
 			account_id: account_id_2,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -633,7 +726,7 @@ fn it_works_for_close_trade_partial_close() {
 
 		let order_5 = Order {
 			account_id: account_id_1,
-			order_id: order_id_5,
+			order_id: ORDER_ID_5,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -682,7 +775,7 @@ fn it_works_for_open_trade_multiple_makers() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -699,7 +792,7 @@ fn it_works_for_open_trade_multiple_makers() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -716,7 +809,7 @@ fn it_works_for_open_trade_multiple_makers() {
 		};
 		let order_3 = Order {
 			account_id: account_id_3,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -733,7 +826,7 @@ fn it_works_for_open_trade_multiple_makers() {
 		};
 		let order_4 = Order {
 			account_id: account_id_4,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -783,7 +876,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -800,7 +893,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -831,7 +924,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -848,7 +941,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 		};
 		let order_4 = Order {
 			account_id: account_id_2,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -893,7 +986,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -910,7 +1003,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -955,7 +1048,7 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -972,7 +1065,7 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1017,7 +1110,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1034,7 +1127,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1065,7 +1158,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1082,7 +1175,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 		};
 		let order_4 = Order {
 			account_id: account_id_2,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1113,7 +1206,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 
 		let order_5 = Order {
 			account_id: account_id_1,
-			order_id: order_id_5,
+			order_id: ORDER_ID_5,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1130,7 +1223,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 		};
 		let order_6 = Order {
 			account_id: account_id_2,
-			order_id: order_id_6,
+			order_id: ORDER_ID_6,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1169,12 +1262,11 @@ fn it_produces_error_when_user_not_registered() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
 
 		let order_1 = Order {
 			account_id: 1.into(),
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1191,7 +1283,7 @@ fn it_produces_error_when_user_not_registered() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1237,7 +1329,7 @@ fn it_produces_error_when_size_too_small() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1254,7 +1346,7 @@ fn it_produces_error_when_size_too_small() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1300,7 +1392,7 @@ fn it_produces_error_when_market_id_is_different() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: 789,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1317,7 +1409,7 @@ fn it_produces_error_when_market_id_is_different() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1363,7 +1455,7 @@ fn it_produces_error_when_leverage_is_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1380,7 +1472,7 @@ fn it_produces_error_when_leverage_is_invalid() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1426,7 +1518,7 @@ fn it_produces_error_when_signature_is_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1443,7 +1535,7 @@ fn it_produces_error_when_signature_is_invalid() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1486,12 +1578,11 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 
 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-		let account_id_3: U256 = get_trading_account_id(accounts.clone(), 2);
 		let account_id_4: U256 = get_trading_account_id(accounts.clone(), 3);
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1508,7 +1599,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1525,7 +1616,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 		};
 		let order_4 = Order {
 			account_id: account_id_4,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -1572,7 +1663,7 @@ fn it_produces_error_when_maker_is_market_order() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -1589,7 +1680,7 @@ fn it_produces_error_when_maker_is_market_order() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1635,7 +1726,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1652,7 +1743,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1683,7 +1774,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 
 		let order_3 = Order {
 			account_id: account_id_1,
-			order_id: order_id_3,
+			order_id: ORDER_ID_3,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1700,7 +1791,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		};
 		let order_4 = Order {
 			account_id: account_id_2,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
@@ -1731,7 +1822,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 
 		let order_5 = Order {
 			account_id: account_id_1,
-			order_id: order_id_5,
+			order_id: ORDER_ID_5,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1748,7 +1839,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		};
 		let order_6 = Order {
 			account_id: account_id_2,
-			order_id: order_id_6,
+			order_id: ORDER_ID_6,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1798,7 +1889,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1815,7 +1906,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 		};
 		let order_4 = Order {
 			account_id: account_id_4,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -1846,7 +1937,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1863,7 +1954,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 		};
 		let order_4 = Order {
 			account_id: account_id_4,
-			order_id: order_id_4,
+			order_id: ORDER_ID_4,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -1913,7 +2004,7 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -1930,7 +2021,7 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1977,7 +2068,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
@@ -1994,7 +2085,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -2041,7 +2132,7 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -2058,7 +2149,7 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -2102,7 +2193,7 @@ fn it_works_when_taker_long_buy_price_very_low() {
 
 		let order_1 = Order {
 			account_id: account_id_1,
-			order_id: order_id_1,
+			order_id: ORDER_ID_1,
 			market_id: markets[0].id,
 			order_type: OrderType::Limit,
 			direction: Direction::Short,
@@ -2119,7 +2210,7 @@ fn it_works_when_taker_long_buy_price_very_low() {
 		};
 		let order_2 = Order {
 			account_id: account_id_2,
-			order_id: order_id_2,
+			order_id: ORDER_ID_2,
 			market_id: markets[0].id,
 			order_type: OrderType::Market,
 			direction: Direction::Long,
@@ -2147,5 +2238,283 @@ fn it_works_when_taker_long_buy_price_very_low() {
 			100.into(),
 			orders
 		));
+	});
+}
+
+#[test]
+fn test_fee_while_opening_order() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Buy;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: ORDER_ID_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: ORDER_ID_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(9998060000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9995150000000000000000));
+
+		// Close orders
+		// Since we are closing orders without setting the fee for close orders, fee won't be deducted from balance
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: ORDER_ID_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 105.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: ORDER_ID_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			105.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(10003060000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9990150000000000000000));
+		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
+		assert_eq!(locked_1, 0.into());
+	});
+}
+
+#[test]
+fn test_fee_while_closing_order() {
+	new_test_ext().execute_with(|| {
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Sell;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			side,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		let (markets, accounts, private_keys) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
+		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+
+		let order_1 = Order {
+			account_id: account_id_1,
+			order_id: ORDER_ID_1,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_2 = Order {
+			account_id: account_id_2,
+			order_id: ORDER_ID_2,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Buy,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_1 = sign_order(order_1, private_keys[0]);
+		let order_2 = sign_order(order_2, private_keys[1]);
+		let orders: Vec<Order> = vec![order_1, order_2];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(1_u8),
+			1.into(),
+			markets[0].id,
+			100.into(),
+			orders
+		));
+
+		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, 10000.into());
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, 10000.into());
+
+		// Close orders
+		let order_3 = Order {
+			account_id: account_id_1,
+			order_id: ORDER_ID_3,
+			market_id: markets[0].id,
+			order_type: OrderType::Limit,
+			direction: Direction::Long,
+			side: Side::Sell,
+			price: 105.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+		let order_4 = Order {
+			account_id: account_id_2,
+			order_id: ORDER_ID_4,
+			market_id: markets[0].id,
+			order_type: OrderType::Market,
+			direction: Direction::Short,
+			side: Side::Sell,
+			price: 100.into(),
+			size: 1.into(),
+			leverage: 1.into(),
+			slippage: FixedI128::from_inner(100000000000000000),
+			post_only: false,
+			time_in_force: TimeInForce::GTC,
+			sig_r: 0.into(),
+			sig_s: 0.into(),
+			hash_type: HashType::Pedersen,
+		};
+
+		let order_3 = sign_order(order_3, private_keys[0]);
+		let order_4 = sign_order(order_4, private_keys[1]);
+		let orders: Vec<Order> = vec![order_3, order_4];
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			U256::from(2_u8),
+			1.into(),
+			markets[0].id,
+			105.into(),
+			orders
+		));
+
+		let usdc_id: u128 = 1431520323;
+		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		assert_eq!(balance_1, FixedI128::from_inner(10002963000000000000000));
+		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		assert_eq!(balance_2, FixedI128::from_inner(9990392500000000000000));
+		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
+		assert_eq!(locked_1, 0.into());
 	});
 }

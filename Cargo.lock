@@ -5022,7 +5022,14 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-asset",
+ "pallet-market",
+ "pallet-market-prices",
+ "pallet-risk-management",
+ "pallet-timestamp",
  "pallet-trading",
+ "pallet-trading-fees",
+ "pallet-zkx-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5030,6 +5037,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "starknet-crypto",
  "zkx-support",
 ]
 

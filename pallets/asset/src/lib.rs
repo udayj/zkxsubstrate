@@ -54,7 +54,15 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Assets were successfully created
-		AssetsCreated { length: u64 },
+		AssetsCreated {
+			length: u64,
+		},
+		AssetCreated {
+			asset: Asset,
+		},
+		AssetRemoved {
+			asset: Asset,
+		},
 	}
 
 	// Pallet callable functions
@@ -83,6 +91,52 @@ pub mod pallet {
 			AssetsCount::<T>::put(length);
 
 			Self::deposit_event(Event::AssetsCreated { length });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of assets available
+			let length: u64 = AssetsCount::<T>::get();
+
+			// Check if the asset exists in the storage map
+			ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
+			// Validate asset
+			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
+
+			// Add asset to the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Increase the asset count
+			AssetsCount::<T>::put(length + 1);
+
+			Self::deposit_event(Event::AssetCreated { asset });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of assets available
+			let length: u64 = AssetsCount::<T>::get();
+
+			// Check if the asset exists in the storage map
+			ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::InvalidAsset);
+
+			// Remove asset to the asset map
+			AssetMap::<T>::remove(asset.id);
+
+			// Decrease the asset count
+			AssetsCount::<T>::put(length - 1);
+
+			Self::deposit_event(Event::AssetRemoved { asset });
 
 			Ok(())
 		}
