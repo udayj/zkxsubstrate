@@ -32,12 +32,12 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn accounts_count)]
+	#[pallet::getter(fn signers)]
 	// Array of U256
 	pub(super) type Signers<T: Config> = StorageValue<_, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn get_signer)]
+	#[pallet::getter(fn is_signer_valid)]
 	// k1 - U256, v - bool
 	pub(super) type IsSignerWhitelisted<T: Config> =
 		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
@@ -122,7 +122,7 @@ pub mod pallet {
 			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// It cannot be more than existing number of signers
-			ensure!(new_quorum <= SignersQuorum::<T>::get(), Error::<T>::InsufficientSigners);
+			ensure!(new_quorum <= Signers::<T>::get().len() as u8, Error::<T>::InsufficientSigners);
 
 			// Update the state
 			SignersQuorum::<T>::put(new_quorum);
