@@ -5085,6 +5085,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sp-arithmetic 16.0.0",
  "sp-core",
  "sp-io",
  "sp-runtime",

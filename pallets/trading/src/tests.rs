@@ -4,9 +4,9 @@ use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, FieldElement};
-use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
-use zkx_support::test_helpers::asset_helper::{eth, usdc, link, btc};
+use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
 use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
+use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
 	Asset, Direction, HashType, Market, Order, OrderType, Position, Side, TimeInForce,
 	TradingAccountMinimal,

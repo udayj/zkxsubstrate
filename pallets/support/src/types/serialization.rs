@@ -39,13 +39,10 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	}
 
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError> {
-		let inner_value: U256 = U256::from(fixed_value.into_inner().abs());
-		let u256_value = inner_value * 10_u8.pow(8);
+		// This works as fixedI128 values in l2 events are positive
+		let inner_value: u128 = fixed_value.into_inner().try_into().unwrap();
 
-		let (low_bytes_felt, high_bytes_felt) = convert_to_u128_pair(u256_value)?;
-		self.push(low_bytes_felt);
-		self.push(high_bytes_felt);
-
+		self.push(FieldElement::from(inner_value));
 		Ok(())
 	}
 
