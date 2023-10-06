@@ -3,7 +3,7 @@ use primitive_types::U256;
 
 pub fn eth() -> Asset {
 	Asset {
-		id: 0x4554480A,
+		id: 1163151370,
 		version: 1,
 		short_name: U256::from("0x457468657265756D"),
 		is_tradable: true,
@@ -15,7 +15,7 @@ pub fn eth() -> Asset {
 
 pub fn btc() -> Asset {
 	Asset {
-		id: 0x425443,
+		id: 4346947,
 		version: 1,
 		short_name: U256::from("0x426974636F696E"),
 		is_tradable: true,
@@ -27,7 +27,7 @@ pub fn btc() -> Asset {
 
 pub fn usdc() -> Asset {
 	Asset {
-		id: 0x555344430A0A,
+		id: 93816115890698,
 		version: 1,
 		short_name: U256::from("0x55534420436972636C65"),
 		is_tradable: false,
@@ -39,7 +39,7 @@ pub fn usdc() -> Asset {
 
 pub fn link() -> Asset {
 	Asset {
-		id: 0x4C494E4B,
+		id: 1279872587,
 		version: 1,
 		short_name: U256::from("0x436861696E6C696E6B"),
 		is_tradable: true,
@@ -51,7 +51,7 @@ pub fn link() -> Asset {
 
 pub fn usdt() -> Asset {
 	Asset {
-		id: 0x555344540A0A0A,
+		id: 24016925953231370,
 		version: 1,
 		short_name: U256::from("0x54657468657220555344"),
 		is_tradable: false,
