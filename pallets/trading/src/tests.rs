@@ -19,6 +19,8 @@ const ORDER_ID_5: u128 = 204_u128;
 const ORDER_ID_6: u128 = 205_u128;
 
 fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
+	assert_ok!(Timestamp::set(None.into(), 100));
+
 	let assets: Vec<Asset> = vec![eth(), usdc(), link(), btc()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 

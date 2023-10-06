@@ -19,6 +19,8 @@ const ORDER_ID_5: u128 = 204_u128;
 const ORDER_ID_6: u128 = 205_u128;
 
 fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
+	assert_ok!(Timestamp::set(None.into(), 100));
+
 	let assets: Vec<Asset> = vec![eth(), usdc(), link()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
@@ -31,9 +33,9 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 		is_archived: false,
 		ttl: 3600,
 		tick_size: 1.into(),
-		tick_precision: 1,
+		tick_precision: 2,
 		step_size: 1.into(),
-		step_precision: 1,
+		step_precision: 2,
 		minimum_order_size: FixedI128::from_inner(100000000000000000),
 		minimum_leverage: 1.into(),
 		maximum_leverage: 10.into(),
@@ -505,7 +507,7 @@ fn test_liquidation_after_deleveraging() {
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
 			market_id: 1,
 			direction: Direction::Long,
-			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			amount_to_be_sold: FixedI128::from_inner(320000000000000000),
 			liquidatable: false,
 		};
 
@@ -537,7 +539,7 @@ fn test_liquidation_after_deleveraging() {
 			direction: Direction::Long,
 			side: Side::Sell,
 			price: 8500.into(),
-			size: FixedI128::from_inner(321637426900584796),
+			size: FixedI128::from_inner(320000000000000000),
 			leverage: 1.into(),
 			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
@@ -554,7 +556,7 @@ fn test_liquidation_after_deleveraging() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
-			FixedI128::from_inner(321637426900584796),
+			FixedI128::from_inner(320000000000000000),
 			markets[0].id,
 			8500.into(),
 			orders
@@ -605,7 +607,7 @@ fn test_liquidation_after_deleveraging() {
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
 			market_id: 1,
 			direction: Direction::Long,
-			amount_to_be_sold: FixedI128::from_inner(4678362573099415204),
+			amount_to_be_sold: FixedI128::from_inner(4680000000000000000),
 			liquidatable: true,
 		};
 		assert_eq!(expected_position, liquidatable_position);
@@ -637,7 +639,7 @@ fn test_liquidation_after_deleveraging() {
 			direction: Direction::Long,
 			side: Side::Sell,
 			price: 7000.into(),
-			size: FixedI128::from_inner(4678362573099415204),
+			size: FixedI128::from_inner(4680000000000000000),
 			leverage: 1.into(),
 			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
@@ -654,7 +656,7 @@ fn test_liquidation_after_deleveraging() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			U256::from(3_u8),
-			FixedI128::from_inner(4678362573099415204),
+			FixedI128::from_inner(4680000000000000000),
 			markets[0].id,
 			7000.into(),
 			orders
@@ -676,7 +678,7 @@ fn test_liquidation_after_deleveraging() {
 		assert_eq!(expected_position, liquidatable_position);
 
 		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
-		assert_eq!(balance_1, FixedI128::from_inner(-4035087719298245612000));
+		assert_eq!(balance_1, FixedI128::from_inner(-4040000000000000000000));
 	});
 }
 
@@ -966,7 +968,7 @@ fn test_deleveraging_with_invalid_order_type() {
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
 			market_id: 1,
 			direction: Direction::Long,
-			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			amount_to_be_sold: FixedI128::from_inner(320000000000000000),
 			liquidatable: false,
 		};
 
@@ -1138,7 +1140,7 @@ fn test_deleveraging_with_invalid_market_id() {
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
 			market_id: 1,
 			direction: Direction::Long,
-			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			amount_to_be_sold: FixedI128::from_inner(320000000000000000),
 			liquidatable: false,
 		};
 
@@ -1254,34 +1256,6 @@ fn test_deleveraging_with_invalid_order_direction() {
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
-		let expected_position: Position = Position {
-			market_id: markets[0].id,
-			avg_execution_price: 10000.into(),
-			size: 5.into(),
-			direction: Direction::Long,
-			side: Side::Buy,
-			margin_amount: 10000.into(),
-			borrowed_amount: 40000.into(),
-			leverage: 5.into(),
-			realized_pnl: 0.into(),
-		};
-		assert_eq!(expected_position, position1);
-
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
-		let expected_position: Position = Position {
-			market_id: markets[0].id,
-			avg_execution_price: 10000.into(),
-			size: 5.into(),
-			direction: Direction::Short,
-			side: Side::Buy,
-			margin_amount: 10000.into(),
-			borrowed_amount: 40000.into(),
-			leverage: 5.into(),
-			realized_pnl: 0.into(),
-		};
-		assert_eq!(expected_position, position2);
-
 		// Decrease the price of the asset
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
 		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
@@ -1310,7 +1284,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
 			market_id: 1,
 			direction: Direction::Long,
-			amount_to_be_sold: FixedI128::from_inner(321637426900584796),
+			amount_to_be_sold: FixedI128::from_inner(320000000000000000),
 			liquidatable: false,
 		};
 
@@ -1342,7 +1316,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 			direction: Direction::Short,
 			side: Side::Sell,
 			price: 8500.into(),
-			size: FixedI128::from_inner(321637426900584796),
+			size: FixedI128::from_inner(320000000000000000),
 			leverage: 1.into(),
 			slippage: FixedI128::from_inner(100000000000000000),
 			post_only: false,
@@ -1359,13 +1333,14 @@ fn test_deleveraging_with_invalid_order_direction() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
-			FixedI128::from_inner(321637426900584796),
+			FixedI128::from_inner(320000000000000000),
 			markets[0].id,
 			8500.into(),
 			orders
 		));
 	});
 }
+<<<<<<< HEAD
 
 #[test]
 #[should_panic(expected = "TradeBatchError")]
@@ -1537,3 +1512,5 @@ fn test_shouldnt_liquidate_long_leverage_1() {
 		));
 	});
 }
+=======
+>>>>>>> 6422fe8 (ZKP-412 integrates rounding to precision to trading)
