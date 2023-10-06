@@ -499,7 +499,7 @@ fn it_works_for_close_trade_simple() {
 			orders
 		));
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		assert_eq!(balance_1, 10005.into());
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
@@ -754,7 +754,7 @@ fn it_works_for_close_trade_partial_close() {
 			orders
 		));
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_2, usdc_id);
 		assert_eq!(balance_1, 9998.into());
 	});
@@ -2314,7 +2314,7 @@ fn test_fee_while_opening_order() {
 			orders
 		));
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		assert_eq!(balance_1, FixedI128::from_inner(9998060000000000000000));
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
@@ -2370,7 +2370,7 @@ fn test_fee_while_opening_order() {
 			orders
 		));
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		assert_eq!(balance_1, FixedI128::from_inner(10003060000000000000000));
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
@@ -2454,7 +2454,7 @@ fn test_fee_while_closing_order() {
 		));
 
 		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		assert_eq!(balance_1, 10000.into());
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
@@ -2509,7 +2509,7 @@ fn test_fee_while_closing_order() {
 			orders
 		));
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
 		assert_eq!(balance_1, FixedI128::from_inner(10002963000000000000000));
 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);

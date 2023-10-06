@@ -144,7 +144,7 @@ pub mod pallet {
 
 	impl<T: Config> AssetInterface for Pallet<T> {
 		fn get_default_collateral() -> u128 {
-			1431520323_u128
+			93816115890698_u128
 		}
 
 		fn get_asset(id: u128) -> Option<Asset> {
