@@ -290,7 +290,7 @@ pub mod pallet {
 				let execution_price: FixedI128;
 				let quantity_to_execute: FixedI128;
 				let user_available_balance: FixedI128;
-				let margin_lock_amount: FixedI128;
+				let mut margin_lock_amount: FixedI128;
 				let new_position_size: FixedI128;
 				let mut new_leverage: FixedI128;
 				let new_margin_locked: FixedI128;
@@ -510,6 +510,8 @@ pub mod pallet {
 						margin_amount.round_to_precision(collateral_token_decimal.into());
 					borrowed_amount =
 						borrowed_amount.round_to_precision(collateral_token_decimal.into());
+					margin_lock_amount =
+						margin_lock_amount.round_to_precision(collateral_token_decimal.into());
 					avg_execution_price =
 						avg_execution_price.round_to_precision(tick_precision.into());
 					new_position_size = quantity_to_execute + position_details.size;
@@ -622,6 +624,8 @@ pub mod pallet {
 						margin_amount.round_to_precision(collateral_token_decimal.into());
 					borrowed_amount =
 						borrowed_amount.round_to_precision(collateral_token_decimal.into());
+					margin_lock_amount =
+						margin_lock_amount.round_to_precision(collateral_token_decimal.into());
 					avg_execution_price =
 						avg_execution_price.round_to_precision(tick_precision.into());
 					new_position_size = position_details.size - quantity_to_execute;
