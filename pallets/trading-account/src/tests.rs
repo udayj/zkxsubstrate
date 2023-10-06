@@ -11,6 +11,7 @@ use zkx_support::types::{
 };
 
 fn setup() -> (Vec<TradingAccountMinimal>, Vec<U256>) {
+	assert_ok!(Timestamp::set(None.into(), 100));
 	let user_pub_key_1: U256 = U256::from_dec_str(
 		"454932787469224290468444410084879070088819078827906347654495047407276534283",
 	)
