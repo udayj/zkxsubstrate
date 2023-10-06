@@ -262,7 +262,6 @@ pub mod pallet {
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-			ensure!(withdrawal_request.amount <= current_balance, Error::<T>::InsufficientBalance);
 
 			// Update the balance
 			BalancesMap::<T>::set(
