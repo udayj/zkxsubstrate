@@ -25,7 +25,7 @@ pub mod pallet {
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
 		MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
+		PositionDetailsForRiskManagement, Side, TimeInForce
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -197,15 +197,6 @@ pub mod pallet {
 			collateral_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
-			block_number: T::BlockNumber,
-		},
-		/// User balance updation event
-		UserBalanceChange {
-			account: TradingAccountMinimal,
-			collateral_id: u128,
-			amount: FixedI128,
-			modify_type: FundModifyType,
-			reason: u8,
 			block_number: T::BlockNumber,
 		},
 	}
