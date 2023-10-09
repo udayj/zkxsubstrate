@@ -13,7 +13,7 @@ use zkx_support::{ecdsa_sign, FieldElement};
 
 pub trait MarketUpdatedTrait {
 	fn new(
-		id: u64,
+		id: u128,
 		market: Market,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
@@ -22,7 +22,7 @@ pub trait MarketUpdatedTrait {
 
 pub trait AssetUpdatedTrait {
 	fn new(
-		id: u64,
+		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		icon_url: BoundedVec<u8, ConstU32<256>>,
@@ -31,11 +31,11 @@ pub trait AssetUpdatedTrait {
 }
 
 pub trait MarketRemovedTrait {
-	fn new(id: u64, block_number: u64) -> MarketRemoved;
+	fn new(id: u128, block_number: u64) -> MarketRemoved;
 }
 
 pub trait AssetRemovedTrait {
-	fn new(id: u64, block_number: u64) -> AssetRemoved;
+	fn new(id: u128, block_number: u64) -> AssetRemoved;
 }
 
 pub trait UserDepositTrait {
@@ -58,7 +58,7 @@ pub trait SignerRemovedTrait {
 
 impl MarketUpdatedTrait for MarketUpdated {
 	fn new(
-		id: u64,
+		id: u128,
 		market: Market,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
@@ -69,7 +69,7 @@ impl MarketUpdatedTrait for MarketUpdated {
 
 impl AssetUpdatedTrait for AssetUpdated {
 	fn new(
-		id: u64,
+		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		icon_url: BoundedVec<u8, ConstU32<256>>,
@@ -80,13 +80,13 @@ impl AssetUpdatedTrait for AssetUpdated {
 }
 
 impl MarketRemovedTrait for MarketRemoved {
-	fn new(id: u64, block_number: u64) -> MarketRemoved {
+	fn new(id: u128, block_number: u64) -> MarketRemoved {
 		MarketRemoved { id, block_number }
 	}
 }
 
 impl AssetRemovedTrait for AssetRemoved {
-	fn new(id: u64, block_number: u64) -> AssetRemoved {
+	fn new(id: u128, block_number: u64) -> AssetRemoved {
 		AssetRemoved { id, block_number }
 	}
 }

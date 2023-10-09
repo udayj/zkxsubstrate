@@ -26,13 +26,13 @@ pub enum UniversalEvent {
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct MarketRemoved {
-	pub id: u64,
+	pub id: u128,
 	pub block_number: u64,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AssetRemoved {
-	pub id: u64,
+	pub id: u128,
 	pub block_number: u64,
 }
 
@@ -47,7 +47,7 @@ pub struct UserDeposit {
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct MarketUpdated {
-	pub id: u64,
+	pub id: u128,
 	pub market: Market,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
 	pub block_number: u64,
@@ -55,7 +55,7 @@ pub struct MarketUpdated {
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AssetUpdated {
-	pub id: u64,
+	pub id: u128,
 	pub asset: Asset,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
 	pub icon_url: BoundedVec<u8, ConstU32<256>>,

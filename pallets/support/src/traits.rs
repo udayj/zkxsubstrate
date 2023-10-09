@@ -68,6 +68,9 @@ pub trait TradingInterface {
 }
 
 pub trait AssetInterface {
+	fn update_asset(asset: Asset);
+	fn add_asset(asset: Asset);
+	fn remove_asset(id: u128);
 	fn get_default_collateral() -> u128;
 	fn get_asset(id: u128) -> Option<Asset>;
 }

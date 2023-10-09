@@ -17,7 +17,7 @@ pub mod pallet {
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
 	use zkx_support::traits::{
-		FeltSerializedArrayExt, FieldElementExt, TradingAccountInterface, U256Ext,
+		FeltSerializedArrayExt, FieldElementExt, AssetInterface, TradingAccountInterface, U256Ext,
 	};
 	use zkx_support::types::{SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
@@ -29,6 +29,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type TradingAccountPallet: TradingAccountInterface;
+		type AssetsPallet: AssetInterface;
 	}
 
 	#[pallet::storage]
@@ -220,9 +221,22 @@ pub mod pallet {
 			for event in events_batch.iter() {
 				match event {
 					UniversalEvent::MarketUpdated(_market_updated) => {},
-					UniversalEvent::AssetUpdated(_asset_updated) => {},
+					UniversalEvent::AssetUpdated(asset_updated) => {
+						match T::AssetsPallet::get_asset(
+							asset_updated.id
+						) {
+							Some(_) => {
+								T::AssetsPallet::update_asset(asset_updated.asset.clone());
+							},
+							None => {
+								T::AssetsPallet::add_asset(asset_updated.asset.clone());
+							}
+						}
+					},
 					UniversalEvent::MarketRemoved(_market_removed) => {},
-					UniversalEvent::AssetRemoved(_asset_removed) => {},
+					UniversalEvent::AssetRemoved(asset_removed) => {
+						T::AssetsPallet::remove_asset(asset_removed.id);
+					},
 					UniversalEvent::UserDeposit(user_deposit) => {
 						T::TradingAccountPallet::deposit(
 							user_deposit.trading_account,
