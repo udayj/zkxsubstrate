@@ -26,7 +26,7 @@ pub mod pallet {
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
 		MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, Side, TimeInForce
+		PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -234,7 +234,7 @@ pub mod pallet {
 			let step_precision = market.step_precision;
 
 			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
-			let collateral_token_decimal = collateral_asset.token_decimal;
+			let collateral_token_decimal = collateral_asset.decimals;
 
 			// validates oracle_price
 			ensure!(

@@ -100,6 +100,7 @@ impl pallet_risk_management::Config for Test {
 
 impl pallet_trading::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 	type MarketPallet = Markets;
 	type MarketPricesPallet = MarketPrices;
 	type RiskManagementPallet = RiskManagement;
