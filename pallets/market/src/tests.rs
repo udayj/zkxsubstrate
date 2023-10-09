@@ -1,94 +1,12 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use primitive_types::U256;
-use zkx_support::types::{Asset, Market};
+use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
+use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
+use zkx_support::types::Market;
 
 fn setup() -> (Market, Market) {
-	let ETH_ID: u128 = 4543560;
-	let USDC_ID: u128 = 1431520323;
-	let LINK_ID: u128 = 1279872587;
-	let BTC_ID: u128 = 4346947;
-	let name1: Vec<u8> = "ETH".into();
-	let asset1: Asset = Asset {
-		id: ETH_ID,
-		name: name1.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 18,
-	};
-	let name2: Vec<u8> = "USDC".into();
-	let asset2: Asset = Asset {
-		id: USDC_ID,
-		name: name2.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "LINK".into();
-	let asset3: Asset = Asset {
-		id: LINK_ID,
-		name: name3.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "BTC".into();
-	let asset4: Asset = Asset {
-		id: BTC_ID,
-		name: name3.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 6,
-	};
-
-	let assets: Vec<Asset> = vec![asset1.clone(), asset2.clone(), asset3.clone()];
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
-
-	let market1: Market = Market {
-		id: 1,
-		asset: ETH_ID,
-		asset_collateral: USDC_ID,
-		is_tradable: true,
-		is_archived: false,
-		ttl: 3600,
-		tick_size: 1.into(),
-		tick_precision: 1,
-		step_size: 1.into(),
-		step_precision: 1,
-		minimum_order_size: 1.into(),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
-	};
-	let market2: Market = Market {
-		id: 2,
-		asset: LINK_ID,
-		asset_collateral: USDC_ID,
-		is_tradable: false,
-		is_archived: false,
-		ttl: 360,
-		tick_size: 1.into(),
-		tick_precision: 1,
-		step_size: 1.into(),
-		step_precision: 1,
-		minimum_order_size: 1.into(),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: 1.into(),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 1.into(),
-		baseline_position_size: 1.into(),
-		maximum_position_size: 1.into(),
-	};
-	(market1, market2)
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), link()]));
+	(eth_usdc(), link_usdc())
 }
 
 #[test]
@@ -187,11 +105,10 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 #[should_panic(expected = "AssetNotCollateral")]
 fn it_does_not_work_for_replace_markets_not_collateral() {
 	new_test_ext().execute_with(|| {
-		let LINK_ID: u128 = 1279872587;
 		let (market1, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-		let market: Market = Market { asset_collateral: LINK_ID, ..market1 };
+		let market: Market = Market { asset_collateral: link().id, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -224,5 +141,140 @@ fn it_does_not_work_for_replace_markets_invalid_current_leverage() {
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+	});
+}
+
+#[test]
+fn test_add_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 1);
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateMarket")]
+fn test_add_market_with_duplicate_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidMarketId")]
+fn test_add_market_with_zero_id() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { id: 0, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_market_with_invalid_asset() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset: 12345678, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotCollateral")]
+fn test_add_market_with_asset_not_collateral() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset_collateral: link().id, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_market_with_invalid_asset_collateral() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { asset_collateral: 12345678, ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidLeverage")]
+fn test_add_market_with_invalid_max_leverage() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market =
+			Market { minimum_leverage: 5.into(), maximum_leverage: 4.into(), ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidLeverage")]
+fn test_add_market_with_invalid_current_leverage() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		let market: Market = Market { currently_allowed_leverage: 11.into(), ..market1 };
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
+	});
+}
+
+#[test]
+fn test_remove_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 1);
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
+		let count = MarketModule::markets_count();
+		assert_eq!(count, 0);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidMarketId")]
+fn test_remove_market_with_already_removed_market_id() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
 	});
 }

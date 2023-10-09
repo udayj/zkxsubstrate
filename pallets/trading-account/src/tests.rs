@@ -3,21 +3,22 @@ use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
-use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountWithoutId};
+use zkx_support::test_helpers::asset_helper::{eth, usdc, usdt};
+use zkx_support::types::{Asset, BalanceUpdate, TradingAccount, TradingAccountMinimal};
 
-fn setup() -> Vec<TradingAccountWithoutId> {
-	let mut trading_accounts: Vec<TradingAccountWithoutId> = Vec::new();
-	let trading_account1 = TradingAccountWithoutId {
+fn setup() -> Vec<TradingAccountMinimal> {
+	let mut trading_accounts: Vec<TradingAccountMinimal> = Vec::new();
+	let trading_account1 = TradingAccountMinimal {
 		account_address: 1000.into(),
 		index: 1.into(),
 		pub_key: 100.into(),
 	};
-	let trading_account2 = TradingAccountWithoutId {
+	let trading_account2 = TradingAccountMinimal {
 		account_address: 2000.into(),
 		index: 2.into(),
 		pub_key: 200.into(),
 	};
-	let trading_account3 = TradingAccountWithoutId {
+	let trading_account3 = TradingAccountMinimal {
 		account_address: 3000.into(),
 		index: 3.into(),
 		pub_key: 300.into(),
@@ -29,42 +30,12 @@ fn setup() -> Vec<TradingAccountWithoutId> {
 }
 
 fn create_assets() -> Vec<Asset> {
-	let eth_id: u128 = 4543560;
-	let usdc_id: u128 = 1431520323;
-	let usdt_id: u128 = 1431520340;
-	let name1: Vec<u8> = "ETH".into();
-	let asset1: Asset = Asset {
-		id: eth_id,
-		name: name1.try_into().unwrap(),
-		is_tradable: true,
-		is_collateral: false,
-		token_decimal: 18,
-	};
-	let name2: Vec<u8> = "USDC".into();
-	let asset2: Asset = Asset {
-		id: usdc_id,
-		name: name2.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let name3: Vec<u8> = "USDT".into();
-	let asset3: Asset = Asset {
-		id: usdt_id,
-		name: name3.try_into().unwrap(),
-		is_tradable: false,
-		is_collateral: true,
-		token_decimal: 6,
-	};
-	let mut assets: Vec<Asset> = Vec::new();
-	assets.push(asset1);
-	assets.push(asset2);
-	assets.push(asset3);
+	let assets: Vec<Asset> = vec![eth(), usdc(), usdt()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets.clone()));
 	assets
 }
 
-fn get_trading_account_id(trading_accounts: Vec<TradingAccountWithoutId>, index: usize) -> U256 {
+fn get_trading_account_id(trading_accounts: Vec<TradingAccountMinimal>, index: usize) -> U256 {
 	let account_address = U256::from(trading_accounts[index].account_address);
 	let mut account_array: [u8; 32] = [0; 32];
 	account_address.to_little_endian(&mut account_array);
@@ -102,7 +73,7 @@ fn test_add_accounts() {
 		assert_eq!(trading_accounts.get(0).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(0).unwrap().pub_key, trading_account.pub_key);
 
-		let usdc_id: u128 = 1431520323;
+		let usdc_id: u128 = 93816115890698;
 		let expected_balance: FixedI128 = 10000.into();
 		let balance: FixedI128 =
 			TradingAccountModule::balances(trading_account.account_id, usdc_id);
@@ -168,7 +139,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let eth_id: u128 = 4543560;
+		let eth_id: u128 = 1163151370;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -198,8 +169,8 @@ fn test_add_balances() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let usdc_id: u128 = 1431520323;
-		let usdt_id: u128 = 1431520340;
+		let usdc_id: u128 = 93816115890698;
+		let usdt_id: u128 = 24016925953231370;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -237,104 +208,5 @@ fn test_add_balances() {
 			TradingAccountModule::account_collaterals(trading_account.account_id),
 			collaterals
 		);
-	});
-}
-
-#[test]
-#[should_panic(expected = "AssetNotFound")]
-fn test_deposit_with_asset_not_marked_as_collateral() {
-	new_test_ext().execute_with(|| {
-		let _assets = create_assets();
-		let trading_accounts = setup();
-		let usdt_id: u128 = 123;
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::add_accounts(
-			RuntimeOrigin::signed(1),
-			trading_accounts.clone()
-		));
-
-		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-		let trading_account: TradingAccount =
-			TradingAccountModule::accounts(trading_account_id).unwrap();
-
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
-			trading_account.account_id,
-			trading_account.index,
-			trading_account.pub_key,
-			usdt_id,
-			1000.into(),
-		));
-	});
-}
-
-#[test]
-#[should_panic(expected = "AssetNotCollateral")]
-fn test_deposit_with_unknown_asset() {
-	new_test_ext().execute_with(|| {
-		let _assets = create_assets();
-		let trading_accounts = setup();
-		let eth_id: u128 = 4543560;
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::add_accounts(
-			RuntimeOrigin::signed(1),
-			trading_accounts.clone()
-		));
-
-		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-		let trading_account: TradingAccount =
-			TradingAccountModule::accounts(trading_account_id).unwrap();
-
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
-			trading_account.account_id,
-			trading_account.index,
-			trading_account.pub_key,
-			eth_id,
-			1000.into(),
-		));
-	});
-}
-
-#[test]
-fn test_deposit() {
-	new_test_ext().execute_with(|| {
-		let _assets = create_assets();
-		let trading_accounts = setup();
-		let usdc_id: u128 = 1431520323;
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::add_accounts(
-			RuntimeOrigin::signed(1),
-			trading_accounts.clone()
-		));
-
-		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-		let trading_account: TradingAccount =
-			TradingAccountModule::accounts(trading_account_id).unwrap();
-
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
-			trading_account.account_address,
-			trading_account.index,
-			trading_account.pub_key,
-			usdc_id,
-			1000.into(),
-		));
-
-		assert_eq!(
-			TradingAccountModule::balances(trading_account.account_id, usdc_id),
-			11000.into()
-		);
-		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-		println!("Events: {:?}", event_record);
 	});
 }

@@ -51,6 +51,7 @@ pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_market_prices;
 pub use pallet_risk_management;
+pub use pallet_sync_facade;
 pub use pallet_trading;
 pub use pallet_trading_fees;
 pub use pallet_zkx_trading_account;
@@ -311,8 +312,14 @@ impl pallet_trading_fees::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+impl pallet_sync_facade::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type TradingAccountPallet = ZkxTradingAccount;
+}
+
 impl pallet_trading::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 	type MarketPallet = Markets;
 	type TradingAccountPallet = ZkxTradingAccount;
 	type TradingFeesPallet = TradingFees;
@@ -338,6 +345,7 @@ construct_runtime!(
 		ZkxTradingAccount: pallet_zkx_trading_account,
 		Assets: pallet_asset,
 		Markets: pallet_market,
+		SyncFacade: pallet_sync_facade,
 		Trading: pallet_trading,
 		TradingFees: pallet_trading_fees,
 		MarketPrices: pallet_market_prices,

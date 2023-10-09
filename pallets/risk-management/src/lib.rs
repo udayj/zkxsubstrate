@@ -17,7 +17,8 @@ pub mod pallet {
 	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::FixedI128;
 	use zkx_support::traits::{
-		MarketInterface, RiskManagementInterface, TradingAccountInterface, TradingInterface,
+		FixedI128Ext, MarketInterface, RiskManagementInterface, TradingAccountInterface,
+		TradingInterface,
 	};
 	use zkx_support::types::{Direction, Order, OrderType, PositionDetailsForRiskManagement, Side};
 
@@ -150,6 +151,8 @@ pub mod pallet {
 			let price_diff_maintenance = maintenance_requirement - price_diff;
 			let amount_to_be_present = margin_amount / price_diff_maintenance;
 			let amount_to_be_sold = position_size - amount_to_be_present;
+			let amount_to_be_sold =
+				amount_to_be_sold.round_to_precision(market.step_precision.into());
 
 			// Calculate the leverage after deleveraging
 			let position_value = margin_amount + borrowed_amount;

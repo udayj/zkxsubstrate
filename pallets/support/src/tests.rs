@@ -1,8 +1,6 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{
-	convert_to_u128_pair, Direction, HashType, Order, OrderType, Side, TimeInForce,
-};
+use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
 use crate::{ecdsa_verify, Signature};
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -132,4 +130,127 @@ fn test_order_signature() {
 	let verification =
 		ecdsa_verify(&public_key, &expected_hash, &Signature::from(signature)).unwrap();
 	assert_eq!(verification, true);
+}
+
+#[test]
+fn test_round_to_precision_1() {
+	// 4.99, 1
+	let val = FixedI128::from_inner(4990000000000000000).round_to_precision(1);
+	assert_eq!(val, 5.into());
+
+	// 4.99, 2
+	let val = FixedI128::from_inner(4990000000000000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(4990000000000000000));
+
+	// 1.222, 0
+	let val = FixedI128::from_inner(1222000000000000000).round_to_precision(0);
+	assert_eq!(val, 1.into());
+
+	// 1.222, 1
+	let val = FixedI128::from_inner(1222000000000000000).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(1200000000000000000));
+
+	// 1.222, 2
+	let val = FixedI128::from_inner(1222000000000000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(1220000000000000000));
+
+	// 1.222, 3
+	let val = FixedI128::from_inner(1222000000000000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(1222000000000000000));
+
+	// 1.222, 18
+	let val = FixedI128::from_inner(1222000000000000000).round_to_precision(18);
+	assert_eq!(val, FixedI128::from_inner(1222000000000000000));
+
+	// 1.24567, 1
+	let val = FixedI128::from_inner(1245670000000000000).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(1200000000000000000));
+
+	// 1.24567, 2
+	let val = FixedI128::from_inner(1245670000000000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(1250000000000000000));
+
+	// 1.24567, 3
+	let val = FixedI128::from_inner(1245670000000000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(1246000000000000000));
+
+	// 1.24567, 4
+	let val = FixedI128::from_inner(1245670000000000000).round_to_precision(4);
+	assert_eq!(val, FixedI128::from_inner(1245700000000000000));
+
+	// 100, 1
+	let val = FixedI128::from_inner(100000000000000000000).round_to_precision(1);
+	assert_eq!(val, 100.into());
+
+	// 100, 2
+	let val = FixedI128::from_inner(100000000000000000000).round_to_precision(2);
+	assert_eq!(val, 100.into());
+
+	// -2.345, 2
+	let val = FixedI128::from_inner(-2345000000000000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(-2350000000000000000));
+
+	// -2.345, 1
+	let val = FixedI128::from_inner(-2345000000000000000).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(-2300000000000000000));
+
+	// -2.345, 0
+	let val = FixedI128::from_inner(-2345000000000000000).round_to_precision(0);
+	assert_eq!(val, FixedI128::from_inner(-2000000000000000000));
+
+	// 0.001, 3
+	let val = FixedI128::from_inner(1000000000000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(1000000000000000));
+
+	// 0.001, 1
+	let val = FixedI128::from_inner(1000000000000000).round_to_precision(1);
+	assert_eq!(val, 0.into());
+
+	// 0.156, 1
+	let val = FixedI128::from_inner(156000000000000000).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(200000000000000000));
+
+	// 0.156, 2
+	let val = FixedI128::from_inner(156000000000000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(160000000000000000));
+
+	// 0.156, 3
+	let val = FixedI128::from_inner(156000000000000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(156000000000000000));
+
+	// 10000000000000.98123456789, 6
+	let val = FixedI128::from_inner(10000000000000981234567890000000).round_to_precision(6);
+	assert_eq!(val, FixedI128::from_inner(10000000000000981235000000000000));
+
+	// 10000000000000.98123456789, 3
+	let val = FixedI128::from_inner(10000000000000981234567890000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(10000000000000981000000000000000));
+
+	// 10000000000000.98123456789, 2
+	let val = FixedI128::from_inner(10000000000000981234567890000000).round_to_precision(2);
+	assert_eq!(val, FixedI128::from_inner(10000000000000980000000000000000));
+
+	// 10000000000000.98123456789, 1
+	let val = FixedI128::from_inner(10000000000000981234567890000000).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(10000000000001000000000000000000));
+
+	// 1467.0000001, 3
+	let val = FixedI128::from_inner(14670000001000000000).round_to_precision(3);
+	assert_eq!(val, FixedI128::from_inner(14670000000000000000));
+
+	// 756.99999999, 4
+	let val = FixedI128::from_inner(756999999990000000000).round_to_precision(4);
+	assert_eq!(val, FixedI128::from_inner(757000000000000000000));
+
+	// 10000000000000.123456789123456789, 18
+	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(18);
+	assert_eq!(val, FixedI128::from_inner(10000000000000123456789123456789));
+
+	// 10000000000000.123456789123456789, 16
+	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(16);
+	assert_eq!(val, FixedI128::from_inner(10000000000000123456789123456800));
+
+	// 10000000000000.123456789123456789, 1
+	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(1);
+	assert_eq!(val, FixedI128::from_inner(10000000000000100000000000000000));
 }

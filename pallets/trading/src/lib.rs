@@ -19,13 +19,14 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		Hashable, MarketInterface, MarketPricesInterface, RiskManagementInterface,
-		TradingAccountInterface, TradingFeesInterface, TradingInterface, U256Ext,
+		AssetInterface, FixedI128Ext, Hashable, MarketInterface, MarketPricesInterface,
+		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
+		U256Ext,
 	};
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
 		MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
+		PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -36,6 +37,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
@@ -215,7 +217,7 @@ pub mod pallet {
 			orders: Vec<Order>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let _sender = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			ensure!(
 				!BatchStatusMap::<T>::contains_key(batch_id),
@@ -227,6 +229,12 @@ pub mod pallet {
 			ensure!(market.is_some(), Error::<T>::TradeBatchError { error_code: 509 });
 			let market = market.unwrap();
 			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
+
+			let tick_precision = market.tick_precision;
+			let step_precision = market.step_precision;
+
+			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
 
 			// validates oracle_price
 			ensure!(
@@ -276,15 +284,15 @@ pub mod pallet {
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 
 			for element in &orders {
-				let margin_amount: FixedI128;
-				let borrowed_amount: FixedI128;
-				let avg_execution_price: FixedI128;
+				let mut margin_amount: FixedI128;
+				let mut borrowed_amount: FixedI128;
+				let mut avg_execution_price: FixedI128;
 				let execution_price: FixedI128;
 				let quantity_to_execute: FixedI128;
 				let user_available_balance: FixedI128;
-				let margin_lock_amount: FixedI128;
+				let mut margin_lock_amount: FixedI128;
 				let new_position_size: FixedI128;
-				let new_leverage: FixedI128;
+				let mut new_leverage: FixedI128;
 				let new_margin_locked: FixedI128;
 				let mut new_portion_executed: FixedI128;
 				let new_liquidatable_position: LiquidatablePosition;
@@ -498,8 +506,17 @@ pub mod pallet {
 						},
 					}
 
+					margin_amount =
+						margin_amount.round_to_precision(collateral_token_decimal.into());
+					borrowed_amount =
+						borrowed_amount.round_to_precision(collateral_token_decimal.into());
+					margin_lock_amount =
+						margin_lock_amount.round_to_precision(collateral_token_decimal.into());
+					avg_execution_price =
+						avg_execution_price.round_to_precision(tick_precision.into());
 					new_position_size = quantity_to_execute + position_details.size;
 					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
+					new_leverage = new_leverage.round_to_precision(2);
 					new_margin_locked = current_margin_locked + margin_lock_amount;
 					new_realized_pnl = position_details.realized_pnl + realized_pnl;
 					opening_fee = realized_pnl;
@@ -603,6 +620,14 @@ pub mod pallet {
 						},
 					}
 
+					margin_amount =
+						margin_amount.round_to_precision(collateral_token_decimal.into());
+					borrowed_amount =
+						borrowed_amount.round_to_precision(collateral_token_decimal.into());
+					margin_lock_amount =
+						margin_lock_amount.round_to_precision(collateral_token_decimal.into());
+					avg_execution_price =
+						avg_execution_price.round_to_precision(tick_precision.into());
 					new_position_size = position_details.size - quantity_to_execute;
 
 					// To do - handle liquidation/deleveraging order
@@ -641,6 +666,7 @@ pub mod pallet {
 							}
 							let total_value = margin_amount + borrowed_amount;
 							new_leverage = total_value / margin_amount;
+							new_leverage = new_leverage.round_to_precision(2);
 							new_margin_locked = current_margin_locked;
 						} else {
 							// Position not marked as 'liquidatable'
@@ -650,6 +676,7 @@ pub mod pallet {
 								);
 							}
 							new_leverage = position_details.leverage;
+							new_leverage = new_leverage.round_to_precision(2);
 							new_margin_locked = current_margin_locked - margin_lock_amount;
 						}
 					} else {
@@ -1310,11 +1337,6 @@ pub mod pallet {
 				margin_amount_to_reduce,
 				pnl,
 			))
-		}
-
-		fn get_trading_account(account_id: &U256) -> TradingAccountMinimal {
-			let trading_account = T::TradingAccountPallet::get_account(account_id).unwrap();
-			TradingAccountMinimal::new(trading_account.account_address, trading_account.index)
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {

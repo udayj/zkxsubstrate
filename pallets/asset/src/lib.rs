@@ -14,15 +14,12 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use primitive_types::U256;
-	use scale_info::prelude::string::String;
-	use zkx_support::traits::{AssetInterface, StringExt};
+	use zkx_support::traits::AssetInterface;
 	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -57,7 +54,15 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Assets were successfully created
-		AssetsCreated { length: u64 },
+		AssetsCreated {
+			length: u64,
+		},
+		AssetCreated {
+			asset: Asset,
+		},
+		AssetRemoved {
+			asset: Asset,
+		},
 	}
 
 	// Pallet callable functions
@@ -67,7 +72,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let sender = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			// Clear asset map
 			let _ = AssetMap::<T>::clear(DELETION_LIMIT, None);
@@ -79,12 +84,7 @@ pub mod pallet {
 				// Check if the asset exists in the storage map
 				ensure!(!AssetMap::<T>::contains_key(element.id), Error::<T>::DuplicateAsset);
 				// Validate asset
-				ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
-				let name_string =
-					String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
-				let name_felt: u128 = name_string.as_str().to_felt_rep();
-				ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
-
+				ensure!((0..19).contains(&element.decimals), Error::<T>::InvalidAsset);
 				AssetMap::<T>::insert(element.id, element.clone());
 			}
 
@@ -94,11 +94,57 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::weight(0)]
+		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of assets available
+			let length: u64 = AssetsCount::<T>::get();
+
+			// Check if the asset exists in the storage map
+			ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
+			// Validate asset
+			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
+
+			// Add asset to the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Increase the asset count
+			AssetsCount::<T>::put(length + 1);
+
+			Self::deposit_event(Event::AssetCreated { asset });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			let _ = ensure_signed(origin)?;
+
+			// Get the number of assets available
+			let length: u64 = AssetsCount::<T>::get();
+
+			// Check if the asset exists in the storage map
+			ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::InvalidAsset);
+
+			// Remove asset to the asset map
+			AssetMap::<T>::remove(asset.id);
+
+			// Decrease the asset count
+			AssetsCount::<T>::put(length - 1);
+
+			Self::deposit_event(Event::AssetRemoved { asset });
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
 		fn get_default_collateral() -> u128 {
-			1431520323_u128
+			93816115890698_u128
 		}
 
 		fn get_asset(id: u128) -> Option<Asset> {

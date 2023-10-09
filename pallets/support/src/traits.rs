@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemovedL2, AssetUpdatedL2, BalanceChangeReason, Direction, HashType,
-	LiquidatablePosition, MarginInfo, Market, MarketRemovedL2, MarketUpdatedL2, Order, OrderSide,
-	Position, PositionDetailsForRiskManagement, Side, TradingAccount, TradingAccountMinimal,
-	UniversalEventL2, UserDepositL2,
+	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, HashType,
+	LiquidatablePosition, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide,
+	Position, PositionDetailsForRiskManagement, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -12,6 +12,7 @@ use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
+	fn deposit(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -125,6 +126,7 @@ pub trait FeltSerializedArrayExt {
 	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
 	fn append_bool(&mut self, boolean_value: bool);
 	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
+	fn try_append_u256_pair(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError>;
 	fn try_append_asset(&mut self, asset: &Asset) -> Result<(), FromByteSliceError>;
 	fn try_append_market(&mut self, market: &Market) -> Result<(), FromByteSliceError>;
@@ -134,26 +136,34 @@ pub trait FeltSerializedArrayExt {
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_market_updated_event(
 		&mut self,
-		market_updated_event: &MarketUpdatedL2,
+		market_updated_event: &MarketUpdated,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_asset_updated_event(
 		&mut self,
-		asset_updated_event: &AssetUpdatedL2,
+		asset_updated_event: &AssetUpdated,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_market_removed_event(
 		&mut self,
-		market_removed_event: &MarketRemovedL2,
+		market_removed_event: &MarketRemoved,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_asset_removed_event(
 		&mut self,
-		asset_removed_event: &AssetRemovedL2,
+		asset_removed_event: &AssetRemoved,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_user_deposit_event(
 		&mut self,
-		user_deposit_event: &UserDepositL2,
+		user_deposit_event: &UserDeposit,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_signer_added_event(
+		&mut self,
+		signer_added: &SignerAdded,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_signer_removed_event(
+		&mut self,
+		signer_added: &SignerRemoved,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
-		universal_event_array: &Vec<UniversalEventL2>,
+		universal_event_array: &Vec<UniversalEvent>,
 	) -> Result<(), FromByteSliceError>;
 }
