@@ -460,7 +460,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
-				let mut is_final: bool = false;
+				let is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -477,14 +477,13 @@ pub mod pallet {
 							margin,
 							borrowed,
 							average_execution,
-							balance,
+							_balance,
 							margin_lock,
 							trading_fee,
 						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
-							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 							realized_pnl = trading_fee;
 						},
@@ -591,14 +590,13 @@ pub mod pallet {
 							margin,
 							borrowed,
 							average_execution,
-							balance,
+							_balance,
 							margin_lock,
 							current_pnl,
 						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
-							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 							realized_pnl = current_pnl;
 						},

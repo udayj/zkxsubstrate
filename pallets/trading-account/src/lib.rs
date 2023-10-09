@@ -51,6 +51,11 @@ pub mod pallet {
 	pub(super) type AccountsCount<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn standard_withdrawal_fee)]
+	// It stores the standard withdrawal fee
+	pub(super) type StandardWithdrawalFee<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn accounts)]
 	// Here, key is the trading_account_id and value is the trading account
 	pub(super) type AccountMap<T: Config> =
@@ -231,6 +236,18 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Set standard withdrawal fee
+		#[pallet::weight(0)]
+		pub fn set_standard_withdrawal_fee(
+			origin: OriginFor<T>,
+			withdrawal_fee: FixedI128,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			assert!(withdrawal_fee >= FixedI128::zero(), "Withdrawal fee should be non negative");
+			StandardWithdrawalFee::<T>::put(withdrawal_fee);
+			Ok(())
+		}
+
 		#[pallet::weight(0)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
@@ -245,6 +262,21 @@ pub mod pallet {
 			);
 
 			let _ = Self::verify_signature(&withdrawal_request);
+
+			let withdrawal_fee = StandardWithdrawalFee::<T>::get();
+			// Get the current balance
+			let current_balance: FixedI128 = BalancesMap::<T>::get(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+			);
+			assert!(withdrawal_fee <= current_balance, "Insufficient balance to pay fees");
+
+			// Update the balance, after deducting fees
+			BalancesMap::<T>::set(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+				current_balance - withdrawal_fee,
+			);
 
 			// Check whether the withdrawal leads to the position to be liquidatable or deleveraged
 			let (_, withdrawable_amount) = Self::calculate_amount_to_withdraw(
