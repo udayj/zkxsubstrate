@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 // Re-export ecdsa_verify to be used as is
-pub use starknet_core::crypto::{ecdsa_verify, Signature};
+pub use starknet_core::crypto::{ecdsa_sign, ecdsa_verify, Signature};
 pub use starknet_ff::{FieldElement, FromByteSliceError};
 
 // Custom types and data structures.
@@ -13,6 +13,9 @@ mod tests;
 
 // Trait definitions.
 pub mod traits;
+
+// Test Helpers
+pub mod test_helpers;
 
 // helper fns to be used by other pallets
 pub mod helpers {

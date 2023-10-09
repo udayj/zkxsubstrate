@@ -13,28 +13,31 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use frame_system::Origin;
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
-	use zkx_support::traits::{FeltSerializedArrayExt, FieldElementExt, U256Ext};
-	use zkx_support::types::{SyncSignature, UniversalEventL2};
+	use zkx_support::traits::{
+		FeltSerializedArrayExt, FieldElementExt, TradingAccountInterface, U256Ext,
+	};
+	use zkx_support::types::{SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub (super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type TradingAccountPallet: TradingAccountInterface;
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn accounts_count)]
+	#[pallet::getter(fn signers)]
 	// Array of U256
 	pub(super) type Signers<T: Config> = StorageValue<_, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn get_signer)]
+	#[pallet::getter(fn is_signer_valid)]
 	// k1 - U256, v - bool
 	pub(super) type IsSignerWhitelisted<T: Config> =
 		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
@@ -82,6 +85,8 @@ pub mod pallet {
 		EmptyBatch,
 		/// Batch sent again
 		DuplicateBatch,
+		/// Old Batch sent
+		OldBatch,
 		/// Not enough signatures for a sync tx
 		InsufficientSignatures,
 	}
@@ -119,7 +124,7 @@ pub mod pallet {
 			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// It cannot be more than existing number of signers
-			ensure!(new_quorum <= SignersQuorum::<T>::get(), Error::<T>::InsufficientSigners);
+			ensure!(new_quorum <= Signers::<T>::get().len() as u8, Error::<T>::InsufficientSigners);
 
 			// Update the state
 			SignersQuorum::<T>::put(new_quorum);
@@ -167,15 +172,22 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn synchronize_events(
 			origin: OriginFor<T>,
-			events_batch: Vec<UniversalEventL2>,
+			events_batch: Vec<UniversalEvent>,
 			signatures: Vec<SyncSignature>,
-			block_number: u64,
+			// block_number: u64,
 		) -> DispatchResult {
-			// Make sure the caller is an admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			// Make sure the call is signed
+			ensure_signed(origin)?;
 
 			// Check if there are events in the batch
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
+
+			// Fetch the block number of last event in the batch
+			let block_number = Self::get_block_number(events_batch.last().unwrap());
+
+			// The block number shouldn't be less than previous batch's block number
+			let (last_block_number, _) = LastProcessed::<T>::get();
+			ensure!(block_number >= last_block_number, Error::<T>::OldBatch);
 
 			// Compute the batch hash
 			let batch_hash = Self::compute_batch_hash(&events_batch);
@@ -190,6 +202,9 @@ pub mod pallet {
 			// Check if there are enough sigs
 			ensure!(Self::has_quorum(signatures, batch_hash), Error::<T>::InsufficientSignatures);
 
+			// Handle the events
+			Self::handle_events(events_batch);
+
 			// Mark the batch hash as being processed
 			IsBatchProcessed::<T>::insert(batch_hash_u256, true);
 
@@ -201,6 +216,31 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn handle_events(events_batch: Vec<UniversalEvent>) {
+			for event in events_batch.iter() {
+				match event {
+					UniversalEvent::MarketUpdated(_market_updated) => {},
+					UniversalEvent::AssetUpdated(_asset_updated) => {},
+					UniversalEvent::MarketRemoved(_market_removed) => {},
+					UniversalEvent::AssetRemoved(_asset_removed) => {},
+					UniversalEvent::UserDeposit(user_deposit) => {
+						T::TradingAccountPallet::deposit(
+							user_deposit.trading_account,
+							user_deposit.collateral_id,
+							user_deposit.amount,
+						);
+					},
+					UniversalEvent::SignerAdded(signer_added) => {
+						Self::add_signer(Origin::<T>::Root.into(), signer_added.signer).unwrap();
+					},
+					UniversalEvent::SignerRemoved(signer_removed) => {
+						Self::remove_signer(Origin::<T>::Root.into(), signer_removed.signer)
+							.unwrap();
+					},
+				}
+			}
+		}
+
 		fn has_quorum(signatures: Vec<SyncSignature>, hash: FieldElement) -> bool {
 			// Get the required data
 			let quorum = SignersQuorum::<T>::get() as usize;
@@ -231,18 +271,30 @@ pub mod pallet {
 			signature: Signature,
 		) -> bool {
 			match ecdsa_verify(&public_key, &hash, &signature) {
-				Ok(_) => true,
+				Ok(res) => res,
 				Err(_) => false,
 			}
 		}
 
-		fn compute_batch_hash(events_batch: &Vec<UniversalEventL2>) -> FieldElement {
+		fn compute_batch_hash(events_batch: &Vec<UniversalEvent>) -> FieldElement {
 			// Convert the array of enums to array of felts
 			let mut flattened_array: Vec<FieldElement> = Vec::new();
 			flattened_array.try_append_universal_event_array(&events_batch).unwrap();
 
 			// Compute hash of the array and return
 			pedersen_hash_multiple(&flattened_array)
+		}
+
+		fn get_block_number(event: &UniversalEvent) -> u64 {
+			match event {
+				UniversalEvent::MarketUpdated(market_updated) => market_updated.block_number,
+				UniversalEvent::AssetUpdated(user_withdrawal) => user_withdrawal.block_number,
+				UniversalEvent::MarketRemoved(market_removed) => market_removed.block_number,
+				UniversalEvent::AssetRemoved(asset_removed) => asset_removed.block_number,
+				UniversalEvent::UserDeposit(user_deposit) => user_deposit.block_number,
+				UniversalEvent::SignerAdded(signer_added) => signer_added.block_number,
+				UniversalEvent::SignerRemoved(signer_removed) => signer_removed.block_number,
+			}
 		}
 	}
 }

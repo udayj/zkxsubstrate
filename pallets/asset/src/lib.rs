@@ -14,8 +14,7 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use scale_info::prelude::string::String;
-	use zkx_support::traits::{AssetInterface, StringExt};
+	use zkx_support::traits::AssetInterface;
 	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
@@ -73,7 +72,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			// Clear asset map
 			let _ = AssetMap::<T>::clear(DELETION_LIMIT, None);
@@ -85,12 +84,7 @@ pub mod pallet {
 				// Check if the asset exists in the storage map
 				ensure!(!AssetMap::<T>::contains_key(element.id), Error::<T>::DuplicateAsset);
 				// Validate asset
-				ensure!((0..19).contains(&element.token_decimal), Error::<T>::InvalidAsset);
-				let name_string =
-					String::from_utf8(element.name.to_vec()).expect("Found invalid UTF-8");
-				let name_felt: u128 = name_string.as_str().to_felt_rep();
-				ensure!(name_felt == element.id, Error::<T>::InvalidAsset);
-
+				ensure!((0..19).contains(&element.decimals), Error::<T>::InvalidAsset);
 				AssetMap::<T>::insert(element.id, element.clone());
 			}
 
@@ -112,10 +106,7 @@ pub mod pallet {
 			// Check if the asset exists in the storage map
 			ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
 			// Validate asset
-			ensure!((0..19).contains(&asset.token_decimal), Error::<T>::InvalidAsset);
-			let name_string = String::from_utf8(asset.name.to_vec()).expect("Found invalid UTF-8");
-			let name_felt: u128 = name_string.as_str().to_felt_rep();
-			ensure!(name_felt == asset.id, Error::<T>::InvalidAsset);
+			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
 
 			// Add asset to the asset map
 			AssetMap::<T>::insert(asset.id, asset.clone());
@@ -153,7 +144,7 @@ pub mod pallet {
 
 	impl<T: Config> AssetInterface for Pallet<T> {
 		fn get_default_collateral() -> u128 {
-			1431520323_u128
+			93816115890698_u128
 		}
 
 		fn get_asset(id: u128) -> Option<Asset> {

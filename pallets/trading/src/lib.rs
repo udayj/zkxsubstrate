@@ -25,7 +25,7 @@ pub mod pallet {
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
 		MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, Side, TimeInForce, TradingAccountMinimal,
+		PositionDetailsForRiskManagement, Side, TimeInForce
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -215,7 +215,7 @@ pub mod pallet {
 			orders: Vec<Order>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			let _sender = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			ensure!(
 				!BatchStatusMap::<T>::contains_key(batch_id),
@@ -1310,11 +1310,6 @@ pub mod pallet {
 				margin_amount_to_reduce,
 				pnl,
 			))
-		}
-
-		fn get_trading_account(account_id: &U256) -> TradingAccountMinimal {
-			let trading_account = T::TradingAccountPallet::get_account(account_id).unwrap();
-			TradingAccountMinimal::new(trading_account.account_address, trading_account.index)
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {

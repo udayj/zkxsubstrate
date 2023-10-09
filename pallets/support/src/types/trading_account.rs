@@ -24,17 +24,9 @@ pub struct TradingAccount {
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
 )]
-pub struct TradingAccountWithoutId {
-	pub account_address: U256,
-	pub index: u8,
-	pub pub_key: U256,
-}
-
-#[derive(
-	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
-)]
 pub struct TradingAccountMinimal {
 	pub account_address: U256,
+	pub pub_key: U256,
 	pub index: u8,
 }
 
@@ -55,9 +47,19 @@ pub struct WithdrawalRequest {
 }
 
 impl TradingAccountMinimal {
-	pub fn new(account_address: U256, index: u8) -> TradingAccountMinimal {
-		TradingAccountMinimal { account_address, index }
+	pub fn new(account_address: U256, pub_key: U256, index: u8) -> TradingAccountMinimal {
+		TradingAccountMinimal { account_address, pub_key, index }
 	}
+}
+
+impl TradingAccount {
+    pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
+        TradingAccountMinimal {
+            account_address: self.account_address,
+            pub_key: self.pub_key,
+            index: self.index,
+        }
+    }
 }
 
 impl Hashable for WithdrawalRequest {

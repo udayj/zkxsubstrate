@@ -15,7 +15,6 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_support::traits::UnixTime;
 	use frame_system::pallet_prelude::*;
-	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::{MarketInterface, MarketPricesInterface};
 	use zkx_support::types::{MarketPrice, MultipleMarketPrices};

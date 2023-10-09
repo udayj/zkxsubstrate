@@ -3,11 +3,15 @@ members = [
     "node",
     "pallets/asset",
     "pallets/market",
-    "pallets/trading-account",
-    "pallets/trading-fees",
+    "pallets/market-prices",
+    "pallets/risk-management",
     "pallets/support",
     "pallets/sync-facade",
+    "pallets/trading",
+    "pallets/trading-account",
+    "pallets/trading-fees",  
     "runtime",
 ]
+
 [profile.release]
 panic = "unwind"
