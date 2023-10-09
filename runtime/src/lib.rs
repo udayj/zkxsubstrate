@@ -315,6 +315,8 @@ impl pallet_trading_fees::Config for Runtime {
 impl pallet_sync_facade::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type TradingAccountPallet = ZkxTradingAccount;
+	type AssetPallet = Assets;
+	type MarketPallet = Markets;
 }
 
 impl pallet_trading::Config for Runtime {

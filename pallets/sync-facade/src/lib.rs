@@ -17,7 +17,8 @@ pub mod pallet {
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
 	use zkx_support::traits::{
-		FeltSerializedArrayExt, FieldElementExt, AssetInterface, TradingAccountInterface, U256Ext,
+		AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
+		TradingAccountInterface, U256Ext,
 	};
 	use zkx_support::types::{SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
@@ -29,7 +30,8 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type TradingAccountPallet: TradingAccountInterface;
-		type AssetsPallet: AssetInterface;
+		type AssetPallet: AssetInterface;
+		type MarketPallet: MarketInterface;
 	}
 
 	#[pallet::storage]
@@ -52,7 +54,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn get_sync_state)]
 	// v - tuple of block number and block hash
-	pub(super) type LastProcessed<T: Config> = StorageValue<_, (u64, U256), ValueQuery>;
+	pub(super) type LastProcessed<T: Config> = StorageValue<_, (u64, u32, U256), ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_signers_quorum)]
@@ -184,10 +186,11 @@ pub mod pallet {
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
 
 			// Fetch the block number of last event in the batch
-			let block_number = Self::get_block_number(events_batch.last().unwrap());
+			let (block_number, event_index) =
+				Self::get_block_and_event_number(events_batch.last().unwrap());
 
 			// The block number shouldn't be less than previous batch's block number
-			let (last_block_number, _) = LastProcessed::<T>::get();
+			let (last_block_number, _,  _) = LastProcessed::<T>::get();
 			ensure!(block_number >= last_block_number, Error::<T>::OldBatch);
 
 			// Compute the batch hash
@@ -210,7 +213,7 @@ pub mod pallet {
 			IsBatchProcessed::<T>::insert(batch_hash_u256, true);
 
 			// Store the block number and the batch hash
-			LastProcessed::<T>::put((block_number, batch_hash_u256));
+			LastProcessed::<T>::put((block_number, event_index, batch_hash_u256));
 
 			Ok(())
 		}
@@ -220,22 +223,39 @@ pub mod pallet {
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
 			for event in events_batch.iter() {
 				match event {
-					UniversalEvent::MarketUpdated(_market_updated) => {},
-					UniversalEvent::AssetUpdated(asset_updated) => {
-						match T::AssetsPallet::get_asset(
-							asset_updated.id
-						) {
+					UniversalEvent::MarketUpdated(market_updated) => {
+						// Check if the Market already exists
+						match T::MarketPallet::get_market(market_updated.id) {
+							// If yes, update it
 							Some(_) => {
-								T::AssetsPallet::update_asset(asset_updated.asset.clone());
+								T::MarketPallet::update_market(market_updated.market.clone());
 							},
+							// If not, add a new market
 							None => {
-								T::AssetsPallet::add_asset(asset_updated.asset.clone());
-							}
+								T::MarketPallet::add_market(market_updated.market.clone());
+							},
 						}
 					},
-					UniversalEvent::MarketRemoved(_market_removed) => {},
+					UniversalEvent::AssetUpdated(asset_updated) => {
+						// Check if the Asset already exists
+						match T::AssetPallet::get_asset(asset_updated.id) {
+							// If yes, update it
+							Some(_) => {
+								T::AssetPallet::update_asset(asset_updated.asset.clone());
+							},
+							// If not, add a new asset
+							None => {
+								T::AssetPallet::add_asset(asset_updated.asset.clone());
+							},
+						}
+					},
+					UniversalEvent::MarketRemoved(market_removed) => {
+						// Remove the market
+						T::MarketPallet::remove_market(market_removed.id);
+					},
 					UniversalEvent::AssetRemoved(asset_removed) => {
-						T::AssetsPallet::remove_asset(asset_removed.id);
+						// Remove the asset
+						T::AssetPallet::remove_asset(asset_removed.id);
 					},
 					UniversalEvent::UserDeposit(user_deposit) => {
 						T::TradingAccountPallet::deposit(
@@ -299,15 +319,29 @@ pub mod pallet {
 			pedersen_hash_multiple(&flattened_array)
 		}
 
-		fn get_block_number(event: &UniversalEvent) -> u64 {
+		fn get_block_and_event_number(event: &UniversalEvent) -> (u64, u32) {
 			match event {
-				UniversalEvent::MarketUpdated(market_updated) => market_updated.block_number,
-				UniversalEvent::AssetUpdated(user_withdrawal) => user_withdrawal.block_number,
-				UniversalEvent::MarketRemoved(market_removed) => market_removed.block_number,
-				UniversalEvent::AssetRemoved(asset_removed) => asset_removed.block_number,
-				UniversalEvent::UserDeposit(user_deposit) => user_deposit.block_number,
-				UniversalEvent::SignerAdded(signer_added) => signer_added.block_number,
-				UniversalEvent::SignerRemoved(signer_removed) => signer_removed.block_number,
+				UniversalEvent::MarketUpdated(market_updated) => {
+					(market_updated.block_number, market_updated.event_index)
+				},
+				UniversalEvent::AssetUpdated(user_withdrawal) => {
+					(user_withdrawal.block_number, user_withdrawal.event_index)
+				},
+				UniversalEvent::MarketRemoved(market_removed) => {
+					(market_removed.block_number, market_removed.event_index)
+				},
+				UniversalEvent::AssetRemoved(asset_removed) => {
+					(asset_removed.block_number, asset_removed.event_index)
+				},
+				UniversalEvent::UserDeposit(user_deposit) => {
+					(user_deposit.block_number, user_deposit.event_index)
+				},
+				UniversalEvent::SignerAdded(signer_added) => {
+					(signer_added.block_number, signer_added.event_index)
+				},
+				UniversalEvent::SignerRemoved(signer_removed) => {
+					(signer_removed.block_number, signer_removed.event_index)
+				},
 			}
 		}
 	}

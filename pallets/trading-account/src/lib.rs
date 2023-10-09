@@ -116,7 +116,16 @@ pub mod pallet {
 			new_balance: FixedI128,
 			block_number: T::BlockNumber,
 		},
-		/// Event to be synced by L2
+		/// Event to be synced by L2, for pnl changes
+		UserBalanceChange {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			reason: u8,
+			block_number: T::BlockNumber,
+		},
+		/// Event to be synced by L2, for withdrawal requests
 		UserWithdrawal {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
@@ -574,6 +583,16 @@ pub mod pallet {
 				new_balance,
 				block_number,
 			});
+
+			// Event to be synced by L2
+			Self::deposit_event(Event::UserBalanceChange {
+				trading_account: account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Increase,
+				reason: reason.into(),
+				block_number,
+			});
 		}
 
 		fn transfer_from(
@@ -597,6 +616,16 @@ pub mod pallet {
 				reason: reason.into(),
 				previous_balance: current_balance,
 				new_balance,
+				block_number,
+			});
+
+			// Event to be synced by L2
+			Self::deposit_event(Event::UserBalanceChange {
+				trading_account: account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Decrease,
+				reason: reason.into(),
 				block_number,
 			});
 		}

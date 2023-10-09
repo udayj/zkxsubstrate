@@ -51,7 +51,7 @@ pub mod pallet {
 		BoundsOverflow,
 		/// Invalid value for id or token decimal
 		InvalidAsset,
-		/// Update fn called by non-admin
+		/// Unauthorized attempt to update assets
 		NotAdmin,
 	}
 
@@ -156,6 +156,27 @@ pub mod pallet {
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
+		fn add_asset(asset: Asset) {
+			// Add asset to the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Get the number of assets available
+			// Increase the asset count
+			let length: u64 = AssetsCount::<T>::get();
+			AssetsCount::<T>::put(length + 1);
+
+			// Emit the asset created event
+			Self::deposit_event(Event::AssetCreated { asset });
+		}
+		
+		fn update_asset(asset: Asset) {
+			// Replace the asset in the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Emit the asset updated event
+			Self::deposit_event(Event::AssetUpdated { asset });
+		}
+
 		fn remove_asset(id: u128) {
 			// Get the asset to be emitted in the event
 			let asset = AssetMap::<T>::get(id).unwrap();
@@ -169,28 +190,8 @@ pub mod pallet {
 			// Decrease the asset count
 			AssetsCount::<T>::put(length - 1);
 
+			// Emit the asset removed event
 			Self::deposit_event(Event::AssetRemoved { asset });
-		}
-
-		fn update_asset(asset: Asset) {
-			// Replace the asset in the asset map
-			AssetMap::<T>::insert(asset.id, asset.clone());
-
-			// Emit the asset updated event
-			Self::deposit_event(Event::AssetUpdated { asset });
-		}
-
-		fn add_asset(asset: Asset) {
-			// Add asset to the asset map
-			AssetMap::<T>::insert(asset.id, asset.clone());
-
-			// Get the number of assets available
-			// Increase the asset count
-			let length: u64 = AssetsCount::<T>::get();
-			AssetsCount::<T>::put(length + 1);
-
-			// Emit the asset created event
-			Self::deposit_event(Event::AssetCreated { asset });
 		}
 
 		fn get_default_collateral() -> u128 {

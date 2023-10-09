@@ -7,7 +7,7 @@ use crate::types::{
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::traits::ConstU32;
+use sp_runtime::{traits::ConstU32, DispatchResult};
 use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
@@ -87,6 +87,10 @@ pub trait RiskManagementInterface {
 
 pub trait MarketInterface {
 	fn get_market(id: u128) -> Option<Market>;
+	fn add_market(market: Market);
+	fn update_market(market: Market);
+	fn remove_market(id: u128);
+	fn validate_market_details(market: &Market) -> DispatchResult;
 }
 
 pub trait MarketPricesInterface {

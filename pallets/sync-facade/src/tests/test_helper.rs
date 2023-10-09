@@ -13,6 +13,7 @@ use zkx_support::{ecdsa_sign, FieldElement};
 
 pub trait MarketUpdatedTrait {
 	fn new(
+		event_index: u32,
 		id: u128,
 		market: Market,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
@@ -22,6 +23,7 @@ pub trait MarketUpdatedTrait {
 
 pub trait AssetUpdatedTrait {
 	fn new(
+		event_index: u32,
 		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
@@ -31,15 +33,16 @@ pub trait AssetUpdatedTrait {
 }
 
 pub trait MarketRemovedTrait {
-	fn new(id: u128, block_number: u64) -> MarketRemoved;
+	fn new(event_index: u32, id: u128, block_number: u64) -> MarketRemoved;
 }
 
 pub trait AssetRemovedTrait {
-	fn new(id: u128, block_number: u64) -> AssetRemoved;
+	fn new(event_index: u32, id: u128, block_number: u64) -> AssetRemoved;
 }
 
 pub trait UserDepositTrait {
 	fn new(
+		event_index: u32,
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		nonce: U256,
@@ -49,69 +52,72 @@ pub trait UserDepositTrait {
 }
 
 pub trait SignerAddedTrait {
-	fn new(signer: U256, block_number: u64) -> SignerAdded;
+	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerAdded;
 }
 
 pub trait SignerRemovedTrait {
-	fn new(signer: U256, block_number: u64) -> SignerRemoved;
+	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerRemoved;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
 	fn new(
+		event_index: u32,
 		id: u128,
 		market: Market,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> MarketUpdated {
-		MarketUpdated { id, market, metadata_url, block_number }
+		MarketUpdated { event_index, id, market, metadata_url, block_number }
 	}
 }
 
 impl AssetUpdatedTrait for AssetUpdated {
 	fn new(
+		event_index: u32,
 		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		icon_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated {
-		AssetUpdated { id, asset, metadata_url, icon_url, block_number }
+		AssetUpdated { event_index, id, asset, metadata_url, icon_url, block_number }
 	}
 }
 
 impl MarketRemovedTrait for MarketRemoved {
-	fn new(id: u128, block_number: u64) -> MarketRemoved {
-		MarketRemoved { id, block_number }
+	fn new(event_index: u32, id: u128, block_number: u64) -> MarketRemoved {
+		MarketRemoved { event_index, id, block_number }
 	}
 }
 
 impl AssetRemovedTrait for AssetRemoved {
-	fn new(id: u128, block_number: u64) -> AssetRemoved {
-		AssetRemoved { id, block_number }
+	fn new(event_index: u32, id: u128, block_number: u64) -> AssetRemoved {
+		AssetRemoved { event_index, id, block_number }
 	}
 }
 
 impl SignerAddedTrait for SignerAdded {
-	fn new(signer: U256, block_number: u64) -> SignerAdded {
-		SignerAdded { signer, block_number }
+	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerAdded {
+		SignerAdded { event_index, signer, block_number }
 	}
 }
 
 impl SignerRemovedTrait for SignerRemoved {
-	fn new(signer: U256, block_number: u64) -> SignerRemoved {
-		SignerRemoved { signer, block_number }
+	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerRemoved {
+		SignerRemoved { event_index, signer, block_number }
 	}
 }
 
 impl UserDepositTrait for UserDeposit {
 	fn new(
+		event_index: u32,
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		nonce: U256,
 		amount: FixedI128,
 		block_number: u64,
 	) -> UserDeposit {
-		UserDeposit { trading_account, collateral_id, nonce, amount, block_number }
+		UserDeposit { event_index, trading_account, collateral_id, nonce, amount, block_number }
 	}
 }
 
