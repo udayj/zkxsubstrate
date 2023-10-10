@@ -31,7 +31,7 @@ fn setup() -> Vec<TradingAccountMinimal> {
 
 fn create_assets() -> Vec<Asset> {
 	let assets: Vec<Asset> = vec![eth(), usdc(), usdt()];
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), assets.clone()));
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets.clone()));
 	assets
 }
 
@@ -73,7 +73,7 @@ fn test_add_accounts() {
 		assert_eq!(trading_accounts.get(0).unwrap().index, trading_account.index);
 		assert_eq!(trading_accounts.get(0).unwrap().pub_key, trading_account.pub_key);
 
-		let usdc_id: u128 = 93816115890698;
+		let usdc_id: u128 = usdc().id;
 		let expected_balance: FixedI128 = 10000.into();
 		let balance: FixedI128 =
 			TradingAccountModule::balances(trading_account.account_id, usdc_id);
@@ -139,7 +139,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let eth_id: u128 = 1163151370;
+		let eth_id: u128 = eth().id;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
@@ -169,8 +169,8 @@ fn test_add_balances() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();
 		let trading_accounts = setup();
-		let usdc_id: u128 = 93816115890698;
-		let usdt_id: u128 = 24016925953231370;
+		let usdc_id: u128 = usdc().id;
+		let usdt_id: u128 = usdt().id;
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.

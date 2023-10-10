@@ -22,13 +22,13 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	assert_ok!(Timestamp::set(None.into(), 100));
 
 	let assets: Vec<Asset> = vec![eth(), usdc(), link()];
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), assets));
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	let market1: Market = Market {
 		id: 1,
 		version: 1,
-		asset: 1163151370,
-		asset_collateral: 93816115890698,
+		asset: eth().id,
+		asset_collateral: usdc().id,
 		is_tradable: true,
 		is_archived: false,
 		ttl: 3600,
@@ -50,8 +50,8 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	let market2: Market = Market {
 		id: 2,
 		version: 1,
-		asset: 1279872587,
-		asset_collateral: 93816115890698,
+		asset: link().id,
+		asset_collateral: usdc().id,
 		is_tradable: false,
 		is_archived: false,
 		ttl: 360,
@@ -72,7 +72,7 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	};
 
 	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
-	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::root(), markets.clone()));
+	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), markets.clone()));
 
 	let user_pub_key_1: U256 = U256::from_dec_str(
 		"454932787469224290468444410084879070088819078827906347654495047407276534283",

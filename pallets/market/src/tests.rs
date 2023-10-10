@@ -5,7 +5,7 @@ use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
 use zkx_support::types::Market;
 
 fn setup() -> (Market, Market) {
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), vec![eth(), usdc(), link()]));
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), link()]));
 	(eth_usdc(), link_usdc())
 }
 
@@ -17,7 +17,7 @@ fn it_works_for_replace_markets() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
 		assert_eq!(MarketModule::markets_count(), 1);
 		let market_storage = MarketModule::markets(1);
@@ -36,7 +36,7 @@ fn it_works_for_replace_markets_multiple_markets() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
 		assert_eq!(MarketModule::markets_count(), 2);
 		let market_storage1 = MarketModule::markets(1);
@@ -55,7 +55,7 @@ fn it_does_not_work_for_replace_markets_duplicate() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone(), market1.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -69,7 +69,7 @@ fn it_does_not_work_for_replace_markets_zero_id() {
 		let market: Market = Market { id: 0, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -83,7 +83,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset() {
 		let market: Market = Market { asset: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -97,7 +97,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 		let market: Market = Market { asset_collateral: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -111,7 +111,7 @@ fn it_does_not_work_for_replace_markets_not_collateral() {
 		let market: Market = Market { asset_collateral: link().id, ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -126,7 +126,7 @@ fn it_does_not_work_for_replace_markets_invalid_max_leverage() {
 			Market { minimum_leverage: 5.into(), maximum_leverage: 4.into(), ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -140,7 +140,7 @@ fn it_does_not_work_for_replace_markets_invalid_current_leverage() {
 		let market: Market = Market { currently_allowed_leverage: 11.into(), ..market1 };
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 	});
 }
 
@@ -151,21 +151,9 @@ fn test_add_market() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
 		let count = MarketModule::markets_count();
 		assert_eq!(count, 1);
-	});
-}
-
-#[test]
-#[should_panic(expected = "NotAdmin")]
-fn test_add_market_unauthorized() {
-	new_test_ext().execute_with(|| {
-		let (market1, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::signed(1), market1));
 	});
 }
 
@@ -177,8 +165,8 @@ fn test_add_market_with_duplicate_market() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1.clone()));
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
 	});
 }
 
@@ -191,7 +179,7 @@ fn test_add_market_with_zero_id() {
 		System::set_block_number(1);
 		let market: Market = Market { id: 0, ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -204,7 +192,7 @@ fn test_add_market_with_invalid_asset() {
 		System::set_block_number(1);
 		let market: Market = Market { asset: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -217,7 +205,7 @@ fn test_add_market_with_asset_not_collateral() {
 		System::set_block_number(1);
 		let market: Market = Market { asset_collateral: link().id, ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -230,7 +218,7 @@ fn test_add_market_with_invalid_asset_collateral() {
 		System::set_block_number(1);
 		let market: Market = Market { asset_collateral: 12345678, ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -244,7 +232,7 @@ fn test_add_market_with_invalid_max_leverage() {
 		let market: Market =
 			Market { minimum_leverage: 5.into(), maximum_leverage: 4.into(), ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -257,7 +245,7 @@ fn test_add_market_with_invalid_current_leverage() {
 		System::set_block_number(1);
 		let market: Market = Market { currently_allowed_leverage: 11.into(), ..market1 };
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market));
 	});
 }
 
@@ -268,36 +256,16 @@ fn test_update_market() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
 
 		let mut updated_market = eth_usdc();
 		updated_market.is_tradable = false;
 
-		assert_ok!(MarketModule::update_market_admin(
-			RuntimeOrigin::root(),
-			updated_market.clone()
-		));
-		assert_eq!(MarketModule::markets(updated_market.id).unwrap(), updated_market);
-	});
-}
-
-#[test]
-#[should_panic(expected = "NotAdmin")]
-fn test_update_market_unauthorized() {
-	new_test_ext().execute_with(|| {
-		let (market1, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1));
-
-		let mut updated_market = eth_usdc();
-		updated_market.is_tradable = false;
-
-		assert_ok!(MarketModule::update_market_admin(
+		assert_ok!(MarketModule::update_market(
 			RuntimeOrigin::signed(1),
 			updated_market.clone()
 		));
+		assert_eq!(MarketModule::markets(updated_market.id).unwrap(), updated_market);
 	});
 }
 
@@ -308,23 +276,10 @@ fn test_remove_market() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1.clone()));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
 		let count = MarketModule::markets_count();
 		assert_eq!(count, 1);
-		assert_ok!(MarketModule::remove_market_admin(RuntimeOrigin::root(), market1.id));
-	});
-}
-
-#[test]
-#[should_panic(expected = "NotAdmin")]
-fn test_remove_market_unauthorized() {
-	new_test_ext().execute_with(|| {
-		let (market1, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1.clone()));
-		assert_ok!(MarketModule::remove_market_admin(RuntimeOrigin::signed(1), market1.id));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
 	});
 }
 
@@ -336,8 +291,8 @@ fn test_remove_market_with_already_removed_market_id() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
-		assert_ok!(MarketModule::add_market_admin(RuntimeOrigin::root(), market1.clone()));
-		assert_ok!(MarketModule::remove_market_admin(RuntimeOrigin::root(), market1.id));
-		assert_ok!(MarketModule::remove_market_admin(RuntimeOrigin::root(), market1.id));
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
 	});
 }

@@ -18,7 +18,7 @@ pub mod pallet {
 	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
-	static DEFAULT_ASSET: u128 = 93816115890698;
+	static DEFAULT_ASSET: u128 = 1431520323;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -51,8 +51,6 @@ pub mod pallet {
 		BoundsOverflow,
 		/// Invalid value for id or token decimal
 		InvalidAsset,
-		/// Unauthorized attempt to update assets
-		NotAdmin,
 	}
 
 	#[pallet::event]
@@ -76,11 +74,11 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		// TODO(merkle-groot): To be removed in production
 		/// Replace all assets
 		#[pallet::weight(0)]
 		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			ensure_signed(origin)?;
 
 			// Clear asset map
 			let _ = AssetMap::<T>::clear(DELETION_LIMIT, None);
@@ -103,10 +101,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn remove_asset_admin(origin: OriginFor<T>, id: u128) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn remove_asset(origin: OriginFor<T>, id: u128) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the asset exists
 			if let None = Self::get_asset(id) {
@@ -114,14 +112,14 @@ pub mod pallet {
 			}
 
 			// Remove the asset
-			Self::remove_asset(id);
+			Self::remove_asset_internal(id);
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn update_asset_admin(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn update_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the asset exists
 			if let None = Self::get_asset(asset.id) {
@@ -132,14 +130,14 @@ pub mod pallet {
 			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
 
 			// Update the asset
-			Self::update_asset(asset);
+			Self::update_asset_internal(asset);
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn add_asset_admin(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the asset exists
 			if let Some(_) = Self::get_asset(asset.id) {
@@ -150,13 +148,13 @@ pub mod pallet {
 			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
 
 			// Add the asset
-			Self::add_asset(asset);
+			Self::add_asset_internal(asset);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
-		fn add_asset(asset: Asset) {
+		fn add_asset_internal(asset: Asset) {
 			// Add asset to the asset map
 			AssetMap::<T>::insert(asset.id, asset.clone());
 
@@ -169,7 +167,7 @@ pub mod pallet {
 			Self::deposit_event(Event::AssetCreated { asset });
 		}
 		
-		fn update_asset(asset: Asset) {
+		fn update_asset_internal(asset: Asset) {
 			// Replace the asset in the asset map
 			AssetMap::<T>::insert(asset.id, asset.clone());
 
@@ -177,7 +175,7 @@ pub mod pallet {
 			Self::deposit_event(Event::AssetUpdated { asset });
 		}
 
-		fn remove_asset(id: u128) {
+		fn remove_asset_internal(id: u128) {
 			// Get the asset to be emitted in the event
 			let asset = AssetMap::<T>::get(id).unwrap();
 

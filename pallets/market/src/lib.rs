@@ -74,11 +74,11 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		// TODO(merkle-groot): To be removed in production
 		/// Replace all markets
 		#[pallet::weight(0)]
 		pub fn replace_all_markets(origin: OriginFor<T>, markets: Vec<Market>) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			ensure_signed(origin)?;
 
 			// Clear market map
 			let _ = MarketMap::<T>::clear(DELETION_LIMIT, None);
@@ -117,10 +117,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn add_market_admin(origin: OriginFor<T>, market: Market) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn add_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
 			ensure!(!MarketMap::<T>::contains_key(market.id), Error::<T>::DuplicateMarket);
@@ -129,15 +129,15 @@ pub mod pallet {
 			Self::validate_market_details(&market)?;
 
 			// Add the market
-			Self::add_market(market);
+			Self::add_market_internal(market);
 
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn update_market_admin(origin: OriginFor<T>, market: Market) -> DispatchResult {
-			// Can only be called by the admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn update_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
 			ensure!(MarketMap::<T>::contains_key(market.id), Error::<T>::InvalidMarket);
@@ -146,26 +146,27 @@ pub mod pallet {
 			Self::validate_market_details(&market)?;
 
 			// Add the market
-			Self::update_market(market);
+			Self::update_market_internal(market);
 
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn remove_market_admin(origin: OriginFor<T>, id: u128) -> DispatchResult {
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+		pub fn remove_market(origin: OriginFor<T>, id: u128) -> DispatchResult {
+			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
 			ensure!(MarketMap::<T>::contains_key(id), Error::<T>::InvalidMarket);
 
 			// Remove the market
-			Self::remove_market(id);
+			Self::remove_market_internal(id);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> MarketInterface for Pallet<T> {
-		fn add_market(market: Market) {
+		fn add_market_internal(market: Market) {
 			// Add market to the market map
 			MarketMap::<T>::insert(market.id, market.clone());
 
@@ -178,7 +179,7 @@ pub mod pallet {
 			Self::deposit_event(Event::MarketCreated { market });
 		}
 
-		fn update_market(market: Market) {
+		fn update_market_internal(market: Market) {
 			// Replace the market in the market map
 			MarketMap::<T>::insert(market.id, market.clone());
 
@@ -186,7 +187,7 @@ pub mod pallet {
 			Self::deposit_event(Event::MarketUpdated { market });
 		}
 
-		fn remove_market(id: u128) {
+		fn remove_market_internal(id: u128) {
 			// Get the market to be emitted in the event
 			let market = MarketMap::<T>::get(id).unwrap();
 

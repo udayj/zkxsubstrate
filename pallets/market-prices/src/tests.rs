@@ -9,7 +9,7 @@ fn setup() -> (Market, Market) {
 	assert_ok!(Timestamp::set(None.into(), 100));
 
 	let assets: Vec<Asset> = vec![eth(), usdc(), link()];
-	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
+	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
 	(eth_usdc(), link_usdc())
 }
@@ -23,7 +23,7 @@ fn test_update_multiple_market_prices_with_invalid_market_id() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
 		let market_price1 = MultipleMarketPrices { market_id: 0, price: 1000.into() };
 		market_prices.push(market_price1);
@@ -44,7 +44,7 @@ fn test_update_multiple_market_prices_with_invalid_market_price() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
 		let market_price1 = MultipleMarketPrices { market_id: market1.id, price: (-100).into() };
 		market_prices.push(market_price1);
@@ -64,7 +64,7 @@ fn test_update_multiple_market_prices() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::root(), markets));
+		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
 		let market_price1 = MultipleMarketPrices { market_id: market1.id, price: 1000.into() };
 		let market_price2 = MultipleMarketPrices { market_id: market2.id, price: 2000.into() };

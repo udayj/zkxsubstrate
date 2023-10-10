@@ -273,7 +273,7 @@ pub mod pallet {
 						T::AssetPallet::remove_asset_internal(asset_removed.id);
 					},
 					UniversalEvent::UserDeposit(user_deposit) => {
-						T::TradingAccountPallet::deposit(
+						T::TradingAccountPallet::deposit_internal(
 							user_deposit.trading_account,
 							user_deposit.collateral_id,
 							user_deposit.amount,

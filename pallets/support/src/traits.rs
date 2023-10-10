@@ -12,7 +12,7 @@ use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
-	fn deposit(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128);
+	fn deposit_internal(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -68,9 +68,9 @@ pub trait TradingInterface {
 }
 
 pub trait AssetInterface {
-	fn update_asset(asset: Asset);
-	fn add_asset(asset: Asset);
-	fn remove_asset(id: u128);
+	fn update_asset_internal(asset: Asset);
+	fn add_asset_internal(asset: Asset);
+	fn remove_asset_internal(id: u128);
 	fn get_default_collateral() -> u128;
 	fn get_asset(id: u128) -> Option<Asset>;
 }
@@ -87,9 +87,9 @@ pub trait RiskManagementInterface {
 
 pub trait MarketInterface {
 	fn get_market(id: u128) -> Option<Market>;
-	fn add_market(market: Market);
-	fn update_market(market: Market);
-	fn remove_market(id: u128);
+	fn add_market_internal(market: Market);
+	fn update_market_internal(market: Market);
+	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
 }
 
