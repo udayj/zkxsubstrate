@@ -403,9 +403,7 @@ fn test_withdraw_on_not_existing_account() {
 }
 
 #[test]
-#[should_panic(
-	expected = "AccountManager: This withdrawal will lead to either deleveraging or liquidation"
-)]
+#[should_panic(expected = "InvalidWithdrawalRequest")]
 fn test_withdraw_with_insufficient_balance() {
 	new_test_ext().execute_with(|| {
 		let _assets = create_assets();

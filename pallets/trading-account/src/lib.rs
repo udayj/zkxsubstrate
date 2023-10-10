@@ -102,6 +102,10 @@ pub mod pallet {
 		NoPublicKeyFound,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		InvalidPublicKey,
+		/// Invalid standard withdrawal fee
+		InvalidWithdrawalFee,
+		/// Invalid arguments in the withdrawal request
+		InvalidWithdrawalRequest,
 	}
 
 	#[pallet::event]
@@ -243,7 +247,7 @@ pub mod pallet {
 			withdrawal_fee: FixedI128,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
-			assert!(withdrawal_fee >= FixedI128::zero(), "Withdrawal fee should be non negative");
+			ensure!(withdrawal_fee >= FixedI128::zero(), Error::<T>::InvalidWithdrawalFee);
 			StandardWithdrawalFee::<T>::put(withdrawal_fee);
 			Ok(())
 		}
@@ -285,7 +289,7 @@ pub mod pallet {
 
 			ensure!(
 				withdrawal_request.amount <= withdrawable_amount,
-				"AccountManager: This withdrawal will lead to either deleveraging or liquidation"
+				Error::<T>::InvalidWithdrawalRequest
 			);
 
 			// Get the current balance
@@ -649,9 +653,8 @@ pub mod pallet {
 			// calculate account value and maintenance requirement of least collateral position before reducing size
 			// AV = (size * current_price) - borrowed_amount
 			// MR = req_margin * size * avg_execution_price
-			let account_value_initial_temp = least_collateral_ratio_position.size * market_price;
-			let account_value_initial =
-				account_value_initial_temp - least_collateral_ratio_position.borrowed_amount;
+			let account_value_initial = (least_collateral_ratio_position.size * market_price)
+				- least_collateral_ratio_position.borrowed_amount;
 
 			let market =
 				T::MarketPallet::get_market(least_collateral_ratio_position.market_id).unwrap();
@@ -661,13 +664,11 @@ pub mod pallet {
 			let maintenance_requirement_initial = req_margin * leveraged_position_value_initial;
 
 			// calculate account value and maintenance requirement of least collateral position after reducing size
-			let account_value_after_temp = new_size * market_price;
-
 			let amount_to_be_sold = least_collateral_ratio_position.size - new_size;
 			let amount_to_be_sold_value = amount_to_be_sold * market_price;
 			let new_borrowed_amount =
 				least_collateral_ratio_position.borrowed_amount - amount_to_be_sold_value;
-			let account_value_after = account_value_after_temp - new_borrowed_amount;
+			let account_value_after = (new_size * market_price) - new_borrowed_amount;
 			let leveraged_position_value_after =
 				new_size * least_collateral_ratio_position.avg_execution_price;
 			let maintenance_requirement_after = req_margin * leveraged_position_value_after;
