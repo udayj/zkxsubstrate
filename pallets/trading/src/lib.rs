@@ -231,7 +231,6 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
 
 			let tick_precision = market.tick_precision;
-			let step_precision = market.step_precision;
 
 			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
 			let collateral_token_decimal = collateral_asset.decimals;
@@ -289,7 +288,6 @@ pub mod pallet {
 				let mut avg_execution_price: FixedI128;
 				let execution_price: FixedI128;
 				let quantity_to_execute: FixedI128;
-				let user_available_balance: FixedI128;
 				let mut margin_lock_amount: FixedI128;
 				let new_position_size: FixedI128;
 				let mut new_leverage: FixedI128;
@@ -460,7 +458,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
-				let mut is_final: bool = false;
+				let is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -477,14 +475,13 @@ pub mod pallet {
 							margin,
 							borrowed,
 							average_execution,
-							balance,
+							_balance,
 							margin_lock,
 							trading_fee,
 						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
-							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 							realized_pnl = trading_fee;
 						},
@@ -591,14 +588,13 @@ pub mod pallet {
 							margin,
 							borrowed,
 							average_execution,
-							balance,
+							_balance,
 							margin_lock,
 							current_pnl,
 						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
-							user_available_balance = balance;
 							margin_lock_amount = margin_lock;
 							realized_pnl = current_pnl;
 						},

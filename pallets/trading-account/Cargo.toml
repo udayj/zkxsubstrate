@@ -28,6 +28,7 @@ fixed = {version="1.23.1"}
 
 [dev-dependencies]
 pallet-asset = { default-features = false, path = "../asset" }
+starknet-crypto = { version = "0.6.0", default-features = false }
 pallet-market = { default-features = false, path = "../market" }
 pallet-trading = { default-features = false, path = "../trading" }
 pallet-trading-fees = { default-features = false, path = "../trading-fees" }
