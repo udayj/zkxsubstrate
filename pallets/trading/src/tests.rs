@@ -1264,6 +1264,7 @@ fn it_produces_error_when_user_not_registered() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
+		let _account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
 
 		let order_1 = Order {
@@ -1580,6 +1581,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 
 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
+		let _account_id_3: U256 = get_trading_account_id(accounts.clone(), 2);
 		let account_id_4: U256 = get_trading_account_id(accounts.clone(), 3);
 
 		let order_1 = Order {
