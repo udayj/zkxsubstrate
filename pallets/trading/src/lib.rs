@@ -231,7 +231,6 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
 
 			let tick_precision = market.tick_precision;
-			let step_precision = market.step_precision;
 
 			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
 			let collateral_token_decimal = collateral_asset.decimals;
@@ -289,7 +288,6 @@ pub mod pallet {
 				let mut avg_execution_price: FixedI128;
 				let execution_price: FixedI128;
 				let quantity_to_execute: FixedI128;
-				let user_available_balance: FixedI128;
 				let mut margin_lock_amount: FixedI128;
 				let new_position_size: FixedI128;
 				let mut new_leverage: FixedI128;
