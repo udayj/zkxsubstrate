@@ -269,7 +269,6 @@ pub mod pallet {
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-			assert!(withdrawal_fee <= current_balance, "Insufficient balance to pay fees");
 
 			// Update the balance, after deducting fees
 			BalancesMap::<T>::set(
@@ -284,7 +283,7 @@ pub mod pallet {
 				withdrawal_request.collateral_id,
 			);
 
-			assert!(
+			ensure!(
 				withdrawal_request.amount <= withdrawable_amount,
 				"AccountManager: This withdrawal will lead to either deleveraging or liquidation"
 			);
@@ -578,7 +577,7 @@ pub mod pallet {
 		) -> (FixedI128, FixedI128) {
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
-			if current_balance == FixedI128::zero() {
+			if current_balance <= FixedI128::zero() {
 				return (FixedI128::zero(), FixedI128::zero());
 			}
 
@@ -612,7 +611,7 @@ pub mod pallet {
 				if current_balance < safe_amount {
 					return (current_balance, current_balance);
 				}
-				safe_withdrawal_amount = current_balance;
+				safe_withdrawal_amount = safe_amount;
 			}
 
 			let withdrawable_amount = Self::get_amount_to_withdraw(
