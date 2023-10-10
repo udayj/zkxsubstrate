@@ -74,8 +74,6 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Unauthorized call
-		NotAdmin,
 		/// Signer passed is 0
 		ZeroSigner,
 		/// Duplicate signer
@@ -97,11 +95,10 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// External function to be called by admin to add a signer
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			// Make sure the caller is an admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			ensure_signed(origin)?;
 
 			// The pub key cannot be 0
 			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
@@ -110,40 +107,31 @@ pub mod pallet {
 			ensure!(!IsSignerWhitelisted::<T>::get(pub_key), Error::<T>::DuplicateSigner);
 
 			// Store the new signer
-			Signers::<T>::append(pub_key);
-			IsSignerWhitelisted::<T>::insert(pub_key, true);
-
-			// Emit the SignerAdded event
-			Self::deposit_event(Event::SignerAdded { signer: pub_key });
+			Self::add_signer_internal(pub_key);
 
 			// Return ok
 			Ok(())
 		}
 
-		/// External function to be called by admin to set the signer's quorum
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn set_signers_quorum(origin: OriginFor<T>, new_quorum: u8) -> DispatchResult {
-			// Make sure the caller is an admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			ensure_signed(origin)?;
 
 			// It cannot be more than existing number of signers
 			ensure!(new_quorum <= Signers::<T>::get().len() as u8, Error::<T>::InsufficientSigners);
 
-			// Update the state
-			SignersQuorum::<T>::put(new_quorum);
-
-			// Emit the QuorumSet event
-			Self::deposit_event(Event::QuorumSet { quorum: new_quorum });
+			// Store the new qourum
+			Self::set_signers_quorum_internal(new_quorum);
 
 			// Return ok
 			Ok(())
 		}
 
-		/// External function to be called by admin to remove a signer
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			// Make sure the caller is an admin
-			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
+			ensure_signed(origin)?;
 
 			// Check if the signer exists
 			ensure!(IsSignerWhitelisted::<T>::get(pub_key), Error::<T>::SignerNotWhitelisted);
@@ -156,16 +144,8 @@ pub mod pallet {
 			// Ensure there are enough signers remaining
 			ensure!(signers_count - 1 >= signers_quorum as usize, Error::<T>::InsufficientSigners);
 
-			// remove the signer from the array
-			let updated_array: Vec<U256> =
-				signers_array.into_iter().filter(|&signer| signer != pub_key).collect();
-
 			// Update the state
-			IsSignerWhitelisted::<T>::insert(pub_key, false);
-			Signers::<T>::put(updated_array);
-
-			// Emit the SignerRemoved event
-			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
+			Self::remove_signer_internal(pub_key);
 
 			// Return ok
 			Ok(())
@@ -190,7 +170,7 @@ pub mod pallet {
 				Self::get_block_and_event_number(events_batch.last().unwrap());
 
 			// The block number shouldn't be less than previous batch's block number
-			let (last_block_number, _,  _) = LastProcessed::<T>::get();
+			let (last_block_number, _, _) = LastProcessed::<T>::get();
 			ensure!(block_number >= last_block_number, Error::<T>::OldBatch);
 
 			// Compute the batch hash
@@ -220,6 +200,39 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn add_signer_internal(pub_key: U256) {
+			// Store the new signer
+			Signers::<T>::append(pub_key);
+			IsSignerWhitelisted::<T>::insert(pub_key, true);
+
+			// Emit the SignerAdded event
+			Self::deposit_event(Event::SignerAdded { signer: pub_key });
+		}
+
+		fn set_signers_quorum_internal(new_quorum: u8) {
+			// Update the state
+			SignersQuorum::<T>::put(new_quorum);
+
+			// Emit the QuorumSet event
+			Self::deposit_event(Event::QuorumSet { quorum: new_quorum });
+		}
+
+		fn remove_signer_internal(pub_key: U256) {
+			// Read the state of signers
+			let signers_array = Signers::<T>::get();
+
+			// remove the signer from the array
+			let updated_array: Vec<U256> =
+				signers_array.into_iter().filter(|&signer| signer != pub_key).collect();
+
+			// Update the state
+			IsSignerWhitelisted::<T>::insert(pub_key, false);
+			Signers::<T>::put(updated_array);
+
+			// Emit the SignerRemoved event
+			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
+		}
+
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
 			for event in events_batch.iter() {
 				match event {
@@ -228,11 +241,13 @@ pub mod pallet {
 						match T::MarketPallet::get_market(market_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::MarketPallet::update_market(market_updated.market.clone());
+								T::MarketPallet::update_market_internal(
+									market_updated.market.clone(),
+								);
 							},
 							// If not, add a new market
 							None => {
-								T::MarketPallet::add_market(market_updated.market.clone());
+								T::MarketPallet::add_market_internal(market_updated.market.clone());
 							},
 						}
 					},
@@ -241,21 +256,21 @@ pub mod pallet {
 						match T::AssetPallet::get_asset(asset_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::AssetPallet::update_asset(asset_updated.asset.clone());
+								T::AssetPallet::update_asset_internal(asset_updated.asset.clone());
 							},
 							// If not, add a new asset
 							None => {
-								T::AssetPallet::add_asset(asset_updated.asset.clone());
+								T::AssetPallet::add_asset_internal(asset_updated.asset.clone());
 							},
 						}
 					},
 					UniversalEvent::MarketRemoved(market_removed) => {
 						// Remove the market
-						T::MarketPallet::remove_market(market_removed.id);
+						T::MarketPallet::remove_market_internal(market_removed.id);
 					},
 					UniversalEvent::AssetRemoved(asset_removed) => {
 						// Remove the asset
-						T::AssetPallet::remove_asset(asset_removed.id);
+						T::AssetPallet::remove_asset_internal(asset_removed.id);
 					},
 					UniversalEvent::UserDeposit(user_deposit) => {
 						T::TradingAccountPallet::deposit(
@@ -265,11 +280,10 @@ pub mod pallet {
 						);
 					},
 					UniversalEvent::SignerAdded(signer_added) => {
-						Self::add_signer(Origin::<T>::Root.into(), signer_added.signer).unwrap();
+						Self::add_signer_internal(signer_added.signer);
 					},
 					UniversalEvent::SignerRemoved(signer_removed) => {
-						Self::remove_signer(Origin::<T>::Root.into(), signer_removed.signer)
-							.unwrap();
+						Self::remove_signer_internal(signer_removed.signer);
 					},
 				}
 			}
