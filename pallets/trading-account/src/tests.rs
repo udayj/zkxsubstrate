@@ -31,7 +31,7 @@ fn setup() -> Vec<TradingAccountMinimal> {
 
 fn create_assets() -> Vec<Asset> {
 	let assets: Vec<Asset> = vec![eth(), usdc(), usdt()];
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets.clone()));
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), assets.clone()));
 	assets
 }
 

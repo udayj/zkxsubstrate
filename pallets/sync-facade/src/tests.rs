@@ -56,7 +56,7 @@ fn setup() -> sp_io::TestExternalities {
 			.expect("error while adding signer");
 		SyncFacade::set_signers_quorum(RuntimeOrigin::root(), 1_u8)
 			.expect("error while setting quorum");
-		Assets::replace_all_assets(RuntimeOrigin::signed(1), get_collaterals())
+		Assets::replace_all_assets(RuntimeOrigin::root(), get_collaterals())
 			.expect("error while adding assets");
 		System::set_block_number(1336);
 	});
@@ -366,9 +366,9 @@ fn sync_update_market_event_update_market() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), vec![usdc(), eth()]));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::root(), vec![eth_usdc()]));
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating market");
@@ -399,9 +399,9 @@ fn sync_remove_market_event() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::root(), vec![usdc(), eth()]));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::root(), vec![eth_usdc()]));
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating market");

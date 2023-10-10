@@ -79,8 +79,8 @@ pub mod pallet {
 		/// Replace all assets
 		#[pallet::weight(0)]
 		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			// Can only be called by the admin
+			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// Clear asset map
 			let _ = AssetMap::<T>::clear(DELETION_LIMIT, None);

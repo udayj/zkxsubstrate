@@ -77,8 +77,8 @@ pub mod pallet {
 		/// Replace all markets
 		#[pallet::weight(0)]
 		pub fn replace_all_markets(origin: OriginFor<T>, markets: Vec<Market>) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			let _ = ensure_signed(origin)?;
+			// Can only be called by the admin
+			ensure_root(origin).map_err(|_| Error::<T>::NotAdmin)?;
 
 			// Clear market map
 			let _ = MarketMap::<T>::clear(DELETION_LIMIT, None);

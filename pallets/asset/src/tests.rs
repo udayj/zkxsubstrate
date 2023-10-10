@@ -1,5 +1,5 @@
 use crate::{mock::*, Event};
-use frame_support::{assert_err, assert_ok};
+use frame_support::assert_ok;
 use primitive_types::U256;
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
 use zkx_support::traits::AssetInterface;
@@ -17,7 +17,7 @@ fn it_works_for_replace_assets() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let assets: Vec<Asset> = vec![asset1.clone()];
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
 
 		assert_eq!(AssetModule::assets_count(), 1);
 		let asset_storage = AssetModule::assets(eth().id);
@@ -36,12 +36,12 @@ fn it_works_for_replace_assets_multiple_assets() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		let assets: Vec<Asset> = vec![asset4.clone()];
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
 		assert_eq!(AssetModule::assets_count(), 1);
 
 		// Perform replace assets for the second time
 		let assets: Vec<Asset> = vec![asset1.clone(), asset2.clone(), asset3.clone()];
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
 
 		assert_eq!(AssetModule::assets_count(), 3);
 		let asset_storage1 = AssetModule::assets(eth().id);
@@ -66,7 +66,7 @@ fn it_does_not_work_for_replace_assets_duplicate() {
 		// Dispatch a signed extrinsic.
 		let asset: Asset = eth();
 		let assets: Vec<Asset> = vec![asset1.clone(), asset.clone()];
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
 	});
 }
 
@@ -87,7 +87,7 @@ fn it_does_not_work_for_replace_assets_invalid_decimal() {
 			decimals: 19,
 		};
 		let assets: Vec<Asset> = vec![asset.clone()];
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::root(), assets));
 	});
 }
 
