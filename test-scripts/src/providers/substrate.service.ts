@@ -255,9 +255,11 @@ export class SubstrateService {
     
     const depositResult = await this.wsApi.tx.zkxTradingAccount
       .deposit(
-        tradingAccount.address,
-        tradingAccount.index,
-        tradingAccount.publicKey,
+        {
+          account_address: tradingAccount.address,
+          pub_key: tradingAccount.publicKey,
+          index: tradingAccount.index
+        },
         SubstrateHelper.convertStringToU128(assetId),
         SubstrateHelper.convertNumberToI128(amount),
       )
