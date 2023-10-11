@@ -27,8 +27,8 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	let market1: Market = Market {
 		id: 1,
 		version: 1,
-		asset: 1163151370,
-		asset_collateral: 93816115890698,
+		asset: eth().id,
+		asset_collateral: usdc().id,
 		is_tradable: true,
 		is_archived: false,
 		ttl: 3600,
@@ -50,8 +50,8 @@ fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	let market2: Market = Market {
 		id: 2,
 		version: 1,
-		asset: 1279872587,
-		asset_collateral: 93816115890698,
+		asset: link().id,
+		asset_collateral: usdc().id,
 		is_tradable: false,
 		is_archived: false,
 		ttl: 360,

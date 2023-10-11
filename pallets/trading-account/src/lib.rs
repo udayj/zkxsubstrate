@@ -8,9 +8,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub mod weights;
-pub use weights::*;
-
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
@@ -125,7 +122,16 @@ pub mod pallet {
 			new_balance: FixedI128,
 			block_number: T::BlockNumber,
 		},
-		/// Event to be synced by L2
+		/// Event to be synced by L2, for pnl changes
+		UserBalanceChange {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			reason: u8,
+			block_number: T::BlockNumber,
+		},
+		/// Event to be synced by L2, for withdrawal requests
 		UserWithdrawal {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
@@ -138,6 +144,23 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		// TODO(merkle-groot): To be removed in production
+		/// To test depositing funds
+		#[pallet::weight(0)]
+		pub fn deposit(
+			origin: OriginFor<T>,
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Call the internal function to facililate the deposit
+			Self::deposit_internal(trading_account, collateral_id, amount);
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
 		/// Add several accounts together
 		#[pallet::weight(0)]
 		pub fn add_accounts(
@@ -194,6 +217,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		/// Add balances for a particular user
 		#[pallet::weight(0)]
 		pub fn set_balances(
@@ -734,6 +758,16 @@ pub mod pallet {
 				new_balance,
 				block_number,
 			});
+
+			// Event to be synced by L2
+			Self::deposit_event(Event::UserBalanceChange {
+				trading_account: account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Increase,
+				reason: reason.into(),
+				block_number,
+			});
 		}
 
 		fn transfer_from(
@@ -757,6 +791,16 @@ pub mod pallet {
 				reason: reason.into(),
 				previous_balance: current_balance,
 				new_balance,
+				block_number,
+			});
+
+			// Event to be synced by L2
+			Self::deposit_event(Event::UserBalanceChange {
+				trading_account: account,
+				collateral_id,
+				amount,
+				modify_type: FundModifyType::Decrease,
+				reason: reason.into(),
 				block_number,
 			});
 		}
@@ -886,7 +930,11 @@ pub mod pallet {
 			);
 		}
 
-		fn deposit(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128) {
+		fn deposit_internal(
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+		) {
 			let account_address = trading_account.account_address;
 			let index = trading_account.index;
 			let pub_key = trading_account.pub_key;

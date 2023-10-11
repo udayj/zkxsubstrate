@@ -391,7 +391,7 @@ process.nextTick(async () => {
 
   const nonceForUpdatingBalance = await api.rpc.system.accountNextIndex(nodeAccountKeyring.address);
   
-  const balanceUpdateResult = await api.tx.zkxTradingAccount.deposit(
+  const balanceUpdateResult = await api.tx.zkxTradingAccount.deposit_internal(
     account2.address,// account_address: U256,
 		account2.index,// 	index: u8,
 		account2.pubKey,// 	pub_key: U256,
