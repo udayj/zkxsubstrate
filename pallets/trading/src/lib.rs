@@ -103,65 +103,69 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
-		InsufficientBalance,
-		/// User's account is not registered
-		UserNotRegistered,
-		/// Order size less than min quantity
-		SizeTooSmall,
-		/// Market matched and order market are different
-		MarketMismatch,
+		TradeBatchError501,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
-		InvalidLeverage,
-		/// Maker order skipped since quantity_executed = quantity_locked for the batch
-		MakerOrderSkipped,
-		/// Order is fully executed
-		OrderFullyExecuted,
-		/// Order is trying to close an empty position
-		ClosingEmptyPosition,
-		/// Maker side or direction does not match with other makers
-		InvalidMakerDirectionSide,
-		/// Maker order can only be limit order
-		InvalidMakerOrderType,
-		/// Taker side or direction is invalid wrt to makers
-		InvalidTakerDirectionSide,
-		/// Taker order is post only
-		InvalidTakerPostOnly,
-		/// Execution price is not valid wrt limit price for long sell or short buy
-		LimitPriceErrorLongSell,
-		/// Execution price is not valid wrt limit price for long buy or short sell
-		LimitPriceErrorLongBuy,
+		TradeBatchError502,
+		/// Market matched and order market are different
+		TradeBatchError504,
+		/// Order size less than min quantity
+		TradeBatchError505,
 		/// Price is not within slippage limit
-		SlippageError,
-		/// FOK orders should be filled completely
-		FOKError { error_code: u16 },
-		/// Not enough margin to cover losses - short limit sell or long limit sell
-		NotEnoughMargin,
-		/// Order error with error code
-		OrderError { error_code: u16 },
-		/// Invalid oracle price
-		InvalidOraclePrice { error_code: u16 },
-		/// Invalid order hash - order could not be hashed into a Field Element
-		InvalidOrderHash,
-		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
-		InvalidSignatureFelt,
-		/// ECDSA Signature could not be verified
-		InvalidSignature,
-		/// Public Key not found for account id
-		NoPublicKeyFound,
-		/// Invalid public key - publickey u256 could not be converted to Field Element
-		InvalidPublicKey,
-		/// Invalid liquidation or deleveraging market
-		InvalidLiqOrDelMarket,
-		/// Invalid liquidation or deleveraging market direction
-		InvalidLiqOrDelDirection,
+		TradeBatchError506,
+		/// Execution price is not valid wrt limit price for long sell or short buy
+		TradeBatchError507,
+		/// Execution price is not valid wrt limit price for long buy or short sell
+		TradeBatchError508,
+		/// Invalid market
+		TradeBatchError509,
+		/// User's account is not registered
+		TradeBatchError510,
+		/// Taker side or direction is invalid wrt to makers
+		TradeBatchError511,
+		/// Maker side or direction does not match with other makers
+		TradeBatchError512,
+		/// Invalid oracle price,
+		TradeBatchError513,
+		/// Taker order is post only
+		TradeBatchError515,
+		/// FoK Orders should be filled completely
+		TradeBatchError516,
+		/// Maker order can only be limit order
+		TradeBatchError518,
+		/// Slippage must be between 0 and 15
+		TradeBatchError521,
+		/// Invalid quantity locked
+		TradeBatchError522,
+		/// Maker order skipped since quantity_executed = quantity_locked for the batch
+		TradeBatchError523,
+		/// Order is trying to close an empty position
+		TradeBatchError524,
+		/// Batch id already used
+		TradeBatchError525,
 		/// Position marked to be deleveraged, but liquidation order passed
-		InvalidDeleveragingOrder,
+		TradeBatchError526,
 		/// Position marked to be liquidated, but deleveraging order passed
-		InvalidLiquidationOrder,
-		/// Revert error related to trade batch
-		TradeBatchError { error_code: u16 },
+		TradeBatchError527,
+		/// Invalid liquidation or deleveraging market
+		TradeBatchError528,
+		/// Invalid liquidation or deleveraging market direction
+		TradeBatchError529,
 		/// Position cannot be opened becuase of passive risk management
-		PassiveRiskError,
+		TradeBatchError531,
+		/// Not enough margin to cover losses - short limit sell or long limit sell
+		TradeBatchError532,
+		/// Order is fully executed
+		TradeBatchError533,
+		/// Invalid order hash - order could not be hashed into a Field Element
+		TradeBatchError534,
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		TradeBatchError535,
+		/// ECDSA Signature could not be verified
+		TradeBatchError536,
+		/// Public Key not found for account id
+		TradeBatchError537,
+		/// Invalid public key - publickey u256 could not be converted to Field Element
+		TradeBatchError538,
 	}
 
 	#[pallet::event]
@@ -219,16 +223,13 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
-			ensure!(
-				!BatchStatusMap::<T>::contains_key(batch_id),
-				Error::<T>::TradeBatchError { error_code: 525 }
-			);
+			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
-			ensure!(market.is_some(), Error::<T>::TradeBatchError { error_code: 509 });
+			ensure!(market.is_some(), Error::<T>::TradeBatchError509);
 			let market = market.unwrap();
-			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError { error_code: 509 });
+			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError509);
 
 			let tick_precision = market.tick_precision;
 
@@ -236,10 +237,7 @@ pub mod pallet {
 			let collateral_token_decimal = collateral_asset.decimals;
 
 			// validates oracle_price
-			ensure!(
-				oracle_price > FixedI128::zero(),
-				Error::<T>::TradeBatchError { error_code: 513 }
-			);
+			ensure!(oracle_price > FixedI128::zero(), Error::<T>::TradeBatchError513);
 
 			//Update market price
 			let market_price = T::MarketPricesPallet::get_market_price(market_id);
@@ -251,8 +249,8 @@ pub mod pallet {
 			let initial_taker_locked_quantity: FixedI128;
 
 			ensure!(
-				quantity_locked != FixedI128::checked_from_integer(0).unwrap(),
-				Error::<T>::TradeBatchError { error_code: 522 }
+				quantity_locked > FixedI128::checked_from_integer(0).unwrap(),
+				Error::<T>::TradeBatchError522
 			);
 
 			// Calculate quantity that can be executed for the taker, before starting with the maker orders
@@ -265,10 +263,7 @@ pub mod pallet {
 			);
 			match initial_taker_locked_response {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
-				Err(e) => {
-					let error_code = Self::get_error_code(e);
-					return Err((Error::<T>::TradeBatchError { error_code }).into());
-				},
+				Err(e) => return Err(e.into()),
 			}
 
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
@@ -312,10 +307,7 @@ pub mod pallet {
 							continue;
 						} else {
 							// if taker order, revert with error
-							return Err((Error::<T>::TradeBatchError {
-								error_code: Self::get_error_code(e),
-							})
-							.into());
+							return Err(e.into());
 						}
 					},
 				}
@@ -390,10 +382,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							return Err((Error::<T>::TradeBatchError {
-								error_code: Self::get_error_code(e),
-							})
-							.into());
+							return Err(e.into());
 						},
 					}
 
@@ -407,7 +396,7 @@ pub mod pallet {
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
 						if quantity_to_execute != element.size {
-							return Err((Error::<T>::TradeBatchError { error_code: 516 }).into());
+							return Err((Error::<T>::TradeBatchError516).into());
 						}
 					}
 
@@ -425,10 +414,7 @@ pub mod pallet {
 						match limit_validation {
 							Ok(()) => (),
 							Err(e) => {
-								return Err((Error::<T>::TradeBatchError {
-									error_code: Self::get_error_code(e),
-								})
-								.into());
+								return Err(e.into());
 							},
 						}
 					} else {
@@ -442,10 +428,7 @@ pub mod pallet {
 						match slippage_validation {
 							Ok(()) => (),
 							Err(e) => {
-								return Err((Error::<T>::TradeBatchError {
-									error_code: Self::get_error_code(e),
-								})
-								.into());
+								return Err(e.into());
 							},
 						}
 					}
@@ -495,10 +478,7 @@ pub mod pallet {
 								continue;
 							} else {
 								// if taker order, revert with error code
-								return Err((Error::<T>::TradeBatchError {
-									error_code: Self::get_error_code(e),
-								})
-								.into());
+								return Err(e.into());
 							}
 						},
 					}
@@ -608,10 +588,7 @@ pub mod pallet {
 								continue;
 							} else {
 								// if taker order, revert with error code
-								return Err((Error::<T>::TradeBatchError {
-									error_code: Self::get_error_code(e),
-								})
-								.into());
+								return Err(e.into());
 							}
 						},
 					}
@@ -656,9 +633,7 @@ pub mod pallet {
 						if element.order_type == OrderType::Deleveraging {
 							// Position not marked as 'deleveragable'
 							if liq_position.liquidatable != false {
-								return Err(
-									(Error::<T>::TradeBatchError { error_code: 526 }).into()
-								);
+								return Err((Error::<T>::TradeBatchError526).into());
 							}
 							let total_value = margin_amount + borrowed_amount;
 							new_leverage = total_value / margin_amount;
@@ -667,9 +642,7 @@ pub mod pallet {
 						} else {
 							// Position not marked as 'liquidatable'
 							if liq_position.liquidatable != true {
-								return Err(
-									(Error::<T>::TradeBatchError { error_code: 527 }).into()
-								);
+								return Err((Error::<T>::TradeBatchError527).into());
 							}
 							new_leverage = position_details.leverage;
 							new_leverage = new_leverage.round_to_precision(2);
@@ -886,19 +859,19 @@ pub mod pallet {
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > FixedI128::zero(), Error::<T>::OrderFullyExecuted); // Modify code with tick/step size
+			ensure!(executable_quantity > FixedI128::zero(), Error::<T>::TradeBatchError533); // Modify code with tick/step size
 
 			let mut quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
-			ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::MakerOrderSkipped);
+			ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::TradeBatchError523);
 
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
 			} else {
 				if order.order_type == OrderType::Liquidation {
-					ensure!(liq_position.market_id == market_id, Error::<T>::InvalidLiqOrDelMarket);
+					ensure!(liq_position.market_id == market_id, Error::<T>::TradeBatchError528);
 					ensure!(
 						liq_position.direction == order.direction,
-						Error::<T>::InvalidLiqOrDelDirection
+						Error::<T>::TradeBatchError529
 					);
 					quantity_to_execute =
 						FixedI128::min(quantity_to_execute, liq_position.amount_to_be_sold);
@@ -906,7 +879,7 @@ pub mod pallet {
 					quantity_to_execute =
 						FixedI128::min(quantity_to_execute, position_details.size);
 				}
-				ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::ClosingEmptyPosition);
+				ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::TradeBatchError524);
 				Ok(quantity_to_execute)
 			}
 		}
@@ -918,26 +891,26 @@ pub mod pallet {
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
-			ensure!(is_registered, Error::<T>::UserNotRegistered);
+			ensure!(is_registered, Error::<T>::TradeBatchError510);
 
 			// Validate that size of order is >= min quantity for market
-			ensure!(order.size >= market.minimum_order_size, Error::<T>::SizeTooSmall);
+			ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
 
 			// Validate that market matched and market in order are same
-			ensure!(market.id == order.market_id, Error::<T>::MarketMismatch);
+			ensure!(market.id == order.market_id, Error::<T>::TradeBatchError504);
 
 			// Validate leverage value
 			ensure!(
 				order.leverage >= LEVERAGE_ONE
 					&& order.leverage <= market.currently_allowed_leverage,
-				Error::<T>::InvalidLeverage
+				Error::<T>::TradeBatchError502
 			);
 
 			// Signature validation
 			let sig_felt = sig_u256_to_sig_felt(&order.sig_r, &order.sig_s);
 
 			// Sig_r and/or Sig_s could not be converted to FieldElement
-			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+			ensure!(sig_felt.is_ok(), Error::<T>::TradeBatchError535);
 
 			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
 			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
@@ -945,22 +918,22 @@ pub mod pallet {
 			let order_hash = order.hash(&order.hash_type);
 
 			// Order could not be hashed
-			ensure!(order_hash.is_ok(), Error::<T>::InvalidOrderHash);
+			ensure!(order_hash.is_ok(), Error::<T>::TradeBatchError534);
 
 			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
 
 			// Public key not found for this account_id
-			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
+			ensure!(public_key.is_some(), Error::<T>::TradeBatchError537);
 
 			let public_key_felt = public_key.unwrap().try_to_felt();
 
 			// Public Key U256 could not be converted to FieldElement
-			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
+			ensure!(public_key_felt.is_ok(), Error::<T>::TradeBatchError538);
 
 			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
 
 			// Signature verification returned error or false
-			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
+			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::TradeBatchError536);
 
 			Ok(())
 		}
@@ -982,10 +955,10 @@ pub mod pallet {
 			ensure!(
 				(current_direction == maker1_direction && current_side == maker1_side)
 					|| (current_direction == opposite_direction && current_side == opposite_side),
-				Error::<T>::InvalidMakerDirectionSide
+				Error::<T>::TradeBatchError512
 			);
 
-			ensure!(order_type == OrderType::Limit, Error::<T>::InvalidMakerOrderType);
+			ensure!(order_type == OrderType::Limit, Error::<T>::TradeBatchError518);
 
 			Ok(())
 		}
@@ -1007,11 +980,11 @@ pub mod pallet {
 			ensure!(
 				(current_direction == maker1_direction && current_side == opposite_side)
 					|| (current_direction == opposite_direction && current_side == maker1_side),
-				Error::<T>::InvalidTakerDirectionSide
+				Error::<T>::TradeBatchError511
 			);
 
 			// Taker order cannot be post only order
-			ensure!(post_only == false, Error::<T>::InvalidTakerPostOnly);
+			ensure!(post_only == false, Error::<T>::TradeBatchError515);
 
 			Ok(())
 		}
@@ -1025,9 +998,9 @@ pub mod pallet {
 			if (direction == Direction::Long && side == Side::Buy)
 				|| (direction == Direction::Short && side == Side::Sell)
 			{
-				ensure!(execution_price <= price, Error::<T>::LimitPriceErrorLongBuy);
+				ensure!(execution_price <= price, Error::<T>::TradeBatchError508);
 			} else {
-				ensure!(price <= execution_price, Error::<T>::LimitPriceErrorLongSell);
+				ensure!(price <= execution_price, Error::<T>::TradeBatchError507);
 			}
 
 			Ok(())
@@ -1040,14 +1013,25 @@ pub mod pallet {
 			direction: Direction,
 			side: Side,
 		) -> Result<(), Error<T>> {
+			ensure!(
+				slippage > FixedI128::zero()
+					&& slippage <= FixedI128::from_inner(150000000000000000),
+				Error::<T>::TradeBatchError521
+			);
 			let threshold = slippage * oracle_price;
 
 			if (direction == Direction::Long && side == Side::Buy)
 				|| (direction == Direction::Short && side == Side::Sell)
 			{
-				ensure!(execution_price <= (oracle_price + threshold), Error::<T>::SlippageError);
+				ensure!(
+					execution_price <= (oracle_price + threshold),
+					Error::<T>::TradeBatchError506
+				);
 			} else {
-				ensure!((oracle_price - threshold) <= execution_price, Error::<T>::SlippageError);
+				ensure!(
+					(oracle_price - threshold) <= execution_price,
+					Error::<T>::TradeBatchError506
+				);
 			}
 
 			Ok(())
@@ -1096,14 +1080,14 @@ pub mod pallet {
 				margin_order_value,
 			);
 
-			ensure!(is_liquidation == false, Error::<T>::PassiveRiskError);
+			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
 
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
 			let trading_fee = FixedI128::from_inner(0) - fee;
 
-			ensure!(fee <= available_margin, Error::<T>::InsufficientBalance);
+			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			T::TradingAccountPallet::transfer_from(
 				order.account_id,
 				collateral_id,
@@ -1178,7 +1162,7 @@ pub mod pallet {
 				// Check if user's balance can cover the deficit
 				if amount_to_transfer_from > unused_balance {
 					if order.order_type == OrderType::Limit {
-						ensure!(false, Error::<T>::NotEnoughMargin);
+						ensure!(false, Error::<T>::TradeBatchError532);
 					}
 
 					if unused_balance.is_negative() {
@@ -1337,32 +1321,32 @@ pub mod pallet {
 
 		fn get_error_code(error: Error<T>) -> u16 {
 			match error {
-				Error::<T>::InsufficientBalance => 501,
-				Error::<T>::InvalidLeverage => 502,
-				Error::<T>::MarketMismatch => 504,
-				Error::<T>::SizeTooSmall => 505,
-				Error::<T>::SlippageError => 506,
-				Error::<T>::LimitPriceErrorLongSell => 507,
-				Error::<T>::LimitPriceErrorLongBuy => 508,
-				Error::<T>::UserNotRegistered => 510,
-				Error::<T>::InvalidTakerDirectionSide => 511,
-				Error::<T>::InvalidMakerDirectionSide => 512,
-				Error::<T>::InvalidTakerPostOnly => 515,
-				Error::<T>::InvalidMakerOrderType => 518,
-				Error::<T>::MakerOrderSkipped => 523,
-				Error::<T>::ClosingEmptyPosition => 524,
-				Error::<T>::InvalidDeleveragingOrder => 526,
-				Error::<T>::InvalidLiquidationOrder => 527,
-				Error::<T>::InvalidLiqOrDelMarket => 528,
-				Error::<T>::InvalidLiqOrDelDirection => 529,
-				Error::<T>::PassiveRiskError => 531,
-				Error::<T>::NotEnoughMargin => 532,
-				Error::<T>::OrderFullyExecuted => 533,
-				Error::<T>::InvalidOrderHash => 534,
-				Error::<T>::InvalidSignatureFelt => 535,
-				Error::<T>::InvalidSignature => 536,
-				Error::<T>::NoPublicKeyFound => 537,
-				Error::<T>::InvalidPublicKey => 538,
+				Error::<T>::TradeBatchError501 => 501,
+				Error::<T>::TradeBatchError502 => 502,
+				Error::<T>::TradeBatchError504 => 504,
+				Error::<T>::TradeBatchError505 => 505,
+				Error::<T>::TradeBatchError506 => 506,
+				Error::<T>::TradeBatchError507 => 507,
+				Error::<T>::TradeBatchError508 => 508,
+				Error::<T>::TradeBatchError510 => 510,
+				Error::<T>::TradeBatchError511 => 511,
+				Error::<T>::TradeBatchError512 => 512,
+				Error::<T>::TradeBatchError515 => 515,
+				Error::<T>::TradeBatchError518 => 518,
+				Error::<T>::TradeBatchError523 => 523,
+				Error::<T>::TradeBatchError524 => 524,
+				Error::<T>::TradeBatchError526 => 526,
+				Error::<T>::TradeBatchError527 => 527,
+				Error::<T>::TradeBatchError528 => 528,
+				Error::<T>::TradeBatchError529 => 529,
+				Error::<T>::TradeBatchError531 => 531,
+				Error::<T>::TradeBatchError532 => 532,
+				Error::<T>::TradeBatchError533 => 533,
+				Error::<T>::TradeBatchError534 => 534,
+				Error::<T>::TradeBatchError535 => 535,
+				Error::<T>::TradeBatchError536 => 536,
+				Error::<T>::TradeBatchError537 => 537,
+				Error::<T>::TradeBatchError538 => 538,
 				_ => 500,
 			}
 		}
