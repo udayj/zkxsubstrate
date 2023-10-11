@@ -60,7 +60,7 @@ fn it_does_not_work_for_replace_markets_duplicate() {
 }
 
 #[test]
-#[should_panic(expected = "InvalidMarketId")]
+#[should_panic(expected = "InvalidMarket")]
 fn it_does_not_work_for_replace_markets_zero_id() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
@@ -171,7 +171,7 @@ fn test_add_market_with_duplicate_market() {
 }
 
 #[test]
-#[should_panic(expected = "InvalidMarketId")]
+#[should_panic(expected = "InvalidMarket")]
 fn test_add_market_with_zero_id() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
@@ -250,6 +250,26 @@ fn test_add_market_with_invalid_current_leverage() {
 }
 
 #[test]
+fn test_update_market() {
+	new_test_ext().execute_with(|| {
+		let (market1, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1));
+
+		let mut updated_market = eth_usdc();
+		updated_market.is_tradable = false;
+
+		assert_ok!(MarketModule::update_market(
+			RuntimeOrigin::signed(1),
+			updated_market.clone()
+		));
+		assert_eq!(MarketModule::markets(updated_market.id).unwrap(), updated_market);
+	});
+}
+
+#[test]
 fn test_remove_market() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
@@ -259,14 +279,12 @@ fn test_remove_market() {
 		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
 		let count = MarketModule::markets_count();
 		assert_eq!(count, 1);
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
-		let count = MarketModule::markets_count();
-		assert_eq!(count, 0);
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
 	});
 }
 
 #[test]
-#[should_panic(expected = "InvalidMarketId")]
+#[should_panic(expected = "InvalidMarket")]
 fn test_remove_market_with_already_removed_market_id() {
 	new_test_ext().execute_with(|| {
 		let (market1, _) = setup();
@@ -274,7 +292,7 @@ fn test_remove_market_with_already_removed_market_id() {
 		System::set_block_number(1);
 		// Dispatch a signed extrinsic.
 		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), market1.clone()));
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.clone()));
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
+		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), market1.id));
 	});
 }

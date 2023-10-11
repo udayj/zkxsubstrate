@@ -111,6 +111,8 @@ impl pallet_trading::Config for Test {
 impl sync_facade::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type TradingAccountPallet = TradingAccounts;
+	type AssetPallet = Assets;
+	type MarketPallet = Markets;
 }
 
 impl pallet_timestamp::Config for Test {

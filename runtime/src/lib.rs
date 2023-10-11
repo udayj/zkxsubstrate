@@ -113,7 +113,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 103,
+	spec_version: 106,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -315,6 +315,8 @@ impl pallet_trading_fees::Config for Runtime {
 impl pallet_sync_facade::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type TradingAccountPallet = ZkxTradingAccount;
+	type AssetPallet = Assets;
+	type MarketPallet = Markets;
 }
 
 impl pallet_trading::Config for Runtime {

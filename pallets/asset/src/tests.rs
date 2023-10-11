@@ -2,6 +2,7 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use primitive_types::U256;
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
+use zkx_support::traits::AssetInterface;
 use zkx_support::types::Asset;
 
 fn setup() -> (Asset, Asset, Asset, Asset) {
@@ -96,6 +97,7 @@ fn test_add_asset() {
 		let (asset1, _, _, _) = setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
+
 		// Dispatch a signed extrinsic.
 		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1));
 		let count = AssetModule::assets_count();
@@ -138,6 +140,58 @@ fn test_add_asset_with_invalid_decimal() {
 }
 
 #[test]
+fn test_update_asset() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
+
+		let updated_asset = Asset {
+			id: asset1.id,
+			version: asset1.version,
+			short_name: asset1.short_name,
+			is_tradable: false,
+			is_collateral: asset1.is_collateral,
+			l2_address: asset1.l2_address,
+			decimals: asset1.decimals,
+		};
+
+		// Update the asset
+		assert_ok!(AssetModule::update_asset(RuntimeOrigin::signed(1), updated_asset.clone()));
+		assert_eq!(AssetModule::get_asset(updated_asset.id).unwrap(), updated_asset);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidAsset")]
+fn test_update_asset_invalid_decimals() {
+	new_test_ext().execute_with(|| {
+		let (asset1, _, _, _) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
+
+		let updated_asset = Asset {
+			id: asset1.id,
+			version: asset1.version,
+			short_name: asset1.short_name,
+			is_tradable: asset1.is_tradable,
+			is_collateral: asset1.is_collateral,
+			l2_address: asset1.l2_address,
+			decimals: 19,
+		};
+
+		// Update the asset
+		assert_ok!(AssetModule::update_asset(RuntimeOrigin::signed(1), updated_asset.clone()));
+	});
+}
+
+#[test]
 fn test_remove_asset() {
 	new_test_ext().execute_with(|| {
 		let (asset1, _, _, _) = setup();
@@ -147,7 +201,7 @@ fn test_remove_asset() {
 		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
 		let count = AssetModule::assets_count();
 		assert_eq!(count, 1);
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1.id));
 		let count = AssetModule::assets_count();
 		assert_eq!(count, 0);
 	});
@@ -164,9 +218,9 @@ fn test_remove_already_removed_asset() {
 		assert_ok!(AssetModule::add_asset(RuntimeOrigin::signed(1), asset1.clone()));
 		let count = AssetModule::assets_count();
 		assert_eq!(count, 1);
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1.clone()));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1.id));
 		let count = AssetModule::assets_count();
 		assert_eq!(count, 0);
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), asset1.id));
 	});
 }

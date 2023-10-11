@@ -18,6 +18,7 @@ pub mod pallet {
 	use zkx_support::types::Asset;
 
 	static DELETION_LIMIT: u32 = 100;
+	static DEFAULT_ASSET: u128 = 1431520323;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -27,6 +28,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
 
+	/// Stores the number of valid assets in the system
 	#[pallet::storage]
 	#[pallet::getter(fn assets_count)]
 	pub(super) type AssetsCount<T: Config> = StorageValue<_, u64, ValueQuery>;
@@ -36,6 +38,7 @@ pub mod pallet {
 	#[pallet::getter(fn assets)]
 	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u128, Asset>;
 
+	/// Stores the default collateral in the system
 	#[pallet::storage]
 	#[pallet::getter(fn default_collateral_asset)]
 	pub(super) type DefaultCollateralAsset<T: Config> = StorageValue<_, u8, ValueQuery>;
@@ -60,6 +63,9 @@ pub mod pallet {
 		AssetCreated {
 			asset: Asset,
 		},
+		AssetUpdated {
+			asset: Asset,
+		},
 		AssetRemoved {
 			asset: Asset,
 		},
@@ -68,10 +74,10 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		// TODO(merkle-groot): To be removed in production
 		/// Replace all assets
 		#[pallet::weight(0)]
 		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
-			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
 			// Clear asset map
@@ -95,56 +101,99 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			let _ = ensure_signed(origin)?;
+		pub fn remove_asset(origin: OriginFor<T>, id: u128) -> DispatchResult {
+			ensure_signed(origin)?;
 
-			// Get the number of assets available
-			let length: u64 = AssetsCount::<T>::get();
+			// Check if the asset exists
+			if let None = Self::get_asset(id) {
+				return Err(Error::<T>::InvalidAsset.into());
+			}
 
-			// Check if the asset exists in the storage map
-			ensure!(!AssetMap::<T>::contains_key(asset.id), Error::<T>::DuplicateAsset);
-			// Validate asset
-			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
-
-			// Add asset to the asset map
-			AssetMap::<T>::insert(asset.id, asset.clone());
-
-			// Increase the asset count
-			AssetsCount::<T>::put(length + 1);
-
-			Self::deposit_event(Event::AssetCreated { asset });
-
+			// Remove the asset
+			Self::remove_asset_internal(id);
 			Ok(())
 		}
 
+		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn remove_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			let _ = ensure_signed(origin)?;
+		pub fn update_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			ensure_signed(origin)?;
 
-			// Get the number of assets available
-			let length: u64 = AssetsCount::<T>::get();
+			// Check if the asset exists
+			if let None = Self::get_asset(asset.id) {
+				return Err(Error::<T>::InvalidAsset.into());
+			}
 
-			// Check if the asset exists in the storage map
-			ensure!(AssetMap::<T>::contains_key(asset.id), Error::<T>::InvalidAsset);
+			// Validate asset
+			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
 
-			// Remove asset to the asset map
-			AssetMap::<T>::remove(asset.id);
+			// Update the asset
+			Self::update_asset_internal(asset);
+			Ok(())
+		}
 
-			// Decrease the asset count
-			AssetsCount::<T>::put(length - 1);
+		// TODO(merkle-groot): To be removed in production
+		#[pallet::weight(0)]
+		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+			ensure_signed(origin)?;
 
-			Self::deposit_event(Event::AssetRemoved { asset });
+			// Check if the asset exists
+			if let Some(_) = Self::get_asset(asset.id) {
+				return Err(Error::<T>::DuplicateAsset.into());
+			}
 
+			// Validate asset
+			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
+
+			// Add the asset
+			Self::add_asset_internal(asset);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
+		fn add_asset_internal(asset: Asset) {
+			// Add asset to the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Get the number of assets available
+			// Increase the asset count
+			let length: u64 = AssetsCount::<T>::get();
+			AssetsCount::<T>::put(length + 1);
+
+			// Emit the asset created event
+			Self::deposit_event(Event::AssetCreated { asset });
+		}
+		
+		fn update_asset_internal(asset: Asset) {
+			// Replace the asset in the asset map
+			AssetMap::<T>::insert(asset.id, asset.clone());
+
+			// Emit the asset updated event
+			Self::deposit_event(Event::AssetUpdated { asset });
+		}
+
+		fn remove_asset_internal(id: u128) {
+			// Get the asset to be emitted in the event
+			let asset = AssetMap::<T>::get(id).unwrap();
+
+			// Remove asset from the asset map
+			AssetMap::<T>::remove(id);
+
+			// Get the number of assets available
+			let length: u64 = AssetsCount::<T>::get();
+
+			// Decrease the asset count
+			AssetsCount::<T>::put(length - 1);
+
+			// Emit the asset removed event
+			Self::deposit_event(Event::AssetRemoved { asset });
+		}
+
 		fn get_default_collateral() -> u128 {
-			93816115890698_u128
+			DEFAULT_ASSET
 		}
 
 		fn get_asset(id: u128) -> Option<Asset> {
