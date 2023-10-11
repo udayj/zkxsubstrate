@@ -13,7 +13,6 @@ pub mod pallet {
 	use frame_support::inherent::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use frame_system::Origin;
 	use primitive_types::U256;
 	use zkx_support::helpers::pedersen_hash_multiple;
 	use zkx_support::traits::{

@@ -7,7 +7,6 @@ use zkx_support::types::{Asset, Market, MarketPrice, MultipleMarketPrices};
 
 fn setup() -> (Market, Market) {
 	assert_ok!(Timestamp::set(None.into(), 100));
-
 	let assets: Vec<Asset> = vec![eth(), usdc(), link()];
 	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
