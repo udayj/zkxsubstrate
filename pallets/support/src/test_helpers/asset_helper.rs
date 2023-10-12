@@ -1,6 +1,29 @@
 use crate::types::Asset;
 use primitive_types::U256;
 
+impl Asset {
+	pub fn set_version(self: Asset, version: u16) -> Asset {
+		let mut asset = self;
+		asset.version = version;
+
+		asset
+	}
+
+	pub fn set_is_tradable(self: Asset, is_tradable: bool) -> Asset {
+		let mut asset = self;
+		asset.is_tradable = is_tradable;
+
+		asset
+	}
+
+	pub fn set_decimals(self: Asset, decimals: u8) -> Asset {
+		let mut asset = self;
+		asset.decimals = decimals;
+
+		asset
+	}
+}
+
 pub fn eth() -> Asset {
 	Asset {
 		id: 4543560,
