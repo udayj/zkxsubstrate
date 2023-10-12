@@ -7,12 +7,16 @@ use crate::types::{
 use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::{traits::ConstU32, DispatchResult};
 use sp_runtime::BoundedVec;
+use sp_runtime::{traits::ConstU32, DispatchResult};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
-	fn deposit_internal(trading_account: TradingAccountMinimal, collateral_id: u128, amount: FixedI128);
+	fn deposit_internal(
+		trading_account: TradingAccountMinimal,
+		collateral_id: u128,
+		amount: FixedI128,
+	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -93,7 +97,8 @@ pub trait MarketInterface {
 	fn validate_market_details(market: &Market) -> DispatchResult;
 }
 
-pub trait MarketPricesInterface {
+pub trait PricesInterface {
+	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_market_price(market_id: u128) -> FixedI128;
 	fn update_market_price(market_id: u128, price: FixedI128);
 }

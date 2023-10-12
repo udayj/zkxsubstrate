@@ -1,5 +1,5 @@
 [package]
-name = "pallet-market-prices"
+name = "pallet-prices"
 version = "0.0.1-dev"
 edition = "2021"
 

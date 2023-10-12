@@ -4683,7 +4683,7 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-market",
- "pallet-market-prices",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-sudo",
  "pallet-sync-facade",
@@ -4998,7 +4998,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-market-prices"
+name = "pallet-prices"
 version = "0.0.1-dev"
 dependencies = [
  "frame-support",
@@ -5024,7 +5024,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
- "pallet-market-prices",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-timestamp",
  "pallet-trading",
@@ -5084,7 +5084,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
- "pallet-market-prices",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-timestamp",
  "pallet-trading",
@@ -5126,7 +5126,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
- "pallet-market-prices",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-timestamp",
  "pallet-trading-fees",
@@ -5236,7 +5236,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
- "pallet-market-prices",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-timestamp",
  "pallet-trading",

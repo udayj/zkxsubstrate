@@ -49,7 +49,7 @@ pub use sp_runtime::{Perbill, Permill};
 
 pub use pallet_asset;
 pub use pallet_market;
-pub use pallet_market_prices;
+pub use pallet_prices;
 pub use pallet_risk_management;
 pub use pallet_sync_facade;
 pub use pallet_trading;
@@ -283,7 +283,7 @@ impl pallet_zkx_trading_account::Config for Runtime {
 	type AssetPallet = Assets;
 	type TradingPallet = Trading;
 	type MarketPallet = Markets;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 }
 
 impl pallet_risk_management::Config for Runtime {
@@ -302,7 +302,7 @@ impl pallet_market::Config for Runtime {
 	type AssetPallet = Assets;
 }
 
-impl pallet_market_prices::Config for Runtime {
+impl pallet_prices::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
 	type TimeProvider = Timestamp;
@@ -325,7 +325,7 @@ impl pallet_trading::Config for Runtime {
 	type MarketPallet = Markets;
 	type TradingAccountPallet = ZkxTradingAccount;
 	type TradingFeesPallet = TradingFees;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -350,7 +350,7 @@ construct_runtime!(
 		SyncFacade: pallet_sync_facade,
 		Trading: pallet_trading,
 		TradingFees: pallet_trading_fees,
-		MarketPrices: pallet_market_prices,
+		Prices: pallet_prices,
 		RiskManagement: pallet_risk_management,
 	}
 );
