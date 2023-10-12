@@ -83,9 +83,10 @@ pub mod pallet {
 				ensure!(curr_market.price >= FixedI128::zero(), Error::<T>::InvalidMarketPrice);
 
 				// Get Market from the corresponding Id
-				let market = T::MarketPallet::get_market(curr_market.market_id);
-				ensure!(market.is_some(), Error::<T>::MarketNotFound);
-				let market = market.unwrap();
+				let market = match T::MarketPallet::get_market(curr_market.market_id) {
+					Some(m) => m,
+					None => return Err(Error::<T>::MarketNotFound.into()),
+				};
 
 				// Create a struct object for the market price
 				let new_market_price: Price = Price {
@@ -121,9 +122,10 @@ pub mod pallet {
 				ensure!(curr_market.price >= FixedI128::zero(), Error::<T>::InvalidMarketPrice);
 
 				// Get Market from the corresponding Id
-				let market = T::MarketPallet::get_market(curr_market.market_id);
-				ensure!(market.is_some(), Error::<T>::MarketNotFound);
-				let market = market.unwrap();
+				let market = match T::MarketPallet::get_market(curr_market.market_id) {
+					Some(m) => m,
+					None => return Err(Error::<T>::MarketNotFound.into()),
+				};
 
 				// Create a struct object for the index price
 				let new_index_price: Price = Price {
@@ -151,10 +153,8 @@ pub mod pallet {
 
 			// Get Market from the corresponding Id
 			let market = T::MarketPallet::get_market(market_id).unwrap();
-			let ttl = market.ttl;
-			let timestamp = market_price.timestamp;
-			let time_difference = current_timestamp - timestamp;
-			if time_difference > ttl.into() {
+			let time_difference = current_timestamp - market_price.timestamp;
+			if time_difference > market.ttl.into() {
 				FixedI128::zero()
 			} else {
 				market_price.price
@@ -168,10 +168,9 @@ pub mod pallet {
 
 			// Get Market from the corresponding Id
 			let market = T::MarketPallet::get_market(market_id).unwrap();
-			let ttl = market.ttl;
-			let timestamp = index_price.timestamp;
-			let time_difference = current_timestamp - timestamp;
-			if time_difference > ttl.into() {
+
+			let time_difference = current_timestamp - index_price.timestamp;
+			if time_difference > market.ttl.into() {
 				FixedI128::zero()
 			} else {
 				index_price.price
