@@ -175,15 +175,7 @@ pub mod pallet {
 			let mut account_id: U256;
 
 			for element in accounts {
-				let account_address = U256::from(element.account_address);
-				let mut account_array: [u8; 32] = [0; 32];
-				account_address.to_little_endian(&mut account_array);
-
-				let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
-				concatenated_bytes.push(element.index);
-				let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
-
-				account_id = blake2_256(&result).into();
+				account_id = Self::get_trading_account_id(element);
 
 				// Check if the account already exists
 				ensure!(!AccountMap::<T>::contains_key(account_id), Error::<T>::DuplicateAccount);
@@ -232,9 +224,11 @@ pub mod pallet {
 
 			for element in balances {
 				// Validate that the asset exists and it is a collateral
-				let asset_collateral = T::AssetPallet::get_asset(element.asset_id);
-				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
-				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
+				if let Some(asset) = T::AssetPallet::get_asset(element.asset_id) {
+					ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
+				} else {
+					ensure!(false, Error::<T>::AssetNotFound);
+				}
 
 				let current_balance: FixedI128 =
 					BalancesMap::<T>::get(account_id, element.asset_id);
@@ -244,8 +238,9 @@ pub mod pallet {
 				// Update the map with new balance
 				BalancesMap::<T>::set(account_id, element.asset_id, element.balance_value);
 
-				let account =
-					AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
+				let account = AccountMap::<T>::get(&account_id)
+					.ok_or(Error::<T>::AccountDoesNotExist)?
+					.to_trading_account_minimal();
 				let block_number = <frame_system::Pallet<T>>::block_number();
 
 				Self::deposit_event(Event::BalanceUpdated {
@@ -282,9 +277,6 @@ pub mod pallet {
 			withdrawal_request: WithdrawalRequest,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
-
-			let result = AccountMap::<T>::contains_key(withdrawal_request.account_id);
-			println!("The result is {}", result);
 
 			// Check if the account already exists
 			ensure!(
@@ -334,7 +326,7 @@ pub mod pallet {
 
 			// Get the account struct
 			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
-				.unwrap()
+				.ok_or(Error::<T>::AccountDoesNotExist)?
 				.to_trading_account_minimal();
 
 			// Get the current block number
@@ -814,6 +806,14 @@ pub mod pallet {
 			Some(trading_account.pub_key)
 		}
 
+		fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
+			let mut result: [u8; 33] = [0; 33];
+			trading_account.account_address.to_little_endian(&mut result[0..32]);
+			result[32] = trading_account.index;
+
+			blake2_256(&result).into()
+		}
+
 		fn get_margin_info(
 			account_id: U256,
 			collateral_id: u128,
@@ -935,14 +935,7 @@ pub mod pallet {
 			let pub_key = trading_account.pub_key;
 
 			// Create trading account id
-			let mut account_array: [u8; 32] = [0; 32];
-			account_address.to_little_endian(&mut account_array);
-
-			let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
-			concatenated_bytes.push(index);
-			let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
-
-			let account_id = blake2_256(&result).into();
+			let account_id = Self::get_trading_account_id(trading_account);
 
 			// Check if the account already exists, if it doesn't exist then create an account
 			if !AccountMap::<T>::contains_key(&account_id) {
