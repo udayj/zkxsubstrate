@@ -1,10 +1,12 @@
 use crate::mock::*;
 use frame_support::assert_ok;
-use zkx_support::test_helpers::accounts_helper::{alice, bob, charlie, dave};
-use zkx_support::test_helpers::asset_helper::{eth, usdc, usdt};
-use zkx_support::types::{
-	Asset, BalanceUpdate, HashType, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+use primitive_types::U256;
+use zkx_support::test_helpers::accounts_helper::{
+	alice, bob, charlie, create_withdrawal_request, dave, eduard, get_private_key,
+	get_trading_account_id,
 };
+use zkx_support::test_helpers::asset_helper::{btc, eth, usdc, usdt};
+use zkx_support::types::BalanceUpdate;
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
@@ -86,217 +88,180 @@ fn test_add_accounts() {
 	});
 }
 
-// #[test]
-// #[should_panic(expected = "AssetNotFound")]
-// fn test_add_balances_with_unknown_asset() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, _) = setup();
-// 		let usdt_id: u128 = 123;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+#[test]
+#[should_panic(expected = "AssetNotFound")]
+fn test_add_balances_with_unknown_asset() {
+	let mut env = setup();
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-// 		let trading_account: TradingAccount =
-// 			TradingAccountModule::accounts(trading_account_id).unwrap();
-// 		let balance: BalanceUpdate =
-// 			BalanceUpdate { asset_id: usdt_id, balance_value: 1000.into() };
-// 		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
-// 		collateral_balances.push(balance);
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::set_balances(
-// 			RuntimeOrigin::signed(1),
-// 			trading_account.account_id,
-// 			collateral_balances
-// 		));
-// 	});
-// }
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::set_balances(
+			RuntimeOrigin::signed(1),
+			trading_account_id,
+			vec![BalanceUpdate { asset_id: btc().id, balance_value: 1000.into() }]
+		));
+	});
+}
 
-// #[test]
-// #[should_panic(expected = "AssetNotCollateral")]
-// fn test_add_balances_with_asset_not_marked_as_collateral() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, _) = setup();
-// 		let eth_id: u128 = eth().id;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+#[test]
+#[should_panic(expected = "AssetNotCollateral")]
+fn test_add_balances_with_asset_not_marked_as_collateral() {
+	let mut env = setup();
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-// 		let trading_account: TradingAccount =
-// 			TradingAccountModule::accounts(trading_account_id).unwrap();
-// 		let balance: BalanceUpdate = BalanceUpdate { asset_id: eth_id, balance_value: 1000.into() };
-// 		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
-// 		collateral_balances.push(balance);
+	env.execute_with(|| {
+		// Get the trading id of alice
+		let trading_account_id = get_trading_account_id(alice());
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::set_balances(
-// 			RuntimeOrigin::signed(1),
-// 			trading_account.account_id,
-// 			collateral_balances,
-// 		));
-// 	});
-// }
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::set_balances(
+			RuntimeOrigin::signed(1),
+			trading_account_id,
+			vec![BalanceUpdate { asset_id: eth().id, balance_value: 1000.into() }],
+		));
+	});
+}
 
-// #[test]
-// fn test_add_balances() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, _) = setup();
-// 		let usdc_id: u128 = usdc().id;
-// 		let usdt_id: u128 = usdt().id;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+#[test]
+fn test_add_balances() {
+	let mut env = setup();
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-// 		let trading_account: TradingAccount =
-// 			TradingAccountModule::accounts(trading_account_id).unwrap();
-// 		let balance: BalanceUpdate =
-// 			BalanceUpdate { asset_id: usdc_id, balance_value: 1000.into() };
-// 		let balance1: BalanceUpdate =
-// 			BalanceUpdate { asset_id: usdt_id, balance_value: 500.into() };
-// 		let mut collateral_balances: Vec<BalanceUpdate> = Vec::new();
-// 		collateral_balances.push(balance);
-// 		collateral_balances.push(balance1);
+	env.execute_with(|| {
+		// Get the trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+		let balances_array = vec![
+			BalanceUpdate { asset_id: usdc().id, balance_value: 1000.into() },
+			BalanceUpdate { asset_id: usdt().id, balance_value: 500.into() },
+		];
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::set_balances(
-// 			RuntimeOrigin::signed(1),
-// 			trading_account.account_id,
-// 			collateral_balances
-// 		));
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::set_balances(
+			RuntimeOrigin::signed(1),
+			trading_account_id,
+			balances_array
+		));
 
-// 		assert_eq!(
-// 			TradingAccountModule::balances(trading_account.account_id, usdc_id),
-// 			1000.into()
-// 		);
-// 		assert_eq!(TradingAccountModule::balances(trading_account.account_id, usdt_id), 500.into());
+		// Check the state
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 1000.into());
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdt().id), 500.into());
+		assert_eq!(
+			TradingAccountModule::account_collaterals(trading_account_id),
+			vec![usdc().id, usdt().id]
+		);
+	});
+}
 
-// 		let collaterals = vec![usdc_id, usdt_id];
-// 		assert_eq!(
-// 			TradingAccountModule::account_collaterals(trading_account.account_id),
-// 			collaterals
-// 		);
-// 	});
-// }
+#[test]
+fn test_deposit() {
+	let mut env = setup();
 
-// #[test]
-// fn test_deposit() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, _private_keys) = setup();
-// 		let usdc_id: u128 = usdc().id;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+	env.execute_with(|| {
+		// Get the trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-// 		let trading_account: TradingAccount =
-// 			TradingAccountModule::accounts(trading_account_id).unwrap();
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			alice(),
+			usdc().id,
+			1000.into(),
+		));
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::deposit(
-// 			RuntimeOrigin::signed(1),
-// 			trading_account.to_trading_account_minimal(),
-// 			usdc_id,
-// 			1000.into(),
-// 		));
+		// Check the state
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 11000.into());
+	});
+}
 
-// 		assert_eq!(
-// 			TradingAccountModule::balances(trading_account.account_id, usdc_id),
-// 			11000.into()
-// 		);
-// 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-// 		println!("Events: {:?}", event_record);
-// 	});
-// }
+#[test]
+fn test_withdraw() {
+	let mut env = setup();
 
-// #[test]
-// fn test_withdraw() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, private_keys) = setup();
-// 		let usdc_id: u128 = usdc().id;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+	env.execute_with(|| {
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(alice());
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().id,
+			1000.into(),
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
-// 		let trading_account: TradingAccount =
-// 			TradingAccountModule::accounts(trading_account_id).unwrap();
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
 
-// 		let withdrawal_request = WithdrawalRequest {
-// 			account_id: trading_account_id,
-// 			collateral_id: usdc_id,
-// 			amount: 1000.into(),
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 9000.into());
+		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
+		println!("Events: {:?}", event_record);
+	});
+}
 
-// 		let withdrawal_request = sign_withdrawal_request(withdrawal_request, private_keys[0]);
+#[test]
+#[should_panic(expected = "AccountDoesNotExist")]
+fn test_withdraw_on_not_existing_account() {
+	let mut env = setup();
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+	env.execute_with(|| {
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(eduard());
 
-// 		assert_eq!(
-// 			TradingAccountModule::balances(trading_account.account_id, usdc_id),
-// 			9000.into()
-// 		);
-// 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-// 		println!("Events: {:?}", event_record);
-// 	});
-// }
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().id,
+			1000.into(),
+			get_private_key(eduard().pub_key),
+		)
+		.unwrap();
 
-// #[test]
-// #[should_panic(expected = "AccountDoesNotExist")]
-// fn test_withdraw_on_not_existing_account() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (_, private_keys) = setup();
-// 		let usdc_id: u128 = 93816115890698;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+	});
+}
 
-// 		let withdrawal_request = WithdrawalRequest {
-// 			account_id: 1.into(),
-// 			collateral_id: usdc_id,
-// 			amount: 1000.into(),
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
+#[test]
+#[should_panic(expected = "InvalidSignature")]
+fn test_withdraw_on_invalid_sig() {
+	let mut env = setup();
 
-// 		let withdrawal_request = sign_withdrawal_request(withdrawal_request, private_keys[0]);
+	env.execute_with(|| {
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(dave());
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
-// 	});
-// }
+		let mut withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().id,
+			1000.into(),
+			get_private_key(dave().pub_key),
+		)
+		.unwrap();
 
-// #[test]
-// #[should_panic(expected = "InvalidWithdrawalRequest")]
-// fn test_withdraw_with_insufficient_balance() {
-// 	new_test_ext().execute_with(|| {
-// 		let _assets = create_assets();
-// 		let (trading_accounts, private_keys) = setup();
-// 		let usdc_id: u128 = 93816115890698;
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
+		withdrawal_request.sig_r = U256::from(123123_u128);
 
-// 		let trading_account_id: U256 = get_trading_account_id(trading_accounts, 0);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+	});
+}
 
-// 		let withdrawal_request = WithdrawalRequest {
-// 			account_id: trading_account_id,
-// 			collateral_id: usdc_id,
-// 			amount: 11000.into(),
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
+#[test]
+#[should_panic(expected = "InvalidWithdrawalRequest")]
+fn test_withdraw_with_insufficient_balance() {
+	let mut env = setup();
 
-// 		let withdrawal_request = sign_withdrawal_request(withdrawal_request, private_keys[0]);
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
 
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
-// 	});
-// }
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().id,
+			11000.into(),
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+	});
+}

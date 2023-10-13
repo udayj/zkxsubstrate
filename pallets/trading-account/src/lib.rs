@@ -283,26 +283,35 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
+			let result = AccountMap::<T>::contains_key(withdrawal_request.account_id);
+			println!("The result is {}", result);
+
 			// Check if the account already exists
 			ensure!(
 				AccountMap::<T>::contains_key(withdrawal_request.account_id),
 				Error::<T>::AccountDoesNotExist
 			);
 
-			let _ = Self::verify_signature(&withdrawal_request);
+			// Check if the signature is valid
+			Self::verify_signature(&withdrawal_request)?;
 
+			// Get the standard fee for a withdrawal tx
 			let withdrawal_fee = StandardWithdrawalFee::<T>::get();
+
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
 
+			// Get the new balance of the user
+			let new_balance = current_balance - withdrawal_fee;
+
 			// Update the balance, after deducting fees
 			BalancesMap::<T>::set(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
-				current_balance - withdrawal_fee,
+				new_balance,
 			);
 
 			// Check whether the withdrawal leads to the position to be liquidatable or deleveraged
@@ -316,28 +325,25 @@ pub mod pallet {
 				Error::<T>::InvalidWithdrawalRequest
 			);
 
-			// Get the current balance
-			let current_balance: FixedI128 = BalancesMap::<T>::get(
-				withdrawal_request.account_id,
-				withdrawal_request.collateral_id,
-			);
-
 			// Update the balance
 			BalancesMap::<T>::set(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
-				current_balance - withdrawal_request.amount,
+				new_balance - withdrawal_request.amount,
 			);
 
+			// Get the account struct
 			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
 				.unwrap()
 				.to_trading_account_minimal();
+
+			// Get the current block number
 			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalanceUpdated {
 				account_id: withdrawal_request.account_id,
-				account,
+				account: account.clone(),
 				collateral_id: withdrawal_request.collateral_id,
 				amount: withdrawal_request.amount,
 				modify_type: FundModifyType::Decrease.into(),
@@ -347,16 +353,8 @@ pub mod pallet {
 				block_number,
 			});
 
-			// Get the trading account
-			let account = Self::get_account(&withdrawal_request.account_id)
-				.unwrap()
-				.to_trading_account_minimal();
-
-			// Get the block number
-			let block_number = <frame_system::Pallet<T>>::block_number();
-
 			Self::deposit_event(Event::UserWithdrawal {
-				trading_account: account,
+				trading_account: account.clone(),
 				collateral_id: withdrawal_request.collateral_id,
 				amount: withdrawal_request.amount,
 				block_number,
@@ -565,36 +563,33 @@ pub mod pallet {
 		}
 
 		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
-			// Signature validation
-			let sig_felt =
-				sig_u256_to_sig_felt(&withdrawal_request.sig_r, &withdrawal_request.sig_s);
+			// Convert the r and s value to fieldElement
+			let (sig_r, sig_s) =
+				sig_u256_to_sig_felt(&withdrawal_request.sig_r, &withdrawal_request.sig_s)
+					.map_err(|_| Error::<T>::InvalidSignatureFelt)?;
 
-			// Sig_r and/or Sig_s could not be converted to FieldElement
-			ensure!(sig_felt.is_ok(), Error::<T>::InvalidSignatureFelt);
+			// Construct the signature struct
+			let signature = Signature { r: sig_r, s: sig_s };
 
-			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
-			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
+			// Hash the withdrawal request struct
+			let withdrawal_request_hash = withdrawal_request
+				.hash(&withdrawal_request.hash_type)
+				.map_err(|_| Error::<T>::InvalidWithdrawalRequestHash)?;
 
-			let withdrawal_request_hash = withdrawal_request.hash(&withdrawal_request.hash_type);
+			// Fetch the public key of account
+			let public_key = Self::get_public_key(&withdrawal_request.account_id)
+				.ok_or(Error::<T>::NoPublicKeyFound)?;
 
-			// withdrawal_request could not be hashed
-			ensure!(withdrawal_request_hash.is_ok(), Error::<T>::InvalidWithdrawalRequestHash);
+			// Convert the public key to felt
+			let public_key_felt =
+				public_key.try_to_felt().map_err(|_| Error::<T>::InvalidPublicKey)?;
 
-			let public_key = Self::get_public_key(&withdrawal_request.account_id);
-
-			// Public key not found for this account_id
-			ensure!(public_key.is_some(), Error::<T>::NoPublicKeyFound);
-
-			let public_key_felt = public_key.unwrap().try_to_felt();
-
-			// Public Key U256 could not be converted to FieldElement
-			ensure!(public_key_felt.is_ok(), Error::<T>::InvalidPublicKey);
-
-			let verification =
-				ecdsa_verify(&public_key_felt.unwrap(), &withdrawal_request_hash.unwrap(), &sig);
+			// Verify the signature
+			let verification = ecdsa_verify(&public_key_felt, &withdrawal_request_hash, &signature)
+				.map_err(|_| Error::<T>::InvalidSignature)?;
 
 			// Signature verification returned error or false
-			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::InvalidSignature);
+			ensure!(verification, Error::<T>::InvalidSignature);
 
 			Ok(())
 		}
