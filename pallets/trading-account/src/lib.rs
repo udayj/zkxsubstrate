@@ -59,6 +59,12 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn accounts_list)]
+	// Here, key is the index and value is the account_id
+	pub(super) type AccountsListMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, u128, U256, OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn balances)]
 	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
@@ -195,6 +201,7 @@ pub mod pallet {
 				};
 
 				AccountMap::<T>::insert(account_id, trading_account);
+				AccountsListMap::<T>::insert(current_length, account_id);
 				current_length += 1;
 				Self::deposit_event(Event::AccountCreated {
 					account_id,
@@ -951,9 +958,14 @@ pub mod pallet {
 
 			// Check if the account already exists, if it doesn't exist then create an account
 			if !AccountMap::<T>::contains_key(&account_id) {
+				let current_length = AccountsCount::<T>::get();
+
 				let trading_account: TradingAccount =
 					TradingAccount { account_id, account_address, index, pub_key };
 				AccountMap::<T>::insert(account_id, trading_account);
+				AccountsListMap::<T>::insert(current_length, account_id);
+				AccountsCount::<T>::put(current_length + 1);
+
 				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
 			}
 
