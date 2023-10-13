@@ -2,7 +2,6 @@ use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
 use codec::{Decode, Encode};
-use frame_support::inherent::Vec;
 use frame_support::pallet_prelude::MaxEncodedLen;
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -53,13 +52,13 @@ impl TradingAccountMinimal {
 }
 
 impl TradingAccount {
-    pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
-        TradingAccountMinimal {
-            account_address: self.account_address,
-            pub_key: self.pub_key,
-            index: self.index,
-        }
-    }
+	pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
+		TradingAccountMinimal {
+			account_address: self.account_address,
+			pub_key: self.pub_key,
+			index: self.index,
+		}
+	}
 }
 
 impl Hashable for WithdrawalRequest {
@@ -68,20 +67,19 @@ impl Hashable for WithdrawalRequest {
 	type ConversionError = FromByteSliceError;
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
-		let mut elements: Vec<FieldElement> = Vec::new();
-
 		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id)?;
-		elements.push(account_id_low);
-		elements.push(account_id_high);
+		let elements = vec![
+			account_id_low,
+			account_id_high,
+			FieldElement::from(self.collateral_id),
+			self.amount.to_u256().try_to_felt()?,
+		];
 
-		elements.push(FieldElement::from(self.collateral_id));
+		let result = match hash_type {
+			HashType::Pedersen => pedersen_hash_multiple(&elements),
+			HashType::Poseidon => poseidon_hash_many(&elements),
+		};
 
-		let u256_representation = &self.amount.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
-
-		match &hash_type {
-			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
-			HashType::Poseidon => Ok(poseidon_hash_many(&elements)),
-		}
+		Ok(result)
 	}
 }

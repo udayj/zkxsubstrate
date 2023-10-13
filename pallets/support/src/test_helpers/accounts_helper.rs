@@ -1,20 +1,56 @@
-use crate::traits::{FieldElementExt, Hashable};
-use crate::types::{TradingAccountMinimal, WithdrawalRequest};
+use crate::helpers::pedersen_hash_multiple;
+use crate::traits::{FieldElementExt, FixedI128Ext, U256Ext};
+use crate::types::{convert_to_u128_pair, HashType, TradingAccountMinimal, WithdrawalRequest};
 use primitive_types::U256;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, FieldElement};
+use starknet_ff::FromByteSliceError;
+type ConversionError = FromByteSliceError;
 
-pub fn sign_withdrawal_request(
-	mut withdrawal_request: WithdrawalRequest,
+pub fn create_withdrawal_request(
+	account_id: U256,
+	collateral_id: u128,
+	amount: FixedI128,
 	private_key: FieldElement,
-) -> WithdrawalRequest {
-	let withdrawal_request_hash = withdrawal_request.hash(&withdrawal_request.hash_type).unwrap();
-	let signature = sign(&private_key, &withdrawal_request_hash, &FieldElement::ONE).unwrap();
+) -> Result<WithdrawalRequest, ConversionError> {
+	let (account_id_low, account_id_high) = convert_to_u128_pair(account_id)?;
+	let elements = vec![
+		account_id_low,
+		account_id_high,
+		FieldElement::from(collateral_id),
+		amount.to_u256().try_to_felt()?,
+	];
 
-	withdrawal_request.sig_r = signature.r.to_u256();
-	withdrawal_request.sig_s = signature.s.to_u256();
+	let msg_hash = pedersen_hash_multiple(&elements);
 
-	withdrawal_request
+	// Get the signature
+	let signature = sign(&private_key, &msg_hash, &FieldElement::ONE).unwrap();
+
+	Ok(WithdrawalRequest {
+		account_id,
+		collateral_id,
+		amount,
+		sig_r: signature.r.to_u256(),
+		sig_s: signature.s.to_u256(),
+		hash_type: HashType::Pedersen,
+	})
+}
+
+pub fn get_private_key(pub_key: U256) -> FieldElement {
+	if pub_key == alice().pub_key {
+		FieldElement::from(12345_u128)
+	} else if pub_key == bob().pub_key {
+		FieldElement::from(12346_u128)
+	} else if pub_key == charlie().pub_key {
+		FieldElement::from(12347_u128)
+	} else if pub_key == dave().pub_key {
+		FieldElement::from(12348_u128)
+	} else if pub_key == eduard().pub_key {
+		FieldElement::from(12349_u128)
+	} else {
+		FieldElement::from(0_u128)
+	}
 }
 
 pub fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
@@ -30,7 +66,7 @@ pub fn alice() -> TradingAccountMinimal {
 		account_address: U256::from(100_u8),
 		index: 0,
 		pub_key: U256::from_dec_str(
-			"454932787469224290468444410084879070088819078827906347654495047407276534283",
+			"1628448741648245036800002906075225705100596136133912895015035902954123957052",
 		)
 		.unwrap(),
 	}
@@ -41,7 +77,7 @@ pub fn bob() -> TradingAccountMinimal {
 		account_address: U256::from(101_u8),
 		index: 0,
 		pub_key: U256::from_dec_str(
-			"2101677845476848141002376837472833021659088026888369432434421980160153750090",
+			"2734587570975953215033319696922164262260826928445675130094490350860110775927",
 		)
 		.unwrap(),
 	}
@@ -52,7 +88,7 @@ pub fn charlie() -> TradingAccountMinimal {
 		account_address: U256::from(102_u8),
 		index: 0,
 		pub_key: U256::from_dec_str(
-			"1927799101328918885926814969993421873905724180750168745093131010179897850144",
+			"2457376002264611280816655453925405884371013933241232222259054612596603485629",
 		)
 		.unwrap(),
 	}
@@ -63,28 +99,19 @@ pub fn dave() -> TradingAccountMinimal {
 		account_address: U256::from(103_u8),
 		index: 0,
 		pub_key: U256::from_dec_str(
-			"824120678599933675767871867465569325984720238047137957464936400424120564339",
+			"297021124508995887059365693034777910037712736776962756431504561970877219904",
 		)
 		.unwrap(),
 	}
 }
 
-// let user_pri_key_1: U256 = U256::from_dec_str(
-//     "217039137810971208563823259722717297948702641410765313684702872265493782699",
-// )
-// .unwrap();
-
-// let user_pri_key_2: U256 = U256::from_dec_str(
-//     "2835524789612495000294332407161775540542356260492319813526822636942276039073",
-// )
-// .unwrap();
-
-// let user_pri_key_3: U256 = U256::from_dec_str(
-//     "3388506857955987752046415916181604993164423072000548640801744803879383940670",
-// )
-// .unwrap();
-
-// let user_pri_key_4: U256 = U256::from_dec_str(
-//     "84035867551811388210596922086133550045728262314839423570645036080104955628",
-// )
-// .unwrap();
+pub fn eduard() -> TradingAccountMinimal {
+	TradingAccountMinimal {
+		account_address: U256::from(104_u8),
+		index: 0,
+		pub_key: U256::from_dec_str(
+			"1973230609706632603859995910093337519395409734785764258434843072841781303122",
+		)
+		.unwrap(),
+	}
+}
