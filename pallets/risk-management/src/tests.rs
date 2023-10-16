@@ -7,8 +7,8 @@ use starknet_crypto::{sign, FieldElement};
 use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, MarketPrice, MultipleMarketPrices,
-	Order, OrderType, Position, Side, TimeInForce, TradingAccountMinimal,
+	Asset, Direction, HashType, LiquidatablePosition, Market, MultiplePrices, Order, OrderType,
+	Position, Price, Side, TimeInForce, TradingAccountMinimal,
 };
 
 const ORDER_ID_1: u128 = 200_u128;
@@ -292,17 +292,15 @@ fn test_liquidation() {
 		assert_eq!(expected_position, liquidatable_position);
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8000.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8000.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8000.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -480,17 +478,15 @@ fn test_liquidation_after_deleveraging() {
 		assert_eq!(expected_position, position2);
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8500.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -580,17 +576,15 @@ fn test_liquidation_after_deleveraging() {
 		assert_eq!(balance_1, 10000.into());
 
 		// Decrease the price of the asset again
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 7000.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 7000.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 7000.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -770,17 +764,15 @@ fn test_liquidation_with_invalid_order_type() {
 		assert_eq!(expected_position, position2);
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8000.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8000.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8000.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -941,17 +933,15 @@ fn test_deleveraging_with_invalid_order_type() {
 		assert_eq!(expected_position, position2);
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8500.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -1113,17 +1103,15 @@ fn test_deleveraging_with_invalid_market_id() {
 		assert_eq!(expected_position, position2);
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8500.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
@@ -1257,17 +1245,15 @@ fn test_deleveraging_with_invalid_order_direction() {
 		));
 
 		// Decrease the price of the asset
-		let mut market_prices: Vec<MultipleMarketPrices> = Vec::new();
-		let market_price1 = MultipleMarketPrices { market_id: markets[0].id, price: 8500.into() };
-		market_prices.push(market_price1);
-		assert_ok!(MarketPrices::update_multiple_market_prices(
-			RuntimeOrigin::signed(1),
-			market_prices.clone()
-		));
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		index_prices.push(index_price1);
 
-		let market_price: MarketPrice = MarketPrices::market_price(markets[0].id);
+		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+
+		let index_price: Price = Prices::index_price(markets[0].id);
 		let expected_price: FixedI128 = 8500.into();
-		assert_eq!(expected_price, market_price.price);
+		assert_eq!(expected_price, index_price.price);
 
 		// Call mark_under_collateralized_position for the account_id_1
 		assert_ok!(RiskManagement::mark_under_collateralized_position(

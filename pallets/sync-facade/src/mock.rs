@@ -2,7 +2,7 @@ use crate as sync_facade;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_market;
-use pallet_market_prices;
+use pallet_prices;
 use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading;
@@ -26,7 +26,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Markets: pallet_market,
-		MarketPrices: pallet_market_prices,
+		Prices: pallet_prices,
 		Assets: pallet_asset,
 		RiskManagement: pallet_risk_management,
 		Timestamp: pallet_timestamp,
@@ -73,7 +73,7 @@ impl pallet_market::Config for Test {
 	type AssetPallet = Assets;
 }
 
-impl pallet_market_prices::Config for Test {
+impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
 	type TimeProvider = Timestamp;
@@ -87,7 +87,7 @@ impl pallet_zkx_trading_account::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 	type TradingPallet = Trading;
 }
 
@@ -102,7 +102,7 @@ impl pallet_trading::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
 	type TradingAccountPallet = TradingAccounts;
 	type TradingFeesPallet = TradingFees;

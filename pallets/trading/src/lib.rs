@@ -19,7 +19,7 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		AssetInterface, FixedI128Ext, Hashable, MarketInterface, MarketPricesInterface,
+		AssetInterface, FixedI128Ext, Hashable, MarketInterface, PricesInterface,
 		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
 		U256Ext,
 	};
@@ -41,7 +41,7 @@ pub mod pallet {
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingFeesPallet: TradingFeesInterface;
-		type MarketPricesPallet: MarketPricesInterface;
+		type PricesPallet: PricesInterface;
 		type RiskManagementPallet: RiskManagementInterface;
 	}
 
@@ -240,9 +240,9 @@ pub mod pallet {
 			ensure!(oracle_price > FixedI128::zero(), Error::<T>::TradeBatchError513);
 
 			//Update market price
-			let market_price = T::MarketPricesPallet::get_market_price(market_id);
+			let market_price = T::PricesPallet::get_market_price(market_id);
 			if market_price == FixedI128::zero() {
-				T::MarketPricesPallet::update_market_price(market_id, oracle_price);
+				T::PricesPallet::update_market_price(market_id, oracle_price);
 			}
 
 			let collateral_id: u128 = market.asset_collateral;

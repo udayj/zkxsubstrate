@@ -26,7 +26,7 @@ frame_support::construct_runtime!(
 		Assets: pallet_asset,
 		Markets: pallet_market,
 		Trading: pallet_trading,
-		MarketPrices: pallet_market_prices,
+		Prices: pallet_prices,
 		TradingFees: pallet_trading_fees,
 		RiskManagement: pallet_risk_management
 	}
@@ -64,7 +64,7 @@ impl pallet_trading_account::Config for Test {
 	type AssetPallet = Assets;
 	type TradingPallet = Trading;
 	type MarketPallet = Markets;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 }
 
 impl pallet_asset::Config for Test {
@@ -83,7 +83,7 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-impl pallet_market_prices::Config for Test {
+impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
 	type TimeProvider = Timestamp;
@@ -99,7 +99,7 @@ impl pallet_trading::Config for Test {
 	type MarketPallet = Markets;
 	type TradingAccountPallet = TradingAccountModule;
 	type TradingFeesPallet = TradingFees;
-	type MarketPricesPallet = MarketPrices;
+	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
 }
 

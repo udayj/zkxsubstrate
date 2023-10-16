@@ -3,7 +3,7 @@ members = [
     "node",
     "pallets/asset",
     "pallets/market",
-    "pallets/market-prices",
+    "pallets/prices",
     "pallets/risk-management",
     "pallets/support",
     "pallets/sync-facade",

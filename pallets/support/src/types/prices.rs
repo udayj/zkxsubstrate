@@ -4,7 +4,7 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct MarketPrice {
+pub struct Price {
 	pub asset_id: u128,
 	pub collateral_id: u128,
 	pub timestamp: u64,
@@ -12,7 +12,7 @@ pub struct MarketPrice {
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct MultipleMarketPrices {
+pub struct MultiplePrices {
 	pub market_id: u128,
 	pub price: FixedI128,
 }

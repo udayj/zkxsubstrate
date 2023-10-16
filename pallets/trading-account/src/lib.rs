@@ -21,7 +21,7 @@ pub mod pallet {
 	use sp_io::hashing::blake2_256;
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		AssetInterface, Hashable, MarketInterface, MarketPricesInterface, TradingAccountInterface,
+		AssetInterface, Hashable, MarketInterface, PricesInterface, TradingAccountInterface,
 		TradingInterface, U256Ext,
 	};
 	use zkx_support::types::{
@@ -39,7 +39,7 @@ pub mod pallet {
 		type AssetPallet: AssetInterface;
 		type TradingPallet: TradingInterface;
 		type MarketPallet: MarketInterface;
-		type MarketPricesPallet: MarketPricesInterface;
+		type PricesPallet: PricesInterface;
 	}
 
 	#[pallet::storage]
@@ -452,7 +452,7 @@ pub mod pallet {
 					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Short);
 
 				// Get Market price
-				let market_price = T::MarketPricesPallet::get_market_price(curr_market_id);
+				let market_price = T::PricesPallet::get_index_price(curr_market_id);
 
 				if market_price == FixedI128::zero() {
 					return (
@@ -675,7 +675,7 @@ pub mod pallet {
 
 			// Get Market price
 			let market_price =
-				T::MarketPricesPallet::get_market_price(least_collateral_ratio_position.market_id);
+				T::PricesPallet::get_index_price(least_collateral_ratio_position.market_id);
 
 			let min_leverage_times_margin =
 				two_point_five * least_collateral_ratio_position.margin_amount;
