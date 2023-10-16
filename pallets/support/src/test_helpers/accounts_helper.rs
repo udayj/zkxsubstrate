@@ -1,6 +1,7 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FieldElementExt, FixedI128Ext, U256Ext};
 use crate::types::{convert_to_u128_pair, HashType, TradingAccountMinimal, WithdrawalRequest};
+use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;
@@ -15,12 +16,11 @@ pub fn create_withdrawal_request(
 	private_key: FieldElement,
 ) -> Result<WithdrawalRequest, ConversionError> {
 	let (account_id_low, account_id_high) = convert_to_u128_pair(account_id)?;
-	let elements = vec![
-		account_id_low,
-		account_id_high,
-		FieldElement::from(collateral_id),
-		amount.to_u256().try_to_felt()?,
-	];
+	let mut elements = Vec::<FieldElement>::new();
+	elements.push(account_id_low);
+	elements.push(account_id_high);
+	elements.push(FieldElement::from(collateral_id));
+	elements.push(amount.to_u256().try_to_felt()?);
 
 	let msg_hash = pedersen_hash_multiple(&elements);
 

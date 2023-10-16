@@ -2,6 +2,7 @@ use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
 use codec::{Decode, Encode};
+use frame_support::inherent::Vec;
 use frame_support::pallet_prelude::MaxEncodedLen;
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -68,12 +69,11 @@ impl Hashable for WithdrawalRequest {
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
 		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id)?;
-		let elements = vec![
-			account_id_low,
-			account_id_high,
-			FieldElement::from(self.collateral_id),
-			self.amount.to_u256().try_to_felt()?,
-		];
+		let mut elements = Vec::<FieldElement>::new();
+		elements.push(account_id_low);
+		elements.push(account_id_high);
+		elements.push(FieldElement::from(self.collateral_id));
+		elements.push(self.amount.to_u256().try_to_felt()?);
 
 		let result = match hash_type {
 			HashType::Pedersen => pedersen_hash_multiple(&elements),
