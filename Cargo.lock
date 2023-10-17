@@ -10714,6 +10714,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-arithmetic 16.0.0",
+ "sp-io",
  "sp-runtime",
  "starknet-core",
  "starknet-crypto",

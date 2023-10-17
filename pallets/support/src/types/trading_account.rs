@@ -53,13 +53,13 @@ impl TradingAccountMinimal {
 }
 
 impl TradingAccount {
-    pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
-        TradingAccountMinimal {
-            account_address: self.account_address,
-            pub_key: self.pub_key,
-            index: self.index,
-        }
-    }
+	pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
+		TradingAccountMinimal {
+			account_address: self.account_address,
+			pub_key: self.pub_key,
+			index: self.index,
+		}
+	}
 }
 
 impl Hashable for WithdrawalRequest {
@@ -68,20 +68,18 @@ impl Hashable for WithdrawalRequest {
 	type ConversionError = FromByteSliceError;
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
-		let mut elements: Vec<FieldElement> = Vec::new();
-
 		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id)?;
+		let mut elements = Vec::<FieldElement>::new();
 		elements.push(account_id_low);
 		elements.push(account_id_high);
-
 		elements.push(FieldElement::from(self.collateral_id));
+		elements.push(self.amount.to_u256().try_to_felt()?);
 
-		let u256_representation = &self.amount.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
+		let result = match hash_type {
+			HashType::Pedersen => pedersen_hash_multiple(&elements),
+			HashType::Poseidon => poseidon_hash_many(&elements),
+		};
 
-		match &hash_type {
-			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
-			HashType::Poseidon => Ok(poseidon_hash_many(&elements)),
-		}
+		Ok(result)
 	}
 }

@@ -48,10 +48,10 @@ fn get_signers() -> Vec<U256> {
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
-	let mut test_evn = new_test_ext();
+	let mut test_env = new_test_ext();
 
 	// Set the signers using admin account
-	test_evn.execute_with(|| {
+	test_env.execute_with(|| {
 		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[0])
 			.expect("error while adding signer");
 		SyncFacade::set_signers_quorum(RuntimeOrigin::signed(1), 1_u8)
@@ -61,7 +61,7 @@ fn setup() -> sp_io::TestExternalities {
 		System::set_block_number(1336);
 	});
 
-	test_evn.into()
+	test_env.into()
 }
 
 #[test]

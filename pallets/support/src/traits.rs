@@ -21,6 +21,7 @@ pub trait TradingAccountInterface {
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_locked_margin(account: U256, asset_id: u128) -> FixedI128;
+	fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256;
 	fn set_locked_margin(account: U256, asset_id: u128, amount: FixedI128);
 	fn transfer(
 		account_id: U256,
