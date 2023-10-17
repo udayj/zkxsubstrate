@@ -11,3 +11,4 @@
 .direnv
 
 **/node_modules
+**/dist

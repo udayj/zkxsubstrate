@@ -1,5 +1,6 @@
 import * as baseStarknet from 'starknet';
 import { StarknetHelper } from './starknet.helper';
+import { StarknetAccountEntity } from '../entities';
 
 const { getPublicKey, getStarkKey, sign } = baseStarknet.ec.starkCurve;
 const { randomPrivateKey } = baseStarknet.ec.starkCurve.utils;
@@ -28,6 +29,18 @@ export class StarknetTestHelper {
       publicKey,
       starkKey,
     };
+  }
+
+  static generateAccount(): StarknetAccountEntity {
+    const { privateKey, publicKey, starkKey } = StarknetTestHelper.generateKeys();
+    
+    const starknetAccount = new StarknetAccountEntity({
+      privateKey,
+      publicKey,
+      starkKey,
+    })
+
+    return starknetAccount;
   }
 
   static sign(params: { privateKey: string; data: any }): [string, string] {

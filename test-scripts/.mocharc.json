@@ -1,0 +1,13 @@
+{
+  "timeout": 30000,
+  "extension": ["ts"],
+  "require": [
+    "dotenv/config",
+    "ts-node/register",
+    "tsconfig-paths/register"
+  ],
+  "spec": [
+    "src/**/*.spec.ts"
+  ]
+}
+  
