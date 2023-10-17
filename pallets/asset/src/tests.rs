@@ -1,8 +1,7 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
-use zkx_support::traits::AssetInterface;
-use zkx_support::types::{Asset, ExtendedAsset};
+use zkx_support::types::ExtendedAsset;
 
 fn setup() -> (sp_io::TestExternalities, Vec<ExtendedAsset>) {
 	// Create a new test environment

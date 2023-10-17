@@ -19,7 +19,7 @@ pub mod pallet {
 		AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
 		TradingAccountInterface, U256Ext,
 	};
-	use zkx_support::types::{SyncSignature, UniversalEvent};
+	use zkx_support::types::{ExtendedAsset, ExtendedMarket, SyncSignature, UniversalEvent};
 	use zkx_support::{ecdsa_verify, FieldElement, Signature};
 
 	#[pallet::pallet]
@@ -240,13 +240,17 @@ pub mod pallet {
 						match T::MarketPallet::get_market(market_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::MarketPallet::update_market_internal(
-									market_updated.market.clone(),
-								);
+								T::MarketPallet::update_market_internal(ExtendedMarket {
+									market: market_updated.market.clone(),
+									metadata_url: market_updated.metadata_url.clone(),
+								});
 							},
 							// If not, add a new market
 							None => {
-								T::MarketPallet::add_market_internal(market_updated.market.clone());
+								T::MarketPallet::add_market_internal(ExtendedMarket {
+									market: market_updated.market.clone(),
+									metadata_url: market_updated.metadata_url.clone(),
+								});
 							},
 						}
 					},
@@ -255,11 +259,19 @@ pub mod pallet {
 						match T::AssetPallet::get_asset(asset_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::AssetPallet::update_asset_internal(asset_updated.asset.clone());
+								T::AssetPallet::update_asset_internal(ExtendedAsset {
+									asset: asset_updated.asset.clone(),
+									metadata_url: asset_updated.metadata_url.clone(),
+									icon_url: asset_updated.icon_url.clone(),
+								});
 							},
 							// If not, add a new asset
 							None => {
-								T::AssetPallet::add_asset_internal(asset_updated.asset.clone());
+								T::AssetPallet::add_asset_internal(ExtendedAsset {
+									asset: asset_updated.asset.clone(),
+									metadata_url: asset_updated.metadata_url.clone(),
+									icon_url: asset_updated.icon_url.clone(),
+								});
 							},
 						}
 					},

@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, HashType,
-	LiquidatablePosition, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide,
-	Position, PositionDetailsForRiskManagement, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit,
+	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
+	ExtendedMarket, HashType, LiquidatablePosition, MarginInfo, Market, MarketRemoved,
+	MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -73,8 +73,8 @@ pub trait TradingInterface {
 }
 
 pub trait AssetInterface {
-	fn update_asset_internal(asset: Asset);
-	fn add_asset_internal(asset: Asset);
+	fn update_asset_internal(asset: ExtendedAsset);
+	fn add_asset_internal(asset: ExtendedAsset);
 	fn remove_asset_internal(id: u128);
 	fn get_default_collateral() -> u128;
 	fn get_asset(id: u128) -> Option<Asset>;
@@ -92,8 +92,8 @@ pub trait RiskManagementInterface {
 
 pub trait MarketInterface {
 	fn get_market(id: u128) -> Option<Market>;
-	fn add_market_internal(market: Market);
-	fn update_market_internal(market: Market);
+	fn add_market_internal(extended_market: ExtendedMarket);
+	fn update_market_internal(extended_market: ExtendedMarket);
 	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
 }

@@ -16,7 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_arithmetic::fixed_point::FixedI128;
 	use zkx_support::traits::{AssetInterface, MarketInterface};
-	use zkx_support::types::Market;
+	use zkx_support::types::{ExtendedMarket, Market};
 
 	static DELETION_LIMIT: u32 = 100;
 
@@ -36,7 +36,7 @@ pub mod pallet {
 	/// Maps the Market struct to the unique_id.
 	#[pallet::storage]
 	#[pallet::getter(fn markets)]
-	pub(super) type MarketMap<T: Config> = StorageMap<_, Twox64Concat, u128, Market>;
+	pub(super) type MarketMap<T: Config> = StorageMap<_, Twox64Concat, u128, ExtendedMarket>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -64,11 +64,11 @@ pub mod pallet {
 		/// Markets were successfully created
 		MarketsCreated { length: u64 },
 		/// Market successfully created
-		MarketCreated { market: Market },
+		MarketCreated { market: ExtendedMarket },
 		/// Market successfully updated
-		MarketUpdated { market: Market },
+		MarketUpdated { market: ExtendedMarket },
 		/// Market successfully removed
-		MarketRemoved { market: Market },
+		MarketRemoved { market: ExtendedMarket },
 	}
 
 	// Pallet callable functions
@@ -77,7 +77,10 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		/// Replace all markets
 		#[pallet::weight(0)]
-		pub fn replace_all_markets(origin: OriginFor<T>, markets: Vec<Market>) -> DispatchResult {
+		pub fn replace_all_markets(
+			origin: OriginFor<T>,
+			markets: Vec<ExtendedMarket>,
+		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Clear market map
@@ -86,28 +89,33 @@ pub mod pallet {
 			let length: u64 = u64::try_from(markets.len()).unwrap();
 
 			// Iterate through the vector of markets and add to market map
-			for element in markets {
+			for extended_market in markets {
+				let current_market = extended_market.market.clone();
 				// Check if the market exists in the storage map
-				ensure!(!MarketMap::<T>::contains_key(element.id), Error::<T>::DuplicateMarket);
+				ensure!(
+					!MarketMap::<T>::contains_key(current_market.id),
+					Error::<T>::DuplicateMarket
+				);
 				// Check market id is non zero
-				ensure!(element.id > 0, Error::<T>::InvalidMarket);
+				ensure!(current_market.id > 0, Error::<T>::InvalidMarket);
 				// Validate asset and asset collateral
-				let asset = T::AssetPallet::get_asset(element.asset);
+				let asset = T::AssetPallet::get_asset(current_market.asset);
 				ensure!(asset.is_some(), Error::<T>::AssetNotFound);
-				let asset_collateral = T::AssetPallet::get_asset(element.asset_collateral);
+				let asset_collateral = T::AssetPallet::get_asset(current_market.asset_collateral);
 				ensure!(asset_collateral.is_some(), Error::<T>::AssetNotFound);
 				ensure!(asset_collateral.unwrap().is_collateral, Error::<T>::AssetNotCollateral);
 				ensure!(
-					element.maximum_leverage >= element.minimum_leverage,
+					current_market.maximum_leverage >= current_market.minimum_leverage,
 					Error::<T>::InvalidLeverage
 				);
 				ensure!(
-					(element.minimum_leverage..element.maximum_leverage + FixedI128::from_inner(1))
-						.contains(&element.currently_allowed_leverage),
+					(current_market.minimum_leverage
+						..current_market.maximum_leverage + FixedI128::from_inner(1))
+						.contains(&current_market.currently_allowed_leverage),
 					Error::<T>::InvalidLeverage
 				);
 
-				MarketMap::<T>::insert(element.id, element.clone());
+				MarketMap::<T>::insert(current_market.id, extended_market.clone());
 			}
 
 			MarketsCount::<T>::put(length);
@@ -119,34 +127,43 @@ pub mod pallet {
 
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn add_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+		pub fn add_market(origin: OriginFor<T>, extended_market: ExtendedMarket) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
-			ensure!(!MarketMap::<T>::contains_key(market.id), Error::<T>::DuplicateMarket);
+			ensure!(
+				!MarketMap::<T>::contains_key(extended_market.market.id),
+				Error::<T>::DuplicateMarket
+			);
 
 			// Validate the market details
-			Self::validate_market_details(&market)?;
+			Self::validate_market_details(&extended_market.market)?;
 
 			// Add the market
-			Self::add_market_internal(market);
+			Self::add_market_internal(extended_market);
 
 			Ok(())
 		}
 
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn update_market(origin: OriginFor<T>, market: Market) -> DispatchResult {
+		pub fn update_market(
+			origin: OriginFor<T>,
+			extended_market: ExtendedMarket,
+		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
-			ensure!(MarketMap::<T>::contains_key(market.id), Error::<T>::InvalidMarket);
+			ensure!(
+				MarketMap::<T>::contains_key(extended_market.market.id),
+				Error::<T>::InvalidMarket
+			);
 
 			// Validate the market details
-			Self::validate_market_details(&market)?;
+			Self::validate_market_details(&extended_market.market)?;
 
 			// Add the market
-			Self::update_market_internal(market);
+			Self::update_market_internal(extended_market);
 
 			Ok(())
 		}
@@ -166,9 +183,9 @@ pub mod pallet {
 	}
 
 	impl<T: Config> MarketInterface for Pallet<T> {
-		fn add_market_internal(market: Market) {
+		fn add_market_internal(extended_market: ExtendedMarket) {
 			// Add market to the market map
-			MarketMap::<T>::insert(market.id, market.clone());
+			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
 
 			// Increase the market count
 			// Get the number of markets available
@@ -176,20 +193,20 @@ pub mod pallet {
 			MarketsCount::<T>::put(length + 1);
 
 			// Emit the market created event
-			Self::deposit_event(Event::MarketCreated { market });
+			Self::deposit_event(Event::MarketCreated { market: extended_market });
 		}
 
-		fn update_market_internal(market: Market) {
+		fn update_market_internal(extended_market: ExtendedMarket) {
 			// Replace the market in the market map
-			MarketMap::<T>::insert(market.id, market.clone());
+			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
 
 			// Emit the market updated event
-			Self::deposit_event(Event::MarketUpdated { market });
+			Self::deposit_event(Event::MarketUpdated { market: extended_market });
 		}
 
 		fn remove_market_internal(id: u128) {
 			// Get the market to be emitted in the event
-			let market = MarketMap::<T>::get(id).unwrap();
+			let extended_market = MarketMap::<T>::get(id).unwrap();
 
 			// Remove market from the market map
 			MarketMap::<T>::remove(id);
@@ -200,7 +217,7 @@ pub mod pallet {
 			MarketsCount::<T>::put(length - 1);
 
 			// Emit the market removed event
-			Self::deposit_event(Event::MarketRemoved { market });
+			Self::deposit_event(Event::MarketRemoved { market: extended_market });
 		}
 
 		fn validate_market_details(market: &Market) -> DispatchResult {
@@ -231,7 +248,7 @@ pub mod pallet {
 		fn get_market(id: u128) -> Option<Market> {
 			let result = MarketMap::<T>::try_get(id);
 			match result {
-				Ok(result) => return Some(result),
+				Ok(extended_market) => return Some(extended_market.market),
 				Err(_) => return None,
 			};
 		}
