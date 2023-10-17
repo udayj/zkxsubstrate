@@ -353,8 +353,8 @@ pub mod pallet {
 				amount: withdrawal_request.amount,
 				modify_type: FundModifyType::Decrease.into(),
 				reason: BalanceChangeReason::Withdrawal.into(),
-				previous_balance: current_balance,
-				new_balance: current_balance - withdrawal_request.amount,
+				previous_balance: new_balance,
+				new_balance: new_balance - withdrawal_request.amount,
 				block_number,
 			});
 
