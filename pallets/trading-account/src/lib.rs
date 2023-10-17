@@ -299,12 +299,33 @@ pub mod pallet {
 			// Get the new balance of the user
 			let new_balance = current_balance - withdrawal_fee;
 
+			// Get the account struct
+			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
+				.ok_or(Error::<T>::AccountDoesNotExist)?
+				.to_trading_account_minimal();
+
+			// Get the current block number
+			let block_number = <frame_system::Pallet<T>>::block_number();
+
 			// Update the balance, after deducting fees
 			BalancesMap::<T>::set(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 				new_balance,
 			);
+
+			// BalanceUpdated event is emitted for reducing the withdrawal fee
+			Self::deposit_event(Event::BalanceUpdated {
+				account_id: withdrawal_request.account_id,
+				account: account.clone(),
+				collateral_id: withdrawal_request.collateral_id,
+				amount: withdrawal_request.amount,
+				modify_type: FundModifyType::Decrease.into(),
+				reason: BalanceChangeReason::WithdrawalFee.into(),
+				previous_balance: current_balance,
+				new_balance,
+				block_number,
+			});
 
 			// Check whether the withdrawal leads to the position to be liquidatable or deleveraged
 			let (_, withdrawable_amount) = Self::calculate_amount_to_withdraw(
@@ -324,15 +345,7 @@ pub mod pallet {
 				new_balance - withdrawal_request.amount,
 			);
 
-			// Get the account struct
-			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
-				.ok_or(Error::<T>::AccountDoesNotExist)?
-				.to_trading_account_minimal();
-
-			// Get the current block number
-			let block_number = <frame_system::Pallet<T>>::block_number();
-
-			// BalanceUpdated event is emitted
+			// BalanceUpdated event is emitted for reducing the withdrawal amount
 			Self::deposit_event(Event::BalanceUpdated {
 				account_id: withdrawal_request.account_id,
 				account: account.clone(),

@@ -1,6 +1,60 @@
 use crate::types::Market;
 use sp_arithmetic::fixed_point::FixedI128;
 
+impl Market {
+	pub fn set_id(self: Market, id: u128) -> Market {
+		let mut market = self;
+		market.id = id;
+
+		market
+	}
+
+	pub fn set_is_tradable(self: Market, is_tradable: bool) -> Market {
+		let mut market = self;
+		market.is_tradable = is_tradable;
+
+		market
+	}
+
+	pub fn set_asset(self: Market, asset: u128) -> Market {
+		let mut market = self;
+		market.asset = asset;
+
+		market
+	}
+
+	pub fn set_asset_collateral(self: Market, asset_collateral: u128) -> Market {
+		let mut market = self;
+		market.asset_collateral = asset_collateral;
+
+		market
+	}
+
+	pub fn set_maximum_leverage(self: Market, maximum_leverage: FixedI128) -> Market {
+		let mut market = self;
+		market.maximum_leverage = maximum_leverage;
+
+		market
+	}
+
+	pub fn set_minimum_leverage(self: Market, minimum_leverage: FixedI128) -> Market {
+		let mut market = self;
+		market.minimum_leverage = minimum_leverage;
+
+		market
+	}
+
+	pub fn set_currently_allowed_leverage(
+		self: Market,
+		currently_allowed_leverage: FixedI128,
+	) -> Market {
+		let mut market = self;
+		market.currently_allowed_leverage = currently_allowed_leverage;
+
+		market
+	}
+}
+
 pub fn eth_usdc() -> Market {
 	Market {
 		id: 1,

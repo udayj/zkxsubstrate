@@ -84,10 +84,11 @@ pub enum TimeInForce {
 pub enum BalanceChangeReason {
 	#[default]
 	Fee,
-	PnlRealization,
 	Deposit,
-	Withdrawal,
 	Liquidation,
+	PnlRealization,
+	Withdrawal,
+	WithdrawalFee,
 }
 
 // Position Related
@@ -205,11 +206,12 @@ impl From<TimeInForce> for u8 {
 impl From<BalanceChangeReason> for u8 {
 	fn from(value: BalanceChangeReason) -> u8 {
 		match value {
-			BalanceChangeReason::Fee => 0_u8,
-			BalanceChangeReason::PnlRealization => 1_u8,
-			BalanceChangeReason::Deposit => 2_u8,
-			BalanceChangeReason::Withdrawal => 3_u8,
-			BalanceChangeReason::Liquidation => 4_u8,
+			BalanceChangeReason::Deposit => 0_u8,
+			BalanceChangeReason::Fee => 1_u8,
+			BalanceChangeReason::Liquidation => 2_u8,
+			BalanceChangeReason::PnlRealization => 3_u8,
+			BalanceChangeReason::Withdrawal => 4_u8,
+			BalanceChangeReason::WithdrawalFee => 5_u8,
 		}
 	}
 }
