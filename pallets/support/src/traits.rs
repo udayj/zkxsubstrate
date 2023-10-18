@@ -1,6 +1,6 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
-	ExtendedMarket, HashType, LiquidatablePosition, MarginInfo, Market, MarketRemoved,
+	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
+	Direction, ExtendedAsset, ExtendedMarket, HashType, MarginInfo, Market, MarketRemoved,
 	MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement, Side, SignerAdded,
 	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
@@ -58,18 +58,17 @@ pub trait TradingInterface {
 	fn get_markets_of_collateral(account_id: U256, collateral_id: u128) -> Vec<u128>;
 	fn get_position(account_id: U256, market_id: u128, direction: Direction) -> Position;
 	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
-	fn liquidate_position(
+	fn set_flags_for_force_orders(
 		account_id: U256,
 		collateral_id: u128,
 		position: &PositionDetailsForRiskManagement,
 		amount_to_be_sold: FixedI128,
 	);
-	fn get_deleveragable_or_liquidatable_position(
-		account_id: U256,
-		collateral_id: u128,
-	) -> LiquidatablePosition;
+	fn get_deleveragable_position(account_id: U256, collateral_id: u128) -> DeleveragablePosition;
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
+	fn get_deleverage_flag(account_id: U256, collateral_id: u128) -> bool;
+	fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool;
 }
 
 pub trait AssetInterface {
@@ -88,6 +87,7 @@ pub trait RiskManagementInterface {
 		oracle_price: FixedI128,
 		margin_amount: FixedI128,
 	) -> (FixedI128, bool);
+	fn check_for_force_closure(account_id: U256, collateral_id: u128) -> DispatchResult;
 }
 
 pub trait MarketInterface {

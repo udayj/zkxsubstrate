@@ -24,7 +24,7 @@ pub mod pallet {
 		U256Ext,
 	};
 	use zkx_support::types::{
-		AccountInfo, BalanceChangeReason, Direction, FundModifyType, LiquidatablePosition,
+		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, FundModifyType,
 		MarginInfo, Market, Order, OrderSide, OrderType, Position,
 		PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
@@ -88,17 +88,29 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, (u128, Direction), FixedI128, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn deleveragable_or_liquidatable_position)]
-	// Here, k1 - account_id,  k2 -  collateral_id, v -  LiquidatablePosition
-	pub(super) type DeleveragableOrLiquidatableMap<T: Config> = StorageDoubleMap<
+	#[pallet::getter(fn deleveragable_position)]
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  DeleveragablePosition
+	pub(super) type DeleveragableMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
 		U256,
 		Blake2_128Concat,
 		u128,
-		LiquidatablePosition,
+		DeleveragablePosition,
 		ValueQuery,
 	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn deleverage_flag)]
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  deleveragable_flag
+	pub(super) type DeleverageFlagMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, bool, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn liquidate_flag)]
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  liquidatable_flag
+	pub(super) type LiquidateFlagMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, bool, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -205,6 +217,13 @@ pub mod pallet {
 			modify_type: FundModifyType,
 			block_number: T::BlockNumber,
 		},
+		/// Liquidate /Deleverage flag updation event
+		ForceClosureFlagsChanged {
+			account_id: U256,
+			collateral_id: u128,
+			deleverage_flag: bool,
+			liquidate_flag: bool,
+		},
 	}
 
 	// Pallet callable functions
@@ -288,7 +307,7 @@ pub mod pallet {
 				let mut new_leverage: FixedI128;
 				let new_margin_locked: FixedI128;
 				let mut new_portion_executed: FixedI128;
-				let new_liquidatable_position: LiquidatablePosition;
+				let new_liquidatable_position: DeleveragablePosition;
 				let realized_pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
 				let opening_fee: FixedI128;
@@ -319,8 +338,8 @@ pub mod pallet {
 					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
 				// Get liquidatable position details
-				let liq_position: LiquidatablePosition =
-					DeleveragableOrLiquidatableMap::<T>::get(&element.account_id, collateral_id);
+				let liq_position: DeleveragablePosition =
+					DeleveragableMap::<T>::get(&element.account_id, collateral_id);
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
@@ -611,28 +630,28 @@ pub mod pallet {
 							liq_position.amount_to_be_sold - quantity_to_execute;
 
 						if new_liq_position_size == FixedI128::zero() {
-							new_liquidatable_position = LiquidatablePosition {
+							new_liquidatable_position = DeleveragablePosition {
 								market_id: 0,
 								direction: Direction::Long,
 								amount_to_be_sold: FixedI128::zero(),
-								liquidatable: false,
 							};
 						} else {
-							new_liquidatable_position = LiquidatablePosition {
+							new_liquidatable_position = DeleveragablePosition {
 								market_id: liq_position.market_id,
 								direction: liq_position.direction,
 								amount_to_be_sold: new_liq_position_size,
-								liquidatable: liq_position.liquidatable,
 							};
 						}
-						DeleveragableOrLiquidatableMap::<T>::insert(
+						DeleveragableMap::<T>::insert(
 							element.account_id,
 							collateral_id,
 							new_liquidatable_position,
 						);
 						if element.order_type == OrderType::Deleveraging {
 							// Position not marked as 'deleveragable'
-							if liq_position.liquidatable != false {
+							let deleverage_flag =
+								DeleverageFlagMap::<T>::get(&element.account_id, collateral_id);
+							if deleverage_flag == false {
 								return Err((Error::<T>::TradeBatchError526).into());
 							}
 							let total_value = margin_amount + borrowed_amount;
@@ -641,7 +660,9 @@ pub mod pallet {
 							new_margin_locked = current_margin_locked;
 						} else {
 							// Position not marked as 'liquidatable'
-							if liq_position.liquidatable != true {
+							let liquidate_flag =
+								LiquidateFlagMap::<T>::get(&element.account_id, collateral_id);
+							if liquidate_flag == false {
 								return Err((Error::<T>::TradeBatchError527).into());
 							}
 							new_leverage = position_details.leverage;
@@ -659,24 +680,22 @@ pub mod pallet {
 								liq_position.amount_to_be_sold - quantity_to_execute;
 
 							if new_liq_position_size == FixedI128::zero() {
-								new_liquidatable_position = LiquidatablePosition {
+								new_liquidatable_position = DeleveragablePosition {
 									market_id: 0,
 									direction: Direction::Long,
 									amount_to_be_sold: FixedI128::zero(),
-									liquidatable: false,
 								};
 							} else {
-								new_liquidatable_position = LiquidatablePosition {
+								new_liquidatable_position = DeleveragablePosition {
 									market_id: liq_position.market_id,
 									direction: liq_position.direction,
 									amount_to_be_sold: new_liq_position_size,
-									liquidatable: liq_position.liquidatable,
 								};
 							}
 						} else {
 							new_liquidatable_position = liq_position;
 						}
-						DeleveragableOrLiquidatableMap::<T>::insert(
+						DeleveragableMap::<T>::insert(
 							element.account_id,
 							collateral_id,
 							new_liquidatable_position,
@@ -833,8 +852,8 @@ pub mod pallet {
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
 
 			// Get liquidatable position details
-			let liq_position: LiquidatablePosition =
-				DeleveragableOrLiquidatableMap::<T>::get(&order.account_id, collateral_id);
+			let liq_position: DeleveragablePosition =
+				DeleveragableMap::<T>::get(&order.account_id, collateral_id);
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
@@ -855,7 +874,7 @@ pub mod pallet {
 			market_id: u128,
 			position_details: &Position,
 			order: &Order,
-			liq_position: LiquidatablePosition,
+			liq_position: DeleveragablePosition,
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
@@ -1363,41 +1382,46 @@ pub mod pallet {
 			position_details
 		}
 
-		fn liquidate_position(
+		fn set_flags_for_force_orders(
 			account_id: U256,
 			collateral_id: u128,
 			position: &PositionDetailsForRiskManagement,
 			amount_to_be_sold: FixedI128,
 		) {
-			let amount;
-			let liquidatable;
+			let deleverage_flag;
+			let liquidate_flag;
 			if amount_to_be_sold == FixedI128::zero() {
-				amount = position.size;
-				liquidatable = true;
+				DeleverageFlagMap::<T>::insert(account_id, collateral_id, false);
+				LiquidateFlagMap::<T>::insert(account_id, collateral_id, true);
+				deleverage_flag = false;
+				liquidate_flag = true;
 			} else {
-				amount = amount_to_be_sold;
-				liquidatable = false;
+				DeleverageFlagMap::<T>::insert(account_id, collateral_id, true);
+				deleverage_flag = true;
+				liquidate_flag = false;
 			}
 
-			let liquidatable_position: LiquidatablePosition = LiquidatablePosition {
+			let deleveragable_position: DeleveragablePosition = DeleveragablePosition {
 				market_id: position.market_id,
 				direction: position.direction,
-				amount_to_be_sold: amount,
-				liquidatable,
+				amount_to_be_sold,
 			};
 
-			DeleveragableOrLiquidatableMap::<T>::insert(
+			DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
+			// Emit event
+			Self::deposit_event(Event::ForceClosureFlagsChanged {
 				account_id,
 				collateral_id,
-				liquidatable_position,
-			);
+				deleverage_flag,
+				liquidate_flag,
+			});
 		}
 
-		fn get_deleveragable_or_liquidatable_position(
+		fn get_deleveragable_position(
 			account_id: U256,
 			collateral_id: u128,
-		) -> LiquidatablePosition {
-			DeleveragableOrLiquidatableMap::<T>::get(account_id, collateral_id)
+		) -> DeleveragablePosition {
+			DeleveragableMap::<T>::get(account_id, collateral_id)
 		}
 
 		fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position> {
@@ -1475,6 +1499,14 @@ pub mod pallet {
 				T::TradingAccountPallet::get_balance(account_id, collateral_id);
 
 			AccountInfo { positions, available_margin, total_margin, collateral_balance }
+		}
+
+		fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool {
+			LiquidateFlagMap::<T>::get(account_id, collateral_id)
+		}
+
+		fn get_deleverage_flag(account_id: U256, collateral_id: u128) -> bool {
+			DeleverageFlagMap::<T>::get(account_id, collateral_id)
 		}
 	}
 }
