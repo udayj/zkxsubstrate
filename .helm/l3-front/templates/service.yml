@@ -2,13 +2,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: l3-front
+  name: l3-front-new
   namespace: {{ $.Release.Namespace }}
 spec:
   ports:
     - port: 80
-      targetPort: 8000
+      targetPort: 80
       protocol: TCP
   type: ClusterIP
   selector:
-    app: l3-front
+    app: l3-front-new

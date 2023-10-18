@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: l3-front
+  name: l3-front-new
   namespace: {{ $.Release.Namespace }}
 spec:
   selector:
     matchLabels:
-      app: l3-front
+      app: l3-front-new
   replicas: 1
   template:
     metadata:
       labels:
-        app: l3-front
+        app: l3-front-new
       annotations:
         rollme: {{ randAlphaNum 5 | quote }}
     spec:
@@ -20,10 +20,13 @@ spec:
         - name: dockerhub
       containers:
       - name: app
-        image: zkxteam/zkxsubstrate:front-{{ $.Values.env }}  
+        env:
+        - name: WS_URL
+          value: "wss://l3.{{ .Values.env }}.k8s.ntwrkx.com"
+        image: jacogr/polkadot-js-apps:latest  
         imagePullPolicy: Always
         ports:
-        - containerPort: 8000
+        - containerPort: 80
         resources:
           requests:
             cpu: 200m
