@@ -3,12 +3,13 @@ use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 use sp_io::hashing::blake2_256;
+use sp_runtime::BoundedVec;
 use starknet_crypto::{sign, FieldElement};
 use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
 use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
 use zkx_support::types::{
-	Asset, Direction, HashType, LiquidatablePosition, Market, MultiplePrices, Order, OrderType,
-	Position, Price, Side, TimeInForce, TradingAccountMinimal,
+	Direction, ExtendedMarket, HashType, LiquidatablePosition, Market, MultiplePrices, Order,
+	OrderType, Position, Price, Side, TimeInForce, TradingAccountMinimal,
 };
 
 const ORDER_ID_1: u128 = 200_u128;
@@ -18,60 +19,67 @@ const ORDER_ID_4: u128 = 203_u128;
 const ORDER_ID_5: u128 = 204_u128;
 const ORDER_ID_6: u128 = 205_u128;
 
-fn setup() -> (Vec<Market>, Vec<TradingAccountMinimal>, Vec<U256>) {
+fn setup() -> (Vec<ExtendedMarket>, Vec<TradingAccountMinimal>, Vec<U256>) {
 	assert_ok!(Timestamp::set(None.into(), 100));
 
-	let assets: Vec<Asset> = vec![eth(), usdc(), link()];
+	let assets = vec![eth(), usdc(), link()];
 	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
-	let market1: Market = Market {
-		id: 1,
-		version: 1,
-		asset: eth().id,
-		asset_collateral: usdc().id,
-		is_tradable: true,
-		is_archived: false,
-		ttl: 3600,
-		tick_size: 1.into(),
-		tick_precision: 2,
-		step_size: 1.into(),
-		step_precision: 2,
-		minimum_order_size: FixedI128::from_inner(100000000000000000),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 100.into(),
-		baseline_position_size: 1000.into(),
-		maximum_position_size: 10000.into(),
-	};
-	let market2: Market = Market {
-		id: 2,
-		version: 1,
-		asset: link().id,
-		asset_collateral: usdc().id,
-		is_tradable: false,
-		is_archived: false,
-		ttl: 360,
-		tick_size: 1.into(),
-		tick_precision: 1,
-		step_size: 1.into(),
-		step_precision: 1,
-		minimum_order_size: FixedI128::from_inner(100000000000000000),
-		minimum_leverage: 1.into(),
-		maximum_leverage: 10.into(),
-		currently_allowed_leverage: 8.into(),
-		maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
-		initial_margin_fraction: 1.into(),
-		incremental_initial_margin_fraction: 1.into(),
-		incremental_position_size: 100.into(),
-		baseline_position_size: 1000.into(),
-		maximum_position_size: 10000.into(),
+	let market1 = ExtendedMarket {
+		market: Market {
+			id: 1,
+			version: 1,
+			asset: eth().asset.id,
+			asset_collateral: usdc().asset.id,
+			is_tradable: true,
+			is_archived: false,
+			ttl: 3600,
+			tick_size: 1.into(),
+			tick_precision: 2,
+			step_size: 1.into(),
+			step_precision: 2,
+			minimum_order_size: FixedI128::from_inner(100000000000000000),
+			minimum_leverage: 1.into(),
+			maximum_leverage: 10.into(),
+			currently_allowed_leverage: 8.into(),
+			maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
+			initial_margin_fraction: 1.into(),
+			incremental_initial_margin_fraction: 1.into(),
+			incremental_position_size: 100.into(),
+			baseline_position_size: 1000.into(),
+			maximum_position_size: 10000.into(),
+		},
+		metadata_url: BoundedVec::new(),
 	};
 
-	let markets: Vec<Market> = vec![market1.clone(), market2.clone()];
+	let market2 = ExtendedMarket {
+		market: Market {
+			id: 2,
+			version: 1,
+			asset: link().asset.id,
+			asset_collateral: usdc().asset.id,
+			is_tradable: false,
+			is_archived: false,
+			ttl: 360,
+			tick_size: 1.into(),
+			tick_precision: 1,
+			step_size: 1.into(),
+			step_precision: 1,
+			minimum_order_size: FixedI128::from_inner(100000000000000000),
+			minimum_leverage: 1.into(),
+			maximum_leverage: 10.into(),
+			currently_allowed_leverage: 8.into(),
+			maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
+			initial_margin_fraction: 1.into(),
+			incremental_initial_margin_fraction: 1.into(),
+			incremental_position_size: 100.into(),
+			baseline_position_size: 1000.into(),
+			maximum_position_size: 10000.into(),
+		},
+		metadata_url: BoundedVec::new(),
+	};
+
+	let markets = vec![market1.clone(), market2.clone()];
 	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), markets.clone()));
 
 	let user_pub_key_1: U256 = U256::from_dec_str(
@@ -179,7 +187,7 @@ fn test_liquidation() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -196,7 +204,7 @@ fn test_liquidation() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -219,14 +227,14 @@ fn test_liquidation() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let position1 = Trading::positions(account_id_1, (markets[0].market.id, Direction::Long));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Long,
@@ -238,9 +246,9 @@ fn test_liquidation() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let position2 = Trading::positions(account_id_2, (markets[0].market.id, Direction::Short));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Short,
@@ -255,12 +263,12 @@ fn test_liquidation() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -275,12 +283,12 @@ fn test_liquidation() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_2,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_2,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -293,12 +301,12 @@ fn test_liquidation() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8000.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8000.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8000.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -306,12 +314,12 @@ fn test_liquidation() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -326,7 +334,7 @@ fn test_liquidation() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -343,7 +351,7 @@ fn test_liquidation() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Liquidation,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -366,7 +374,7 @@ fn test_liquidation() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			8000.into(),
 			orders
 		));
@@ -374,7 +382,7 @@ fn test_liquidation() {
 		// Check liquidatable position of the user whose position is liquidated
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -386,7 +394,7 @@ fn test_liquidation() {
 
 		assert_eq!(expected_position, liquidatable_position);
 
-		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].market.asset_collateral);
 		assert_eq!(balance_1, 0.into());
 	});
 }
@@ -404,7 +412,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -421,7 +429,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -444,14 +452,14 @@ fn test_liquidation_after_deleveraging() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let position1 = Trading::positions(account_id_1, (markets[0].market.id, Direction::Long));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Long,
@@ -463,9 +471,9 @@ fn test_liquidation_after_deleveraging() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let position2 = Trading::positions(account_id_2, (markets[0].market.id, Direction::Short));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Short,
@@ -479,12 +487,12 @@ fn test_liquidation_after_deleveraging() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8500.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8500.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -492,12 +500,12 @@ fn test_liquidation_after_deleveraging() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -513,7 +521,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -530,7 +538,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Deleveraging,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -553,7 +561,7 @@ fn test_liquidation_after_deleveraging() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			FixedI128::from_inner(320000000000000000),
-			markets[0].id,
+			markets[0].market.id,
 			8500.into(),
 			orders
 		));
@@ -561,7 +569,7 @@ fn test_liquidation_after_deleveraging() {
 		// Check liquidatable position of the user whose position is liquidated
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -572,17 +580,17 @@ fn test_liquidation_after_deleveraging() {
 		};
 		assert_eq!(expected_position, liquidatable_position);
 
-		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].market.asset_collateral);
 		assert_eq!(balance_1, 10000.into());
 
 		// Decrease the price of the asset again
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 7000.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 7000.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 7000.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -590,12 +598,12 @@ fn test_liquidation_after_deleveraging() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -611,7 +619,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_5 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_5,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -628,7 +636,7 @@ fn test_liquidation_after_deleveraging() {
 		let order_6 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_6,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Liquidation,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -651,7 +659,7 @@ fn test_liquidation_after_deleveraging() {
 			RuntimeOrigin::signed(1),
 			U256::from(3_u8),
 			FixedI128::from_inner(4680000000000000000),
-			markets[0].id,
+			markets[0].market.id,
 			7000.into(),
 			orders
 		));
@@ -659,7 +667,7 @@ fn test_liquidation_after_deleveraging() {
 		// Check liquidatable position of the user whose position is liquidated
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -671,7 +679,7 @@ fn test_liquidation_after_deleveraging() {
 
 		assert_eq!(expected_position, liquidatable_position);
 
-		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].asset_collateral);
+		let balance_1 = TradingAccounts::balances(account_id_1, markets[0].market.asset_collateral);
 		assert_eq!(balance_1, FixedI128::from_inner(-4040000000000000000000));
 	});
 }
@@ -690,7 +698,7 @@ fn test_liquidation_with_invalid_order_type() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -707,7 +715,7 @@ fn test_liquidation_with_invalid_order_type() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -730,14 +738,14 @@ fn test_liquidation_with_invalid_order_type() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let position1 = Trading::positions(account_id_1, (markets[0].market.id, Direction::Long));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Long,
@@ -749,9 +757,9 @@ fn test_liquidation_with_invalid_order_type() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let position2 = Trading::positions(account_id_2, (markets[0].market.id, Direction::Short));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Short,
@@ -765,12 +773,12 @@ fn test_liquidation_with_invalid_order_type() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8000.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8000.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8000.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -778,12 +786,12 @@ fn test_liquidation_with_invalid_order_type() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -798,7 +806,7 @@ fn test_liquidation_with_invalid_order_type() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -815,7 +823,7 @@ fn test_liquidation_with_invalid_order_type() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Deleveraging,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -838,7 +846,7 @@ fn test_liquidation_with_invalid_order_type() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			8000.into(),
 			orders
 		));
@@ -859,7 +867,7 @@ fn test_deleveraging_with_invalid_order_type() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -876,7 +884,7 @@ fn test_deleveraging_with_invalid_order_type() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -899,14 +907,14 @@ fn test_deleveraging_with_invalid_order_type() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let position1 = Trading::positions(account_id_1, (markets[0].market.id, Direction::Long));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Long,
@@ -918,9 +926,9 @@ fn test_deleveraging_with_invalid_order_type() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let position2 = Trading::positions(account_id_2, (markets[0].market.id, Direction::Short));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Short,
@@ -934,12 +942,12 @@ fn test_deleveraging_with_invalid_order_type() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8500.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8500.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -947,12 +955,12 @@ fn test_deleveraging_with_invalid_order_type() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -968,7 +976,7 @@ fn test_deleveraging_with_invalid_order_type() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -985,7 +993,7 @@ fn test_deleveraging_with_invalid_order_type() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Liquidation,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -1008,7 +1016,7 @@ fn test_deleveraging_with_invalid_order_type() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			FixedI128::from_inner(321637426900584796),
-			markets[0].id,
+			markets[0].market.id,
 			8500.into(),
 			orders
 		));
@@ -1029,7 +1037,7 @@ fn test_deleveraging_with_invalid_market_id() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -1046,7 +1054,7 @@ fn test_deleveraging_with_invalid_market_id() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -1069,14 +1077,14 @@ fn test_deleveraging_with_invalid_market_id() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
-		let position1 = Trading::positions(account_id_1, (markets[0].id, Direction::Long));
+		let position1 = Trading::positions(account_id_1, (markets[0].market.id, Direction::Long));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Long,
@@ -1088,9 +1096,9 @@ fn test_deleveraging_with_invalid_market_id() {
 		};
 		assert_eq!(expected_position, position1);
 
-		let position2 = Trading::positions(account_id_2, (markets[0].id, Direction::Short));
+		let position2 = Trading::positions(account_id_2, (markets[0].market.id, Direction::Short));
 		let expected_position: Position = Position {
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			avg_execution_price: 10000.into(),
 			size: 5.into(),
 			direction: Direction::Short,
@@ -1104,12 +1112,12 @@ fn test_deleveraging_with_invalid_market_id() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8500.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8500.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -1117,12 +1125,12 @@ fn test_deleveraging_with_invalid_market_id() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -1138,7 +1146,7 @@ fn test_deleveraging_with_invalid_market_id() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[1].id,
+			market_id: markets[1].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -1155,7 +1163,7 @@ fn test_deleveraging_with_invalid_market_id() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[1].id,
+			market_id: markets[1].market.id,
 			order_type: OrderType::Deleveraging,
 			direction: Direction::Long,
 			side: Side::Sell,
@@ -1178,7 +1186,7 @@ fn test_deleveraging_with_invalid_market_id() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			FixedI128::from_inner(321637426900584796),
-			markets[0].id,
+			markets[0].market.id,
 			8500.into(),
 			orders
 		));
@@ -1199,7 +1207,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 		let order_1 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_1,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -1216,7 +1224,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 		let order_2 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_2,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Market,
 			direction: Direction::Short,
 			side: Side::Buy,
@@ -1239,19 +1247,19 @@ fn test_deleveraging_with_invalid_order_direction() {
 			RuntimeOrigin::signed(1),
 			U256::from(1_u8),
 			5.into(),
-			markets[0].id,
+			markets[0].market.id,
 			10000.into(),
 			orders
 		));
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: markets[0].id, price: 8500.into() };
+		let index_price1 = MultiplePrices { market_id: markets[0].market.id, price: 8500.into() };
 		index_prices.push(index_price1);
 
 		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
 
-		let index_price: Price = Prices::index_price(markets[0].id);
+		let index_price: Price = Prices::index_price(markets[0].market.id);
 		let expected_price: FixedI128 = 8500.into();
 		assert_eq!(expected_price, index_price.price);
 
@@ -1259,12 +1267,12 @@ fn test_deleveraging_with_invalid_order_direction() {
 		assert_ok!(RiskManagement::mark_under_collateralized_position(
 			RuntimeOrigin::signed(1),
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		));
 
 		let liquidatable_position = Trading::deleveragable_or_liquidatable_position(
 			account_id_1,
-			markets[0].asset_collateral,
+			markets[0].market.asset_collateral,
 		);
 
 		let expected_position: LiquidatablePosition = LiquidatablePosition {
@@ -1280,7 +1288,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 		let order_3 = Order {
 			account_id: account_id_2,
 			order_id: ORDER_ID_3,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,
@@ -1297,7 +1305,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 		let order_4 = Order {
 			account_id: account_id_1,
 			order_id: ORDER_ID_4,
-			market_id: markets[0].id,
+			market_id: markets[0].market.id,
 			order_type: OrderType::Deleveraging,
 			direction: Direction::Short,
 			side: Side::Sell,
@@ -1320,7 +1328,7 @@ fn test_deleveraging_with_invalid_order_direction() {
 			RuntimeOrigin::signed(1),
 			U256::from(2_u8),
 			FixedI128::from_inner(320000000000000000),
-			markets[0].id,
+			markets[0].market.id,
 			8500.into(),
 			orders
 		));

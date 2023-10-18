@@ -1,7 +1,8 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::RuntimeDebug;
+use sp_runtime::traits::ConstU32;
+use sp_runtime::{BoundedVec, RuntimeDebug};
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Market {
@@ -26,4 +27,10 @@ pub struct Market {
 	pub incremental_position_size: FixedI128,
 	pub baseline_position_size: FixedI128,
 	pub maximum_position_size: FixedI128,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ExtendedMarket {
+	pub market: Market,
+	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
 }

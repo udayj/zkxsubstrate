@@ -1,10 +1,9 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
-use zkx_support::traits::AssetInterface;
-use zkx_support::types::Asset;
+use zkx_support::types::ExtendedAsset;
 
-fn setup() -> (sp_io::TestExternalities, Vec<Asset>) {
+fn setup() -> (sp_io::TestExternalities, Vec<ExtendedAsset>) {
 	// Create a new test environment
 	let mut env = new_test_ext();
 
@@ -30,7 +29,7 @@ fn it_works_for_replace_assets() {
 
 		// Check the state
 		assert_eq!(AssetModule::assets_count(), 1);
-		assert_eq!(AssetModule::assets(eth().id).unwrap(), eth_asset.clone());
+		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), eth_asset.clone());
 
 		// Assert that the correct event was deposited
 		System::assert_last_event(Event::AssetsCreated { length: 1 }.into());
@@ -60,9 +59,9 @@ fn it_works_for_replace_assets_multiple_assets() {
 
 		// Check the state
 		assert_eq!(AssetModule::assets_count(), 3);
-		assert_eq!(AssetModule::assets(eth_asset.id).unwrap(), eth_asset.clone());
-		assert_eq!(AssetModule::assets(link_asset.id).unwrap(), link_asset.clone());
-		assert_eq!(AssetModule::assets(usdc_asset.id).unwrap(), usdc_asset.clone());
+		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), eth_asset.clone());
+		assert_eq!(AssetModule::assets(link_asset.asset.id).unwrap(), link_asset.clone());
+		assert_eq!(AssetModule::assets(usdc_asset.asset.id).unwrap(), usdc_asset.clone());
 
 		// Assert that the correct event was deposited
 		System::assert_last_event(Event::AssetsCreated { length: 3 }.into());
@@ -110,7 +109,7 @@ fn test_add_asset() {
 
 		// Check the state
 		assert_eq!(AssetModule::assets_count(), 1);
-		assert_eq!(AssetModule::assets(eth_asset.id).unwrap(), eth_asset.clone());
+		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), eth_asset.clone());
 	});
 }
 
@@ -155,7 +154,7 @@ fn test_update_asset() {
 		assert_ok!(AssetModule::update_asset(RuntimeOrigin::signed(1), modified_eth_asset.clone()));
 
 		// Check the state
-		assert_eq!(AssetModule::get_asset(eth_asset.id).unwrap(), modified_eth_asset.clone());
+		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), modified_eth_asset.clone());
 	});
 }
 
@@ -191,7 +190,7 @@ fn test_remove_asset() {
 		assert_eq!(AssetModule::assets_count(), 1);
 
 		// Remove the eth aseet
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.id));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.asset.id));
 
 		// Check the state again
 		assert_eq!(AssetModule::assets_count(), 0);
@@ -212,12 +211,12 @@ fn test_remove_already_removed_asset() {
 		assert_eq!(AssetModule::assets_count(), 1);
 
 		// Remove eth asset
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.id));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.asset.id));
 
 		// Check state again
 		assert_eq!(AssetModule::assets_count(), 0);
 
 		// Try to remove eth asset again
-		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.id));
+		assert_ok!(AssetModule::remove_asset(RuntimeOrigin::signed(1), eth_asset.asset.id));
 	});
 }

@@ -50,7 +50,7 @@ fn test_add_accounts() {
 		assert_eq!(alice_fetched_account, alice());
 
 		// Check the balance of Alice
-		let alice_balance = TradingAccountModule::balances(alice_account_id, usdc().id);
+		let alice_balance = TradingAccountModule::balances(alice_account_id, usdc().asset.id);
 		assert!(alice_balance == 10000.into());
 
 		// Get the trading account of Bob
@@ -61,7 +61,7 @@ fn test_add_accounts() {
 		assert_eq!(bob_fetched_account, bob());
 
 		// Check the balance of Bob
-		let bob_balance = TradingAccountModule::balances(bob_account_id, usdc().id);
+		let bob_balance = TradingAccountModule::balances(bob_account_id, usdc().asset.id);
 		assert!(bob_balance == 10000.into());
 
 		// Get the trading account of Charlie
@@ -72,7 +72,7 @@ fn test_add_accounts() {
 		assert_eq!(charlie_fetched_account, charlie());
 
 		// Check the balance of Charlie
-		let charlie_balance = TradingAccountModule::balances(charlie_account_id, usdc().id);
+		let charlie_balance = TradingAccountModule::balances(charlie_account_id, usdc().asset.id);
 		assert!(charlie_balance == 10000.into());
 
 		// Get the trading account of Dave
@@ -83,7 +83,7 @@ fn test_add_accounts() {
 		assert_eq!(dave_fetched_account, dave());
 
 		// Check the balance of Dave
-		let dave_balance = TradingAccountModule::balances(dave_account_id, usdc().id);
+		let dave_balance = TradingAccountModule::balances(dave_account_id, usdc().asset.id);
 		assert!(dave_balance == 10000.into());
 	});
 }
@@ -101,7 +101,7 @@ fn test_add_balances_with_unknown_asset() {
 		assert_ok!(TradingAccountModule::set_balances(
 			RuntimeOrigin::signed(1),
 			trading_account_id,
-			vec![BalanceUpdate { asset_id: btc().id, balance_value: 1000.into() }]
+			vec![BalanceUpdate { asset_id: btc().asset.id, balance_value: 1000.into() }]
 		));
 	});
 }
@@ -119,7 +119,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 		assert_ok!(TradingAccountModule::set_balances(
 			RuntimeOrigin::signed(1),
 			trading_account_id,
-			vec![BalanceUpdate { asset_id: eth().id, balance_value: 1000.into() }],
+			vec![BalanceUpdate { asset_id: eth().asset.id, balance_value: 1000.into() }],
 		));
 	});
 }
@@ -132,8 +132,8 @@ fn test_add_balances() {
 		// Get the trading account of Alice
 		let trading_account_id = get_trading_account_id(alice());
 		let balances_array = vec![
-			BalanceUpdate { asset_id: usdc().id, balance_value: 1000.into() },
-			BalanceUpdate { asset_id: usdt().id, balance_value: 500.into() },
+			BalanceUpdate { asset_id: usdc().asset.id, balance_value: 1000.into() },
+			BalanceUpdate { asset_id: usdt().asset.id, balance_value: 500.into() },
 		];
 
 		// Dispatch a signed extrinsic.
@@ -144,11 +144,14 @@ fn test_add_balances() {
 		));
 
 		// Check the state
-		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 1000.into());
-		assert_eq!(TradingAccountModule::balances(trading_account_id, usdt().id), 500.into());
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			1000.into()
+		);
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdt().asset.id), 500.into());
 		assert_eq!(
 			TradingAccountModule::account_collaterals(trading_account_id),
-			vec![usdc().id, usdt().id]
+			vec![usdc().asset.id, usdt().asset.id]
 		);
 	});
 }
@@ -165,12 +168,15 @@ fn test_deposit() {
 		assert_ok!(TradingAccountModule::deposit(
 			RuntimeOrigin::signed(1),
 			alice(),
-			usdc().id,
+			usdc().asset.id,
 			1000.into(),
 		));
 
 		// Check the state
-		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 11000.into());
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			11000.into()
+		);
 	});
 }
 
@@ -183,7 +189,7 @@ fn test_withdraw() {
 		let trading_account_id = get_trading_account_id(alice());
 		let withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().id,
+			usdc().asset.id,
 			1000.into(),
 			get_private_key(alice().pub_key),
 		)
@@ -192,7 +198,10 @@ fn test_withdraw() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
 
-		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().id), 9000.into());
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			9000.into()
+		);
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
 		println!("Events: {:?}", event_record);
 	});
@@ -209,7 +218,7 @@ fn test_withdraw_on_not_existing_account() {
 
 		let withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().id,
+			usdc().asset.id,
 			1000.into(),
 			get_private_key(eduard().pub_key),
 		)
@@ -231,7 +240,7 @@ fn test_withdraw_on_invalid_sig() {
 
 		let mut withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().id,
+			usdc().asset.id,
 			1000.into(),
 			get_private_key(dave().pub_key),
 		)
@@ -255,7 +264,7 @@ fn test_withdraw_with_insufficient_balance() {
 
 		let withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().id,
+			usdc().asset.id,
 			11000.into(),
 			get_private_key(alice().pub_key),
 		)

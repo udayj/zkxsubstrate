@@ -8,10 +8,10 @@ use sp_runtime::traits::ConstU32;
 use sp_runtime::BoundedVec;
 use zkx_support::test_helpers::asset_helper::{btc, eth, usdc, usdt};
 use zkx_support::test_helpers::market_helper::eth_usdc;
-use zkx_support::traits::{AssetInterface, FieldElementExt};
+use zkx_support::traits::FieldElementExt;
 use zkx_support::types::{
-	Asset, AssetRemoved, AssetUpdated, MarketRemoved, MarketUpdated, SignerAdded, SignerRemoved,
-	SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated, SignerAdded,
+	SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use zkx_support::FieldElement;
 
@@ -32,7 +32,7 @@ fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
 	trading_account_id
 }
 
-fn get_collaterals() -> Vec<Asset> {
+fn get_collaterals() -> Vec<ExtendedAsset> {
 	vec![usdc(), usdt()]
 }
 
@@ -230,8 +230,8 @@ fn sync_update_asset_event_add_asset() {
 
 	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
 		1,
-		btc().id,
-		btc(),
+		btc().asset.id,
+		btc().asset,
 		BoundedVec::<u8, ConstU32<256>>::new(),
 		BoundedVec::<u8, ConstU32<256>>::new(),
 		1337,
@@ -255,7 +255,7 @@ fn sync_update_asset_event_add_asset() {
 			.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 3);
-		assert_eq!(Assets::get_asset(usdc().id).unwrap(), usdc());
+		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
 	});
 }
 
@@ -266,9 +266,9 @@ fn sync_update_market_event_add_market() {
 
 	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
 		1,
-		eth_usdc().id,
-		eth_usdc(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
 		1337,
 	);
 
@@ -290,7 +290,7 @@ fn sync_update_market_event_add_market() {
 			.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 1);
-		assert_eq!(Markets::markets(eth_usdc().id).unwrap(), eth_usdc());
+		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
 	});
 }
 
@@ -300,13 +300,13 @@ fn sync_update_market_event_update_market() {
 	let mut env = setup();
 
 	let mut updated_market = eth_usdc();
-	updated_market.is_archived = true;
+	updated_market.market.is_archived = true;
 
 	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
 		1,
-		updated_market.id,
-		updated_market.clone(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
+		updated_market.market.id,
+		updated_market.market.clone(),
+		updated_market.metadata_url.clone(),
 		1337,
 	);
 
@@ -332,7 +332,7 @@ fn sync_update_market_event_update_market() {
 			.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 1);
-		assert_eq!(Markets::markets(updated_market.id).unwrap(), updated_market);
+		assert_eq!(Markets::markets(updated_market.market.id).unwrap(), updated_market);
 	});
 }
 
@@ -341,7 +341,8 @@ fn sync_remove_market_event() {
 	// Get a test environment
 	let mut env = setup();
 
-	let removed_market_event_1 = <MarketRemoved as MarketRemovedTrait>::new(1, eth_usdc().id, 1337);
+	let removed_market_event_1 =
+		<MarketRemoved as MarketRemovedTrait>::new(1, eth_usdc().market.id, 1337);
 
 	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
 	events_batch.add_market_removed_event(removed_market_event_1);
@@ -374,22 +375,18 @@ fn sync_update_asset_event_bump_asset() {
 	let mut env = setup();
 
 	let usdc_asset = usdc();
-	let modified_usdc_asset = Asset {
-		id: usdc_asset.id,
-		short_name: usdc_asset.short_name,
-		version: usdc_asset.version + 1,
-		is_collateral: false,
-		l2_address: usdc_asset.l2_address,
-		decimals: usdc_asset.decimals,
-		is_tradable: usdc_asset.is_tradable,
+	let modified_usdc_asset = ExtendedAsset {
+		asset: Asset { is_collateral: false, version: 2, ..usdc_asset.asset },
+		metadata_url: usdc_asset.metadata_url.clone(),
+		icon_url: usdc_asset.icon_url.clone(),
 	};
 
 	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
 		1,
-		modified_usdc_asset.id,
-		modified_usdc_asset.clone(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
+		modified_usdc_asset.asset.id,
+		modified_usdc_asset.asset.clone(),
+		usdc_asset.metadata_url.clone(),
+		usdc_asset.icon_url.clone(),
 		1337,
 	);
 
@@ -411,7 +408,7 @@ fn sync_update_asset_event_bump_asset() {
 			.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 2);
-		assert_eq!(Assets::get_asset(modified_usdc_asset.id).unwrap(), modified_usdc_asset);
+		assert_eq!(Assets::assets(modified_usdc_asset.asset.id).unwrap(), modified_usdc_asset);
 	});
 }
 
@@ -420,7 +417,7 @@ fn sync_update_remove_asset() {
 	// Get a test environment
 	let mut env = setup();
 
-	let remove_asset_event_1 = <AssetRemoved as AssetRemovedTrait>::new(1, usdc().id, 1337);
+	let remove_asset_event_1 = <AssetRemoved as AssetRemovedTrait>::new(1, usdc().asset.id, 1337);
 
 	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
 	events_batch.add_asset_removed_event(remove_asset_event_1);
@@ -608,7 +605,7 @@ fn sync_deposit_events() {
 	let deposit_event_1 = <UserDeposit as UserDepositTrait>::new(
 		1,
 		alice_account,
-		usdc().id,
+		usdc().asset.id,
 		U256::from(1),
 		FixedI128::from(123),
 		1337,
@@ -616,7 +613,7 @@ fn sync_deposit_events() {
 	let deposit_event_2 = <UserDeposit as UserDepositTrait>::new(
 		2,
 		bob_account,
-		usdc().id,
+		usdc().asset.id,
 		U256::from(2),
 		FixedI128::from(154),
 		1337,
@@ -640,8 +637,8 @@ fn sync_deposit_events() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while adding signer");
 
-		let alice_balance = TradingAccounts::balances(alice_account_id, usdc().id);
-		let bob_balance = TradingAccounts::balances(bob_account_id, usdc().id);
+		let alice_balance = TradingAccounts::balances(alice_account_id, usdc().asset.id);
+		let bob_balance = TradingAccounts::balances(bob_account_id, usdc().asset.id);
 
 		assert_eq!(alice_balance, deposit_event_1.amount);
 		assert_eq!(bob_balance, deposit_event_2.amount);

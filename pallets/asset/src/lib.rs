@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use zkx_support::traits::AssetInterface;
-	use zkx_support::types::Asset;
+	use zkx_support::types::{Asset, ExtendedAsset};
 
 	static DELETION_LIMIT: u32 = 100;
 	static DEFAULT_ASSET: u128 = 1431520323;
@@ -36,7 +36,7 @@ pub mod pallet {
 	/// Maps the Assets struct to the unique_id.
 	#[pallet::storage]
 	#[pallet::getter(fn assets)]
-	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u128, Asset>;
+	pub(super) type AssetMap<T: Config> = StorageMap<_, Twox64Concat, u128, ExtendedAsset>;
 
 	/// Stores the default collateral in the system
 	#[pallet::storage]
@@ -61,13 +61,13 @@ pub mod pallet {
 			length: u64,
 		},
 		AssetCreated {
-			asset: Asset,
+			asset: ExtendedAsset,
 		},
 		AssetUpdated {
-			asset: Asset,
+			asset: ExtendedAsset,
 		},
 		AssetRemoved {
-			asset: Asset,
+			asset: ExtendedAsset,
 		},
 	}
 
@@ -77,7 +77,10 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		/// Replace all assets
 		#[pallet::weight(0)]
-		pub fn replace_all_assets(origin: OriginFor<T>, assets: Vec<Asset>) -> DispatchResult {
+		pub fn replace_all_assets(
+			origin: OriginFor<T>,
+			assets: Vec<ExtendedAsset>,
+		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Clear asset map
@@ -86,12 +89,13 @@ pub mod pallet {
 			let length: u64 = u64::try_from(assets.len()).unwrap();
 
 			// Iterate through the vector of assets and add to asset map
-			for element in assets {
+			for extended_asset in assets {
+				let current_asset = extended_asset.asset.clone();
 				// Check if the asset exists in the storage map
-				ensure!(!AssetMap::<T>::contains_key(element.id), Error::<T>::DuplicateAsset);
+				ensure!(!AssetMap::<T>::contains_key(current_asset.id), Error::<T>::DuplicateAsset);
 				// Validate asset
-				ensure!((0..19).contains(&element.decimals), Error::<T>::InvalidAsset);
-				AssetMap::<T>::insert(element.id, element.clone());
+				ensure!((0..19).contains(&current_asset.decimals), Error::<T>::InvalidAsset);
+				AssetMap::<T>::insert(current_asset.id, extended_asset.clone());
 			}
 
 			AssetsCount::<T>::put(length);
@@ -118,45 +122,45 @@ pub mod pallet {
 
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn update_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+		pub fn update_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check if the asset exists
-			if let None = Self::get_asset(asset.id) {
+			if let None = Self::get_asset(extended_asset.asset.id) {
 				return Err(Error::<T>::InvalidAsset.into());
 			}
 
 			// Validate asset
-			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
+			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
 
 			// Update the asset
-			Self::update_asset_internal(asset);
+			Self::update_asset_internal(extended_asset);
 			Ok(())
 		}
 
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
-		pub fn add_asset(origin: OriginFor<T>, asset: Asset) -> DispatchResult {
+		pub fn add_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check if the asset exists
-			if let Some(_) = Self::get_asset(asset.id) {
+			if let Some(_) = Self::get_asset(extended_asset.asset.id) {
 				return Err(Error::<T>::DuplicateAsset.into());
 			}
 
 			// Validate asset
-			ensure!((0..19).contains(&asset.decimals), Error::<T>::InvalidAsset);
+			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
 
 			// Add the asset
-			Self::add_asset_internal(asset);
+			Self::add_asset_internal(extended_asset);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
-		fn add_asset_internal(asset: Asset) {
+		fn add_asset_internal(extended_asset: ExtendedAsset) {
 			// Add asset to the asset map
-			AssetMap::<T>::insert(asset.id, asset.clone());
+			AssetMap::<T>::insert(extended_asset.asset.id, extended_asset.clone());
 
 			// Get the number of assets available
 			// Increase the asset count
@@ -164,20 +168,20 @@ pub mod pallet {
 			AssetsCount::<T>::put(length + 1);
 
 			// Emit the asset created event
-			Self::deposit_event(Event::AssetCreated { asset });
+			Self::deposit_event(Event::AssetCreated { asset: extended_asset });
 		}
-		
-		fn update_asset_internal(asset: Asset) {
+
+		fn update_asset_internal(extended_asset: ExtendedAsset) {
 			// Replace the asset in the asset map
-			AssetMap::<T>::insert(asset.id, asset.clone());
+			AssetMap::<T>::insert(extended_asset.asset.id, extended_asset.clone());
 
 			// Emit the asset updated event
-			Self::deposit_event(Event::AssetUpdated { asset });
+			Self::deposit_event(Event::AssetUpdated { asset: extended_asset });
 		}
 
 		fn remove_asset_internal(id: u128) {
 			// Get the asset to be emitted in the event
-			let asset = AssetMap::<T>::get(id).unwrap();
+			let extended_asset = AssetMap::<T>::get(id).unwrap();
 
 			// Remove asset from the asset map
 			AssetMap::<T>::remove(id);
@@ -189,7 +193,7 @@ pub mod pallet {
 			AssetsCount::<T>::put(length - 1);
 
 			// Emit the asset removed event
-			Self::deposit_event(Event::AssetRemoved { asset });
+			Self::deposit_event(Event::AssetRemoved { asset: extended_asset });
 		}
 
 		fn get_default_collateral() -> u128 {
@@ -199,7 +203,7 @@ pub mod pallet {
 		fn get_asset(id: u128) -> Option<Asset> {
 			let result = AssetMap::<T>::try_get(id);
 			match result {
-				Ok(result) => return Some(result),
+				Ok(extended_asset) => return Some(extended_asset.asset),
 				Err(_) => return None,
 			};
 		}

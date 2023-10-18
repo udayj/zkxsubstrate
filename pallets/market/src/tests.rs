@@ -2,9 +2,9 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
 use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
-use zkx_support::types::Market;
+use zkx_support::types::ExtendedMarket;
 
-fn setup() -> (sp_io::TestExternalities, Vec<Market>) {
+fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Create a new test environment
 	let mut env = new_test_ext();
 
@@ -34,7 +34,10 @@ fn it_works_for_replace_markets() {
 
 		// Check the state
 		assert_eq!(MarketModule::markets_count(), 1);
-		assert_eq!(MarketModule::markets(eth_usdc_market.id).unwrap(), eth_usdc_market.clone());
+		assert_eq!(
+			MarketModule::markets(eth_usdc_market.market.id).unwrap(),
+			eth_usdc_market.clone()
+		);
 
 		// Assert that the correct event was deposited
 		System::assert_last_event(Event::MarketsCreated { length: 1 }.into());
@@ -56,8 +59,14 @@ fn it_works_for_replace_markets_multiple_markets() {
 
 		// Check the state
 		assert_eq!(MarketModule::markets_count(), 2);
-		assert_eq!(MarketModule::markets(eth_usdc_market.id).unwrap(), eth_usdc_market.clone());
-		assert_eq!(MarketModule::markets(link_usdc_market.id).unwrap(), link_usdc_market.clone());
+		assert_eq!(
+			MarketModule::markets(eth_usdc_market.market.id).unwrap(),
+			eth_usdc_market.clone()
+		);
+		assert_eq!(
+			MarketModule::markets(link_usdc_market.market.id).unwrap(),
+			link_usdc_market.clone()
+		);
 	});
 }
 
@@ -69,8 +78,10 @@ fn it_does_not_work_for_replace_markets_duplicate() {
 
 	env.execute_with(|| {
 		// Try to set eth_usdc as market, twice
-		let markets: Vec<Market> = vec![eth_usdc_market.clone(), eth_usdc_market.clone()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![eth_usdc_market.clone(), eth_usdc_market.clone()]
+		));
 	});
 }
 
@@ -123,7 +134,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 #[should_panic(expected = "AssetNotCollateral")]
 fn it_does_not_work_for_replace_markets_not_collateral() {
 	let (mut env, markets) = setup();
-	let eth_link_market = &markets[0].clone().set_asset_collateral(link().id);
+	let eth_link_market = &markets[0].clone().set_asset_collateral(link().asset.id);
 
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
@@ -218,7 +229,7 @@ fn test_add_market_with_invalid_asset() {
 #[should_panic(expected = "AssetNotCollateral")]
 fn test_add_market_with_asset_not_collateral() {
 	let (mut env, markets) = setup();
-	let eth_link_market = &markets[0].clone().set_asset_collateral(link().id);
+	let eth_link_market = &markets[0].clone().set_asset_collateral(link().asset.id);
 
 	env.execute_with(|| {
 		// Try to set an invalid collateral
@@ -279,7 +290,7 @@ fn test_update_market() {
 			eth_usdc_market_updated.clone()
 		));
 		assert_eq!(
-			MarketModule::markets(eth_usdc_market_updated.id).unwrap(),
+			MarketModule::markets(eth_usdc_market_updated.market.id).unwrap(),
 			eth_usdc_market_updated.clone()
 		);
 	});
@@ -298,7 +309,10 @@ fn test_remove_market() {
 		assert_eq!(MarketModule::markets_count(), 1);
 
 		// Remove the market
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), eth_usdc_market.id));
+		assert_ok!(MarketModule::remove_market(
+			RuntimeOrigin::signed(1),
+			eth_usdc_market.market.id
+		));
 
 		// Check the state
 		assert_eq!(MarketModule::markets_count(), 0);
@@ -314,7 +328,13 @@ fn test_remove_market_with_already_removed_market_id() {
 	env.execute_with(|| {
 		// Add market and remove it twice
 		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), eth_usdc_market.id));
-		assert_ok!(MarketModule::remove_market(RuntimeOrigin::signed(1), eth_usdc_market.id));
+		assert_ok!(MarketModule::remove_market(
+			RuntimeOrigin::signed(1),
+			eth_usdc_market.market.id
+		));
+		assert_ok!(MarketModule::remove_market(
+			RuntimeOrigin::signed(1),
+			eth_usdc_market.market.id
+		));
 	});
 }
