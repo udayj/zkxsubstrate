@@ -1,14 +1,19 @@
+import * as baseStarknet from 'starknet';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { stringToHex, u8aToBn, bnToU8a } from '@polkadot/util';
 import { HexString } from '@polkadot/util/types';
-import { SubstrateHelper } from '../helpers/substrate.helper';
+
+import { SubstrateHelper } from '../helpers';
 import { AssetEntity, BalanceEntity, MarketEntity, TradingAccountEntity } from '../entities';
 import { assets, markets } from '../data';
-import { StarknetTestHelper } from '../helpers/starknet-test.helper';
 import { rpc, types } from './rpc';
+
+const { computeHashOnElements } = baseStarknet.hash;
+const { sign } = baseStarknet.ec.starkCurve;
+const { toHex } = baseStarknet.num;
 
 const keyring = new Keyring({ type: 'sr25519' });
 
@@ -282,7 +287,7 @@ export class SubstrateService {
   }): Promise<string> {
     const { accountId, assetId, amount, privateKey } = params;
 
-    const requestObject: any = {
+    const withdrawRequest: any = {
       account_id: SubstrateHelper.convertHexToU256(accountId),
       collateral_id: SubstrateHelper.convertStringToU128(assetId),
       amount: SubstrateHelper.convertNumberToI128(amount),
@@ -291,31 +296,32 @@ export class SubstrateService {
       sig_s: null,
     }
 
-    const accountIdAsBytes = bnToU8a(requestObject.account_id.toPrimitive(), { isLe: false });
+    const accountIdAsBytes = bnToU8a(withdrawRequest.account_id.toPrimitive(), { isLe: false });
     const accountIdAsLowBytes = accountIdAsBytes.slice(16);
     const accountIdAsHighBytes = accountIdAsBytes.slice(0, 16);
 
     const withdrawHashElements = [
       u8aToBn(accountIdAsLowBytes, { isLe: false }).toString(),
       u8aToBn(accountIdAsHighBytes, { isLe: false }).toString(),
-      requestObject.collateral_id.toPrimitive(),
-      requestObject.amount.toPrimitive(),
+      withdrawRequest.collateral_id.toPrimitive(),
+      withdrawRequest.amount.toPrimitive(),
     ];
 
-    const [signR, signS] = StarknetTestHelper.sign({
-      privateKey,
-      data: withdrawHashElements,
-    });
+    const dataHash = computeHashOnElements(withdrawHashElements);
 
-    requestObject.sig_r = signR;
-    requestObject.sig_s = signS;
+    const signature = sign(dataHash, privateKey);
+    const sigR = toHex(signature.r);
+    const sigS = toHex(signature.s);
+
+    withdrawRequest.sig_r = sigR;
+    withdrawRequest.sig_s = sigS;
     
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
 
     const withdrawResult = await this.wsApi.tx.zkxTradingAccount
-      .withdraw(requestObject)
+      .withdraw(withdrawRequest)
       .signAndSend(this.nodeAccountKeyring, {
         nonce,
       });
