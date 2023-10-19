@@ -1395,19 +1395,19 @@ pub mod pallet {
 				LiquidateFlagMap::<T>::insert(account_id, collateral_id, true);
 				deleverage_flag = false;
 				liquidate_flag = true;
+				DeleveragableMap::<T>::remove(account_id, collateral_id);
 			} else {
-				DeleverageFlagMap::<T>::insert(account_id, collateral_id, true);
 				deleverage_flag = true;
 				liquidate_flag = false;
+				DeleverageFlagMap::<T>::insert(account_id, collateral_id, true);
+				let deleveragable_position: DeleveragablePosition = DeleveragablePosition {
+					market_id: position.market_id,
+					direction: position.direction,
+					amount_to_be_sold,
+				};
+				DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
 			}
 
-			let deleveragable_position: DeleveragablePosition = DeleveragablePosition {
-				market_id: position.market_id,
-				direction: position.direction,
-				amount_to_be_sold,
-			};
-
-			DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
 			// Emit event
 			Self::deposit_event(Event::ForceClosureFlagsChanged {
 				account_id,

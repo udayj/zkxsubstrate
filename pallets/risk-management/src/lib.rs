@@ -11,7 +11,6 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::pallet_prelude::*;
 	use primitive_types::U256;
 	use sp_arithmetic::traits::Zero;
 	use sp_arithmetic::FixedI128;
@@ -119,7 +118,7 @@ pub mod pallet {
 			return (available_margin, is_error);
 		}
 
-		fn check_for_force_closure(account_id: U256, collateral_id: u128) -> DispatchResult {
+		fn check_for_force_closure(account_id: U256, collateral_id: u128) {
 			let (
 				liq_result,
 				_,
@@ -137,7 +136,7 @@ pub mod pallet {
 			);
 
 			if least_collateral_ratio_position_asset_price == FixedI128::zero() {
-				return Ok(());
+				return;
 			}
 
 			if liq_result == true {
@@ -162,8 +161,6 @@ pub mod pallet {
 					);
 				}
 			}
-
-			Ok(())
 		}
 	}
 }

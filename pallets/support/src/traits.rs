@@ -87,7 +87,7 @@ pub trait RiskManagementInterface {
 		oracle_price: FixedI128,
 		margin_amount: FixedI128,
 	) -> (FixedI128, bool);
-	fn check_for_force_closure(account_id: U256, collateral_id: u128) -> DispatchResult;
+	fn check_for_force_closure(account_id: U256, collateral_id: u128);
 }
 
 pub trait MarketInterface {
