@@ -6,7 +6,6 @@ import { StarknetAccountEntity } from '../entities';
 const { getPublicKey, getStarkKey, sign } = baseStarknet.ec.starkCurve;
 const { randomPrivateKey } = baseStarknet.ec.starkCurve.utils;
 const { addHexPrefix, buf2hex, removeHexPrefix, padLeft } = baseStarknet.encode;
-const { computeHashOnElements } = baseStarknet.hash;
 const { toHex } = baseStarknet.num;
 
 export class StarknetTestHelper {
