@@ -86,11 +86,13 @@ export class SubstrateService {
 
   async replaceAssets(): Promise<void> {
     const assetsConvertedData = assets.map(asset => ({
-      id: SubstrateHelper.convertStringToU256(asset.id),
-      name: stringToHex(asset.name),
+      id: SubstrateHelper.convertStringToU128(asset.id),
+      version: asset.version,
+      short_name: SubstrateHelper.convertStringToU256(asset.shortName),
       is_tradable: asset.isTradable,
       is_collateral: asset.isCollateral,
-      token_decimal: asset.tokenDecimal,
+      l2_address: SubstrateHelper.convertHexToU256(asset.l2Address),
+      decimals: asset.decimals,
     }));
 
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
@@ -106,7 +108,7 @@ export class SubstrateService {
 
   async replaceMarkets(): Promise<void> {
     const marketsConvertedData = markets.map(market => ({
-      id: SubstrateHelper.convertStringToU256(market.id),
+      id: SubstrateHelper.convertStringToU128(market.id),
       asset: SubstrateHelper.convertStringToU128(market.asset),
       asset_collateral: SubstrateHelper.convertStringToU128(
         market.assetCollateral,
