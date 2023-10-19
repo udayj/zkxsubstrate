@@ -90,7 +90,6 @@ impl pallet_zkx_trading_account::Config for Test {
 }
 
 impl pallet_risk_management::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = Markets;
 	type TradingPallet = Trading;
 	type TradingAccountPallet = TradingAccounts;
