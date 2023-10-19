@@ -197,6 +197,7 @@ pub mod pallet {
 			pnl: FixedI128,
 			opening_fee: FixedI128,
 			is_final: bool,
+			is_maker: bool,
 		},
 		/// Insurance fund updation event
 		InsuranceFundChange {
@@ -789,6 +790,7 @@ pub mod pallet {
 					pnl: realized_pnl,
 					opening_fee,
 					is_final,
+					is_maker: element.order_id != orders[orders.len() - 1].order_id,
 				});
 			}
 
