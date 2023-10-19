@@ -162,7 +162,9 @@ export class SubstrateService {
     const assetList = assetMap.map(([assetKey, assetItem]): AssetEntity => {
       const data = assetItem.toPrimitive() as any;
 
-      data.id = SubstrateHelper.convertU256ToString(data.id);
+      data.id = SubstrateHelper.convertU128ToString(data.id);
+      data.l2Address = SubstrateHelper.convertU256ToHex(data.l2Address);
+      data.shortName = SubstrateHelper.convertU256ToString(data.shortName);
 
       return new AssetEntity(data);
     });
@@ -178,7 +180,7 @@ export class SubstrateService {
         const data = marketItem.toPrimitive() as any;
 
         return new MarketEntity({
-          id: SubstrateHelper.convertU256ToString(data.id),
+          id: SubstrateHelper.convertU128ToString(data.id),
           asset: SubstrateHelper.convertU128ToString(data.asset),
           assetCollateral: SubstrateHelper.convertU128ToString(
             data.assetCollateral,
@@ -276,10 +278,9 @@ export class SubstrateService {
     accountId: string;
     assetId: string;
     amount: number;
-    hashType: number;
     privateKey: string;
   }): Promise<string> {
-    const { accountId, assetId, amount, hashType, privateKey } = params;
+    const { accountId, assetId, amount, privateKey } = params;
 
     const requestObject: any = {
       account_id: SubstrateHelper.convertHexToU256(accountId),
@@ -299,7 +300,6 @@ export class SubstrateService {
       u8aToBn(accountIdAsHighBytes, { isLe: false }).toString(),
       requestObject.collateral_id.toPrimitive(),
       requestObject.amount.toPrimitive(),
-      requestObject.hash_type,
     ];
 
     const [signR, signS] = StarknetTestHelper.sign({
@@ -321,7 +321,7 @@ export class SubstrateService {
       });
 
     const withdrawResultHex = withdrawResult.toHex();
-    
+
     return withdrawResultHex;
   }
 }

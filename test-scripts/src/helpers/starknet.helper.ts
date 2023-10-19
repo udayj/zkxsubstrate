@@ -1,23 +1,20 @@
 import * as baseStarknet from 'starknet';
 
-const { Signature, keccak, verify } = baseStarknet.ec.starkCurve;
-const { addHexPrefix, utf8ToArray } = baseStarknet.encode;
-const { toHex, toBigInt } = baseStarknet.num;
+const { Signature, verify } = baseStarknet.ec.starkCurve;
+const { addHexPrefix } = baseStarknet.encode;
+const { computeHashOnElements } = baseStarknet.hash;
+const { toBigInt } = baseStarknet.num;
 
 export class StarknetHelper {
   static getHash(data: any): string {
     const ignoredValues = ['', undefined];
-    const dataAsString = Object.keys(data)
+    const filteredData = Object.keys(data)
       .map((key) => data[key])
       .filter((value) => !ignoredValues.includes(value))
-      .map((value) => String(value))
-      .sort()
-      .join('|');
 
-    const dataAsBuffer = utf8ToArray(dataAsString);
-    const dataAsBn = keccak(dataAsBuffer);
+    const dataHash = computeHashOnElements(filteredData);
 
-    return toHex(dataAsBn);
+    return dataHash;
   }
 
   static getStarkKeyFromPublicKey(publicKey: string): string {
