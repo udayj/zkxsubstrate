@@ -3,7 +3,7 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { stringToHex, u8aToBn, bnToU8a } from '@polkadot/util';
+import { u8aToBn, bnToU8a } from '@polkadot/util';
 import { HexString } from '@polkadot/util/types';
 
 import { SubstrateHelper } from '../helpers';
@@ -85,79 +85,89 @@ export class SubstrateService {
   }
 
   async replaceAssets(): Promise<void> {
-    const assetsConvertedData = assets.map(asset => ({
-      id: SubstrateHelper.convertStringToU128(asset.id),
-      version: asset.version,
-      short_name: SubstrateHelper.convertStringToU256(asset.shortName),
-      is_tradable: asset.isTradable,
-      is_collateral: asset.isCollateral,
-      l2_address: SubstrateHelper.convertHexToU256(asset.l2Address),
-      decimals: asset.decimals,
-    }));
+    const assetListInRaw = assets.map(asset => {
+      return {
+        asset: {
+          id: SubstrateHelper.convertStringToU128(asset.id),
+          version: asset.version,
+          short_name: SubstrateHelper.convertStringToU256(asset.shortName),
+          is_tradable: asset.isTradable,
+          is_collateral: asset.isCollateral,
+          l2_address: SubstrateHelper.convertHexToU256(asset.l2Address),
+          decimals: asset.decimals,
+        },
+        metadata_url: asset.metadataUrl,
+      }
+    });
 
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
 
     await this.wsApi.tx.assets
-      .replaceAllAssets(assetsConvertedData)
+      .replaceAllAssets(assetListInRaw)
       .signAndSend(this.nodeAccountKeyring, {
         nonce,
       });
   }
 
   async replaceMarkets(): Promise<void> {
-    const marketsConvertedData = markets.map(market => ({
-      id: SubstrateHelper.convertStringToU128(market.id),
-      asset: SubstrateHelper.convertStringToU128(market.asset),
-      asset_collateral: SubstrateHelper.convertStringToU128(
-        market.assetCollateral,
-      ),
-      is_tradable: market.isTradable,
-      is_archived: market.isArchived,
-      ttl: market.ttl,
-      tick_size: SubstrateHelper.convertNumberToI128(market.tickSize),
-      tick_precision: market.tickPrecision,
-      step_size: SubstrateHelper.convertNumberToI128(market.stepSize),
-      step_precision: market.stepPrecision,
-      minimum_order_size: SubstrateHelper.convertNumberToI128(
-        market.minimumOrderSize,
-      ),
-      minimum_leverage: SubstrateHelper.convertNumberToI128(
-        market.minimumLeverage,
-      ),
-      maximum_leverage: SubstrateHelper.convertNumberToI128(
-        market.maximumLeverage,
-      ),
-      currently_allowed_leverage: SubstrateHelper.convertNumberToI128(
-        market.currentlyAllowedLeverage,
-      ),
-      maintenance_margin_fraction: SubstrateHelper.convertNumberToI128(
-        market.maintenanceMarginFraction,
-      ),
-      initial_margin_fraction: SubstrateHelper.convertNumberToI128(
-        market.initialMarginFraction,
-      ),
-      incremental_initial_margin_fraction: SubstrateHelper.convertNumberToI128(
-        market.incrementalInitialMarginFraction,
-      ),
-      incremental_position_size: SubstrateHelper.convertNumberToI128(
-        market.incrementalPositionSize,
-      ),
-      baseline_position_size: SubstrateHelper.convertNumberToI128(
-        market.baselinePositionSize,
-      ),
-      maximum_position_size: SubstrateHelper.convertNumberToI128(
-        market.maximumPositionSize,
-      ),
-    }));
+    const marketListInRaw = markets.map(market => {
+      return {
+        market: {
+          id: SubstrateHelper.convertStringToU128(market.id),
+          asset: SubstrateHelper.convertStringToU128(market.asset),
+          asset_collateral: SubstrateHelper.convertStringToU128(
+            market.assetCollateral,
+          ),
+          is_tradable: market.isTradable,
+          is_archived: market.isArchived,
+          ttl: market.ttl,
+          tick_size: SubstrateHelper.convertNumberToI128(market.tickSize),
+          tick_precision: market.tickPrecision,
+          step_size: SubstrateHelper.convertNumberToI128(market.stepSize),
+          step_precision: market.stepPrecision,
+          minimum_order_size: SubstrateHelper.convertNumberToI128(
+            market.minimumOrderSize,
+          ),
+          minimum_leverage: SubstrateHelper.convertNumberToI128(
+            market.minimumLeverage,
+          ),
+          maximum_leverage: SubstrateHelper.convertNumberToI128(
+            market.maximumLeverage,
+          ),
+          currently_allowed_leverage: SubstrateHelper.convertNumberToI128(
+            market.currentlyAllowedLeverage,
+          ),
+          maintenance_margin_fraction: SubstrateHelper.convertNumberToI128(
+            market.maintenanceMarginFraction,
+          ),
+          initial_margin_fraction: SubstrateHelper.convertNumberToI128(
+            market.initialMarginFraction,
+          ),
+          incremental_initial_margin_fraction: SubstrateHelper.convertNumberToI128(
+            market.incrementalInitialMarginFraction,
+          ),
+          incremental_position_size: SubstrateHelper.convertNumberToI128(
+            market.incrementalPositionSize,
+          ),
+          baseline_position_size: SubstrateHelper.convertNumberToI128(
+            market.baselinePositionSize,
+          ),
+          maximum_position_size: SubstrateHelper.convertNumberToI128(
+            market.maximumPositionSize,
+          ),
+        },
+        metadata_url: market.metadataUrl,
+      };
+    });
 
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
     
     await this.wsApi.tx.markets
-      .replaceAllMarkets(marketsConvertedData)
+      .replaceAllMarkets(marketListInRaw)
       .signAndSend(this.nodeAccountKeyring, {
         nonce,
       });
@@ -166,14 +176,19 @@ export class SubstrateService {
   async getAssets(): Promise<AssetEntity[]> {
     const assetMap = await this.wsApi.query.assets.assetMap.entries();
 
-    const assetList = assetMap.map(([assetKey, assetItem]): AssetEntity => {
-      const data = assetItem.toPrimitive() as any;
+    const assetList = assetMap.map(([, raw]): AssetEntity => {
+      const { asset, metadataUrl } = raw.toPrimitive() as any;
 
-      data.id = SubstrateHelper.convertU128ToString(data.id);
-      data.l2Address = SubstrateHelper.convertU256ToHex(data.l2Address);
-      data.shortName = SubstrateHelper.convertU256ToString(data.shortName);
-
-      return new AssetEntity(data);
+      return new AssetEntity({
+        id: SubstrateHelper.convertU128ToString(asset.id),
+        version: asset.version,
+        shortName: SubstrateHelper.convertU256ToString(asset.shortName),
+        isTradable: asset.isTradable,
+        isCollateral: asset.isCollateral,
+        l2Address: SubstrateHelper.convertU256ToHex(asset.l2Address),
+        decimals: asset.decimals,
+        metadataUrl,
+      });
     });
 
     return assetList;
@@ -182,56 +197,55 @@ export class SubstrateService {
   async getMarkets(): Promise<MarketEntity[]> {
     const marketMap = await this.wsApi.query.markets.marketMap.entries();
 
-    const marketList = marketMap.map(
-      ([marketKey, marketItem]): MarketEntity => {
-        const data = marketItem.toPrimitive() as any;
+    const marketList = marketMap.map(([, raw]): MarketEntity => {
+      const { market, metadataUrl } = raw.toPrimitive() as any;
 
-        return new MarketEntity({
-          id: SubstrateHelper.convertU128ToString(data.id),
-          asset: SubstrateHelper.convertU128ToString(data.asset),
-          assetCollateral: SubstrateHelper.convertU128ToString(
-            data.assetCollateral,
-          ),
-          isTradable: data.isTradable === true,
-          isArchived: data.isArchived === true,
-          ttl: data.ttl,
-          tickSize: SubstrateHelper.convertI128ToNumber(data.tickSize),
-          tickPrecision: data.tickPrecision,
-          stepSize: SubstrateHelper.convertI128ToNumber(data.stepSize),
-          stepPrecision: data.stepPrecision,
-          minimumOrderSize: SubstrateHelper.convertI128ToNumber(
-            data.minimumOrderSize,
-          ),
-          minimumLeverage: SubstrateHelper.convertI128ToNumber(
-            data.minimumLeverage,
-          ),
-          maximumLeverage: SubstrateHelper.convertI128ToNumber(
-            data.maximumLeverage,
-          ),
-          currentlyAllowedLeverage: SubstrateHelper.convertI128ToNumber(
-            data.currentlyAllowedLeverage,
-          ),
-          maintenanceMarginFraction: SubstrateHelper.convertI128ToNumber(
-            data.maintenanceMarginFraction,
-          ),
-          initialMarginFraction: SubstrateHelper.convertI128ToNumber(
-            data.initialMarginFraction,
-          ),
-          incrementalInitialMarginFraction: SubstrateHelper.convertI128ToNumber(
-            data.incrementalInitialMarginFraction,
-          ),
-          incrementalPositionSize: SubstrateHelper.convertI128ToNumber(
-            data.incrementalPositionSize,
-          ),
-          baselinePositionSize: SubstrateHelper.convertI128ToNumber(
-            data.baselinePositionSize,
-          ),
-          maximumPositionSize: SubstrateHelper.convertI128ToNumber(
-            data.maximumPositionSize,
-          ),
-        });
-      },
-    );
+      return new MarketEntity({
+        id: SubstrateHelper.convertU128ToString(market.id),
+        asset: SubstrateHelper.convertU128ToString(market.asset),
+        assetCollateral: SubstrateHelper.convertU128ToString(
+          market.assetCollateral,
+        ),
+        isTradable: market.isTradable === true,
+        isArchived: market.isArchived === true,
+        ttl: market.ttl,
+        tickSize: SubstrateHelper.convertI128ToNumber(market.tickSize),
+        tickPrecision: market.tickPrecision,
+        stepSize: SubstrateHelper.convertI128ToNumber(market.stepSize),
+        stepPrecision: market.stepPrecision,
+        minimumOrderSize: SubstrateHelper.convertI128ToNumber(
+          market.minimumOrderSize,
+        ),
+        minimumLeverage: SubstrateHelper.convertI128ToNumber(
+          market.minimumLeverage,
+        ),
+        maximumLeverage: SubstrateHelper.convertI128ToNumber(
+          market.maximumLeverage,
+        ),
+        currentlyAllowedLeverage: SubstrateHelper.convertI128ToNumber(
+          market.currentlyAllowedLeverage,
+        ),
+        maintenanceMarginFraction: SubstrateHelper.convertI128ToNumber(
+          market.maintenanceMarginFraction,
+        ),
+        initialMarginFraction: SubstrateHelper.convertI128ToNumber(
+          market.initialMarginFraction,
+        ),
+        incrementalInitialMarginFraction: SubstrateHelper.convertI128ToNumber(
+          market.incrementalInitialMarginFraction,
+        ),
+        incrementalPositionSize: SubstrateHelper.convertI128ToNumber(
+          market.incrementalPositionSize,
+        ),
+        baselinePositionSize: SubstrateHelper.convertI128ToNumber(
+          market.baselinePositionSize,
+        ),
+        maximumPositionSize: SubstrateHelper.convertI128ToNumber(
+          market.maximumPositionSize,
+        ),
+        metadataUrl,
+      });
+    });
 
     return marketList;
   }

@@ -9,6 +9,7 @@ export const data: AssetEntity[] = [
     isCollateral: false,
     l2Address: '0x0123',
     decimals: 6,
+    metadataUrl: 'https://zkxprotocol-deploy.s3.eu-central-1.amazonaws.com/eth.metadata.json',
   },
   {
     id: 'USDC',
@@ -18,5 +19,6 @@ export const data: AssetEntity[] = [
     isCollateral: true,
     l2Address: '0x0123',
     decimals: 6,
+    metadataUrl: 'https://zkxprotocol-deploy.s3.eu-central-1.amazonaws.com/usdc.metadata.json',
   },
 ];

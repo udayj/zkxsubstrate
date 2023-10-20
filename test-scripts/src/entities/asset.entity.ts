@@ -6,6 +6,7 @@ export class AssetEntity {
   isCollateral: boolean;
   l2Address: string;
   decimals: number;
+  metadataUrl: string;
 
   constructor(data: Partial<AssetEntity>) {
     Object.assign(this, data);
