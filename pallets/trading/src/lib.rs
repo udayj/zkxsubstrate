@@ -1503,6 +1503,10 @@ pub mod pallet {
 			AccountInfo { positions, available_margin, total_margin, collateral_balance }
 		}
 
+		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
+			T::TradingAccountPallet::get_account_list(start_index, end_index)
+		}
+
 		fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool {
 			LiquidateFlagMap::<T>::get(account_id, collateral_id)
 		}

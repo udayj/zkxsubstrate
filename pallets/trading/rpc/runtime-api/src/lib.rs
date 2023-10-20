@@ -11,5 +11,6 @@ sp_api::decl_runtime_apis! {
 		fn positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
 		fn get_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
+		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	}
 }

@@ -52,6 +52,7 @@ pub trait TradingAccountInterface {
 		PositionDetailsForRiskManagement,
 		FixedI128,
 	);
+	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 }
 
 pub trait TradingInterface {
@@ -67,6 +68,7 @@ pub trait TradingInterface {
 	fn get_deleveragable_position(account_id: U256, collateral_id: u128) -> DeleveragablePosition;
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
+	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn get_deleverage_flag(account_id: U256, collateral_id: u128) -> bool;
 	fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool;
 }

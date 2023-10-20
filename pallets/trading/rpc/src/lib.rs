@@ -36,6 +36,14 @@ pub trait TradingApi<BlockHash> {
 		collateral_id: u128,
 		at: Option<BlockHash>,
 	) -> RpcResult<AccountInfo>;
+
+	#[method(name = "trading_get_account_list")]
+	fn get_account_list(
+		&self,
+		start_index: u128,
+		end_index: u128,
+		at: Option<BlockHash>,
+	) -> RpcResult<Vec<U256>>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -94,6 +102,19 @@ where
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
 		api.get_account_info(at, account_id, collateral_id)
+			.map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_account_list(
+		&self,
+		start_index: u128,
+		end_index: u128,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<Vec<U256>> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_account_list(at, start_index, end_index)
 			.map_err(runtime_error_into_rpc_err)
 	}
 }

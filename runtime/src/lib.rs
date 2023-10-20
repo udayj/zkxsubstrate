@@ -414,6 +414,10 @@ impl_runtime_apis! {
 		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo {
 			Trading::get_account_info(account_id, collateral_id)
 		}
+
+		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
+			Trading::get_account_list(start_index, end_index)
+		}
 	}
 
 	impl sp_api::Core<Block> for Runtime {
