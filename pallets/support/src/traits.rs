@@ -16,7 +16,7 @@ pub trait TradingAccountInterface {
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		amount: FixedI128,
-	);
+	) -> DispatchResult;
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -69,8 +69,7 @@ pub trait TradingInterface {
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
-	fn get_deleverage_flag(account_id: U256, collateral_id: u128) -> bool;
-	fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool;
+	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> (bool, bool);
 }
 
 pub trait AssetInterface {

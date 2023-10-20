@@ -109,6 +109,8 @@ pub mod pallet {
 		InvalidWithdrawalFee,
 		/// Invalid arguments in the withdrawal request
 		InvalidWithdrawalRequest,
+		/// Deposit and Withdrawal are not allowed if liquidate or deleverage flag is true
+		ForceClosureFlagsSet,
 	}
 
 	#[pallet::event]
@@ -162,8 +164,11 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Call the internal function to facililate the deposit
-			Self::deposit_internal(trading_account, collateral_id, amount);
-			Ok(())
+			let response = Self::deposit_internal(trading_account, collateral_id, amount);
+			match response {
+				Ok(()) => Ok(()),
+				Err(e) => return Err(e),
+			}
 		}
 
 		// TODO(merkle-groot): To be removed in production
@@ -290,6 +295,13 @@ pub mod pallet {
 				AccountMap::<T>::contains_key(withdrawal_request.account_id),
 				Error::<T>::AccountDoesNotExist
 			);
+
+			// Liquidation and deleverage flags must be false
+			let (liquidate_flag, deleverage_flag) = T::TradingPallet::get_force_closure_flags(
+				withdrawal_request.account_id,
+				withdrawal_request.collateral_id,
+			);
+			ensure!(!liquidate_flag && !deleverage_flag, Error::<T>::ForceClosureFlagsSet);
 
 			// Check if the signature is valid
 			Self::verify_signature(&withdrawal_request)?;
@@ -949,7 +961,7 @@ pub mod pallet {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
 			amount: FixedI128,
-		) {
+		) -> DispatchResult {
 			let account_address = trading_account.account_address;
 			let index = trading_account.index;
 			let pub_key = trading_account.pub_key;
@@ -968,6 +980,10 @@ pub mod pallet {
 				AccountsCount::<T>::put(current_length + 1);
 
 				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
+			} else {
+				let (liquidate_flag, deleverage_flag) =
+					T::TradingPallet::get_force_closure_flags(account_id, collateral_id);
+				ensure!(!liquidate_flag && !deleverage_flag, Error::<T>::ForceClosureFlagsSet);
 			}
 
 			// Get the current balance
@@ -998,6 +1014,8 @@ pub mod pallet {
 				new_balance,
 				block_number,
 			});
+
+			Ok(())
 		}
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {

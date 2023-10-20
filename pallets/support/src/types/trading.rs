@@ -68,8 +68,7 @@ pub enum OrderType {
 	#[default]
 	Limit,
 	Market,
-	Liquidation,
-	Deleveraging,
+	Forced,
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -186,8 +185,7 @@ impl From<OrderType> for u8 {
 		match value {
 			OrderType::Limit => 0_u8,
 			OrderType::Market => 1_u8,
-			OrderType::Liquidation => 2_u8,
-			OrderType::Deleveraging => 3_u8,
+			OrderType::Forced => 2_u8,
 		}
 	}
 }
