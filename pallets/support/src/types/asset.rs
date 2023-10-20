@@ -19,5 +19,4 @@ pub struct Asset {
 pub struct ExtendedAsset {
 	pub asset: Asset,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
-	pub icon_url: BoundedVec<u8, ConstU32<256>>,
 }

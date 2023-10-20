@@ -262,7 +262,6 @@ pub mod pallet {
 								T::AssetPallet::update_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
-									icon_url: asset_updated.icon_url.clone(),
 								});
 							},
 							// If not, add a new asset
@@ -270,7 +269,6 @@ pub mod pallet {
 								T::AssetPallet::add_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
-									icon_url: asset_updated.icon_url.clone(),
 								});
 							},
 						}

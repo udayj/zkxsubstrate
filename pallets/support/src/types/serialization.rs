@@ -111,7 +111,6 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::from(asset_updated_event.id));
 		self.try_append_asset(&asset_updated_event.asset)?;
 		self.append_bounded_vec(&asset_updated_event.metadata_url);
-		self.append_bounded_vec(&asset_updated_event.icon_url);
 		self.push(FieldElement::from(asset_updated_event.block_number));
 
 		Ok(())

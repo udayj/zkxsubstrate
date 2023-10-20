@@ -27,7 +27,6 @@ pub trait AssetUpdatedTrait {
 		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
-		icon_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated;
 }
@@ -77,10 +76,9 @@ impl AssetUpdatedTrait for AssetUpdated {
 		id: u128,
 		asset: Asset,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
-		icon_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated {
-		AssetUpdated { event_index, id, asset, metadata_url, icon_url, block_number }
+		AssetUpdated { event_index, id, asset, metadata_url, block_number }
 	}
 }
 

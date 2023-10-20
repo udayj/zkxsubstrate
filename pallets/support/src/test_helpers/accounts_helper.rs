@@ -13,6 +13,7 @@ pub fn create_withdrawal_request(
 	account_id: U256,
 	collateral_id: u128,
 	amount: FixedI128,
+	timestamp: u64,
 	private_key: FieldElement,
 ) -> Result<WithdrawalRequest, ConversionError> {
 	let (account_id_low, account_id_high) = convert_to_u128_pair(account_id)?;
@@ -20,6 +21,7 @@ pub fn create_withdrawal_request(
 	elements.push(account_id_low);
 	elements.push(account_id_high);
 	elements.push(FieldElement::from(collateral_id));
+	elements.push(FieldElement::from(timestamp));
 	elements.push(amount.to_u256().try_to_felt()?);
 
 	let msg_hash = pedersen_hash_multiple(&elements);
@@ -31,6 +33,7 @@ pub fn create_withdrawal_request(
 		account_id,
 		collateral_id,
 		amount,
+		timestamp,
 		sig_r: signature.r.to_u256(),
 		sig_s: signature.s.to_u256(),
 		hash_type: HashType::Pedersen,
