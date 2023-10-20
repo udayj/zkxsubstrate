@@ -287,7 +287,6 @@ impl pallet_zkx_trading_account::Config for Runtime {
 }
 
 impl pallet_risk_management::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type TradingPallet = Trading;
 	type TradingAccountPallet = ZkxTradingAccount;
 	type MarketPallet = Markets;

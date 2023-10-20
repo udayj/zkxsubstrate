@@ -121,11 +121,10 @@ pub struct PositionDetailsForRiskManagement {
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct LiquidatablePosition {
+pub struct DeleveragablePosition {
 	pub market_id: u128,
 	pub direction: Direction,
 	pub amount_to_be_sold: FixedI128,
-	pub liquidatable: bool,
 }
 
 // Batch Related
