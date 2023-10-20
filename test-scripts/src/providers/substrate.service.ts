@@ -303,7 +303,7 @@ export class SubstrateService {
   }): Promise<string> {
     const { accountId, assetId, amount, privateKey } = params;
 
-    const withdrawRequest: any = {
+    const withdrawalRequest: any = {
       account_id: SubstrateHelper.convertHexToU256(accountId),
       collateral_id: SubstrateHelper.convertStringToU128(assetId),
       amount: SubstrateHelper.convertNumberToI128(amount),
@@ -312,15 +312,15 @@ export class SubstrateService {
       sig_s: null,
     }
 
-    const accountIdAsBytes = bnToU8a(withdrawRequest.account_id.toPrimitive(), { isLe: false });
+    const accountIdAsBytes = bnToU8a(withdrawalRequest.account_id.toPrimitive(), { isLe: false });
     const accountIdAsLowBytes = accountIdAsBytes.slice(16);
     const accountIdAsHighBytes = accountIdAsBytes.slice(0, 16);
 
     const withdrawHashElements = [
       u8aToBn(accountIdAsLowBytes, { isLe: false }).toString(),
       u8aToBn(accountIdAsHighBytes, { isLe: false }).toString(),
-      withdrawRequest.collateral_id.toPrimitive(),
-      withdrawRequest.amount.toPrimitive(),
+      withdrawalRequest.collateral_id.toPrimitive(),
+      withdrawalRequest.amount.toPrimitive(),
     ];
 
     const dataHash = computeHashOnElements(withdrawHashElements);
@@ -329,15 +329,15 @@ export class SubstrateService {
     const sigR = toHex(signature.r);
     const sigS = toHex(signature.s);
 
-    withdrawRequest.sig_r = sigR;
-    withdrawRequest.sig_s = sigS;
+    withdrawalRequest.sig_r = sigR;
+    withdrawalRequest.sig_s = sigS;
     
     const nonce = await this.wsApi.rpc.system.accountNextIndex(
       this.nodeAccountKeyring.address,
     );
 
     const withdrawResult = await this.wsApi.tx.zkxTradingAccount
-      .withdraw(withdrawRequest)
+      .withdraw(withdrawalRequest)
       .signAndSend(this.nodeAccountKeyring, {
         nonce,
       });
