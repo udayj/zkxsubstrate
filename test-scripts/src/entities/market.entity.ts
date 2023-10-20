@@ -19,6 +19,7 @@ export class MarketEntity {
   incrementalPositionSize: number;
   baselinePositionSize: number;
   maximumPositionSize: number;
+  metadataUrl: string;
 
   constructor(data: Partial<MarketEntity>) {
     Object.assign(this, data);

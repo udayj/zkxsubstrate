@@ -1,4 +1,5 @@
 import * as baseStarknet from 'starknet';
+
 import { StarknetHelper } from './starknet.helper';
 import { StarknetAccountEntity } from '../entities';
 

@@ -13,6 +13,7 @@ import {
   stringToHex,
   u8aToHex,
 } from '@polkadot/util';
+
 import { TradingAccountEntity } from '../entities';
 
 // This temporary registry doesn't require
@@ -112,6 +113,26 @@ export class SubstrateHelper {
   }
 
   static convertU256ToString(value: any): string {
+    const valueAsBn = value.toString();
+    const valueAsHex = bnToHex(valueAsBn);
+    const valueAsString = hexToString(valueAsHex);
+
+    return valueAsString;
+  }
+
+  // ================
+  // BoundedVec<u8, ConstU32<256>> converters
+  // ================
+
+  static convertStringToBoundedVec256(value: string): any {
+    const valueAsHex = stringToHex(value);
+    const valueAsBn = hexToBn(valueAsHex);
+    const valueAsBnString = valueAsBn.toString();
+
+    return typeRegistry.createType('BoundedVec<u8, ConstU32<256>>', valueAsBnString)
+  }
+
+  static convertBoundedVec256ToString(value: any): string {
     const valueAsBn = value.toString();
     const valueAsHex = bnToHex(valueAsBn);
     const valueAsString = hexToString(valueAsHex);

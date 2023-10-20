@@ -79,7 +79,6 @@ describe('Deposit + Withdrawal', () => {
       accountId: tradingAccount.id,
       assetId: usdcAsset.id,
       amount: 11,
-      hashType: 0,
       privateKey: starknetAccount.privateKey,
     });
 

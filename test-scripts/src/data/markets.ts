@@ -22,5 +22,6 @@ export const data: MarketEntity[] = [
     incrementalPositionSize: 100,
     baselinePositionSize: 500,
     maximumPositionSize: 10000,
+    metadataUrl: 'https://zkxprotocol-deploy.s3.eu-central-1.amazonaws.com/eth-usdc.metadata.json',
   },
 ];
