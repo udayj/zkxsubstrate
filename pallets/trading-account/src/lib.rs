@@ -999,5 +999,20 @@ pub mod pallet {
 				block_number,
 			});
 		}
+
+		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
+			let mut account_list = Vec::<U256>::new();
+			let accounts_count = AccountsCount::<T>::get();
+			for index in start_index..end_index {
+				if (start_index > end_index)
+					|| (index >= accounts_count)
+					|| (start_index >= accounts_count)
+				{
+					break;
+				}
+				account_list.push(AccountsListMap::<T>::get(index).unwrap());
+			}
+			account_list
+		}
 	}
 }
