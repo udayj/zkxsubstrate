@@ -90,6 +90,14 @@ pub enum BalanceChangeReason {
 	WithdrawalFee,
 }
 
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum ForceClosureFlag {
+	#[default]
+	Absent,
+	Deleverage,
+	Liquidate,
+}
+
 // Position Related
 #[derive(
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
@@ -218,6 +226,16 @@ impl From<FundModifyType> for u8 {
 		match value {
 			FundModifyType::Increase => 0_u8,
 			FundModifyType::Decrease => 1_u8,
+		}
+	}
+}
+
+impl From<ForceClosureFlag> for u8 {
+	fn from(value: ForceClosureFlag) -> u8 {
+		match value {
+			ForceClosureFlag::Absent => 0_u8,
+			ForceClosureFlag::Deleverage => 1_u8,
+			ForceClosureFlag::Liquidate => 2_u8,
 		}
 	}
 }

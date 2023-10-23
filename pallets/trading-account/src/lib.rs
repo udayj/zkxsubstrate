@@ -24,6 +24,7 @@ pub mod pallet {
 		AssetInterface, Hashable, MarketInterface, PricesInterface, TradingAccountInterface,
 		TradingInterface, U256Ext,
 	};
+	use zkx_support::types::ForceClosureFlag;
 	use zkx_support::types::{
 		BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
 		PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
@@ -109,8 +110,8 @@ pub mod pallet {
 		InvalidWithdrawalFee,
 		/// Invalid arguments in the withdrawal request
 		InvalidWithdrawalRequest,
-		/// Deposit and Withdrawal are not allowed if liquidate or deleverage flag is true
-		ForceClosureFlagsSet,
+		/// Deposit and Withdrawal are not allowed if deleveraging or liquidation is in progress
+		ForceClosureFlagSet,
 	}
 
 	#[pallet::event]
@@ -297,11 +298,14 @@ pub mod pallet {
 			);
 
 			// Liquidation and deleverage flags must be false
-			let (liquidate_flag, deleverage_flag) = T::TradingPallet::get_force_closure_flags(
+			let force_closure_flag = T::TradingPallet::get_force_closure_flags(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-			ensure!(!liquidate_flag && !deleverage_flag, Error::<T>::ForceClosureFlagsSet);
+			ensure!(
+				force_closure_flag == ForceClosureFlag::Absent,
+				Error::<T>::ForceClosureFlagSet
+			);
 
 			// Check if the signature is valid
 			Self::verify_signature(&withdrawal_request)?;
@@ -981,9 +985,12 @@ pub mod pallet {
 
 				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
 			} else {
-				let (liquidate_flag, deleverage_flag) =
+				let force_closure_flag =
 					T::TradingPallet::get_force_closure_flags(account_id, collateral_id);
-				ensure!(!liquidate_flag && !deleverage_flag, Error::<T>::ForceClosureFlagsSet);
+				ensure!(
+					force_closure_flag == ForceClosureFlag::Absent,
+					Error::<T>::ForceClosureFlagSet
+				);
 			}
 
 			// Get the current balance
