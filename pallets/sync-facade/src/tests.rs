@@ -233,7 +233,6 @@ fn sync_update_asset_event_add_asset() {
 		btc().asset.id,
 		btc().asset,
 		BoundedVec::<u8, ConstU32<256>>::new(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
 		1337,
 	);
 
@@ -378,7 +377,6 @@ fn sync_update_asset_event_bump_asset() {
 	let modified_usdc_asset = ExtendedAsset {
 		asset: Asset { is_collateral: false, version: 2, ..usdc_asset.asset },
 		metadata_url: usdc_asset.metadata_url.clone(),
-		icon_url: usdc_asset.icon_url.clone(),
 	};
 
 	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
@@ -386,7 +384,6 @@ fn sync_update_asset_event_bump_asset() {
 		modified_usdc_asset.asset.id,
 		modified_usdc_asset.asset.clone(),
 		usdc_asset.metadata_url.clone(),
-		usdc_asset.icon_url.clone(),
 		1337,
 	);
 

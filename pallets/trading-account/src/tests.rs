@@ -191,6 +191,7 @@ fn test_withdraw() {
 			trading_account_id,
 			usdc().asset.id,
 			1000.into(),
+			1697733033397,
 			get_private_key(alice().pub_key),
 		)
 		.unwrap();
@@ -208,6 +209,83 @@ fn test_withdraw() {
 }
 
 #[test]
+fn test_withdraw_twice() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(alice());
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().asset.id,
+			1000.into(),
+			1697733033397,
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Send the withdrawal request
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+
+		// Check the state
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			9000.into()
+		);
+
+		// Create a new withdrawal request
+		let withdrawal_request_2 = create_withdrawal_request(
+			trading_account_id,
+			usdc().asset.id,
+			1000.into(),
+			1697733033400,
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Send the new withdrawal request
+		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request_2));
+
+		// Check the state
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			8000.into()
+		);
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateWithdrawal")]
+fn test_withdraw_duplicate() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(alice());
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			usdc().asset.id,
+			1000.into(),
+			1697733033397,
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Send the withdrawal request
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(1),
+			withdrawal_request.clone()
+		));
+
+		// Send the withdrawal request again
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(1),
+			withdrawal_request.clone()
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "AccountDoesNotExist")]
 fn test_withdraw_on_not_existing_account() {
 	let mut env = setup();
@@ -220,6 +298,7 @@ fn test_withdraw_on_not_existing_account() {
 			trading_account_id,
 			usdc().asset.id,
 			1000.into(),
+			1697733073513,
 			get_private_key(eduard().pub_key),
 		)
 		.unwrap();
@@ -242,6 +321,7 @@ fn test_withdraw_on_invalid_sig() {
 			trading_account_id,
 			usdc().asset.id,
 			1000.into(),
+			1697733048414,
 			get_private_key(dave().pub_key),
 		)
 		.unwrap();
@@ -266,6 +346,7 @@ fn test_withdraw_with_insufficient_balance() {
 			trading_account_id,
 			usdc().asset.id,
 			11000.into(),
+			1697733054847,
 			get_private_key(alice().pub_key),
 		)
 		.unwrap();

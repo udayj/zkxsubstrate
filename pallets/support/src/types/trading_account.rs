@@ -41,6 +41,7 @@ pub struct WithdrawalRequest {
 	pub account_id: U256,
 	pub collateral_id: u128,
 	pub amount: FixedI128,
+	pub timestamp: u64,
 	pub sig_r: U256,
 	pub sig_s: U256,
 	pub hash_type: HashType,
@@ -73,6 +74,7 @@ impl Hashable for WithdrawalRequest {
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 		elements.push(FieldElement::from(self.collateral_id));
+		elements.push(FieldElement::from(self.timestamp));
 		elements.push(self.amount.to_u256().try_to_felt()?);
 
 		let result = match hash_type {

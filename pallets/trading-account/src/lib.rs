@@ -21,8 +21,8 @@ pub mod pallet {
 	use sp_io::hashing::blake2_256;
 	use zkx_support::helpers::sig_u256_to_sig_felt;
 	use zkx_support::traits::{
-		AssetInterface, Hashable, MarketInterface, PricesInterface, TradingAccountInterface,
-		TradingInterface, U256Ext,
+		AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
+		TradingAccountInterface, TradingInterface, U256Ext,
 	};
 	use zkx_support::types::ForceClosureFlag;
 	use zkx_support::types::{
@@ -60,6 +60,12 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn withdrawal_status)]
+	// Here, key is the hash of the withdrawal request and value is boolean value
+	pub(super) type IsWithdrawalProcessed<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, bool, OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn accounts_list)]
 	// Here, key is the index and value is the account_id
 	pub(super) type AccountsListMap<T: Config> =
@@ -88,6 +94,8 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Account already exists
 		DuplicateAccount,
+		/// Duplicate Withdrawal Request
+		DuplicateWithdrawal,
 		/// Account does not exist
 		AccountDoesNotExist,
 		/// Asset not created
@@ -604,6 +612,13 @@ pub mod pallet {
 				.hash(&withdrawal_request.hash_type)
 				.map_err(|_| Error::<T>::InvalidWithdrawalRequestHash)?;
 
+			// Check if the withdrawal is already processed
+			let withdrawal_request_hash_u256 = withdrawal_request_hash.to_u256();
+			ensure!(
+				!IsWithdrawalProcessed::<T>::contains_key(withdrawal_request_hash_u256),
+				Error::<T>::DuplicateWithdrawal
+			);
+
 			// Fetch the public key of account
 			let public_key = Self::get_public_key(&withdrawal_request.account_id)
 				.ok_or(Error::<T>::NoPublicKeyFound)?;
@@ -618,6 +633,9 @@ pub mod pallet {
 
 			// Signature verification returned error or false
 			ensure!(verification, Error::<T>::InvalidSignature);
+
+			// Mark the request as being processed
+			IsWithdrawalProcessed::<T>::insert(withdrawal_request_hash_u256, true);
 
 			Ok(())
 		}

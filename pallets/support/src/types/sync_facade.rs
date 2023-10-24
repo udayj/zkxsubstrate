@@ -63,7 +63,6 @@ pub struct AssetUpdated {
 	pub id: u128,
 	pub asset: Asset,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
-	pub icon_url: BoundedVec<u8, ConstU32<256>>,
 	pub block_number: u64,
 }
 

@@ -33,13 +33,6 @@ pub fn eth() -> ExtendedAsset {
 		}
 	}
 
-	let mut icon_url = BoundedVec::new();
-	for &byte in b"https://x.com/zkxprotocol/photo" {
-		if let Err(_) = icon_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
-		}
-	}
-
 	ExtendedAsset {
 		asset: Asset {
 			id: 4543560,
@@ -51,7 +44,6 @@ pub fn eth() -> ExtendedAsset {
 			decimals: 18,
 		},
 		metadata_url: metadata_url.clone(),
-		icon_url: icon_url.clone(),
 	}
 }
 
@@ -59,13 +51,6 @@ pub fn btc() -> ExtendedAsset {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
-		}
-	}
-
-	let mut icon_url = BoundedVec::new();
-	for &byte in b"https://x.com/zkxprotocol/photo" {
-		if let Err(_) = icon_url.try_push(byte) {
 			break; // If we reach the bound, stop adding elements.
 		}
 	}
@@ -81,7 +66,6 @@ pub fn btc() -> ExtendedAsset {
 			decimals: 6,
 		},
 		metadata_url: metadata_url.clone(),
-		icon_url: icon_url.clone(),
 	}
 }
 
@@ -89,13 +73,6 @@ pub fn usdc() -> ExtendedAsset {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
-		}
-	}
-
-	let mut icon_url = BoundedVec::new();
-	for &byte in b"https://x.com/zkxprotocol/photo" {
-		if let Err(_) = icon_url.try_push(byte) {
 			break; // If we reach the bound, stop adding elements.
 		}
 	}
@@ -111,7 +88,6 @@ pub fn usdc() -> ExtendedAsset {
 			decimals: 6,
 		},
 		metadata_url: metadata_url.clone(),
-		icon_url: icon_url.clone(),
 	}
 }
 
@@ -119,13 +95,6 @@ pub fn link() -> ExtendedAsset {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
-		}
-	}
-
-	let mut icon_url = BoundedVec::new();
-	for &byte in b"https://x.com/zkxprotocol/photo" {
-		if let Err(_) = icon_url.try_push(byte) {
 			break; // If we reach the bound, stop adding elements.
 		}
 	}
@@ -141,7 +110,6 @@ pub fn link() -> ExtendedAsset {
 			decimals: 6,
 		},
 		metadata_url: metadata_url.clone(),
-		icon_url: icon_url.clone(),
 	}
 }
 
@@ -149,13 +117,6 @@ pub fn usdt() -> ExtendedAsset {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
-		}
-	}
-
-	let mut icon_url = BoundedVec::new();
-	for &byte in b"https://x.com/zkxprotocol/photo" {
-		if let Err(_) = icon_url.try_push(byte) {
 			break; // If we reach the bound, stop adding elements.
 		}
 	}
@@ -171,6 +132,5 @@ pub fn usdt() -> ExtendedAsset {
 			decimals: 6,
 		},
 		metadata_url: metadata_url.clone(),
-		icon_url: icon_url.clone(),
 	}
 }
