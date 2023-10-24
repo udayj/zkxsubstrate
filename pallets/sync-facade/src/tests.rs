@@ -233,7 +233,6 @@ fn sync_update_asset_event_add_asset() {
 		btc().asset.id,
 		btc().asset,
 		BoundedVec::<u8, ConstU32<256>>::new(),
-		BoundedVec::<u8, ConstU32<256>>::new(),
 		1337,
 	);
 
