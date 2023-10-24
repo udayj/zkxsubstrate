@@ -12,8 +12,6 @@ mod tests;
 pub mod pallet {
 	use super::*;
 	use frame_support::inherent::Vec;
-	use frame_support::pallet_prelude::OptionQuery;
-	use frame_support::pallet_prelude::ValueQuery;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
