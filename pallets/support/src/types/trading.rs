@@ -68,8 +68,7 @@ pub enum OrderType {
 	#[default]
 	Limit,
 	Market,
-	Liquidation,
-	Deleveraging,
+	Forced,
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -89,6 +88,14 @@ pub enum BalanceChangeReason {
 	PnlRealization,
 	Withdrawal,
 	WithdrawalFee,
+}
+
+#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum ForceClosureFlag {
+	#[default]
+	Absent,
+	Deleverage,
+	Liquidate,
 }
 
 // Position Related
@@ -186,8 +193,7 @@ impl From<OrderType> for u8 {
 		match value {
 			OrderType::Limit => 0_u8,
 			OrderType::Market => 1_u8,
-			OrderType::Liquidation => 2_u8,
-			OrderType::Deleveraging => 3_u8,
+			OrderType::Forced => 2_u8,
 		}
 	}
 }
@@ -220,6 +226,16 @@ impl From<FundModifyType> for u8 {
 		match value {
 			FundModifyType::Increase => 0_u8,
 			FundModifyType::Decrease => 1_u8,
+		}
+	}
+}
+
+impl From<ForceClosureFlag> for u8 {
+	fn from(value: ForceClosureFlag) -> u8 {
+		match value {
+			ForceClosureFlag::Absent => 0_u8,
+			ForceClosureFlag::Deleverage => 1_u8,
+			ForceClosureFlag::Liquidate => 2_u8,
 		}
 	}
 }

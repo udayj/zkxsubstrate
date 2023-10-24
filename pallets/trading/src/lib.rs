@@ -24,8 +24,8 @@ pub mod pallet {
 		U256Ext,
 	};
 	use zkx_support::types::{
-		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, FundModifyType,
-		MarginInfo, Market, Order, OrderSide, OrderType, Position,
+		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
+		FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
 		PositionDetailsForRiskManagement, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
@@ -101,16 +101,17 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn deleverage_flag)]
-	// Here, k1 - account_id,  k2 -  collateral_id, v -  deleveragable_flag
-	pub(super) type DeleverageFlagMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, bool, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn liquidate_flag)]
-	// Here, k1 - account_id,  k2 -  collateral_id, v -  liquidatable_flag
-	pub(super) type LiquidateFlagMap<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, bool, ValueQuery>;
+	#[pallet::getter(fn force_closure_flag)]
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  force closure flag enum
+	pub(super) type ForceClosureFlagMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		U256,
+		Blake2_128Concat,
+		u128,
+		ForceClosureFlag,
+		ValueQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -178,6 +179,8 @@ pub mod pallet {
 		TradeBatchError537,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
+		/// When deleverage or liquidate flag is true, order type can only be Forced
+		TradeBatchError539,
 	}
 
 	#[pallet::event]
@@ -218,13 +221,8 @@ pub mod pallet {
 			modify_type: FundModifyType,
 			block_number: T::BlockNumber,
 		},
-		/// Liquidate /Deleverage flag updation event
-		ForceClosureFlagsChanged {
-			account_id: U256,
-			collateral_id: u128,
-			deleverage_flag: bool,
-			liquidate_flag: bool,
-		},
+		/// Force closure flag updation event
+		ForceClosureFlagsChanged { account_id: U256, collateral_id: u128, force_closure_flag: u8 },
 	}
 
 	// Pallet callable functions
@@ -308,13 +306,13 @@ pub mod pallet {
 				let mut new_leverage: FixedI128;
 				let new_margin_locked: FixedI128;
 				let mut new_portion_executed: FixedI128;
-				let new_liquidatable_position: DeleveragablePosition;
 				let realized_pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
 				let opening_fee: FixedI128;
 				let order_side: OrderSide;
 
-				let validation_response = Self::perform_validations(element, oracle_price, &market);
+				let validation_response =
+					Self::perform_validations(element, oracle_price, &market, collateral_id);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -337,10 +335,6 @@ pub mod pallet {
 					PositionsMap::<T>::get(&element.account_id, (market_id, element.direction));
 				let current_margin_locked =
 					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
-
-				// Get liquidatable position details
-				let liq_position: DeleveragablePosition =
-					DeleveragableMap::<T>::get(&element.account_id, collateral_id);
 
 				// Maker Order
 				if element.order_id != orders[orders.len() - 1].order_id {
@@ -368,9 +362,9 @@ pub mod pallet {
 					let maker_quantity_to_execute_response = Self::calculate_quantity_to_execute(
 						order_portion_executed,
 						market_id,
+						collateral_id,
 						&position_details,
 						element,
-						liq_position,
 						quantity_remaining,
 					);
 					match maker_quantity_to_execute_response {
@@ -553,6 +547,11 @@ pub mod pallet {
 						leverage: new_leverage,
 						realized_pnl: new_realized_pnl,
 					};
+					PositionsMap::<T>::set(
+						&element.account_id,
+						(market_id, element.direction),
+						updated_position,
+					);
 
 					open_interest = open_interest + quantity_to_execute;
 
@@ -623,85 +622,48 @@ pub mod pallet {
 						avg_execution_price.round_to_precision(tick_precision.into());
 					new_position_size = position_details.size - quantity_to_execute;
 
-					// To do - handle liquidation/deleveraging order
-					if (element.order_type == OrderType::Liquidation)
-						|| (element.order_type == OrderType::Deleveraging)
-					{
-						let new_liq_position_size =
-							liq_position.amount_to_be_sold - quantity_to_execute;
+					let force_closure_flag =
+						ForceClosureFlagMap::<T>::get(element.account_id, collateral_id);
+					// Deleveraging case, update deleveragable position and force closure flag accordingly
+					match force_closure_flag {
+						ForceClosureFlag::Deleverage => {
+							let deleveragable_position =
+								DeleveragableMap::<T>::get(element.account_id, collateral_id);
+							let new_deleverage_position_size =
+								deleveragable_position.amount_to_be_sold - quantity_to_execute;
 
-						if new_liq_position_size == FixedI128::zero() {
-							new_liquidatable_position = DeleveragablePosition {
-								market_id: 0,
-								direction: Direction::Long,
-								amount_to_be_sold: FixedI128::zero(),
-							};
-						} else {
-							new_liquidatable_position = DeleveragablePosition {
-								market_id: liq_position.market_id,
-								direction: liq_position.direction,
-								amount_to_be_sold: new_liq_position_size,
-							};
-						}
-						DeleveragableMap::<T>::insert(
-							element.account_id,
-							collateral_id,
-							new_liquidatable_position,
-						);
-						if element.order_type == OrderType::Deleveraging {
-							// Position not marked as 'deleveragable'
-							let deleverage_flag =
-								DeleverageFlagMap::<T>::get(&element.account_id, collateral_id);
-							if deleverage_flag == false {
-								return Err((Error::<T>::TradeBatchError526).into());
+							if new_deleverage_position_size == FixedI128::zero() {
+								DeleveragableMap::<T>::remove(element.account_id, collateral_id);
+								ForceClosureFlagMap::<T>::insert(
+									element.account_id,
+									collateral_id,
+									ForceClosureFlag::Absent,
+								);
+							} else {
+								let new_deleverage_position = DeleveragablePosition {
+									market_id: deleveragable_position.market_id,
+									direction: deleveragable_position.direction,
+									amount_to_be_sold: new_deleverage_position_size,
+								};
+								DeleveragableMap::<T>::insert(
+									element.account_id,
+									collateral_id,
+									new_deleverage_position,
+								);
 							}
+
 							let total_value = margin_amount + borrowed_amount;
 							new_leverage = total_value / margin_amount;
 							new_leverage = new_leverage.round_to_precision(2);
 							new_margin_locked = current_margin_locked;
-						} else {
-							// Position not marked as 'liquidatable'
-							let liquidate_flag =
-								LiquidateFlagMap::<T>::get(&element.account_id, collateral_id);
-							if liquidate_flag == false {
-								return Err((Error::<T>::TradeBatchError527).into());
-							}
+						},
+						// Normal and liquidation case
+						other => {
 							new_leverage = position_details.leverage;
-							new_leverage = new_leverage.round_to_precision(2);
 							new_margin_locked = current_margin_locked - margin_lock_amount;
-						}
-					} else {
-						new_leverage = position_details.leverage;
-						new_margin_locked = current_margin_locked - margin_lock_amount;
-
-						if (liq_position.market_id == market_id)
-							&& (liq_position.direction == element.direction)
-						{
-							let new_liq_position_size =
-								liq_position.amount_to_be_sold - quantity_to_execute;
-
-							if new_liq_position_size == FixedI128::zero() {
-								new_liquidatable_position = DeleveragablePosition {
-									market_id: 0,
-									direction: Direction::Long,
-									amount_to_be_sold: FixedI128::zero(),
-								};
-							} else {
-								new_liquidatable_position = DeleveragablePosition {
-									market_id: liq_position.market_id,
-									direction: liq_position.direction,
-									amount_to_be_sold: new_liq_position_size,
-								};
-							}
-						} else {
-							new_liquidatable_position = liq_position;
-						}
-						DeleveragableMap::<T>::insert(
-							element.account_id,
-							collateral_id,
-							new_liquidatable_position,
-						);
+						},
 					}
+
 					new_realized_pnl = position_details.realized_pnl + realized_pnl;
 					opening_fee = FixedI128::zero();
 
@@ -728,23 +690,27 @@ pub mod pallet {
 							CollateralToMarketMap::<T>::insert(
 								&element.account_id,
 								collateral_id,
-								markets,
+								&markets,
 							);
+
+							// If force closure flag is liquidation and if all positions are closed,
+							// it means that liquidation is complete
+							if force_closure_flag == ForceClosureFlag::Liquidate
+								&& markets.is_empty()
+							{
+								ForceClosureFlagMap::<T>::insert(
+									element.account_id,
+									collateral_id,
+									ForceClosureFlag::Absent,
+								);
+							}
 						}
-						updated_position = Position {
-							market_id,
-							direction: element.direction,
-							side: element.side,
-							avg_execution_price: FixedI128::zero(),
-							size: FixedI128::zero(),
-							margin_amount: FixedI128::zero(),
-							borrowed_amount: FixedI128::zero(),
-							leverage: FixedI128::zero(),
-							realized_pnl: FixedI128::zero(),
-						};
+						PositionsMap::<T>::remove(
+							element.account_id,
+							(market_id, element.direction),
+						);
 					} else {
 						// To do - Calculate pnl
-
 						updated_position = Position {
 							market_id,
 							direction: element.direction,
@@ -756,6 +722,11 @@ pub mod pallet {
 							leverage: new_leverage,
 							realized_pnl: new_realized_pnl,
 						};
+						PositionsMap::<T>::set(
+							&element.account_id,
+							(market_id, element.direction),
+							updated_position,
+						);
 					}
 
 					if element.time_in_force == TimeInForce::IOC {
@@ -784,12 +755,7 @@ pub mod pallet {
 					}
 				}
 
-				// Update position, locked margin and portion executed
-				PositionsMap::<T>::set(
-					&element.account_id,
-					(market_id, element.direction),
-					updated_position,
-				);
+				// Update locked margin and portion executed
 				T::TradingAccountPallet::set_locked_margin(
 					element.account_id,
 					collateral_id,
@@ -853,16 +819,19 @@ pub mod pallet {
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
 
-			// Get liquidatable position details
-			let liq_position: DeleveragablePosition =
-				DeleveragableMap::<T>::get(&order.account_id, collateral_id);
+			// This call is necessary if taker is Forced order, so that force closure flag can be set
+			// and also if deleveraging, amount to be sold can be calculated,
+			// which is required to calculate quantity to execute
+			if order.order_type == OrderType::Forced {
+				T::RiskManagementPallet::check_for_force_closure(order.account_id, collateral_id);
+			}
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
 				market_id,
+				collateral_id,
 				&position_details,
 				&order,
-				liq_position,
 				quantity_locked,
 			);
 			match quantity_response {
@@ -874,13 +843,13 @@ pub mod pallet {
 		fn calculate_quantity_to_execute(
 			portion_executed: FixedI128,
 			market_id: u128,
+			collateral_id: u128,
 			position_details: &Position,
 			order: &Order,
-			liq_position: DeleveragablePosition,
 			quantity_remaining: FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let executable_quantity = order.size - portion_executed;
-			ensure!(executable_quantity > FixedI128::zero(), Error::<T>::TradeBatchError533); // Modify code with tick/step size
+			ensure!(executable_quantity > FixedI128::zero(), Error::<T>::TradeBatchError533);
 
 			let mut quantity_to_execute = FixedI128::min(executable_quantity, quantity_remaining);
 			ensure!(quantity_to_execute > FixedI128::zero(), Error::<T>::TradeBatchError523);
@@ -888,14 +857,31 @@ pub mod pallet {
 			if order.side == Side::Buy {
 				Ok(quantity_to_execute)
 			} else {
-				if order.order_type == OrderType::Liquidation {
-					ensure!(liq_position.market_id == market_id, Error::<T>::TradeBatchError528);
-					ensure!(
-						liq_position.direction == order.direction,
-						Error::<T>::TradeBatchError529
-					);
-					quantity_to_execute =
-						FixedI128::min(quantity_to_execute, liq_position.amount_to_be_sold);
+				if order.order_type == OrderType::Forced {
+					let force_closure_flag =
+						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+					match force_closure_flag {
+						ForceClosureFlag::Deleverage => {
+							let deleveragable_position =
+								DeleveragableMap::<T>::get(&order.account_id, collateral_id);
+							ensure!(
+								deleveragable_position.market_id == market_id,
+								Error::<T>::TradeBatchError528
+							);
+							ensure!(
+								deleveragable_position.direction == order.direction,
+								Error::<T>::TradeBatchError529
+							);
+							quantity_to_execute = FixedI128::min(
+								quantity_to_execute,
+								deleveragable_position.amount_to_be_sold,
+							);
+						},
+						other => {
+							quantity_to_execute =
+								FixedI128::min(quantity_to_execute, position_details.size);
+						},
+					}
 				} else {
 					quantity_to_execute =
 						FixedI128::min(quantity_to_execute, position_details.size);
@@ -909,10 +895,22 @@ pub mod pallet {
 			order: &Order,
 			_oracle_price: FixedI128,
 			market: &Market,
+			collateral_id: u128,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
 			ensure!(is_registered, Error::<T>::TradeBatchError510);
+
+			// Validate that if force closure flag is either deleverage or liquidate
+			// order type can only be 'Forced'
+			if order.order_type != OrderType::Forced {
+				let force_closure_flag =
+					ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+				ensure!(
+					force_closure_flag == ForceClosureFlag::Absent,
+					Error::<T>::TradeBatchError539
+				);
+			}
 
 			// Validate that size of order is >= min quantity for market
 			ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
@@ -1158,18 +1156,22 @@ pub mod pallet {
 			let margin_amount_to_reduce = position_details.margin_amount * ratio_of_position;
 
 			// Calculate pnl
-			let pnl = order_size * price_diff;
+			let mut pnl = order_size * price_diff;
 			let margin_plus_pnl = margin_amount_to_reduce + pnl;
 			let borrowed_amount: FixedI128;
 			let margin_amount: FixedI128;
 
-			if order.order_type == OrderType::Deleveraging {
-				// In delevereaging, we only reduce borrowed field
-				borrowed_amount = position_details.borrowed_amount - leveraged_order_value;
-				margin_amount = position_details.margin_amount;
-			} else {
-				borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
-				margin_amount = position_details.margin_amount - margin_amount_to_reduce;
+			let force_closure_flag = ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+			match force_closure_flag {
+				ForceClosureFlag::Deleverage => {
+					// In deleveraging, we only reduce borrowed field
+					borrowed_amount = position_details.borrowed_amount - leveraged_order_value;
+					margin_amount = position_details.margin_amount;
+				},
+				other => {
+					borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
+					margin_amount = position_details.margin_amount - margin_amount_to_reduce;
+				},
 			}
 
 			let unused_balance =
@@ -1216,8 +1218,7 @@ pub mod pallet {
 			// To do - calculate PnL
 			} else {
 				let balance = T::TradingAccountPallet::get_balance(order.account_id, collateral_id);
-				if (order.order_type == OrderType::Market) || (order.order_type == OrderType::Limit)
-				{
+				if order.order_type != OrderType::Forced {
 					// User is not under water
 					// User is in loss
 					if pnl.is_negative() {
@@ -1263,57 +1264,63 @@ pub mod pallet {
 						);
 					}
 				} else {
-					if order.order_type == OrderType::Liquidation {
-						// if balance >= margin amount, deposit remaining margin in insurance
-						if margin_amount_to_reduce <= balance {
-							// Deposit margin_plus_pnl to insurance fund
-							Self::deposit_event(Event::InsuranceFundChange {
-								collateral_id,
-								amount: margin_plus_pnl,
-								modify_type: FundModifyType::Increase,
-								block_number,
-							});
-						} else {
-							if balance.is_negative() {
-								// Deduct margin_amount_to_reduce from insurance fund
+					let force_closure_flag =
+						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+					match force_closure_flag {
+						// Liquidation case when user is not underwater
+						ForceClosureFlag::Liquidate => {
+							// if balance >= margin amount, deposit remaining margin in insurance
+							if margin_amount_to_reduce <= balance {
+								// Deposit margin_plus_pnl to insurance fund
 								Self::deposit_event(Event::InsuranceFundChange {
 									collateral_id,
 									amount: margin_plus_pnl,
-									modify_type: FundModifyType::Decrease,
+									modify_type: FundModifyType::Increase,
 									block_number,
 								});
 							} else {
-								// if user has some balance
-								let pnl_abs = pnl.saturating_abs();
-								if balance <= pnl_abs {
-									// Deduct (pnl_abs -  balance) from insurance fund
+								if balance.is_negative() {
+									// Deduct margin_amount_to_reduce from insurance fund
 									Self::deposit_event(Event::InsuranceFundChange {
 										collateral_id,
-										amount: pnl_abs - balance,
+										amount: margin_amount_to_reduce,
 										modify_type: FundModifyType::Decrease,
 										block_number,
 									});
 								} else {
-									// Deposit (balance - pnl_abs) to insurance fund
-									Self::deposit_event(Event::InsuranceFundChange {
-										collateral_id,
-										amount: balance - pnl_abs,
-										modify_type: FundModifyType::Increase,
-										block_number,
-									});
+									// if user has some balance
+									let pnl_abs = pnl.saturating_abs();
+									if balance <= pnl_abs {
+										// Deduct (pnl_abs -  balance) from insurance fund
+										Self::deposit_event(Event::InsuranceFundChange {
+											collateral_id,
+											amount: pnl_abs - balance,
+											modify_type: FundModifyType::Decrease,
+											block_number,
+										});
+									} else {
+										// Deposit (balance - pnl_abs) to insurance fund
+										Self::deposit_event(Event::InsuranceFundChange {
+											collateral_id,
+											amount: balance - pnl_abs,
+											modify_type: FundModifyType::Increase,
+											block_number,
+										});
+									}
 								}
 							}
-						}
-						// Deduct proportionate margin amount from user
-						T::TradingAccountPallet::transfer_from(
-							order.account_id,
-							collateral_id,
-							margin_amount_to_reduce,
-							BalanceChangeReason::Liquidation,
-						);
-					// To do - calculate PnL
-					} else {
-						// To do - calculate PnL
+							// Deduct proportionate margin amount from user
+							T::TradingAccountPallet::transfer_from(
+								order.account_id,
+								collateral_id,
+								margin_amount_to_reduce,
+								BalanceChangeReason::Liquidation,
+							);
+						},
+						ForceClosureFlag::Deleverage => {
+							pnl = FixedI128::zero();
+						},
+						_ => (),
 					}
 				}
 			}
@@ -1368,6 +1375,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError536 => 536,
 				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
+				Error::<T>::TradeBatchError539 => 539,
 				_ => 500,
 			}
 		}
@@ -1390,32 +1398,37 @@ pub mod pallet {
 			position: &PositionDetailsForRiskManagement,
 			amount_to_be_sold: FixedI128,
 		) {
-			let deleverage_flag;
-			let liquidate_flag;
+			let force_closure_flag: u8;
+			// Liquidation
 			if amount_to_be_sold == FixedI128::zero() {
-				DeleverageFlagMap::<T>::insert(account_id, collateral_id, false);
-				LiquidateFlagMap::<T>::insert(account_id, collateral_id, true);
-				deleverage_flag = false;
-				liquidate_flag = true;
+				ForceClosureFlagMap::<T>::insert(
+					account_id,
+					collateral_id,
+					ForceClosureFlag::Liquidate,
+				);
 				DeleveragableMap::<T>::remove(account_id, collateral_id);
+				force_closure_flag = ForceClosureFlag::Liquidate.into();
 			} else {
-				deleverage_flag = true;
-				liquidate_flag = false;
-				DeleverageFlagMap::<T>::insert(account_id, collateral_id, true);
+				// Deleveraging
+				ForceClosureFlagMap::<T>::insert(
+					account_id,
+					collateral_id,
+					ForceClosureFlag::Deleverage,
+				);
 				let deleveragable_position: DeleveragablePosition = DeleveragablePosition {
 					market_id: position.market_id,
 					direction: position.direction,
 					amount_to_be_sold,
 				};
 				DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
+				force_closure_flag = ForceClosureFlag::Deleverage.into();
 			}
 
 			// Emit event
 			Self::deposit_event(Event::ForceClosureFlagsChanged {
 				account_id,
 				collateral_id,
-				deleverage_flag,
-				liquidate_flag,
+				force_closure_flag,
 			});
 		}
 
@@ -1507,12 +1520,8 @@ pub mod pallet {
 			T::TradingAccountPallet::get_account_list(start_index, end_index)
 		}
 
-		fn get_liquidate_flag(account_id: U256, collateral_id: u128) -> bool {
-			LiquidateFlagMap::<T>::get(account_id, collateral_id)
-		}
-
-		fn get_deleverage_flag(account_id: U256, collateral_id: u128) -> bool {
-			DeleverageFlagMap::<T>::get(account_id, collateral_id)
+		fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> ForceClosureFlag {
+			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 	}
 }
