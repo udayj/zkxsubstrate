@@ -90,7 +90,9 @@ pub enum BalanceChangeReason {
 	WithdrawalFee,
 }
 
-#[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Copy, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub enum ForceClosureFlag {
 	#[default]
 	Absent,
@@ -117,6 +119,23 @@ pub struct Position {
 #[derive(
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]
+pub struct PositionExtended {
+	pub market_id: u128,
+	pub direction: Direction,
+	pub side: Side,
+	pub avg_execution_price: FixedI128,
+	pub size: FixedI128,
+	pub margin_amount: FixedI128,
+	pub borrowed_amount: FixedI128,
+	pub leverage: FixedI128,
+	pub realized_pnl: FixedI128,
+	pub maintenance_margin: FixedI128,
+	pub market_price: FixedI128,
+}
+
+#[derive(
+	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub struct PositionDetailsForRiskManagement {
 	pub market_id: u128,
 	pub direction: Direction,
@@ -127,7 +146,9 @@ pub struct PositionDetailsForRiskManagement {
 	pub leverage: FixedI128,
 }
 
-#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, Copy, Decode, Default, Deserialize, Encode, PartialEq, RuntimeDebug, Serialize, TypeInfo,
+)]
 pub struct DeleveragablePosition {
 	pub market_id: u128,
 	pub direction: Direction,
@@ -163,10 +184,12 @@ pub struct MarginInfo {
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]
 pub struct AccountInfo {
-	pub positions: Vec<Position>,
+	pub positions: Vec<PositionExtended>,
 	pub available_margin: FixedI128,
 	pub total_margin: FixedI128,
 	pub collateral_balance: FixedI128,
+	pub force_closure_flag: ForceClosureFlag,
+	pub deleveragable_position: DeleveragablePosition,
 }
 
 // Impls
@@ -236,6 +259,28 @@ impl From<ForceClosureFlag> for u8 {
 			ForceClosureFlag::Absent => 0_u8,
 			ForceClosureFlag::Deleverage => 1_u8,
 			ForceClosureFlag::Liquidate => 2_u8,
+		}
+	}
+}
+
+impl PositionExtended {
+	pub fn new(
+		position: Position,
+		maintenance_margin: FixedI128,
+		market_price: FixedI128,
+	) -> PositionExtended {
+		PositionExtended {
+			market_id: position.market_id,
+			direction: position.direction,
+			side: position.side,
+			avg_execution_price: position.avg_execution_price,
+			size: position.size,
+			margin_amount: position.margin_amount,
+			borrowed_amount: position.borrowed_amount,
+			leverage: position.leverage,
+			realized_pnl: position.realized_pnl,
+			maintenance_margin,
+			market_price,
 		}
 	}
 }

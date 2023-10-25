@@ -26,7 +26,7 @@ pub mod pallet {
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
 		FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, Side, TimeInForce,
+		PositionDetailsForRiskManagement, PositionExtended, Side, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -1347,6 +1347,22 @@ pub mod pallet {
 			))
 		}
 
+		fn get_maintenance_requirement(
+			market_id: u128,
+			position: &Position,
+		) -> (FixedI128, FixedI128) {
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			let required_margin = market.maintenance_margin_fraction;
+
+			// Calculate required margin
+			let position_value = position.size * position.avg_execution_price;
+			let maintenance_requirement = position_value * required_margin;
+
+			let market_price = T::PricesPallet::get_market_price(market_id);
+
+			(maintenance_requirement, market_price)
+		}
+
 		fn get_error_code(error: Error<T>) -> u16 {
 			match error {
 				Error::<T>::TradeBatchError501 => 501,
@@ -1496,24 +1512,42 @@ pub mod pallet {
 				);
 
 			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
-			let mut positions = Vec::<Position>::new();
+			let mut positions = Vec::<PositionExtended>::new();
 			for element in markets {
 				let long_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Long));
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
 				if long_pos.size != 0.into() {
-					positions.push(long_pos);
+					let (maintenance_requirement, market_price) =
+						Self::get_maintenance_requirement(element, &long_pos);
+					let position_extended =
+						PositionExtended::new(long_pos, maintenance_requirement, market_price);
+					positions.push(position_extended);
 				}
 				if short_pos.size != 0.into() {
-					positions.push(short_pos);
+					let (maintenance_requirement, market_price) =
+						Self::get_maintenance_requirement(element, &short_pos);
+					let position_extended =
+						PositionExtended::new(short_pos, maintenance_requirement, market_price);
+					positions.push(position_extended);
 				}
 			}
 
 			let collateral_balance =
 				T::TradingAccountPallet::get_balance(account_id, collateral_id);
 
-			AccountInfo { positions, available_margin, total_margin, collateral_balance }
+			let force_closure_flag = ForceClosureFlagMap::<T>::get(account_id, collateral_id);
+			let deleveragable_position = DeleveragableMap::<T>::get(account_id, collateral_id);
+
+			AccountInfo {
+				positions,
+				available_margin,
+				total_margin,
+				collateral_balance,
+				force_closure_flag,
+				deleveragable_position,
+			}
 		}
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
