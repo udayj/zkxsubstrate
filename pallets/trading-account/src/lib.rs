@@ -1079,7 +1079,7 @@ pub mod pallet {
 			account_list
 		}
 
-		fn execute_deferred_deposits(account_id: U256, collateral_id: u128) -> DispatchResult {
+		fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult {
 			// Get the current deferred balance
 			let deferred_balance = DeferredBalancesMap::<T>::get(account_id, collateral_id);
 

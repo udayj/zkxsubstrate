@@ -808,7 +808,7 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::insert(account_id, collateral_id, ForceClosureFlag::Absent);
 
 			// Add deferred deposits if any
-			T::TradingAccountPallet::execute_deferred_deposits(account_id, collateral_id)?;
+			T::TradingAccountPallet::add_deferred_balance(account_id, collateral_id)?;
 
 			Ok(())
 		}
