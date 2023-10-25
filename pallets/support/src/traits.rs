@@ -54,7 +54,7 @@ pub trait TradingAccountInterface {
 		FixedI128,
 	);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
-	fn add_deferred_balances(account_id: U256, collateral_id: u128);
+	fn execute_deferred_deposits(account_id: U256, collateral_id: u128) -> DispatchResult;
 }
 
 pub trait TradingInterface {

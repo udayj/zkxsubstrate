@@ -77,8 +77,8 @@ pub mod pallet {
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn deferred_balances)]
-	// Here, key1 is account_id, key2 is asset_id and value is the balance
+	#[pallet::getter(fn deferred_deposits)]
+	// Here, key1 is account_id and value is the array of type DeferredBalances
 	pub(super) type DeferredBalancesMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
@@ -144,6 +144,8 @@ pub mod pallet {
 			new_balance: FixedI128,
 			block_number: T::BlockNumber,
 		},
+		/// Event emitted for deferred deposits
+		DeferredBalance { account_id: U256, collateral_id: u128, amount: FixedI128 },
 		/// Event to be synced by L2, for pnl changes
 		UserBalanceChange {
 			trading_account: TradingAccountMinimal,
@@ -1000,16 +1002,19 @@ pub mod pallet {
 			if let ForceClosureFlag::Liquidate | ForceClosureFlag::Deleverage =
 				T::TradingPallet::get_force_closure_flags(account_id, collateral_id)
 			{
-				// get the current balance
-				let current_deferred_balance =
+				// Get the current balance
+				let previous_deferred_balance =
 					DeferredBalancesMap::<T>::get(account_id, collateral_id);
 
-				// store the new balance
-				DeferredBalancesMap::<T>::set(
+				// Save it to storage
+				DeferredBalancesMap::<T>::insert(
 					account_id,
 					collateral_id,
-					current_deferred_balance + amount,
+					previous_deferred_balance + amount,
 				);
+
+				// Emit the deferred deposit event
+				Self::deposit_event(Event::DeferredBalance { account_id, collateral_id, amount });
 
 				return Ok(());
 			}
@@ -1074,22 +1079,43 @@ pub mod pallet {
 			account_list
 		}
 
-		fn add_deferred_balances(account_id: U256, collateral_id: u128) {
+		fn execute_deferred_deposits(account_id: U256, collateral_id: u128) -> DispatchResult {
 			// Get the current deferred balance
 			let deferred_balance = DeferredBalancesMap::<T>::get(account_id, collateral_id);
 
 			if deferred_balance != FixedI128::zero() {
 				// Get the current balance
-				let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
+				let previous_balance = BalancesMap::<T>::get(account_id, collateral_id);
+
+				// Calculate the new balance
+				let new_balance = previous_balance + deferred_balance;
+
 				// Update the balance
-				BalancesMap::<T>::insert(
-					account_id,
-					collateral_id,
-					deferred_balance + current_balance,
-				);
+				BalancesMap::<T>::insert(account_id, collateral_id, new_balance);
+
 				// Reset the deferred balance
 				DeferredBalancesMap::<T>::insert(account_id, collateral_id, FixedI128::zero());
+
+				// Get the account details for the event
+				let account = AccountMap::<T>::get(&account_id)
+					.ok_or(Error::<T>::AccountDoesNotExist)?
+					.to_trading_account_minimal();
+
+				// Emit the balance updated event
+				Self::deposit_event(Event::BalanceUpdated {
+					account_id,
+					account,
+					collateral_id,
+					amount: deferred_balance,
+					modify_type: FundModifyType::Increase.into(),
+					reason: BalanceChangeReason::DeferredDeposit.into(),
+					previous_balance,
+					new_balance,
+					block_number: <frame_system::Pallet<T>>::block_number(),
+				});
 			}
+
+			Ok(())
 		}
 	}
 }

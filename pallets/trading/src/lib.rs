@@ -636,7 +636,7 @@ pub mod pallet {
 								DeleveragableMap::<T>::remove(element.account_id, collateral_id);
 
 								// Remove the liquidation flag and check for deferred deposits
-								Self::reset_force_closure_flags(element.account_id, collateral_id);
+								Self::reset_force_closure_flags(element.account_id, collateral_id)?;
 							} else {
 								let new_deleverage_position = DeleveragablePosition {
 									market_id: deleveragable_position.market_id,
@@ -697,7 +697,7 @@ pub mod pallet {
 								&& markets.is_empty()
 							{
 								// Remove the liquidation flag and check for deferred deposits
-								Self::reset_force_closure_flags(element.account_id, collateral_id);
+								Self::reset_force_closure_flags(element.account_id, collateral_id)?;
 							}
 						}
 						PositionsMap::<T>::remove(
@@ -803,12 +803,14 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		fn reset_force_closure_flags(account_id: U256, collateral_id: u128) {
+		fn reset_force_closure_flags(account_id: U256, collateral_id: u128) -> DispatchResult {
 			// Reset the flag
 			ForceClosureFlagMap::<T>::insert(account_id, collateral_id, ForceClosureFlag::Absent);
 
 			// Add deferred deposits if any
-			T::TradingAccountPallet::add_deferred_balances(account_id, collateral_id);
+			T::TradingAccountPallet::execute_deferred_deposits(account_id, collateral_id)?;
+
+			Ok(())
 		}
 
 		fn calculate_initial_taker_locked_size(
