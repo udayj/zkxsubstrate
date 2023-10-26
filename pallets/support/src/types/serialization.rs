@@ -11,6 +11,8 @@ use sp_runtime::traits::ConstU32;
 use sp_runtime::BoundedVec;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
+use super::QuorumSet;
+
 impl FeltSerializedArrayExt for Vec<FieldElement> {
 	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
 		self.extend(vec.iter().map(|&value| FieldElement::from(value)));
@@ -96,6 +98,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		market_updated_event: &MarketUpdated,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::ZERO);
+		self.push(FieldElement::from(market_updated_event.event_index));
 		self.push(FieldElement::from(market_updated_event.id));
 		self.try_append_market(&market_updated_event.market)?;
 		self.append_bounded_vec(&market_updated_event.metadata_url);
@@ -108,6 +113,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		asset_updated_event: &AssetUpdated,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::ONE);
+		self.push(FieldElement::from(asset_updated_event.event_index));
 		self.push(FieldElement::from(asset_updated_event.id));
 		self.try_append_asset(&asset_updated_event.asset)?;
 		self.append_bounded_vec(&asset_updated_event.metadata_url);
@@ -120,6 +128,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		market_removed_event: &MarketRemoved,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::TWO);
+		self.push(FieldElement::from(market_removed_event.event_index));
 		self.push(FieldElement::from(market_removed_event.id));
 		self.push(FieldElement::from(market_removed_event.block_number));
 
@@ -130,6 +141,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		asset_removed_event: &AssetRemoved,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::THREE);
+		self.push(FieldElement::from(asset_removed_event.event_index));
 		self.push(FieldElement::from(asset_removed_event.id));
 		self.push(FieldElement::from(asset_removed_event.block_number));
 
@@ -140,6 +154,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		user_deposit_event: &UserDeposit,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(4_u8));
+		self.push(FieldElement::from(user_deposit_event.event_index));
 		self.try_append_trading_account(&user_deposit_event.trading_account)?;
 		self.push(FieldElement::from(user_deposit_event.collateral_id));
 		self.try_append_u256(user_deposit_event.nonce)?;
@@ -153,6 +170,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		signer_added: &SignerAdded,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(5_u8));
+		self.push(FieldElement::from(signer_added.event_index));
 		self.try_append_u256(signer_added.signer)?;
 		self.push(FieldElement::from(signer_added.block_number));
 
@@ -163,10 +183,21 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		&mut self,
 		signer_removed: &SignerRemoved,
 	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(6_u8));
+		self.push(FieldElement::from(signer_removed.event_index));
 		self.try_append_u256(signer_removed.signer)?;
 		self.push(FieldElement::from(signer_removed.block_number));
 
 		Ok(())
+	}
+
+	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet) {
+		// enum prefix
+		self.push(FieldElement::from(7_u8));
+		self.push(FieldElement::from(quorum_set.event_index));
+		self.push(FieldElement::from(quorum_set.quorum));
+		self.push(FieldElement::from(quorum_set.block_number));
 	}
 
 	fn try_append_universal_event_array(
@@ -195,6 +226,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				},
 				UniversalEvent::SignerRemoved(signer_removed) => {
 					self.try_append_signer_removed_event(signer_removed)?;
+				},
+				UniversalEvent::QuorumSet(quorum_set) => {
+					self.append_quorum_set_event(quorum_set);
 				},
 			}
 		}
