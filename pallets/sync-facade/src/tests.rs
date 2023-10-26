@@ -1,6 +1,6 @@
 use crate::mock::*;
 use frame_support::assert_ok;
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;

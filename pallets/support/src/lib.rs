@@ -21,7 +21,7 @@ pub mod test_helpers;
 pub mod helpers {
 	use super::{FieldElement, FromByteSliceError};
 	use crate::traits::U256Ext;
-	use frame_support::inherent::Vec;
+	use frame_support::dispatch::Vec;
 	use itertools::fold;
 	use primitive_types::U256;
 	use starknet_crypto::pedersen_hash;

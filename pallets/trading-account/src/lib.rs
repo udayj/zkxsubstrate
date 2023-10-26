@@ -11,7 +11,7 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
-	use frame_support::inherent::Vec;
+	use frame_support::dispatch::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
@@ -137,7 +137,7 @@ pub mod pallet {
 			reason: u8,
 			previous_balance: FixedI128,
 			new_balance: FixedI128,
-			block_number: T::BlockNumber,
+			block_number: BlockNumberFor<T>,
 		},
 		/// Event to be synced by L2, for pnl changes
 		UserBalanceChange {
@@ -146,14 +146,14 @@ pub mod pallet {
 			amount: FixedI128,
 			modify_type: FundModifyType,
 			reason: u8,
-			block_number: T::BlockNumber,
+			block_number: BlockNumberFor<T>,
 		},
 		/// Event to be synced by L2, for withdrawal requests
 		UserWithdrawal {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
 			amount: FixedI128,
-			block_number: T::BlockNumber,
+			block_number: BlockNumberFor<T>,
 		},
 		/// Account created
 		AccountCreated { account_id: U256, account_address: U256, index: u8 },

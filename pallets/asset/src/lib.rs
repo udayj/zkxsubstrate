@@ -11,7 +11,7 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::inherent::Vec;
+	use frame_support::dispatch::Vec;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use zkx_support::traits::AssetInterface;

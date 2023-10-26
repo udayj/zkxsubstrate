@@ -1,7 +1,7 @@
 use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FieldElementExt, FixedI128Ext, U256Ext};
 use crate::types::{convert_to_u128_pair, HashType, TradingAccountMinimal, WithdrawalRequest};
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;

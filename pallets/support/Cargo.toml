@@ -9,16 +9,16 @@ license = "MIT-0"
 publish = false
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = [
 	"derive",
 ] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 primitive-types = { version = "0.12.1", default-features = false }
 sp-arithmetic = { version = "16.0.0", default-features = false, features = ["serde"] }
-sp-runtime = { version = "7.0.0", default-features = false,  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
-sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false, branch = "polkadot-v0.9.42" }
+sp-runtime = { version = "24.0.0", default-features = false,  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"  }
+sp-io = { version = "23.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false, branch = "polkadot-v1.0.0" }
 starknet-ff = { version = "0.3.4", default-features = false }
 starknet-crypto = { version = "0.6.0", default-features = false }
 starknet-core = { version = "0.5.0", default-features = false }

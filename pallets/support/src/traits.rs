@@ -5,7 +5,7 @@ use crate::types::{
 	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent,
 	UserDeposit,
 };
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::BoundedVec;

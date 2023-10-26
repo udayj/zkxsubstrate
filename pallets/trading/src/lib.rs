@@ -11,7 +11,7 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::inherent::Vec;
+	use frame_support::dispatch::Vec;
 	use frame_support::pallet_prelude::{ValueQuery, *};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
@@ -219,7 +219,7 @@ pub mod pallet {
 			collateral_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
-			block_number: T::BlockNumber,
+			block_number: BlockNumberFor<T>,
 		},
 		/// Force closure flag updation event
 		ForceClosureFlagsChanged { account_id: U256, collateral_id: u128, force_closure_flag: u8 },
