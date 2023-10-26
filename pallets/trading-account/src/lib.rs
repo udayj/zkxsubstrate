@@ -24,9 +24,8 @@ pub mod pallet {
 		AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
 		TradingAccountInterface, TradingInterface, U256Ext,
 	};
-	use zkx_support::types::ForceClosureFlag;
 	use zkx_support::types::{
-		BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
+		BalanceChangeReason, BalanceUpdate, Direction, ForceClosureFlag, FundModifyType, Position,
 		PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
@@ -75,6 +74,12 @@ pub mod pallet {
 	#[pallet::getter(fn balances)]
 	// Here, key1 is account_id,  key2 is asset_id and value is the balance
 	pub(super) type BalancesMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn deferred_deposits)]
+	// Here, key1 is account_id and value is the array of type DeferredBalances
+	pub(super) type DeferredBalancesMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
@@ -139,6 +144,8 @@ pub mod pallet {
 			new_balance: FixedI128,
 			block_number: T::BlockNumber,
 		},
+		/// Event emitted for deferred deposits
+		DeferredBalance { account_id: U256, collateral_id: u128, amount: FixedI128 },
 		/// Event to be synced by L2, for pnl changes
 		UserBalanceChange {
 			trading_account: TradingAccountMinimal,
@@ -988,8 +995,29 @@ pub mod pallet {
 			let index = trading_account.index;
 			let pub_key = trading_account.pub_key;
 
-			// Create trading account id
+			// Generate trading account id
 			let account_id = Self::get_trading_account_id(trading_account);
+
+			// Check if the account is under risk-management
+			if let ForceClosureFlag::Liquidate | ForceClosureFlag::Deleverage =
+				T::TradingPallet::get_force_closure_flags(account_id, collateral_id)
+			{
+				// Get the current balance
+				let previous_deferred_balance =
+					DeferredBalancesMap::<T>::get(account_id, collateral_id);
+
+				// Save it to storage
+				DeferredBalancesMap::<T>::insert(
+					account_id,
+					collateral_id,
+					previous_deferred_balance + amount,
+				);
+
+				// Emit the deferred deposit event
+				Self::deposit_event(Event::DeferredBalance { account_id, collateral_id, amount });
+
+				return Ok(());
+			}
 
 			// Check if the account already exists, if it doesn't exist then create an account
 			if !AccountMap::<T>::contains_key(&account_id) {
@@ -1002,13 +1030,6 @@ pub mod pallet {
 				AccountsCount::<T>::put(current_length + 1);
 
 				Self::deposit_event(Event::AccountCreated { account_id, account_address, index });
-			} else {
-				let force_closure_flag =
-					T::TradingPallet::get_force_closure_flags(account_id, collateral_id);
-				ensure!(
-					force_closure_flag == ForceClosureFlag::Absent,
-					Error::<T>::ForceClosureFlagSet
-				);
 			}
 
 			// Get the current balance
@@ -1056,6 +1077,45 @@ pub mod pallet {
 				account_list.push(AccountsListMap::<T>::get(index).unwrap());
 			}
 			account_list
+		}
+
+		fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult {
+			// Get the current deferred balance
+			let deferred_balance = DeferredBalancesMap::<T>::get(account_id, collateral_id);
+
+			if deferred_balance != FixedI128::zero() {
+				// Get the current balance
+				let previous_balance = BalancesMap::<T>::get(account_id, collateral_id);
+
+				// Calculate the new balance
+				let new_balance = previous_balance + deferred_balance;
+
+				// Update the balance
+				BalancesMap::<T>::insert(account_id, collateral_id, new_balance);
+
+				// Reset the deferred balance
+				DeferredBalancesMap::<T>::insert(account_id, collateral_id, FixedI128::zero());
+
+				// Get the account details for the event
+				let account = AccountMap::<T>::get(&account_id)
+					.ok_or(Error::<T>::AccountDoesNotExist)?
+					.to_trading_account_minimal();
+
+				// Emit the balance updated event
+				Self::deposit_event(Event::BalanceUpdated {
+					account_id,
+					account,
+					collateral_id,
+					amount: deferred_balance,
+					modify_type: FundModifyType::Increase.into(),
+					reason: BalanceChangeReason::DeferredDeposit.into(),
+					previous_balance,
+					new_balance,
+					block_number: <frame_system::Pallet<T>>::block_number(),
+				});
+			}
+
+			Ok(())
 		}
 	}
 }

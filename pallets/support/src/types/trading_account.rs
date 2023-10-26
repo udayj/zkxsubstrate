@@ -74,8 +74,8 @@ impl Hashable for WithdrawalRequest {
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 		elements.push(FieldElement::from(self.collateral_id));
-		elements.push(FieldElement::from(self.timestamp));
 		elements.push(self.amount.to_u256().try_to_felt()?);
+		elements.push(FieldElement::from(self.timestamp));
 
 		let result = match hash_type {
 			HashType::Pedersen => pedersen_hash_multiple(&elements),
