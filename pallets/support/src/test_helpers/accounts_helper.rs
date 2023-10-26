@@ -21,8 +21,8 @@ pub fn create_withdrawal_request(
 	elements.push(account_id_low);
 	elements.push(account_id_high);
 	elements.push(FieldElement::from(collateral_id));
-	elements.push(FieldElement::from(timestamp));
 	elements.push(amount.to_u256().try_to_felt()?);
+	elements.push(FieldElement::from(timestamp));
 
 	let msg_hash = pedersen_hash_multiple(&elements);
 
