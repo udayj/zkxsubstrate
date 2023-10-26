@@ -294,6 +294,9 @@ pub mod pallet {
 					UniversalEvent::SignerRemoved(signer_removed) => {
 						Self::remove_signer_internal(signer_removed.signer);
 					},
+					UniversalEvent::QuorumSet(_quorum_set) => {
+						// TODO(merkle-groot): Add a handling function here
+					},
 				}
 			}
 		}
@@ -364,6 +367,9 @@ pub mod pallet {
 				},
 				UniversalEvent::SignerRemoved(signer_removed) => {
 					(signer_removed.block_number, signer_removed.event_index)
+				},
+				UniversalEvent::QuorumSet(quorum_set) => {
+					(quorum_set.block_number, quorum_set.event_index)
 				},
 			}
 		}
