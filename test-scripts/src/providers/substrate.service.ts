@@ -321,8 +321,8 @@ export class SubstrateService {
       u8aToBn(accountIdAsLowBytes, { isLe: false }).toString(),
       u8aToBn(accountIdAsHighBytes, { isLe: false }).toString(),
       withdrawalRequest.collateral_id.toPrimitive(),
-      withdrawalRequest.timestamp,
       withdrawalRequest.amount.toPrimitive(),
+      withdrawalRequest.timestamp,
     ];
 
     const dataHash = computeHashOnElements(withdrawHashElements);
