@@ -2,7 +2,7 @@ use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
 use codec::{Decode, Encode};
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
