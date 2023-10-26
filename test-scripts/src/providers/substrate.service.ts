@@ -307,7 +307,7 @@ export class SubstrateService {
       account_id: SubstrateHelper.convertHexToU256(accountId),
       collateral_id: SubstrateHelper.convertStringToU128(assetId),
       amount: SubstrateHelper.convertNumberToI128(amount),
-      timestamp: new Date().getTime(),
+      timestamp: Date.now(),
       sig_r: null,
       sig_s: null,
       hash_type: 0,
