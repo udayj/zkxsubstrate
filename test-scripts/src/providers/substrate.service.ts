@@ -307,9 +307,10 @@ export class SubstrateService {
       account_id: SubstrateHelper.convertHexToU256(accountId),
       collateral_id: SubstrateHelper.convertStringToU128(assetId),
       amount: SubstrateHelper.convertNumberToI128(amount),
-      hash_type: 0,
+      timestamp: new Date().getTime(),
       sig_r: null,
       sig_s: null,
+      hash_type: 0,
     }
 
     const accountIdAsBytes = bnToU8a(withdrawalRequest.account_id.toPrimitive(), { isLe: false });
@@ -320,6 +321,7 @@ export class SubstrateService {
       u8aToBn(accountIdAsLowBytes, { isLe: false }).toString(),
       u8aToBn(accountIdAsHighBytes, { isLe: false }).toString(),
       withdrawalRequest.collateral_id.toPrimitive(),
+      withdrawalRequest.timestamp,
       withdrawalRequest.amount.toPrimitive(),
     ];
 
