@@ -262,7 +262,7 @@ node:
 #    flags: ["--bootnodes '/dns4/zkxsubstrate-node-0-relay-chain-p2p.zkxnode-stand-1.svc.cluster.local/tcp/30334/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'"]
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--alice", "--log=debug"]
+  flags: ["--alice"]
 
 
   # -- Keys to use by the node.
