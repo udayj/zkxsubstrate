@@ -74,6 +74,7 @@ spec:
       labels:
       {{- include "node.labels" . | nindent 8 }}
     spec:
+      restartPolicy: Always
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
@@ -313,7 +314,11 @@ spec:
               {{- end }}
           {{- end }}
           resources:
-          {{- toYaml .Values.node.resources | nindent 12 }}
+            requests:
+              ephemeral-storage: "2Gi"
+            limits:
+              ephemeral-storage: "4Gi"
+            limits: 
           volumeMounts:
             - mountPath: /chain-data
               name: chain-data

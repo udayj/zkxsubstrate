@@ -481,7 +481,8 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources: {}
+  resources:
+    ephemeral-storage: "5Gi"
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
