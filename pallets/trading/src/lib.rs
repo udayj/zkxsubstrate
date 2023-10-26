@@ -634,11 +634,9 @@ pub mod pallet {
 
 							if new_deleverage_position_size == FixedI128::zero() {
 								DeleveragableMap::<T>::remove(element.account_id, collateral_id);
-								ForceClosureFlagMap::<T>::insert(
-									element.account_id,
-									collateral_id,
-									ForceClosureFlag::Absent,
-								);
+
+								// Remove the liquidation flag and check for deferred deposits
+								Self::reset_force_closure_flags(element.account_id, collateral_id)?;
 							} else {
 								let new_deleverage_position = DeleveragablePosition {
 									market_id: deleveragable_position.market_id,
@@ -658,7 +656,7 @@ pub mod pallet {
 							new_margin_locked = current_margin_locked;
 						},
 						// Normal and liquidation case
-						other => {
+						_ => {
 							new_leverage = position_details.leverage;
 							new_margin_locked = current_margin_locked - margin_lock_amount;
 						},
@@ -698,11 +696,8 @@ pub mod pallet {
 							if force_closure_flag == ForceClosureFlag::Liquidate
 								&& markets.is_empty()
 							{
-								ForceClosureFlagMap::<T>::insert(
-									element.account_id,
-									collateral_id,
-									ForceClosureFlag::Absent,
-								);
+								// Remove the liquidation flag and check for deferred deposits
+								Self::reset_force_closure_flags(element.account_id, collateral_id)?;
 							}
 						}
 						PositionsMap::<T>::remove(
@@ -808,6 +803,16 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn reset_force_closure_flags(account_id: U256, collateral_id: u128) -> DispatchResult {
+			// Reset the flag
+			ForceClosureFlagMap::<T>::insert(account_id, collateral_id, ForceClosureFlag::Absent);
+
+			// Add deferred deposits if any
+			T::TradingAccountPallet::add_deferred_balance(account_id, collateral_id)?;
+
+			Ok(())
+		}
+
 		fn calculate_initial_taker_locked_size(
 			order: &Order,
 			quantity_locked: FixedI128,
@@ -877,7 +882,7 @@ pub mod pallet {
 								deleveragable_position.amount_to_be_sold,
 							);
 						},
-						other => {
+						_ => {
 							quantity_to_execute =
 								FixedI128::min(quantity_to_execute, position_details.size);
 						},
@@ -1168,7 +1173,7 @@ pub mod pallet {
 					borrowed_amount = position_details.borrowed_amount - leveraged_order_value;
 					margin_amount = position_details.margin_amount;
 				},
-				other => {
+				_ => {
 					borrowed_amount = position_details.borrowed_amount - borrowed_amount_to_return;
 					margin_amount = position_details.margin_amount - margin_amount_to_reduce;
 				},

@@ -22,6 +22,7 @@ pub enum UniversalEvent {
 	UserDeposit(UserDeposit),
 	SignerAdded(SignerAdded),
 	SignerRemoved(SignerRemoved),
+	QuorumSet(QuorumSet),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -77,5 +78,12 @@ pub struct SignerAdded {
 pub struct SignerRemoved {
 	pub event_index: u32,
 	pub signer: U256,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct QuorumSet {
+	pub event_index: u32,
+	pub quorum: u8,
 	pub block_number: u64,
 }

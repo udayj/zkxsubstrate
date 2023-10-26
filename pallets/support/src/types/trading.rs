@@ -84,6 +84,7 @@ pub enum BalanceChangeReason {
 	#[default]
 	Fee,
 	Deposit,
+	DeferredDeposit,
 	Liquidation,
 	PnlRealization,
 	Withdrawal,
@@ -235,11 +236,12 @@ impl From<BalanceChangeReason> for u8 {
 	fn from(value: BalanceChangeReason) -> u8 {
 		match value {
 			BalanceChangeReason::Deposit => 0_u8,
-			BalanceChangeReason::Fee => 1_u8,
-			BalanceChangeReason::Liquidation => 2_u8,
-			BalanceChangeReason::PnlRealization => 3_u8,
-			BalanceChangeReason::Withdrawal => 4_u8,
-			BalanceChangeReason::WithdrawalFee => 5_u8,
+			BalanceChangeReason::DeferredDeposit => 1_u8,
+			BalanceChangeReason::Fee => 2_u8,
+			BalanceChangeReason::Liquidation => 3_u8,
+			BalanceChangeReason::PnlRealization => 4_u8,
+			BalanceChangeReason::Withdrawal => 5_u8,
+			BalanceChangeReason::WithdrawalFee => 6_u8,
 		}
 	}
 }

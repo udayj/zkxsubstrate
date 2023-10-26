@@ -2,8 +2,8 @@ use crate::types::{
 	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
 	Direction, ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market,
 	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent,
-	UserDeposit,
+	QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal,
+	UniversalEvent, UserDeposit,
 };
 use frame_support::inherent::Vec;
 use primitive_types::U256;
@@ -54,6 +54,7 @@ pub trait TradingAccountInterface {
 		FixedI128,
 	);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
+	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 }
 
 pub trait TradingInterface {
@@ -140,6 +141,7 @@ pub trait Hashable {
 pub trait FeltSerializedArrayExt {
 	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
 	fn append_bool(&mut self, boolean_value: bool);
+	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet);
 	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_u256_pair(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError>;
