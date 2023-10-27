@@ -11,6 +11,14 @@ use sp_runtime::RuntimeDebug;
 use starknet_crypto::poseidon_hash_many;
 use starknet_ff::{FieldElement, FromByteSliceError};
 
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SignatureInfo {
+	pub liquidator_pub_key: U256,
+	pub hash_type: HashType,
+	pub sig_r: U256,
+	pub sig_s: U256,
+}
+
 // Order related
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
@@ -26,9 +34,7 @@ pub struct Order {
 	pub slippage: FixedI128,
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
-	pub sig_r: U256,
-	pub sig_s: U256,
-	pub hash_type: HashType,
+	pub signature_info: SignatureInfo,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
