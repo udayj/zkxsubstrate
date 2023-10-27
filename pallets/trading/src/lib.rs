@@ -26,7 +26,7 @@ pub mod pallet {
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
 		FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, PositionExtended, Side, TimeInForce,
+		PositionDetailsForRiskManagement, PositionExtended, Side, SignatureInfo, TimeInForce,
 	};
 	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -930,34 +930,47 @@ pub mod pallet {
 				Error::<T>::TradeBatchError502
 			);
 
-			// Signature validation
-			let sig_felt = sig_u256_to_sig_felt(&order.sig_r, &order.sig_s);
+			Self::validate_signature(order.clone())?;
 
-			// Sig_r and/or Sig_s could not be converted to FieldElement
-			ensure!(sig_felt.is_ok(), Error::<T>::TradeBatchError535);
+			Ok(())
+		}
 
-			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+		fn validate_signature(order: Order) -> Result<(), Error<T>> {
+			let SignatureInfo { liquidator_pub_key, hash_type, sig_r, sig_s } =
+				&order.signature_info;
+
+			// Hash the order
+			let order_hash = order.hash(hash_type).map_err(|_| Error::<T>::TradeBatchError534)?;
+
+			// Convert to FieldElement
+			let (sig_r_felt, sig_s_felt) =
+				sig_u256_to_sig_felt(sig_r, sig_s).map_err(|_| Error::<T>::TradeBatchError535)?;
+
 			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
 
-			let order_hash = order.hash(&order.hash_type);
+			let verification_result = match order.order_type {
+				OrderType::Forced => {
+					let liquidator_pub_key_felt = liquidator_pub_key
+						.try_to_felt()
+						.map_err(|_| Error::<T>::TradeBatchError538)?;
 
-			// Order could not be hashed
-			ensure!(order_hash.is_ok(), Error::<T>::TradeBatchError534);
+					ecdsa_verify(&liquidator_pub_key_felt, &order_hash, &sig)
+				},
+				_ => {
+					let public_key_felt =
+						T::TradingAccountPallet::get_public_key(&order.account_id)
+							.and_then(|key| key.try_to_felt().ok())
+							.ok_or(Error::<T>::TradeBatchError538)?;
 
-			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
-
-			// Public key not found for this account_id
-			ensure!(public_key.is_some(), Error::<T>::TradeBatchError537);
-
-			let public_key_felt = public_key.unwrap().try_to_felt();
-
-			// Public Key U256 could not be converted to FieldElement
-			ensure!(public_key_felt.is_ok(), Error::<T>::TradeBatchError538);
-
-			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
+					ecdsa_verify(&public_key_felt, &order_hash, &sig)
+				},
+			};
 
 			// Signature verification returned error or false
-			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::TradeBatchError536);
+			ensure!(
+				verification_result.is_ok() && verification_result.unwrap(),
+				Error::<T>::TradeBatchError536
+			);
 
 			Ok(())
 		}
