@@ -8,7 +8,7 @@ on:
 jobs:
   build_base:
     runs-on: [ubuntu-latest]
-    if: ${{ contains(github.event.head_commit.message, 'stand_2') && contains(github.event.head_commit.message, 'drop_data') }}
+    if: ${{ contains(github.event.head_commit.message, 'stand_4') && contains(github.event.head_commit.message, 'drop_data') }}
     steps:
       - uses: actions/checkout@v1
       - name: Login to Docker Hub
