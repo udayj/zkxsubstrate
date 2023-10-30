@@ -19,6 +19,7 @@ jobs:
       - run: docker build -f Dockerfile.base -t zkxteam/zkxsubstrate:stand3-base .
       - run: docker push zkxteam/zkxsubstrate:stand3-base
 
+
   build_node:
     runs-on: [ubuntu-latest]
     needs: [build_base]
