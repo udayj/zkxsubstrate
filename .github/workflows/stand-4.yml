@@ -34,7 +34,7 @@ jobs:
 
   build_runtime:
     runs-on: [ubuntu-latest]
-    if: ${{ contains(github.event.head_commit.message, 'stand_4') && contains(github.event.head_commit.message, 'runtime_update') }}
+    if: ${{ contains(github.event.head_commit.message, 'stand_4') && (contains(github.event.head_commit.message, 'drop_data') || contains(github.event.head_commit.message, 'runtime_update')) }}
     steps:
       - uses: actions/checkout@v1
       - name: Login to Docker Hub
@@ -70,6 +70,7 @@ jobs:
   runtime_update:
     runs-on: [ubuntu-latest]
     needs: ['build_runtime']
+    if: ${{ contains(github.event.head_commit.message, 'stand_4') && contains(github.event.head_commit.message, 'runtime_update') }}
     steps:
     - uses: actions/checkout@v1
     - name: Login to Docker Hub
@@ -78,3 +79,15 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - run: docker run zkxteam/zkxsubstrate:stand4-runtime
+
+  runtime_update_when_drop:
+    runs-on: [ubuntu-latest]
+    needs: ['build_runtime', 'deploy_with_drop']
+    steps:
+    - uses: actions/checkout@v1
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    # - run: docker run zkxteam/zkxsubstrate:stage-runtime
