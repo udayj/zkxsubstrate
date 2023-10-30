@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - '*'
+      - '!main'
 
 jobs:
   build_base:
@@ -89,4 +90,4 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    # - run: docker run zkxteam/zkxsubstrate:stage-runtime
+    - run: docker run zkxteam/zkxsubstrate:stand1-runtime
