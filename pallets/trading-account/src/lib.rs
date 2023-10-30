@@ -482,7 +482,7 @@ pub mod pallet {
 				let short_position: Position =
 					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Short);
 
-				// Get Market price
+				// Get Index price
 				let market_price = T::PricesPallet::get_index_price(curr_market_id);
 
 				if market_price == FixedI128::zero() {

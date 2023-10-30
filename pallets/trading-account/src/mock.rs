@@ -102,6 +102,7 @@ impl pallet_risk_management::Config for Test {
 	type TradingPallet = Trading;
 	type TradingAccountPallet = TradingAccountModule;
 	type MarketPallet = Markets;
+	type PricesPallet = Prices;
 }
 
 // Build genesis storage according to the mock runtime.

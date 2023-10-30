@@ -189,10 +189,12 @@ pub mod pallet {
 		TradeBatchError537,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
-		/// When deleverage or liquidate flag is true, order type can only be Forced
+		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
 		TradeBatchError539,
 		/// Order hash mismatch for a particular order id
 		TradeBatchError541,
+		/// If taker is forced, force closure flag must not be Absent
+		TradeBatchError540,
 	}
 
 	#[pallet::event]
@@ -836,7 +838,19 @@ pub mod pallet {
 			// set and also if deleveraging, amount to be sold can be calculated,
 			// which is required to calculate quantity to execute
 			if order.order_type == OrderType::Forced {
-				T::RiskManagementPallet::check_for_force_closure(order.account_id, collateral_id);
+				T::RiskManagementPallet::check_for_force_closure(
+					order.account_id,
+					collateral_id,
+					market_id,
+					order.direction,
+				);
+
+				let force_closure_flag =
+					ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+				ensure!(
+					force_closure_flag != ForceClosureFlag::Absent,
+					Error::<T>::TradeBatchError540
+				);
 			}
 
 			let quantity_response = Self::calculate_quantity_to_execute(
@@ -1413,6 +1427,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
 				Error::<T>::TradeBatchError541 => 541,
+				Error::<T>::TradeBatchError540 => 540,
 				_ => 500,
 			}
 		}
@@ -1448,19 +1463,17 @@ pub mod pallet {
 		fn set_flags_for_force_orders(
 			account_id: U256,
 			collateral_id: u128,
-			position: &PositionDetailsForRiskManagement,
-			amount_to_be_sold: FixedI128,
+			force_closure_flag: ForceClosureFlag,
+			deleveragable_position: DeleveragablePosition,
 		) {
-			let force_closure_flag: u8;
 			// Liquidation
-			if amount_to_be_sold == FixedI128::zero() {
+			if force_closure_flag == ForceClosureFlag::Liquidate {
 				ForceClosureFlagMap::<T>::insert(
 					account_id,
 					collateral_id,
 					ForceClosureFlag::Liquidate,
 				);
 				DeleveragableMap::<T>::remove(account_id, collateral_id);
-				force_closure_flag = ForceClosureFlag::Liquidate.into();
 			} else {
 				// Deleveraging
 				ForceClosureFlagMap::<T>::insert(
@@ -1468,20 +1481,14 @@ pub mod pallet {
 					collateral_id,
 					ForceClosureFlag::Deleverage,
 				);
-				let deleveragable_position: DeleveragablePosition = DeleveragablePosition {
-					market_id: position.market_id,
-					direction: position.direction,
-					amount_to_be_sold,
-				};
 				DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
-				force_closure_flag = ForceClosureFlag::Deleverage.into();
 			}
 
 			// Emit event
 			Self::deposit_event(Event::ForceClosureFlagsChanged {
 				account_id,
 				collateral_id,
-				force_closure_flag,
+				force_closure_flag: force_closure_flag.into(),
 			});
 		}
 
