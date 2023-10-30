@@ -159,6 +159,7 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 42;
 }
 
+
 // Configure FRAME pallets to include in runtime.
 
 impl frame_system::Config for Runtime {
