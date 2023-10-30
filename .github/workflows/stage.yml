@@ -45,6 +45,7 @@ jobs:
       - run: docker build -f Dockerfile.update --build-arg "SCRIPT_NAME=stage.ts" -t zkxteam/zkxsubstrate:stage-runtime .
       - run: docker push zkxteam/zkxsubstrate:stage-runtime
 
+
   deploy_with_drop:
     runs-on: [ubuntu-latest]
     needs: ['build_node']
