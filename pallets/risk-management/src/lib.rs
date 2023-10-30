@@ -40,39 +40,6 @@ pub mod pallet {
 			market_id: u128,
 			direction: Direction,
 		) -> (bool, FixedI128) {
-			// let market = T::MarketPallet::get_market(position.market_id).unwrap();
-			// let req_margin = market.maintenance_margin_fraction;
-
-			// let margin_amount = position.margin_amount;
-			// let borrowed_amount = position.borrowed_amount;
-			// let position_size = position.size;
-
-			// let price_diff;
-			// if position.direction == Direction::Long {
-			// 	price_diff = asset_price - position.avg_execution_price;
-			// } else {
-			// 	price_diff = position.avg_execution_price - asset_price;
-			// }
-
-			// // Calculate amount to be sold for deleveraging
-			// let maintenance_requirement = req_margin * asset_price;
-			// let price_diff_maintenance = maintenance_requirement - price_diff;
-			// let amount_to_be_present = margin_amount / price_diff_maintenance;
-			// let amount_to_be_sold = position_size - amount_to_be_present;
-			// let amount_to_be_sold =
-			// 	amount_to_be_sold.round_to_precision(market.step_precision.into());
-
-			// // Calculate the leverage after deleveraging
-			// let position_value = margin_amount + borrowed_amount;
-			// let amount_to_be_sold_value = amount_to_be_sold * position.avg_execution_price;
-			// let remaining_position_value = position_value - amount_to_be_sold_value;
-			// let leverage_after_deleveraging = remaining_position_value / margin_amount;
-
-			// if leverage_after_deleveraging <= 2.into() {
-			// 	FixedI128::zero()
-			// } else {
-			// 	amount_to_be_sold
-			// }
 			let markets = T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
 			let mut total_account_value = FixedI128::zero();
 			let mut total_maintenance_margin = FixedI128::zero();
