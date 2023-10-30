@@ -101,8 +101,8 @@ pub mod pallet {
 				let leverage_after_deleveraging = remaining_position_value / position.margin_amount;
 
 				if leverage_after_deleveraging <= 2.into() {
-					let two_point_five = FixedI128::from_inner(2500000000000000000);
-					let new_size = (two_point_five * position.margin_amount) / price;
+					let two_fi128 = FixedI128::from_inner(2000000000000000000);
+					let new_size = (two_fi128 * position.margin_amount) / price;
 					let amount_to_be_sold = position.size - new_size;
 					(true, amount_to_be_sold)
 				} else {
