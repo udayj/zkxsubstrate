@@ -22,6 +22,9 @@ pub mod pallet {
 		DeleveragablePosition, Direction, ForceClosureFlag, Order, OrderType, Position, Side,
 	};
 
+	static TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
+	static TWO_POINT_FIVE_FI128: FixedI128 = FixedI128::from_inner(2500000000000000000);
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -83,7 +86,7 @@ pub mod pallet {
 					price_diff = position.avg_execution_price - price;
 				}
 
-				if price_diff >= FixedI128::zero() {
+				if (price_diff >= FixedI128::zero()) || position.leverage <= TWO_FI128 {
 					return (true, FixedI128::zero());
 				}
 
@@ -101,8 +104,7 @@ pub mod pallet {
 				let leverage_after_deleveraging = remaining_position_value / position.margin_amount;
 
 				if leverage_after_deleveraging <= 2.into() {
-					let two_fi128 = FixedI128::from_inner(2000000000000000000);
-					let new_size = (two_fi128 * position.margin_amount) / price;
+					let new_size = (TWO_FI128 * position.margin_amount) / price;
 					let amount_to_be_sold = position.size - new_size;
 					(true, amount_to_be_sold)
 				} else {
@@ -135,8 +137,7 @@ pub mod pallet {
 			// Sell the position such that resulting leverage is 2.5
 			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
 			if pnl < FixedI128::zero() {
-				let two_point_five = FixedI128::from_inner(2500000000000000000);
-				let new_size = (two_point_five * position.margin_amount) / price;
+				let new_size = (TWO_POINT_FIVE_FI128 * position.margin_amount) / price;
 				position_value = new_size * price;
 				maintenance_requirement = position.avg_execution_price * new_size * req_margin;
 			} else {
