@@ -12,14 +12,82 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: stand4-node
+  tag: stand3-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
   # Note: passwords and keys used in container may appear in logs
   debug: false
 
+# -- Additional init containers
+initContainers:
+  # -- A container to handle network configuration of the Polkadot node
+  retrieveServiceInfo:
+    image:
+      # -- Image repository
+      repository: paritytech/kubetools-kubectl
+      # -- Image tag
+      tag: latest
+    # -- The resources requests/limits for the container
+    resources: {}
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
 
+  downloadChainSnapshot:
+    # -- A container to use for downloading a node backup/snapshot
+    image:
+      # -- Image repository
+      repository: docker.io/rclone/rclone
+      # -- Image tag
+      tag: latest
+    # -- The resources requests/limits for the container
+    resources: {}
+    # -- Additional environment variables to add to the container
+    extraEnvVars: []
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
+    # -- Flags to add to the CLI command. We rely on rclone for downloading snapshots so make sure the flags are compatible.
+    cmdArgs: ""
+
+  downloadChainspec:
+    image:
+      # -- Image repository
+      repository: docker.io/alpine
+      # -- Image tag
+      tag: latest
+    # -- Additional environment variables to add to the container
+    resources: {}
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
+
+  downloadRuntime:
+    image:
+      # -- Image repository
+      repository: paritytech/kubetools-kubectl
+      # -- Image tag
+      tag: latest
+    # -- Additional environment variables to add to the container
+    resources: {}
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
+
+  persistGeneratedNodeKey:
+    # -- Additional environment variables to add to the container
+    resources: {}
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
+
+  injectKeys:
+    # -- Additional environment variables to add to the container
+    resources: {}
+    # -- Adds `-x` shell option to container.
+    # Note: passwords and keys used in container may appear in logs
+    debug: false
 
 # -- Reference to one or more secrets to be used when pulling images.
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
@@ -63,28 +131,23 @@ podDisruptionBudget:
 # -- Creates an ingress resource
 ingress:
   # -- Enable creation of Ingress
-  enabled: true
-  ingressClassName: nginx
+  enabled: false
   # -- Annotations to add to the Ingress
-  annotations:
-   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  #  kubernetes.io/ingress.class: nginx
+  #  kubernetes.io/tls-acme: "true"
   # -- Ingress rules configuration
-  rules:
-  - host: l3.stand-4.k8s.ntwrkx.com
-    http:
-      paths:
-      - path: "/"
-        pathType: Prefix
-        backend:
-          service:
-            name: zkxl3-main-node
-            port:
-              number: 9944
+  rules: []
+  #  - host: chart-example.local
+  #    paths:
+  #      - serviceName: node
+  #        servicePort: 9944
   # -- Ingress TLS configuration
-  tls:
-  - secretName: l3-tls
-    hosts:
-      - l3.stand-4.k8s.ntwrkx.com
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -177,20 +240,35 @@ node:
   isParachain: false
 
   # -- EXPERIMENTAL!!!
-  # Run the collator node without a relay chain
+  # Run the collator node without a relay chain via external relay chain
   # ref: https://github.com/paritytech/cumulus#external-relay-chain-node
   # Enabling this option will disable the values of collatorRelayChain
-  externalRelayChain:
+  collatorExternalRelayChain:
     # -- Enable deployment of the external collator
     enabled: false
     # -- List of Relay Chain RPCs to connect
     relayChainRpcUrls: []
+
+  # -- EXPERIMENTAL!!!
+  # Run the collator node without a relay chain via light client
+  # ref: https://github.com/paritytech/cumulus/pull/2270
+  # Enabling this option will disable the values of collatorRelayChain
+  collatorLightClient:
+    # -- Enable deployment of the external collator
+    enabled: false
+    # -- Name of the Relay Chain to connect
+    relayChain: ""
+    # -- Path to the file containing the chainspec of the collator relay-chain
+    relayChainCustomChainspecPath: "/chain-data/relay_chain_chainspec.json"
+    # -- (string) URL to retrive custom chain spec
+    relayChainCustomChainspecUrl:
 
   collatorRelayChain:
     # -- Name of the Relay Chain to connect
     chain: polkadot
 
     # -- Path to the file containing the chainspec of the collator relay-chain
+    # Set to /relaychain-data to use additional volume
     customChainspecPath: "/relaychain-data/relay_chain_chainspec.json"
     # -- (string) URL to retrive custom chain spec
     customChainspecUrl:
@@ -259,11 +337,10 @@ node:
       port: 9625
 
     # -- Flags to add to the Polkadot binary
-#    flags: ["--bootnodes '/dns4/zkxsubstrate-node-0-relay-chain-p2p.zkxnode-stand-2.svc.cluster.local/tcp/30334/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'"]
+    flags: []
 
   # -- Flags to add to the Polkadot binary
   flags: ["--alice"]
-
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -329,7 +406,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0000000000000000000000000000000000000000000000000000000000000001"
+  customNodeKey: 
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -365,7 +442,7 @@ node:
 
   # -- Use deprecated ws/rpc flags.
   # ref: https://github.com/paritytech/substrate/pull/13384
-  legacyRpcFlags: true
+  legacyRpcFlags: false
 
   # -- Configuration of individual services of the node
   perNodeServices:
@@ -399,13 +476,15 @@ node:
         ttl: 300
         # -- Custom prefix to use instead of prefixing the hostname with the name of the Pod
         customPrefix: ""
+      # -- Additional ports on per node Services
+      extraPorts: []
     # -- If enabled, create service to expose relay chain P2P
     relayP2pService:
       enabled: true
       # -- Traffic policy
       externalTrafficPolicy: Cluster
       # -- Service type
-      type: ClusterIP # or ClusterIP or LoadBalancer
+      type: NodePort # or ClusterIP or LoadBalancer
       # -- Port of the P2P endpoint (relay chain)
       port: 30333
       # -- Annotations to add to the Service
@@ -426,6 +505,8 @@ node:
         enabled: true
         # -- WS port
         port: 30334
+      # -- Additional ports on per node Services
+      extraPorts: []
     # -- If enabled, create service to expose parachain P2P
     paraP2pService:
       # -- Enable exposing parachain P2P Service
@@ -454,6 +535,8 @@ node:
         enabled: false
         # -- WS port
         port: 30335
+      # -- Additional ports on per node Services
+      extraPorts: []
     setPublicAddressToExternalIp:
       # -- If enabled, set `--public-addr` flag to be the NodePort p2p services external address
       enabled: false
@@ -463,7 +546,11 @@ node:
   # -- Pod management policy of stateful set.
   # ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#pod-management-policies
   podManagementPolicy:
-
+  # -- Persistent volume claim retention policy of stateful set (ie. whether to retain or delete the attached PVCs when scaling down or deleting the stateful set).
+  # ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
+  persistentVolumeClaimRetentionPolicy:
+#    whenDeleted: Delete
+#    whenScaled: Delete
   tracing:
     # -- Enable Jaeger Agent as a sidecar
     enabled: false
@@ -481,8 +568,7 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources:
-    ephemeral-storage: "5Gi"
+  resources: {}
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
@@ -534,6 +620,13 @@ substrateApiSidecar:
     repository: parity/substrate-api-sidecar
     # -- Image tag
     tag: latest
+  metrics:
+    enabled: false
+    port: 9100
+  # -- Arguments to set on the API sidecar
+  args:
+    - "node"
+    - "build/src/main.js"
   # -- Environment variables to set on the API sidecar
   env: {}
   # -- Resource limits & requests
@@ -581,8 +674,7 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector:
-  role: "worker-spot"
+nodeSelector: {}
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
