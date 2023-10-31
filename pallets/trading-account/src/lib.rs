@@ -180,11 +180,8 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Call the internal function to facililate the deposit
-			let response = Self::deposit_internal(trading_account, collateral_id, amount);
-			match response {
-				Ok(()) => Ok(()),
-				Err(e) => return Err(e),
-			}
+			Self::deposit_internal(trading_account, collateral_id, amount);
+			Ok(())
 		}
 
 		// TODO(merkle-groot): To be removed in production
@@ -990,7 +987,7 @@ pub mod pallet {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
 			amount: FixedI128,
-		) -> DispatchResult {
+		) {
 			let account_address = trading_account.account_address;
 			let index = trading_account.index;
 			let pub_key = trading_account.pub_key;
@@ -1015,8 +1012,6 @@ pub mod pallet {
 
 				// Emit the deferred deposit event
 				Self::deposit_event(Event::DeferredBalance { account_id, collateral_id, amount });
-
-				return Ok(());
 			}
 
 			// Check if the account already exists, if it doesn't exist then create an account
@@ -1060,8 +1055,6 @@ pub mod pallet {
 				new_balance,
 				block_number,
 			});
-
-			Ok(())
 		}
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
