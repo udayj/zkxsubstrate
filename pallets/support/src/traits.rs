@@ -17,7 +17,7 @@ pub trait TradingAccountInterface {
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		amount: FixedI128,
-	) -> DispatchResult;
+	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
