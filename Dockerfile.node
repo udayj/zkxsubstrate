@@ -1,4 +1,4 @@
-FROM zkxteam/zkxsubstrate:stand1-base as base
+FROM zkxteam/zkxsubstrate:stand3-base as base
 
 FROM ubuntu:22.04
 COPY --from=base /app/target/release/node-template /app/
