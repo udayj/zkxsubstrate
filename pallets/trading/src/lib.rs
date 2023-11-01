@@ -113,6 +113,17 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn liquidator_signers)]
+	// Array of U256 signers
+	pub(super) type LiquidatorSigners<T: Config> = StorageValue<_, Vec<U256>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn is_liquidator_signer_valid)]
+	// k1 - signer, v - bool
+	pub(super) type IsLiquidatorSignerWhitelisted<T: Config> =
+		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -181,6 +192,14 @@ pub mod pallet {
 		TradeBatchError538,
 		/// When deleverage or liquidate flag is true, order type can only be Forced
 		TradeBatchError539,
+		/// When a non-whitelisted pub key is used in liquidation
+		TradeBatchError540,
+		/// When a zero signer is being added
+		ZeroSigner,
+		/// When a duplicate signer is being added
+		DuplicateSigner,
+		/// When the order is signed with a pub key that is not whitelisted
+		SignerNotWhitelisted,
 	}
 
 	#[pallet::event]
@@ -223,6 +242,10 @@ pub mod pallet {
 		},
 		/// Force closure flag updation event
 		ForceClosureFlagsChanged { account_id: U256, collateral_id: u128, force_closure_flag: u8 },
+		/// Liquidator signer added
+		LiquidatorSignerAdded { signer: U256 },
+		/// Liquidator signer removed
+		LiquidatorSignerRemoved { signer: U256 },
 	}
 
 	// Pallet callable functions
@@ -800,6 +823,42 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// TODO(merkle-groot): To add origin restriction in production
+		#[pallet::weight(0)]
+		pub fn add_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// The pub key cannot be 0
+			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
+
+			// Ensure that the pub_key is not already whitelisted
+			ensure!(!IsLiquidatorSignerWhitelisted::<T>::get(pub_key), Error::<T>::DuplicateSigner);
+
+			// Store the new signer
+			Self::add_liquidator_signer_internal(pub_key);
+
+			// Return ok
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To add origin restriction in production
+		#[pallet::weight(0)]
+		pub fn remove_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Check if the signer exists
+			ensure!(
+				IsLiquidatorSignerWhitelisted::<T>::get(pub_key),
+				Error::<T>::SignerNotWhitelisted
+			);
+
+			// Update the state
+			Self::remove_liquidator_signer_internal(pub_key);
+
+			// Return ok
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -950,6 +1009,10 @@ pub mod pallet {
 
 			let verification_result = match order.order_type {
 				OrderType::Forced => {
+					ensure!(
+						IsLiquidatorSignerWhitelisted::<T>::get(liquidator_pub_key),
+						Error::<T>::TradeBatchError540
+					);
 					let liquidator_pub_key_felt = liquidator_pub_key
 						.try_to_felt()
 						.map_err(|_| Error::<T>::TradeBatchError538)?;
@@ -1410,8 +1473,34 @@ pub mod pallet {
 				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
+				Error::<T>::TradeBatchError540 => 540,
 				_ => 500,
 			}
+		}
+
+		fn add_liquidator_signer_internal(pub_key: U256) {
+			// Store the new signer
+			LiquidatorSigners::<T>::append(pub_key);
+			IsLiquidatorSignerWhitelisted::<T>::insert(pub_key, true);
+
+			// Emit the SignerAdded event
+			Self::deposit_event(Event::LiquidatorSignerAdded { signer: pub_key });
+		}
+
+		fn remove_liquidator_signer_internal(pub_key: U256) {
+			// Read the state of signers
+			let signers_array = LiquidatorSigners::<T>::get();
+
+			// remove the signer from the array
+			let updated_array: Vec<U256> =
+				signers_array.into_iter().filter(|&signer| signer != pub_key).collect();
+
+			// Update the state
+			IsLiquidatorSignerWhitelisted::<T>::insert(pub_key, false);
+			LiquidatorSigners::<T>::put(updated_array);
+
+			// Emit the SignerRemoved event
+			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
 		}
 	}
 

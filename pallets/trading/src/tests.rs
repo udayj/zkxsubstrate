@@ -2,21 +2,13 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
-use sp_io::hashing::blake2_256;
-use sp_runtime::BoundedVec;
-use starknet_crypto::{sign, FieldElement};
 use zkx_support::test_helpers::accounts_helper::{
-	alice, bob, charlie, create_withdrawal_request, dave, eduard, get_private_key,
-	get_trading_account_id,
+	alice, bob, charlie, dave, get_private_key, get_trading_account_id,
 };
 use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
 use zkx_support::test_helpers::market_helper::{btc_usdc, link_usdc};
 use zkx_support::test_helpers::trading_helper::setup_fee;
-use zkx_support::traits::{FieldElementExt, Hashable, U256Ext};
-use zkx_support::types::{
-	BaseFee, Direction, Discount, ExtendedMarket, HashType, Market, Order, OrderType, Position,
-	Side, SignatureInfo, TimeInForce, TradingAccountMinimal,
-};
+use zkx_support::types::{Direction, Order, OrderType, Position, Side};
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
@@ -48,6 +40,103 @@ fn setup() -> sp_io::TestExternalities {
 	env
 }
 
+#[test]
+fn add_liquidator_signer_authorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let liquidator_signer = U256::from(12345);
+		// Add a signer
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("error while adding signer");
+		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer]);
+		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer), true);
+	});
+}
+
+#[test]
+fn add_multiple_liquidator_signer_authorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let liquidator_signer_1 = U256::from(12345);
+		let liquidator_signer_2 = U256::from(12346);
+		// Add a signer
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_1)
+			.expect("error while adding signer");
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_2)
+			.expect("error while adding signer");
+
+		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer_1, liquidator_signer_2]);
+		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer_1), true);
+		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer_2), true);
+	});
+}
+
+#[test]
+#[should_panic(expected = "ZeroSigner")]
+fn add_signer_authorized_0_pub_key() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Add signer
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), U256::from(0))
+			.expect("Error in code");
+	});
+}
+
+#[test]
+#[should_panic(expected = "DuplicateSigner")]
+fn add_signer_authorized_duplicate_pub_key() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let liquidator_signer = U256::from(12345);
+		// Add a signer
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("error while adding signer");
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("error while adding signer");
+	});
+}
+
+#[test]
+#[should_panic(expected = "SignerNotWhitelisted")]
+fn remove_signer_authorized_invalid_signer() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let liquidator_signer = U256::from(12345);
+		// Remove signer; error
+		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("Error in code");
+	});
+}
+
+#[test]
+fn remove_signer_authorized() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let liquidator_signer = U256::from(12345);
+		// Add a signer
+		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("error while adding signer");
+
+		// Remove signer
+		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+			.expect("Error in code");
+
+		assert_eq!(Trading::liquidator_signers(), vec![]);
+		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer), false);
+	});
+}
 #[test]
 // basic open trade without any leverage
 fn it_works_for_open_trade_simple() {
@@ -112,6 +201,7 @@ fn it_works_for_open_trade_simple() {
 			leverage: 1.into(),
 			realized_pnl: 0.into(),
 		};
+		assert_eq!(expected_position, bob_position);
 	});
 }
 
@@ -236,8 +326,8 @@ fn it_works_for_close_trade_simple() {
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
-			U256::from(2_u8),
 			// batch_id
+			U256::from(2_u8),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -340,7 +430,6 @@ fn it_works_for_close_trade_partial_close() {
 
 		// market id
 		let market_id = btc_usdc().market.id;
-		let collateral_id = usdc().asset.id;
 
 		let alice_open_order_1 = Order::new(201_u128, alice_id)
 			.set_size(2.into())
@@ -478,7 +567,7 @@ fn it_works_for_open_trade_multiple_makers() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError")]
+#[should_panic(expected = "TradeBatchError525")]
 // trade batch with previously executed batch_id
 fn it_reverts_for_trade_with_same_batch_id() {
 	let mut env = setup();
@@ -544,7 +633,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError")]
+#[should_panic(expected = "TradeBatchError509")]
 // trade batch with invalid market_id
 fn it_reverts_for_trade_with_invalid_market() {
 	let mut env = setup();
@@ -553,9 +642,6 @@ fn it_reverts_for_trade_with_invalid_market() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
-
-		// market id
-		let market_id = btc_usdc().market.id;
 
 		// Create orders
 		let alice_open_order_1 = Order::new(201_u128, alice_id)
@@ -585,7 +671,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError")]
+#[should_panic(expected = "TradeBatchError522")]
 // trade batch with quantity_locked as 0
 fn it_reverts_for_trade_with_quantity_locked_zero() {
 	let mut env = setup();
@@ -625,1427 +711,865 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 	});
 }
 
-// #[test]
-// #[should_panic(expected = "TradeBatchError")]
-// // Taker tries to close a position which is already completely closed
-// fn it_reverts_when_taker_tries_to_close_already_closed_position() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			2.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let order_3 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_3,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 104.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Sell,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_3 = sign_order(order_3, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_3, order_4.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(2_u8),
-// 			2.into(),
-// 			markets[0].market.id,
-// 			105.into(),
-// 			orders
-// 		));
-
-// 		let order_5 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_5,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 98.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_6 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_6,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Sell,
-// 			price: 98.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_5 = sign_order(order_5, private_keys[0]);
-// 		let order_6 = sign_order(order_6, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_5, order_6];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(3_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-// 	});
-// }
-
-// #[test]
-// // Non registered user tries to open a position
-// fn it_produces_error_when_user_not_registered() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let _account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: 1.into(),
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 510 }.into());
-// 	});
-// }
-
-// #[test]
-// // Tries to open a position with size lesser than allowed minimum order size
-// fn it_produces_error_when_size_too_small() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: FixedI128::from_inner(500000000000000000),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 505 }.into());
-// 	});
-// }
-
-// #[test]
-// // Tries to open a position with different market_id compared to the one passed in argument
-// fn it_produces_error_when_market_id_is_different() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: 789,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 504 }.into());
-// 	});
-// }
-
-// #[test]
-// // Tries to open a position leverage more than currently allowed leverage
-// fn it_produces_error_when_leverage_is_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 9.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 502 }.into());
-// 	});
-// }
-
-// #[test]
-// // Tries to open a position with invalid signature
-// fn it_produces_error_when_signature_is_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 123.into(),
-// 			sig_s: 456.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		// let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 536 }.into());
-// 	});
-// }
-
-// #[test]
-// // 2nd maker order with side and direction that does not match with the first maker
-// fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-// 		let _account_id_3: U256 = get_trading_account_id(accounts.clone(), 2);
-// 		let account_id_4: U256 = get_trading_account_id(accounts.clone(), 3);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 105.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 99.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_4,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 3.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let order_4 = sign_order(order_4, private_keys[3]);
-// 		let orders: Vec<Order> = vec![order_1, order_2, order_4];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			3.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 512 }.into());
-// 	});
-// }
-
-// #[test]
-// // Maker order type is not limit
-// fn it_produces_error_when_maker_is_market_order() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 8.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 200, error_code: 518 }.into());
-// 	});
-// }
-
-// #[test]
-// // Maker tries to close a position which is already completely closed
-// fn it_reverts_when_maker_tries_to_close_already_closed_position() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			2.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let order_3 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_3,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 104.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Sell,
-// 			price: 100.into(),
-// 			size: 2.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_3 = sign_order(order_3, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_3, order_4.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(2_u8),
-// 			2.into(),
-// 			markets[0].market.id,
-// 			105.into(),
-// 			orders
-// 		));
-
-// 		let order_5 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_5,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 98.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_6 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_6,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 98.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_5 = sign_order(order_5, private_keys[0]);
-// 		let order_6 = sign_order(order_6, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_5, order_6];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(3_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-// 		println!("Events: {:?}", event_record);
-
-// 		System::assert_has_event(Event::OrderError { order_id: 204, error_code: 524 }.into());
-// 	});
-// }
-
-// #[test]
-// #[should_panic(expected = "TradeBatchError")]
-// // taker order with side and direction that does not match with the maker
-// fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_4: U256 = get_trading_account_id(accounts.clone(), 3);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 105.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_4,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 3.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[3]);
-// 		let orders: Vec<Order> = vec![order_1, order_4];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			3.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 105.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_4,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 100.into(),
-// 			size: 3.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[3]);
-// 		let orders: Vec<Order> = vec![order_1, order_4];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(2_u8),
-// 			3.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-// 		println!("Events: {:?}", event_record);
-
-// 		System::assert_has_event(Event::OrderError { order_id: 203, error_code: 511 }.into());
-// 	});
-// }
-
-// #[test]
-// #[should_panic(expected = "TradeBatchError")]
-// // Taker long buy limit order execution price is invalid
-// fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 8.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 99.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 508 }.into());
-// 	});
-// }
-
-// #[test]
-// #[should_panic(expected = "TradeBatchError")]
-// // Taker short buy limit order execution price is invalid
-// fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 8.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 101.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 507 }.into());
-// 	});
-// }
-
-// #[test]
-// #[should_panic(expected = "TradeBatchError")]
-// // Taker long buy slippage check
-// fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 111.into(),
-// 			size: 1.into(),
-// 			leverage: 8.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-// 	});
-// }
-
-// #[test]
-// // Taker long buy slippage check when execution price very low
-// fn it_works_when_taker_long_buy_price_very_low() {
-// 	new_test_ext().execute_with(|| {
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 80.into(),
-// 			size: 1.into(),
-// 			leverage: 8.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2.clone()];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-// 	});
-// }
-
-// #[test]
-// fn test_fee_while_opening_order() {
-// 	new_test_ext().execute_with(|| {
-// 		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let side: Side = Side::Buy;
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingFees::update_base_fees_and_discounts(
-// 			RuntimeOrigin::signed(1),
-// 			side,
-// 			fee_tiers,
-// 			fee_details.clone(),
-// 			discount_tiers,
-// 			discount_details.clone()
-// 		));
-
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		let usdc_id: u128 = usdc().asset.id;
-// 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
-// 		assert_eq!(balance_1, FixedI128::from_inner(9998060000000000000000));
-// 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
-// 		assert_eq!(balance_2, FixedI128::from_inner(9995150000000000000000));
-
-// 		// Close orders
-// 		// Since we are closing orders without setting the fee for close orders, fee won't be deducted from balance
-// 		let order_3 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_3,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 105.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Sell,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_3 = sign_order(order_3, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_3, order_4];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(2_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			105.into(),
-// 			orders
-// 		));
-
-// 		let usdc_id: u128 = usdc().asset.id;
-// 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
-// 		assert_eq!(balance_1, FixedI128::from_inner(10003060000000000000000));
-// 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
-// 		assert_eq!(balance_2, FixedI128::from_inner(9990150000000000000000));
-// 		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
-// 		assert_eq!(locked_1, 0.into());
-// 	});
-// }
-
-// #[test]
-// fn test_fee_while_closing_order() {
-// 	new_test_ext().execute_with(|| {
-// 		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let side: Side = Side::Sell;
-// 		// Dispatch a signed extrinsic.
-// 		assert_ok!(TradingFees::update_base_fees_and_discounts(
-// 			RuntimeOrigin::signed(1),
-// 			side,
-// 			fee_tiers,
-// 			fee_details.clone(),
-// 			discount_tiers,
-// 			discount_details.clone()
-// 		));
-
-// 		let (markets, accounts, private_keys) = setup();
-// 		// Go past genesis block so events get deposited
-// 		System::set_block_number(1);
-
-// 		let account_id_1: U256 = get_trading_account_id(accounts.clone(), 0);
-// 		let account_id_2: U256 = get_trading_account_id(accounts.clone(), 1);
-
-// 		let order_1 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_1,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_2 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_2,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Buy,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_1 = sign_order(order_1, private_keys[0]);
-// 		let order_2 = sign_order(order_2, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_1, order_2];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(1_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			100.into(),
-// 			orders
-// 		));
-
-// 		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
-// 		let usdc_id: u128 = usdc().asset.id;
-// 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
-// 		assert_eq!(balance_1, 10000.into());
-// 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
-// 		assert_eq!(balance_2, 10000.into());
-
-// 		// Close orders
-// 		let order_3 = Order {
-// 			account_id: account_id_1,
-// 			order_id: ORDER_ID_3,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Limit,
-// 			direction: Direction::Long,
-// 			side: Side::Sell,
-// 			price: 105.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-// 		let order_4 = Order {
-// 			account_id: account_id_2,
-// 			order_id: ORDER_ID_4,
-// 			market_id: markets[0].market.id,
-// 			order_type: OrderType::Market,
-// 			direction: Direction::Short,
-// 			side: Side::Sell,
-// 			price: 100.into(),
-// 			size: 1.into(),
-// 			leverage: 1.into(),
-// 			slippage: FixedI128::from_inner(100000000000000000),
-// 			post_only: false,
-// 			time_in_force: TimeInForce::GTC,
-// 			sig_r: 0.into(),
-// 			sig_s: 0.into(),
-// 			hash_type: HashType::Pedersen,
-// 		};
-
-// 		let order_3 = sign_order(order_3, private_keys[0]);
-// 		let order_4 = sign_order(order_4, private_keys[1]);
-// 		let orders: Vec<Order> = vec![order_3, order_4];
-
-// 		assert_ok!(Trading::execute_trade(
-// 			RuntimeOrigin::signed(1),
-// 			U256::from(2_u8),
-// 			1.into(),
-// 			markets[0].market.id,
-// 			105.into(),
-// 			orders
-// 		));
-
-// 		let usdc_id: u128 = usdc().asset.id;
-// 		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
-// 		assert_eq!(balance_1, FixedI128::from_inner(10002963000000000000000));
-// 		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
-// 		assert_eq!(balance_2, FixedI128::from_inner(9990392500000000000000));
-// 		let locked_1 = TradingAccounts::locked_margin(account_id_1, usdc_id);
-// 		assert_eq!(locked_1, 0.into());
-// 	});
-// }
+#[test]
+#[should_panic(expected = "TradeBatchError524")]
+// Taker tries to close a position which is already completely closed
+fn it_reverts_when_taker_tries_to_close_already_closed_position() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(2.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		let alice_close_order_1 = Order::new(203_u128, alice_id)
+			.set_side(Side::Sell)
+			.set_size(2.into())
+			.set_price(104.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order_1 = Order::new(204_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_side(Side::Sell)
+			.set_size(2.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			105.into(),
+			vec![alice_close_order_1, bob_close_order_1]
+		));
+
+		let alice_open_order_2 = Order::new(205_u128, alice_id)
+			.set_direction(Direction::Short)
+			.set_price(98.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order_2 = Order::new(206_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_side(Side::Sell)
+			.set_price(98.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(3_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			vec![alice_open_order_2, bob_close_order_2]
+		));
+	});
+}
+
+#[test]
+// Non registered user tries to open a position
+fn it_produces_error_when_user_not_registered() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		// Adding 1 to simulate a non-registered user
+		let alice_id: U256 = get_trading_account_id(alice()) + 1;
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(2.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 510 }.into());
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError505")]
+// Tries to open a position with size lesser than allowed minimum order size
+fn it_produces_error_when_size_too_small() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(FixedI128::from_inner(500000000000000000))
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 505 }.into());
+	});
+}
+
+#[test]
+// Tries to open a position with different market_id compared to the one passed in argument
+fn it_produces_error_when_market_id_is_different() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_market_id(789)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 504 }.into());
+	});
+}
+
+#[test]
+// Tries to open a position leverage more than currently allowed leverage
+fn it_produces_error_when_leverage_is_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_leverage(9.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 502 }.into());
+	});
+}
+
+#[test]
+// Tries to open a position with invalid signature
+fn it_produces_error_when_signature_is_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(charlie().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 536 }.into());
+	});
+}
+
+#[test]
+// 2nd maker order with side and direction that does not match with the first maker
+fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_direction(Direction::Short)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_price(99.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
+			.set_size(3.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![
+				alice_open_order_1.clone(),
+				bob_open_order_1.clone(),
+				charlie_open_order_1.clone()
+			]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 202, error_code: 512 }.into());
+	});
+}
+
+#[test]
+// Maker order type is not limit
+fn it_produces_error_when_maker_is_market_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(201_u128, alice_id)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 518 }.into());
+	});
+}
+
+#[test]
+// Maker tries to close a position which is already completely closed
+fn it_reverts_when_maker_tries_to_close_already_closed_position() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_size(2.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			2.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		let alice_close_order_1 = Order::new(203_u128, alice_id)
+			.set_side(Side::Sell)
+			.set_size(2.into())
+			.set_price(104.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_close_order_1 = Order::new(204_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_side(Side::Sell)
+			.set_size(2.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			2.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+		));
+
+		let alice_close_order_2 = Order::new(205_u128, alice_id)
+			.set_side(Side::Sell)
+			.set_price(98.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_close_order_2 = Order::new(206_u128, bob_id)
+			.set_price(98.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(3_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_close_order_2.clone(), bob_close_order_2.clone()]
+		));
+
+		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
+		println!("Events: {:?}", event_record);
+
+		System::assert_has_event(Event::OrderError { order_id: 205, error_code: 524 }.into());
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError")]
+// taker order with side and direction that does not match with the maker
+fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_price(99.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
+			.set_size(3.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![
+				alice_open_order_1.clone(),
+				bob_open_order_1.clone(),
+				charlie_open_order_1.clone()
+			]
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 203, error_code: 511 }.into());
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError508")]
+// Taker long buy limit order execution price is invalid
+fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_price(99.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError507")]
+// Taker short buy limit order execution price is invalid
+fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_price(101.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError506")]
+// Taker long buy slippage check
+fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_direction(Direction::Short)
+			.set_price(111.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_price(99.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+	});
+}
+
+#[test]
+// Taker long buy slippage check when execution price very low
+fn it_works_when_taker_long_buy_price_very_low() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_direction(Direction::Short)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_order_type(OrderType::Market)
+			.set_price(100.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+	});
+}
+
+#[test]
+fn test_fee_while_opening_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			Side::Buy,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		// Create orders
+		let alice_open_order_1 =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		assert_eq!(
+			TradingAccounts::balances(alice_id, collateral_id),
+			FixedI128::from_inner(9998060000000000000000)
+		);
+		assert_eq!(
+			TradingAccounts::balances(bob_id, collateral_id),
+			FixedI128::from_inner(9995150000000000000000)
+		);
+
+		let alice_close_order_1 = Order::new(203_u128, alice_id)
+			.set_side(Side::Sell)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order_1 = Order::new(204_u128, bob_id)
+			.set_side(Side::Sell)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			105.into(),
+			// orders
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+		));
+
+		assert_eq!(
+			TradingAccounts::balances(alice_id, collateral_id),
+			FixedI128::from_inner(10003060000000000000000)
+		);
+		assert_eq!(
+			TradingAccounts::balances(bob_id, collateral_id),
+			FixedI128::from_inner(9990150000000000000000)
+		);
+		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+	});
+}
+
+#[test]
+fn test_fee_while_closing_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+
+		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees_and_discounts(
+			RuntimeOrigin::signed(1),
+			Side::Sell,
+			fee_tiers,
+			fee_details.clone(),
+			discount_tiers,
+			discount_details.clone()
+		));
+
+		// Create orders
+		let alice_open_order_1 =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+		));
+
+		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
+		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 10000.into());
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 10000.into());
+
+		// Close orders
+		let alice_close_order_1 = Order::new(203_u128, alice_id)
+			.set_side(Side::Sell)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order_1 = Order::new(204_u128, bob_id)
+			.set_side(Side::Sell)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			105.into(),
+			// orders
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+		));
+
+		assert_eq!(
+			TradingAccounts::balances(alice_id, collateral_id),
+			FixedI128::from_inner(10002963000000000000000)
+		);
+		assert_eq!(
+			TradingAccounts::balances(bob_id, collateral_id),
+			FixedI128::from_inner(9990392500000000000000)
+		);
+		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+	});
+}
