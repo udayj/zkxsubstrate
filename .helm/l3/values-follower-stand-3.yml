@@ -339,6 +339,7 @@ node:
     # -- Flags to add to the Polkadot binary
     flags: []
 
+
   # -- Flags to add to the Polkadot binary
   flags: ["--bob --bootnodes '/dns4/zkxl3-main-node-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'"]
 
