@@ -21,7 +21,7 @@ pub mod pallet {
 	use zkx_support::traits::{
 		AssetInterface, FixedI128Ext, Hashable, MarketInterface, PricesInterface,
 		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
-		U256Ext,
+		U256Ext, FieldElementExt
 	};
 	use zkx_support::types::{
 		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
@@ -113,6 +113,12 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn order_hash)]
+	// k1 - order id, v - order hash
+	pub(super) type OrderHashMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, U256, ValueQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -181,6 +187,8 @@ pub mod pallet {
 		TradeBatchError538,
 		/// When deleverage or liquidate flag is true, order type can only be Forced
 		TradeBatchError539,
+		/// Order hash mismatch for a particular order id
+		TradeBatchError541
 	}
 
 	#[pallet::event]
@@ -954,10 +962,17 @@ pub mod pallet {
 			// Public Key U256 could not be converted to FieldElement
 			ensure!(public_key_felt.is_ok(), Error::<T>::TradeBatchError538);
 
-			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash.unwrap(), &sig);
+			let order_hash = order_hash.unwrap();
+
+			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash, &sig);
 
 			// Signature verification returned error or false
 			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::TradeBatchError536);
+
+			let order_hash_u256 = order_hash.to_u256();
+			// Check for order hash collision
+			let is_success = Self::order_hash_check(order.order_id, order_hash_u256);
+			ensure!(is_success, Error::<T>::TradeBatchError541);
 
 			Ok(())
 		}
@@ -1397,7 +1412,26 @@ pub mod pallet {
 				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
+				Error::<T>::TradeBatchError541 => 541,
 				_ => 500,
+			}
+		}
+
+		fn order_hash_check(
+			order_id: u128, order_hash: U256
+		) -> bool {
+			// Get the hash of the order associated with the order_id
+			let existing_hash = OrderHashMap::<T>::get(order_id);
+			// If the hash isn't stored in the contract yet
+			if existing_hash == U256::zero() {
+				OrderHashMap::<T>::insert(order_id, order_hash);
+				true
+			} else {
+				if existing_hash == order_hash {
+					true
+				} else {
+					false
+				}
 			}
 		}
 	}
