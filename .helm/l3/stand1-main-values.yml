@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: stand2-node
+  tag: stand1-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,7 +138,7 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod
   # -- Ingress rules configuration
   rules:
-  - host: l3.stand-2.k8s.ntwrkx.com
+  - host: l3.stand-1.k8s.ntwrkx.com
     http:
       paths:
       - path: "/"
@@ -152,7 +152,7 @@ ingress:
   tls:
   - secretName: l3-tls
     hosts:
-      - l3.stand-2.k8s.ntwrkx.com
+      - l3.stand-1.k8s.ntwrkx.com
 
 
 # -- Deploy a substrate node.
