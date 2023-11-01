@@ -131,22 +131,28 @@ podDisruptionBudget:
 # -- Creates an ingress resource
 ingress:
   # -- Enable creation of Ingress
-  enabled: false
+  enabled: true
+  ingressClassName: nginx
   # -- Annotations to add to the Ingress
-  annotations: {}
-  #  kubernetes.io/ingress.class: nginx
-  #  kubernetes.io/tls-acme: "true"
+  annotations:
+   cert-manager.io/cluster-issuer: letsencrypt-prod
   # -- Ingress rules configuration
-  rules: []
-  #  - host: chart-example.local
-  #    paths:
-  #      - serviceName: node
-  #        servicePort: 9944
+  rules:
+  - host: l3.stand-3.k8s.ntwrkx.com
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: zkxl3-main-node
+            port:
+              number: 9944
   # -- Ingress TLS configuration
-  tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+  tls:
+  - secretName: l3-tls
+    hosts:
+      - l3.stand-3.k8s.ntwrkx.com
 
 
 # -- Deploy a substrate node.
