@@ -406,7 +406,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: 12D3KooWQ3GqwwoftuVV9PijagQ72GZoEVggK9SeE9JQg67Wwmu7
+  customNodeKey: "0000000000000000000000000000000000000000000000000000000000000001"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
