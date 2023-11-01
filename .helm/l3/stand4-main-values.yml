@@ -154,7 +154,6 @@ ingress:
     hosts:
       - l3.stand-4.k8s.ntwrkx.com
 
-
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
 node:
