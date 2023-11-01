@@ -1,5 +1,4 @@
-use crate::test_helpers::accounts_helper::{alice, get_trading_account_id};
-use crate::traits::{FieldElementExt, Hashable, U256Ext};
+use crate::traits::{FieldElementExt, Hashable};
 use crate::types::{
 	BaseFee, Direction, Discount, HashType, Order, OrderType, Side, SignatureInfo, TimeInForce,
 };
@@ -7,8 +6,6 @@ use frame_support::inherent::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_crypto::{sign, FieldElement};
-
-use super::get_private_key;
 
 pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
 	// TODO(merkle-groot): Using manual pushing because vec! has some issues in support pallet
@@ -71,10 +68,10 @@ pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
 }
 
 impl Order {
-	pub fn new() -> Order {
+	pub fn new(order_id: u128, account_id: U256) -> Order {
 		Order {
-			account_id: get_trading_account_id(alice()),
-			order_id: 200_u128,
+			account_id,
+			order_id,
 			market_id: 1,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
