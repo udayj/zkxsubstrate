@@ -314,10 +314,7 @@ pub mod pallet {
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-			ensure!(
-				force_closure_flag == ForceClosureFlag::Absent,
-				Error::<T>::ForceClosureFlagSet
-			);
+			ensure!(force_closure_flag.is_none(), Error::<T>::ForceClosureFlagSet);
 
 			// Check if the signature is valid
 			Self::verify_signature(&withdrawal_request)?;
@@ -996,9 +993,7 @@ pub mod pallet {
 			let account_id = Self::get_trading_account_id(trading_account);
 
 			// Check if the account is under risk-management
-			if let ForceClosureFlag::Liquidate | ForceClosureFlag::Deleverage =
-				T::TradingPallet::get_force_closure_flags(account_id, collateral_id)
-			{
+			if T::TradingPallet::get_force_closure_flags(account_id, collateral_id).is_some() {
 				// Get the current balance
 				let previous_deferred_balance =
 					DeferredBalancesMap::<T>::get(account_id, collateral_id);

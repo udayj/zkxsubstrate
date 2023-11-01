@@ -70,7 +70,7 @@ pub trait TradingInterface {
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
-	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> ForceClosureFlag;
+	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 }
 
 pub trait AssetInterface {
