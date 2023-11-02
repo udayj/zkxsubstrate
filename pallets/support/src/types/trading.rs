@@ -1,6 +1,8 @@
-use crate::helpers::pedersen_hash_multiple;
-use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::common::{convert_to_u128_pair, HashType};
+use crate::{
+	helpers::pedersen_hash_multiple,
+	traits::{FixedI128Ext, Hashable, U256Ext},
+	types::common::{convert_to_u128_pair, HashType},
+};
 use codec::{Decode, Encode};
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -120,7 +122,9 @@ pub struct Position {
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]
 pub struct PositionExtended {
-	pub market_id: u128,
+	// market_id is U256 instead of u128 here, so that ZKXNode
+	// can handle it correctly
+	pub market_id: U256,
 	pub direction: Direction,
 	pub side: Side,
 	pub avg_execution_price: FixedI128,
@@ -270,7 +274,7 @@ impl PositionExtended {
 		market_price: FixedI128,
 	) -> PositionExtended {
 		PositionExtended {
-			market_id: position.market_id,
+			market_id: position.market_id.into(),
 			direction: position.direction,
 			side: position.side,
 			avg_execution_price: position.avg_execution_price,
@@ -287,7 +291,8 @@ impl PositionExtended {
 
 impl Hashable for Order {
 	// No error apart from error during conversion from U256 to FieldElement should happen
-	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
+	// Hence associated type is defined to be exactly that error i.e.
+	// starknet_ff::FromByteSliceError
 	type ConversionError = FromByteSliceError;
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
