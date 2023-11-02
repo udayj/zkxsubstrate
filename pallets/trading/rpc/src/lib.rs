@@ -9,7 +9,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-use zkx_support::types::{AccountInfo, MarginInfo, Position};
+use zkx_support::types::{AccountInfo, MarginInfo, PositionExtended};
 
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {
@@ -19,7 +19,7 @@ pub trait TradingApi<BlockHash> {
 		account_id: U256,
 		collateral_id: u128,
 		at: Option<BlockHash>,
-	) -> RpcResult<Vec<Position>>;
+	) -> RpcResult<Vec<PositionExtended>>;
 
 	#[method(name = "trading_get_margin_info")]
 	fn get_margin_info(
@@ -72,7 +72,7 @@ where
 		account_id: U256,
 		collateral_id: u128,
 		at: Option<<Block as BlockT>::Hash>,
-	) -> RpcResult<Vec<Position>> {
+	) -> RpcResult<Vec<PositionExtended>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 

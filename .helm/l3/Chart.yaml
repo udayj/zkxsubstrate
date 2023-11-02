@@ -6,4 +6,4 @@ maintainers:
   url: https://github.com/paritytech/helm-charts
 name: node
 type: application
-version: 5.0.1
+version: 5.4.2

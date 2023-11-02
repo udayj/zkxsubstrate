@@ -1,8 +1,10 @@
-use crate::traits::{FieldElementExt, Hashable};
-use crate::types::{
-	BaseFee, Direction, Discount, HashType, Order, OrderType, Side, SignatureInfo, TimeInForce,
+use crate::{
+	traits::{FieldElementExt, Hashable},
+	types::{
+		BaseFee, Direction, Discount, HashType, Order, OrderType, Side, SignatureInfo, TimeInForce,
+	},
 };
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_crypto::{sign, FieldElement};

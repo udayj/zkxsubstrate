@@ -2,13 +2,15 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
-use zkx_support::test_helpers::accounts_helper::{
-	alice, bob, charlie, dave, get_private_key, get_trading_account_id,
+use zkx_support::{
+	test_helpers::{
+		accounts_helper::{alice, bob, charlie, dave, get_private_key, get_trading_account_id},
+		asset_helper::{btc, eth, link, usdc},
+		market_helper::{btc_usdc, link_usdc},
+		trading_helper::setup_fee,
+	},
+	types::{Direction, Order, OrderType, Position, Side},
 };
-use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
-use zkx_support::test_helpers::market_helper::{btc_usdc, link_usdc};
-use zkx_support::test_helpers::trading_helper::setup_fee;
-use zkx_support::types::{Direction, Order, OrderType, Position, Side};
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
@@ -1531,7 +1533,8 @@ fn test_fee_while_closing_order() {
 			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
 		));
 
-		// Since we are opening orders without setting the fee for open orders, fee won't be deducted from balance
+		// Since we are opening orders without setting the fee for open orders, fee won't be
+		// deducted from balance
 		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 10000.into());
 		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 10000.into());
 

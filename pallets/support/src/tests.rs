@@ -1,8 +1,11 @@
-use crate::helpers::pedersen_hash_multiple;
-use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
-use crate::{ecdsa_verify, Signature};
-use frame_support::inherent::Vec;
+use crate::{
+	ecdsa_verify,
+	helpers::pedersen_hash_multiple,
+	traits::{FixedI128Ext, Hashable, U256Ext},
+	types::{Direction, HashType, Order, OrderType, Side, TimeInForce},
+	Signature,
+};
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_core::crypto::ecdsa_sign;
@@ -98,12 +101,13 @@ fn test_order_signature() {
 
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 
-	// correct value of order_hash is the hash as calculated using compute_hash_on_elements (from cairo-lang package) using the
-	// serialized values of the different types
-	// compute_hash_on_elements([100,0,200,300,1,0,0,10000000,1,0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
+	// correct value of order_hash is the hash as calculated using compute_hash_on_elements (from
+	// cairo-lang package) using the serialized values of the different types
+	// compute_hash_on_elements([100,0,200,300,1,0,0,10000000,1,
+	// 0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
 	// 0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff39,1,0])
 	let expected_hash = FieldElement::from_dec_str(
-		"1562465184451062490240891191379126127199787496518743214458262873007936909803",
+		"1596104311932082188295317805799311177470610379583027696529060790691735246641",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);

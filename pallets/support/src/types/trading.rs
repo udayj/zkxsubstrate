@@ -2,7 +2,7 @@ use crate::helpers::pedersen_hash_multiple;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
 use codec::{Decode, Encode};
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,6 @@ pub enum BalanceChangeReason {
 )]
 pub enum ForceClosureFlag {
 	#[default]
-	Absent,
 	Deleverage,
 	Liquidate,
 }
@@ -195,7 +194,7 @@ pub struct AccountInfo {
 	pub available_margin: FixedI128,
 	pub total_margin: FixedI128,
 	pub collateral_balance: FixedI128,
-	pub force_closure_flag: ForceClosureFlag,
+	pub force_closure_flag: Option<ForceClosureFlag>,
 	pub deleveragable_position: DeleveragablePosition,
 }
 
@@ -264,9 +263,8 @@ impl From<FundModifyType> for u8 {
 impl From<ForceClosureFlag> for u8 {
 	fn from(value: ForceClosureFlag) -> u8 {
 		match value {
-			ForceClosureFlag::Absent => 0_u8,
-			ForceClosureFlag::Deleverage => 1_u8,
-			ForceClosureFlag::Liquidate => 2_u8,
+			ForceClosureFlag::Deleverage => 0_u8,
+			ForceClosureFlag::Liquidate => 1_u8,
 		}
 	}
 }

@@ -2,14 +2,13 @@ use crate::types::{
 	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
 	Direction, ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market,
 	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal,
-	UniversalEvent, UserDeposit,
+	PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
-use frame_support::inherent::Vec;
+use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::BoundedVec;
-use sp_runtime::{traits::ConstU32, DispatchResult};
+use sp_runtime::{traits::ConstU32, BoundedVec, DispatchResult};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
@@ -17,7 +16,7 @@ pub trait TradingAccountInterface {
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		amount: FixedI128,
-	) -> DispatchResult;
+	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -60,18 +59,18 @@ pub trait TradingAccountInterface {
 pub trait TradingInterface {
 	fn get_markets_of_collateral(account_id: U256, collateral_id: u128) -> Vec<u128>;
 	fn get_position(account_id: U256, market_id: u128, direction: Direction) -> Position;
-	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
+	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<PositionExtended>;
 	fn set_flags_for_force_orders(
 		account_id: U256,
 		collateral_id: u128,
-		position: &PositionDetailsForRiskManagement,
-		amount_to_be_sold: FixedI128,
+		force_closure_flag: ForceClosureFlag,
+		deleveragable_position: DeleveragablePosition,
 	);
 	fn get_deleveragable_position(account_id: U256, collateral_id: u128) -> DeleveragablePosition;
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
-	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> ForceClosureFlag;
+	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 }
 
 pub trait AssetInterface {
@@ -90,7 +89,12 @@ pub trait RiskManagementInterface {
 		oracle_price: FixedI128,
 		margin_amount: FixedI128,
 	) -> (FixedI128, bool);
-	fn check_for_force_closure(account_id: U256, collateral_id: u128);
+	fn check_for_force_closure(
+		account_id: U256,
+		collateral_id: u128,
+		market_id: u128,
+		direction: Direction,
+	);
 }
 
 pub trait MarketInterface {
@@ -132,7 +136,8 @@ pub trait TradingFeesInterface {
 	) -> (FixedI128, u8, u8);
 }
 
-// This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
+// This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and
+// returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;
