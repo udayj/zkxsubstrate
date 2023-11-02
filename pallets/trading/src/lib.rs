@@ -989,12 +989,12 @@ pub mod pallet {
 				Error::<T>::TradeBatchError502
 			);
 
-			Self::validate_signature(order.clone())?;
+			Self::validate_signature(&order)?;
 
 			Ok(())
 		}
 
-		fn validate_signature(order: Order) -> Result<(), Error<T>> {
+		fn validate_signature(order: &Order) -> Result<(), Error<T>> {
 			let SignatureInfo { liquidator_pub_key, hash_type, sig_r, sig_s } =
 				&order.signature_info;
 
