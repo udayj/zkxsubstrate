@@ -2,14 +2,13 @@ use crate::types::{
 	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
 	Direction, ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market,
 	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal,
-	UniversalEvent, UserDeposit,
+	PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::BoundedVec;
-use sp_runtime::{traits::ConstU32, DispatchResult};
+use sp_runtime::{traits::ConstU32, BoundedVec, DispatchResult};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
@@ -60,7 +59,7 @@ pub trait TradingAccountInterface {
 pub trait TradingInterface {
 	fn get_markets_of_collateral(account_id: U256, collateral_id: u128) -> Vec<u128>;
 	fn get_position(account_id: U256, market_id: u128, direction: Direction) -> Position;
-	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position>;
+	fn get_positions(account_id: U256, collateral_id: u128) -> Vec<PositionExtended>;
 	fn set_flags_for_force_orders(
 		account_id: U256,
 		collateral_id: u128,
@@ -132,7 +131,8 @@ pub trait TradingFeesInterface {
 	) -> (FixedI128, u8, u8);
 }
 
-// This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and returns a FieldElement
+// This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and
+// returns a FieldElement
 pub trait Hashable {
 	type ConversionError;
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError>;

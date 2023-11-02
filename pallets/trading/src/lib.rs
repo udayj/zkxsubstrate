@@ -11,24 +11,28 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::{ValueQuery, *};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{ValueQuery, *},
+	};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use sp_arithmetic::traits::Zero;
-	use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
-	use zkx_support::helpers::sig_u256_to_sig_felt;
-	use zkx_support::traits::{
-		AssetInterface, FixedI128Ext, Hashable, MarketInterface, PricesInterface,
-		RiskManagementInterface, TradingAccountInterface, TradingFeesInterface, TradingInterface,
-		U256Ext, FieldElementExt
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use zkx_support::{
+		ecdsa_verify,
+		helpers::sig_u256_to_sig_felt,
+		traits::{
+			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
+			PricesInterface, RiskManagementInterface, TradingAccountInterface,
+			TradingFeesInterface, TradingInterface, U256Ext,
+		},
+		types::{
+			AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
+			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
+			PositionDetailsForRiskManagement, PositionExtended, Side, TimeInForce,
+		},
+		Signature,
 	};
-	use zkx_support::types::{
-		AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
-		FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-		PositionDetailsForRiskManagement, PositionExtended, Side, TimeInForce,
-	};
-	use zkx_support::{ecdsa_verify, Signature};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 
 	#[pallet::pallet]
@@ -116,8 +120,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn order_hash)]
 	// k1 - order id, v - order hash
-	pub(super) type OrderHashMap<T: Config> =
-		StorageMap<_, Twox64Concat, u128, U256, ValueQuery>;
+	pub(super) type OrderHashMap<T: Config> = StorageMap<_, Twox64Concat, u128, U256, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -177,7 +180,8 @@ pub mod pallet {
 		TradeBatchError533,
 		/// Invalid order hash - order could not be hashed into a Field Element
 		TradeBatchError534,
-		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a
+		/// Signature
 		TradeBatchError535,
 		/// ECDSA Signature could not be verified
 		TradeBatchError536,
@@ -188,7 +192,7 @@ pub mod pallet {
 		/// When deleverage or liquidate flag is true, order type can only be Forced
 		TradeBatchError539,
 		/// Order hash mismatch for a particular order id
-		TradeBatchError541
+		TradeBatchError541,
 	}
 
 	#[pallet::event]
@@ -279,7 +283,8 @@ pub mod pallet {
 				Error::<T>::TradeBatchError522
 			);
 
-			// Calculate quantity that can be executed for the taker, before starting with the maker orders
+			// Calculate quantity that can be executed for the taker, before starting with the maker
+			// orders
 			let taker_order = &orders[orders.len() - 1];
 			let initial_taker_locked_response = Self::calculate_initial_taker_locked_size(
 				taker_order,
@@ -330,10 +335,10 @@ pub mod pallet {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
-							continue;
+							continue
 						} else {
 							// if taker order, revert with error
-							return Err(e.into());
+							return Err(e.into())
 						}
 					},
 				}
@@ -360,7 +365,7 @@ pub mod pallet {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
-							continue;
+							continue
 						},
 					}
 					// Calculate quantity left to be executed
@@ -382,7 +387,7 @@ pub mod pallet {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
 							});
-							continue;
+							continue
 						},
 					}
 
@@ -403,22 +408,20 @@ pub mod pallet {
 					);
 					match validation_response {
 						Ok(()) => (),
-						Err(e) => {
-							return Err(e.into());
-						},
+						Err(e) => return Err(e.into()),
 					}
 
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == FixedI128::zero() {
 						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
-						return Ok(());
+						return Ok(())
 					}
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
 						if quantity_to_execute != element.size {
-							return Err((Error::<T>::TradeBatchError516).into());
+							return Err((Error::<T>::TradeBatchError516).into())
 						}
 					}
 
@@ -435,9 +438,7 @@ pub mod pallet {
 						);
 						match limit_validation {
 							Ok(()) => (),
-							Err(e) => {
-								return Err(e.into());
-							},
+							Err(e) => return Err(e.into()),
 						}
 					} else {
 						let slippage_validation = Self::validate_within_slippage(
@@ -449,9 +450,7 @@ pub mod pallet {
 						);
 						match slippage_validation {
 							Ok(()) => (),
-							Err(e) => {
-								return Err(e.into());
-							},
+							Err(e) => return Err(e.into()),
 						}
 					}
 
@@ -497,10 +496,10 @@ pub mod pallet {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
-								continue;
+								continue
 							} else {
 								// if taker order, revert with error code
-								return Err(e.into());
+								return Err(e.into())
 							}
 						},
 					}
@@ -612,10 +611,10 @@ pub mod pallet {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
 								});
-								continue;
+								continue
 							} else {
 								// if taker order, revert with error code
-								return Err(e.into());
+								return Err(e.into())
 							}
 						},
 					}
@@ -632,7 +631,8 @@ pub mod pallet {
 
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(element.account_id, collateral_id);
-					// Deleveraging case, update deleveragable position and force closure flag accordingly
+					// Deleveraging case, update deleveragable position and force closure flag
+					// accordingly
 					match force_closure_flag {
 						ForceClosureFlag::Deleverage => {
 							let deleveragable_position =
@@ -701,8 +701,8 @@ pub mod pallet {
 
 							// If force closure flag is liquidation and if all positions are closed,
 							// it means that liquidation is complete
-							if force_closure_flag == ForceClosureFlag::Liquidate
-								&& markets.is_empty()
+							if force_closure_flag == ForceClosureFlag::Liquidate &&
+								markets.is_empty()
 							{
 								// Remove the liquidation flag and check for deferred deposits
 								Self::reset_force_closure_flags(element.account_id, collateral_id)?;
@@ -832,8 +832,8 @@ pub mod pallet {
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
 
-			// This call is necessary if taker is Forced order, so that force closure flag can be set
-			// and also if deleveraging, amount to be sold can be calculated,
+			// This call is necessary if taker is Forced order, so that force closure flag can be
+			// set and also if deleveraging, amount to be sold can be calculated,
 			// which is required to calculate quantity to execute
 			if order.order_type == OrderType::Forced {
 				T::RiskManagementPallet::check_for_force_closure(order.account_id, collateral_id);
@@ -933,8 +933,8 @@ pub mod pallet {
 
 			// Validate leverage value
 			ensure!(
-				order.leverage >= LEVERAGE_ONE
-					&& order.leverage <= market.currently_allowed_leverage,
+				order.leverage >= LEVERAGE_ONE &&
+					order.leverage <= market.currently_allowed_leverage,
 				Error::<T>::TradeBatchError502
 			);
 
@@ -992,8 +992,8 @@ pub mod pallet {
 			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
 
 			ensure!(
-				(current_direction == maker1_direction && current_side == maker1_side)
-					|| (current_direction == opposite_direction && current_side == opposite_side),
+				(current_direction == maker1_direction && current_side == maker1_side) ||
+					(current_direction == opposite_direction && current_side == opposite_side),
 				Error::<T>::TradeBatchError512
 			);
 
@@ -1017,8 +1017,8 @@ pub mod pallet {
 			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
 
 			ensure!(
-				(current_direction == maker1_direction && current_side == opposite_side)
-					|| (current_direction == opposite_direction && current_side == maker1_side),
+				(current_direction == maker1_direction && current_side == opposite_side) ||
+					(current_direction == opposite_direction && current_side == maker1_side),
 				Error::<T>::TradeBatchError511
 			);
 
@@ -1034,8 +1034,8 @@ pub mod pallet {
 			direction: Direction,
 			side: Side,
 		) -> Result<(), Error<T>> {
-			if (direction == Direction::Long && side == Side::Buy)
-				|| (direction == Direction::Short && side == Side::Sell)
+			if (direction == Direction::Long && side == Side::Buy) ||
+				(direction == Direction::Short && side == Side::Sell)
 			{
 				ensure!(execution_price <= price, Error::<T>::TradeBatchError508);
 			} else {
@@ -1053,14 +1053,14 @@ pub mod pallet {
 			side: Side,
 		) -> Result<(), Error<T>> {
 			ensure!(
-				slippage > FixedI128::zero()
-					&& slippage <= FixedI128::from_inner(150000000000000000),
+				slippage > FixedI128::zero() &&
+					slippage <= FixedI128::from_inner(150000000000000000),
 				Error::<T>::TradeBatchError521
 			);
 			let threshold = slippage * oracle_price;
 
-			if (direction == Direction::Long && side == Side::Buy)
-				|| (direction == Direction::Short && side == Side::Sell)
+			if (direction == Direction::Long && side == Side::Buy) ||
+				(direction == Direction::Short && side == Side::Sell)
 			{
 				ensure!(
 					execution_price <= (oracle_price + threshold),
@@ -1097,9 +1097,9 @@ pub mod pallet {
 			if position_details.size == FixedI128::zero() {
 				average_execution_price = execution_price;
 			} else {
-				let cumulative_order_value = (position_details.size
-					* position_details.avg_execution_price)
-					+ (order_size * execution_price);
+				let cumulative_order_value = (position_details.size *
+					position_details.avg_execution_price) +
+					(order_size * execution_price);
 				let cumulative_order_size = position_details.size + order_size;
 				average_execution_price = cumulative_order_value / cumulative_order_size;
 			}
@@ -1417,9 +1417,7 @@ pub mod pallet {
 			}
 		}
 
-		fn order_hash_check(
-			order_id: u128, order_hash: U256
-		) -> bool {
+		fn order_hash_check(order_id: u128, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
 			// If the hash isn't stored in the contract yet
@@ -1494,22 +1492,31 @@ pub mod pallet {
 			DeleveragableMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_positions(account_id: U256, collateral_id: u128) -> Vec<Position> {
+		fn get_positions(account_id: U256, collateral_id: u128) -> Vec<PositionExtended> {
 			let markets = CollateralToMarketMap::<T>::get(account_id, collateral_id);
-			let mut pos_vec = Vec::<Position>::new();
+			let mut pos_vec = Vec::<PositionExtended>::new();
 			for element in markets {
 				let long_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Long));
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
+
 				if long_pos.size != FixedI128::zero() {
-					pos_vec.push(long_pos);
+					let (maintenance_requirement, market_price) =
+						Self::get_maintenance_requirement(element, &long_pos);
+					let position_extended =
+						PositionExtended::new(long_pos, maintenance_requirement, market_price);
+					pos_vec.push(position_extended);
 				}
 				if short_pos.size != FixedI128::zero() {
-					pos_vec.push(short_pos);
+					let (maintenance_requirement, market_price) =
+						Self::get_maintenance_requirement(element, &short_pos);
+					let position_extended =
+						PositionExtended::new(short_pos, maintenance_requirement, market_price);
+					pos_vec.push(position_extended);
 				}
 			}
-			return pos_vec;
+			pos_vec
 		}
 
 		fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo {
@@ -1557,14 +1564,14 @@ pub mod pallet {
 					PositionsMap::<T>::get(account_id, (element, Direction::Long));
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
-				if long_pos.size != 0.into() {
+				if long_pos.size != FixedI128::zero() {
 					let (maintenance_requirement, market_price) =
 						Self::get_maintenance_requirement(element, &long_pos);
 					let position_extended =
 						PositionExtended::new(long_pos, maintenance_requirement, market_price);
 					positions.push(position_extended);
 				}
-				if short_pos.size != 0.into() {
+				if short_pos.size != FixedI128::zero() {
 					let (maintenance_requirement, market_price) =
 						Self::get_maintenance_requirement(element, &short_pos);
 					let position_extended =

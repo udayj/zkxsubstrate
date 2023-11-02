@@ -29,7 +29,8 @@ use sp_version::RuntimeVersion;
 pub use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, KeyOwnerProofSystem, Randomness, StorageInfo,
+		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, KeyOwnerProofSystem, Randomness,
+		StorageInfo,
 	},
 	weights::{
 		constants::{
@@ -56,7 +57,7 @@ pub use pallet_trading;
 pub use pallet_trading_fees;
 pub use pallet_zkx_trading_account;
 use zkx_support::traits::TradingInterface;
-pub use zkx_support::types::{AccountInfo, MarginInfo, Position};
+pub use zkx_support::types::{AccountInfo, MarginInfo, PositionExtended};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -400,7 +401,7 @@ mod benches {
 
 impl_runtime_apis! {
 	impl pallet_trading_runtime_api::TradingApi<Block> for Runtime {
-		fn positions(account_id: U256, collateral_id: u128) -> Vec<Position> {
+		fn positions(account_id: U256, collateral_id: u128) -> Vec<PositionExtended> {
 			Trading::get_positions(account_id, collateral_id)
 		}
 
