@@ -122,6 +122,8 @@ pub struct Position {
 	Clone, Encode, Decode, Default, Deserialize, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]
 pub struct PositionExtended {
+	// market_id is U256 instead of u128 here, so that ZKXNode
+	// can handle it correctly
 	pub market_id: U256,
 	pub direction: Direction,
 	pub side: Side,
