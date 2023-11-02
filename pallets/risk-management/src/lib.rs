@@ -12,14 +12,15 @@ pub use pallet::*;
 pub mod pallet {
 	use core::option::Option;
 	use primitive_types::U256;
-	use sp_arithmetic::traits::Zero;
-	use sp_arithmetic::FixedI128;
-	use zkx_support::traits::{
-		FixedI128Ext, MarketInterface, PricesInterface, RiskManagementInterface,
-		TradingAccountInterface, TradingInterface,
-	};
-	use zkx_support::types::{
-		DeleveragablePosition, Direction, ForceClosureFlag, Order, OrderType, Position, Side,
+	use sp_arithmetic::{traits::Zero, FixedI128};
+	use zkx_support::{
+		traits::{
+			FixedI128Ext, MarketInterface, PricesInterface, RiskManagementInterface,
+			TradingAccountInterface, TradingInterface,
+		},
+		types::{
+			DeleveragablePosition, Direction, ForceClosureFlag, Order, OrderType, Position, Side,
+		},
 	};
 
 	static TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
@@ -49,8 +50,9 @@ pub mod pallet {
 
 			for market in markets {
 				let price = T::PricesPallet::get_index_price(market);
+				// If price is 0, we abort risk management
 				if price == FixedI128::zero() {
-					return (true, FixedI128::zero());
+					return (true, FixedI128::zero())
 				}
 				let long_position =
 					T::TradingPallet::get_position(account_id, market, Direction::Long);
@@ -79,6 +81,8 @@ pub mod pallet {
 				T::TradingAccountPallet::get_unused_balance(account_id, collateral_id);
 			total_account_value = total_account_value + unused_balance;
 
+			// IF TAV > TMR after selling some part of positions,
+			// it means that deleveraging is possible
 			if total_account_value > total_maintenance_margin {
 				// Calculate amount to be sold
 				let market = T::MarketPallet::get_market(market_id).unwrap();
@@ -94,10 +98,11 @@ pub mod pallet {
 				};
 
 				if (price_diff >= FixedI128::zero()) || position.leverage <= TWO_FI128 {
-					return (true, FixedI128::zero());
+					return (true, FixedI128::zero())
 				}
 
-				// amount to sell = initial_size - (margin amount/(margin ratio * price - Difference in prices))
+				// amount to sell = initial_size - (margin amount/(margin ratio * price - Difference
+				// in prices))
 				let amount_to_be_present =
 					position.margin_amount / ((req_margin_fraction * price) - price_diff);
 				let amount_to_be_sold = position.size - amount_to_be_present;
@@ -197,9 +202,9 @@ pub mod pallet {
 			if liq_result == true {
 				is_error = true;
 			} else {
-				if (order.direction == Direction::Short)
-					&& (order.side == Side::Buy)
-					&& (order.order_type == OrderType::Limit)
+				if (order.direction == Direction::Short) &&
+					(order.side == Side::Buy) &&
+					(order.order_type == OrderType::Limit)
 				{
 					let price_diff = oracle_price - execution_price;
 					let pnl = price_diff * size;
@@ -208,7 +213,7 @@ pub mod pallet {
 					is_error = if available_margin <= pnl { true } else { false };
 				}
 			}
-			return (available_margin, is_error);
+			return (available_margin, is_error)
 		}
 
 		fn check_for_force_closure(
@@ -225,13 +230,11 @@ pub mod pallet {
 			);
 
 			if liq_result == true {
-				// if margin ratio is <=0, we directly perform liquidation else we check for deleveraging
-
 				let (is_deleveragable, amount_to_be_sold) =
 					Self::is_account_deleveragable(account_id, collateral_id, market_id, direction);
 				if is_deleveragable {
 					if amount_to_be_sold == FixedI128::zero() {
-						return;
+						return
 					}
 					T::TradingPallet::set_flags_for_force_orders(
 						account_id,

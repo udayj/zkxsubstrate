@@ -29,7 +29,7 @@ pub mod pallet {
 		types::{
 			AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
 			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionDetailsForRiskManagement, PositionExtended, Side, TimeInForce,
+			PositionExtended, Side, TimeInForce,
 		},
 		Signature,
 	};
@@ -885,6 +885,8 @@ pub mod pallet {
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
 
+					// If order type is Forced, force closure flag will always be
+					// one of Deleverage or Liquidate
 					match force_closure_flag.unwrap() {
 						ForceClosureFlag::Deleverage => {
 							let deleveragable_position =
@@ -926,7 +928,7 @@ pub mod pallet {
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
 			ensure!(is_registered, Error::<T>::TradeBatchError510);
 
-			// Validate that if force closure flag is either deleverage or liquidate
+			// Validate that if force closure flag is set
 			// order type can only be 'Forced'
 			if order.order_type != OrderType::Forced {
 				let force_closure_flag =
@@ -1294,6 +1296,8 @@ pub mod pallet {
 				} else {
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+					// If order type is Forced, force closure flag will always be
+					// one of Deleverage or Liquidate
 					match force_closure_flag.unwrap() {
 						// Liquidation case when user is not underwater
 						ForceClosureFlag::Liquidate => {

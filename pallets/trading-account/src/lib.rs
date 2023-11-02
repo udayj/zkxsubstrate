@@ -11,24 +11,28 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use sp_arithmetic::traits::Bounded;
-	use sp_arithmetic::traits::Zero;
-	use sp_arithmetic::FixedI128;
+	use sp_arithmetic::{
+		traits::{Bounded, Zero},
+		FixedI128,
+	};
 	use sp_io::hashing::blake2_256;
-	use zkx_support::helpers::sig_u256_to_sig_felt;
-	use zkx_support::traits::{
-		AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
-		TradingAccountInterface, TradingInterface, U256Ext,
+	use zkx_support::{
+		ecdsa_verify,
+		helpers::sig_u256_to_sig_felt,
+		traits::{
+			AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
+			TradingAccountInterface, TradingInterface, U256Ext,
+		},
+		types::{
+			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
+			PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal,
+			WithdrawalRequest,
+		},
+		Signature,
 	};
-	use zkx_support::types::{
-		BalanceChangeReason, BalanceUpdate, Direction, ForceClosureFlag, FundModifyType, Position,
-		PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
-	};
-	use zkx_support::{ecdsa_verify, Signature};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -109,9 +113,11 @@ pub mod pallet {
 		AssetNotCollateral,
 		/// Withdrawal amount is less than available balance
 		InsufficientBalance,
-		/// Invalid withdrawal request hash - withdrawal request could not be hashed into a Field Element
+		/// Invalid withdrawal request hash - withdrawal request could not be hashed into a Field
+		/// Element
 		InvalidWithdrawalRequestHash,
-		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a Signature
+		/// Invalid Signature Field Elements - sig_r and/or sig_s could not be converted into a
+		/// Signature
 		InvalidSignatureFelt,
 		/// ECDSA Signature could not be verified
 		InvalidSignature,
@@ -407,7 +413,7 @@ pub mod pallet {
 			let mut collaterals = AccountCollateralsMap::<T>::get(account_id);
 			for element in &collaterals {
 				if element == &collateral_id {
-					return;
+					return
 				}
 			}
 
@@ -429,7 +435,7 @@ pub mod pallet {
 			let maintenance_requirement = req_margin * maintenance_position;
 
 			if market_price == FixedI128::zero() {
-				return (0.into(), maintenance_requirement, 0.into());
+				return (0.into(), maintenance_requirement, 0.into())
 			}
 
 			// Calculate pnl to check if it is the least collateralized position
@@ -447,7 +453,7 @@ pub mod pallet {
 			let denominator = position.size * market_price;
 			let collateral_ratio_position = numerator / denominator;
 
-			return (pnl, maintenance_requirement, collateral_ratio_position);
+			return (pnl, maintenance_requirement, collateral_ratio_position)
 		}
 
 		fn calculate_margin_info(
@@ -497,7 +503,7 @@ pub mod pallet {
 							leverage: 0.into(),
 						},
 						0.into(),
-					);
+					)
 				}
 
 				let long_maintanence_requirement;
@@ -581,9 +587,9 @@ pub mod pallet {
 
 				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
 
-				maintenance_margin_requirement = maintenance_margin_requirement
-					+ short_maintanence_requirement
-					+ long_maintanence_requirement;
+				maintenance_margin_requirement = maintenance_margin_requirement +
+					short_maintanence_requirement +
+					long_maintanence_requirement;
 
 				least_collateral_ratio = new_least_collateral_ratio;
 				least_collateral_ratio_position = new_least_collateral_ratio_position;
@@ -596,7 +602,7 @@ pub mod pallet {
 				least_collateral_ratio,
 				least_collateral_ratio_position,
 				least_collateral_ratio_position_asset_price,
-			);
+			)
 		}
 
 		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
@@ -648,7 +654,7 @@ pub mod pallet {
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
 			if current_balance <= FixedI128::zero() {
-				return (FixedI128::zero(), FixedI128::zero());
+				return (FixedI128::zero(), FixedI128::zero())
 			}
 
 			let (
@@ -662,14 +668,16 @@ pub mod pallet {
 				_,
 			) = Self::get_margin_info(account_id, collateral_id, FixedI128::zero(), FixedI128::zero());
 
-			// if TMR == 0, it means that market price is not within TTL, so user should be possible to withdraw whole balance
+			// if TMR == 0, it means that market price is not within TTL, so user should be possible
+			// to withdraw whole balance
 			if total_maintenance_requirement == FixedI128::zero() {
-				return (current_balance, current_balance);
+				return (current_balance, current_balance)
 			}
 
-			// if TAV <= 0, it means that user is already under water and thus withdrawal is not possible
+			// if TAV <= 0, it means that user is already under water and thus withdrawal is not
+			// possible
 			if total_account_value <= FixedI128::zero() {
-				return (FixedI128::zero(), FixedI128::zero());
+				return (FixedI128::zero(), FixedI128::zero())
 			}
 
 			let safe_withdrawal_amount;
@@ -679,7 +687,7 @@ pub mod pallet {
 			} else {
 				let safe_amount = total_account_value - total_maintenance_requirement;
 				if current_balance < safe_amount {
-					return (current_balance, current_balance);
+					return (current_balance, current_balance)
 				}
 				safe_withdrawal_amount = safe_amount;
 			}
@@ -691,7 +699,7 @@ pub mod pallet {
 				current_balance,
 			);
 
-			return (safe_withdrawal_amount, withdrawable_amount);
+			return (safe_withdrawal_amount, withdrawable_amount)
 		}
 
 		fn get_amount_to_withdraw(
@@ -704,8 +712,8 @@ pub mod pallet {
 
 			// This function will only be called in these cases:
 			// i) if TAV < TMR ii) if (TAV - TMR) < balance
-			// we calculate maximum amount that can be sold so that the position won't get liquidated
-			// calculate new TAV and new TMR to get maximum withdrawable amount
+			// we calculate maximum amount that can be sold so that the position won't get
+			// liquidated calculate new TAV and new TMR to get maximum withdrawable amount
 			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
 
 			// Get Market price
@@ -716,20 +724,21 @@ pub mod pallet {
 				two_point_five * least_collateral_ratio_position.margin_amount;
 			let new_size = min_leverage_times_margin / market_price;
 
-			// calculate account value and maintenance requirement of least collateral position before reducing size
-			// AV = (size * current_price) - borrowed_amount
+			// calculate account value and maintenance requirement of least collateral position
+			// before reducing size AV = (size * current_price) - borrowed_amount
 			// MR = req_margin * size * avg_execution_price
-			let account_value_initial = (least_collateral_ratio_position.size * market_price)
-				- least_collateral_ratio_position.borrowed_amount;
+			let account_value_initial = (least_collateral_ratio_position.size * market_price) -
+				least_collateral_ratio_position.borrowed_amount;
 
 			let market =
 				T::MarketPallet::get_market(least_collateral_ratio_position.market_id).unwrap();
 			let req_margin = market.maintenance_margin_fraction;
-			let leveraged_position_value_initial = least_collateral_ratio_position.size
-				* least_collateral_ratio_position.avg_execution_price;
+			let leveraged_position_value_initial = least_collateral_ratio_position.size *
+				least_collateral_ratio_position.avg_execution_price;
 			let maintenance_requirement_initial = req_margin * leveraged_position_value_initial;
 
-			// calculate account value and maintenance requirement of least collateral position after reducing size
+			// calculate account value and maintenance requirement of least collateral position
+			// after reducing size
 			let amount_to_be_sold = least_collateral_ratio_position.size - new_size;
 			let amount_to_be_sold_value = amount_to_be_sold * market_price;
 			let new_borrowed_amount =
@@ -748,12 +757,12 @@ pub mod pallet {
 
 			let new_sub_result = new_tav - new_tmr;
 			if new_sub_result <= FixedI128::zero() {
-				return FixedI128::zero();
+				return FixedI128::zero()
 			}
 			if current_balance <= new_sub_result {
-				return current_balance;
+				return current_balance
 			} else {
-				return new_sub_result;
+				return new_sub_result
 			}
 		}
 	}
@@ -913,7 +922,7 @@ pub mod pallet {
 						leverage: 0.into(),
 					}, // least_collateral_ratio_position
 					0.into(),           // least_collateral_ratio_position_asset_price
-				);
+				)
 			}
 
 			let (
@@ -945,7 +954,7 @@ pub mod pallet {
 						leverage: 0.into(),
 					}, // least_collateral_ratio_position
 					0.into(),           // least_collateral_ratio_position_asset_price
-				);
+				)
 			}
 
 			// Add the new position's margin
@@ -961,8 +970,8 @@ pub mod pallet {
 
 			// If it's a long position with 1x leverage, ignore it
 			if total_margin <= maintenance_margin_requirement {
-				if !((least_collateral_ratio_position.direction == Direction::Long)
-					&& (least_collateral_ratio_position.leverage == 1.into()))
+				if !((least_collateral_ratio_position.direction == Direction::Long) &&
+					(least_collateral_ratio_position.leverage == 1.into()))
 				{
 					is_liquidation = true;
 				}
@@ -977,7 +986,7 @@ pub mod pallet {
 				least_collateral_ratio,
 				least_collateral_ratio_position,
 				least_collateral_ratio_position_asset_price,
-			);
+			)
 		}
 
 		fn deposit_internal(
@@ -1056,11 +1065,11 @@ pub mod pallet {
 			let mut account_list = Vec::<U256>::new();
 			let accounts_count = AccountsCount::<T>::get();
 			for index in start_index..end_index {
-				if (start_index > end_index)
-					|| (index >= accounts_count)
-					|| (start_index >= accounts_count)
+				if (start_index > end_index) ||
+					(index >= accounts_count) ||
+					(start_index >= accounts_count)
 				{
-					break;
+					break
 				}
 				account_list.push(AccountsListMap::<T>::get(index).unwrap());
 			}
