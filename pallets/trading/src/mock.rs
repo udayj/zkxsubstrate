@@ -88,6 +88,7 @@ impl pallet_risk_management::Config for Test {
 	type MarketPallet = Markets;
 	type TradingPallet = Trading;
 	type TradingAccountPallet = TradingAccounts;
+	type PricesPallet = Prices;
 }
 
 impl trading::Config for Test {

@@ -63,14 +63,14 @@ pub trait TradingInterface {
 	fn set_flags_for_force_orders(
 		account_id: U256,
 		collateral_id: u128,
-		position: &PositionDetailsForRiskManagement,
-		amount_to_be_sold: FixedI128,
+		force_closure_flag: ForceClosureFlag,
+		deleveragable_position: DeleveragablePosition,
 	);
 	fn get_deleveragable_position(account_id: U256, collateral_id: u128) -> DeleveragablePosition;
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
-	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> ForceClosureFlag;
+	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 }
 
 pub trait AssetInterface {
@@ -89,7 +89,12 @@ pub trait RiskManagementInterface {
 		oracle_price: FixedI128,
 		margin_amount: FixedI128,
 	) -> (FixedI128, bool);
-	fn check_for_force_closure(account_id: U256, collateral_id: u128);
+	fn check_for_force_closure(
+		account_id: U256,
+		collateral_id: u128,
+		market_id: u128,
+		direction: Direction,
+	);
 }
 
 pub trait MarketInterface {

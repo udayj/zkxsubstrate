@@ -96,7 +96,6 @@ pub enum BalanceChangeReason {
 )]
 pub enum ForceClosureFlag {
 	#[default]
-	Absent,
 	Deleverage,
 	Liquidate,
 }
@@ -189,7 +188,7 @@ pub struct AccountInfo {
 	pub available_margin: FixedI128,
 	pub total_margin: FixedI128,
 	pub collateral_balance: FixedI128,
-	pub force_closure_flag: ForceClosureFlag,
+	pub force_closure_flag: Option<ForceClosureFlag>,
 	pub deleveragable_position: DeleveragablePosition,
 }
 
@@ -258,9 +257,8 @@ impl From<FundModifyType> for u8 {
 impl From<ForceClosureFlag> for u8 {
 	fn from(value: ForceClosureFlag) -> u8 {
 		match value {
-			ForceClosureFlag::Absent => 0_u8,
-			ForceClosureFlag::Deleverage => 1_u8,
-			ForceClosureFlag::Liquidate => 2_u8,
+			ForceClosureFlag::Deleverage => 0_u8,
+			ForceClosureFlag::Liquidate => 1_u8,
 		}
 	}
 }

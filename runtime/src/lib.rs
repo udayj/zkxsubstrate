@@ -292,6 +292,7 @@ impl pallet_risk_management::Config for Runtime {
 	type TradingPallet = Trading;
 	type TradingAccountPallet = ZkxTradingAccount;
 	type MarketPallet = Markets;
+	type PricesPallet = Prices;
 }
 
 impl pallet_asset::Config for Runtime {
