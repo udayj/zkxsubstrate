@@ -1,9 +1,8 @@
 use crate::types::{
 	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
 	Direction, ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market,
-	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionDetailsForRiskManagement,
-	PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit,
+	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side,
+	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -42,16 +41,7 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		new_position_maintanence_requirement: FixedI128,
 		new_position_margin: FixedI128,
-	) -> (
-		bool,
-		FixedI128,
-		FixedI128,
-		FixedI128,
-		FixedI128,
-		FixedI128,
-		PositionDetailsForRiskManagement,
-		FixedI128,
-	);
+	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 }
