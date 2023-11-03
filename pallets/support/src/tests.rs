@@ -1,7 +1,10 @@
-use crate::helpers::pedersen_hash_multiple;
-use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::{Direction, HashType, Order, OrderType, Side, TimeInForce};
-use crate::{ecdsa_verify, Signature};
+use crate::{
+	ecdsa_verify,
+	helpers::pedersen_hash_multiple,
+	traits::{FixedI128Ext, Hashable, U256Ext},
+	types::{HashType, Order, Side},
+	Signature,
+};
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -94,32 +97,11 @@ fn test_felt_and_hash_values() {
 
 #[test]
 fn test_order_signature() {
-	let order = Order {
-		account_id: U256::from_dec_str("100").unwrap(),
-		order_id: 200_u128,
-		market_id: 300_u128,
-		order_type: OrderType::Market,
-		direction: Direction::Long,
-		side: Side::Buy,
-		price: FixedI128::from_inner(10000000_i128),
-		size: FixedI128::from_inner(01_i128),
-		leverage: FixedI128::from_inner(-100_i128),
-		slippage: FixedI128::from_inner(-200_i128),
-		post_only: true,
-		time_in_force: TimeInForce::GTC,
-		sig_r: U256::from_dec_str("0").unwrap(),
-		sig_s: U256::from_dec_str("0").unwrap(),
-		hash_type: HashType::Pedersen,
-	};
+	let order = Order::new(201_u128, U256::from(0));
 
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
-
-	// correct value of order_hash is the hash as calculated using compute_hash_on_elements (from cairo-lang package) using the
-	// serialized values of the different types
-	// compute_hash_on_elements([100,0,200,300,1,0,0,10000000,1,0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff9d,
-	// 0x800000000000010ffffffffffffffffffffffffffffffffffffffffffffff39,1,0])
 	let expected_hash = FieldElement::from_dec_str(
-		"1562465184451062490240891191379126127199787496518743214458262873007936909803",
+		"1596104311932082188295317805799311177470610379583027696529060790691735246641",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);

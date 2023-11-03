@@ -51,6 +51,16 @@ impl ExtendedMarket {
 		extended_market
 	}
 
+	pub fn set_minimum_order_size(
+		self: ExtendedMarket,
+		minimum_order_size: FixedI128,
+	) -> ExtendedMarket {
+		let mut extended_market = self;
+		extended_market.market.minimum_order_size = minimum_order_size;
+
+		extended_market
+	}
+
 	pub fn set_currently_allowed_leverage(
 		self: ExtendedMarket,
 		currently_allowed_leverage: FixedI128,
@@ -119,16 +129,52 @@ pub fn link_usdc() -> ExtendedMarket {
 			tick_precision: 1,
 			step_size: 1.into(),
 			step_precision: 1,
-			minimum_order_size: FixedI128::from_inner(100000000000000000),
+			minimum_order_size: 1.into(),
 			minimum_leverage: 1.into(),
 			maximum_leverage: 10.into(),
 			currently_allowed_leverage: 8.into(),
-			maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
+			maintenance_margin_fraction: 1.into(),
 			initial_margin_fraction: 1.into(),
 			incremental_initial_margin_fraction: 1.into(),
-			incremental_position_size: 100.into(),
-			baseline_position_size: 1000.into(),
-			maximum_position_size: 10000.into(),
+			incremental_position_size: 1.into(),
+			baseline_position_size: 1.into(),
+			maximum_position_size: 1.into(),
+		},
+		metadata_url: metadata_url.clone(),
+	}
+}
+
+pub fn btc_usdc() -> ExtendedMarket {
+	let mut metadata_url = BoundedVec::new();
+	for &byte in b"https://x.com/zkxprotocol" {
+		if let Err(_) = metadata_url.try_push(byte) {
+			break; // If we reach the bound, stop adding elements.
+		}
+	}
+
+	ExtendedMarket {
+		market: Market {
+			id: 1,
+			version: 1,
+			asset: 4346947,
+			asset_collateral: 1431520323,
+			is_tradable: true,
+			is_archived: false,
+			ttl: 3600,
+			tick_size: 1.into(),
+			tick_precision: 1,
+			step_size: 1.into(),
+			step_precision: 1,
+			minimum_order_size: 1.into(),
+			minimum_leverage: 1.into(),
+			maximum_leverage: 10.into(),
+			currently_allowed_leverage: 8.into(),
+			maintenance_margin_fraction: 1.into(),
+			initial_margin_fraction: 1.into(),
+			incremental_initial_margin_fraction: 1.into(),
+			incremental_position_size: 1.into(),
+			baseline_position_size: 1.into(),
+			maximum_position_size: 1.into(),
 		},
 		metadata_url: metadata_url.clone(),
 	}

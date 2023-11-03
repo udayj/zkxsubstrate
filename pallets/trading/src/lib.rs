@@ -29,7 +29,7 @@ pub mod pallet {
 		types::{
 			AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
 			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionExtended, Side, TimeInForce,
+			PositionExtended, Side, SignatureInfo, TimeInForce,
 		},
 		Signature,
 	};
@@ -122,6 +122,17 @@ pub mod pallet {
 	// k1 - order id, v - order hash
 	pub(super) type OrderHashMap<T: Config> = StorageMap<_, Twox64Concat, u128, U256, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn liquidator_signers)]
+	// Array of U256 signers
+	pub(super) type LiquidatorSigners<T: Config> = StorageValue<_, Vec<U256>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn is_liquidator_signer_valid)]
+	// k1 - signer, v - bool
+	pub(super) type IsLiquidatorSignerWhitelisted<T: Config> =
+		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -190,11 +201,20 @@ pub mod pallet {
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
+		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
 		TradeBatchError539,
 		/// If taker is forced, force closure flag must be present
 		TradeBatchError540,
 		/// Order hash mismatch for a particular order id
 		TradeBatchError541,
+		/// When a non-whitelisted pub key is used in liquidation
+		TradeBatchError542,
+		/// When a zero signer is being added
+		ZeroSigner,
+		/// When a duplicate signer is being added
+		DuplicateSigner,
+		/// When the order is signed with a pub key that is not whitelisted
+		SignerNotWhitelisted,
 	}
 
 	#[pallet::event]
@@ -237,6 +257,10 @@ pub mod pallet {
 		},
 		/// Force closure flag updation event
 		ForceClosureFlagsChanged { account_id: U256, collateral_id: u128, force_closure_flag: u8 },
+		/// Liquidator signer added
+		LiquidatorSignerAdded { signer: U256 },
+		/// Liquidator signer removed
+		LiquidatorSignerRemoved { signer: U256 },
 	}
 
 	// Pallet callable functions
@@ -810,6 +834,42 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// TODO(merkle-groot): To add origin restriction in production
+		#[pallet::weight(0)]
+		pub fn add_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// The pub key cannot be 0
+			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
+
+			// Ensure that the pub_key is not already whitelisted
+			ensure!(!IsLiquidatorSignerWhitelisted::<T>::get(pub_key), Error::<T>::DuplicateSigner);
+
+			// Store the new signer
+			Self::add_liquidator_signer_internal(pub_key);
+
+			// Return ok
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To add origin restriction in production
+		#[pallet::weight(0)]
+		pub fn remove_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Check if the signer exists
+			ensure!(
+				IsLiquidatorSignerWhitelisted::<T>::get(pub_key),
+				Error::<T>::SignerNotWhitelisted
+			);
+
+			// Update the state
+			Self::remove_liquidator_signer_internal(pub_key);
+
+			// Return ok
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -949,36 +1009,51 @@ pub mod pallet {
 				Error::<T>::TradeBatchError502
 			);
 
-			// Signature validation
-			let sig_felt = sig_u256_to_sig_felt(&order.sig_r, &order.sig_s);
+			Self::validate_signature(&order)?;
 
-			// Sig_r and/or Sig_s could not be converted to FieldElement
-			ensure!(sig_felt.is_ok(), Error::<T>::TradeBatchError535);
+			Ok(())
+		}
 
-			let (sig_r_felt, sig_s_felt) = sig_felt.unwrap();
+		fn validate_signature(order: &Order) -> Result<(), Error<T>> {
+			let SignatureInfo { liquidator_pub_key, hash_type, sig_r, sig_s } =
+				&order.signature_info;
+
+			// Hash the order
+			let order_hash = order.hash(hash_type).map_err(|_| Error::<T>::TradeBatchError534)?;
+
+			// Convert to FieldElement
+			let (sig_r_felt, sig_s_felt) =
+				sig_u256_to_sig_felt(sig_r, sig_s).map_err(|_| Error::<T>::TradeBatchError535)?;
+
 			let sig = Signature { r: sig_r_felt, s: sig_s_felt };
 
-			let order_hash = order.hash(&order.hash_type);
+			let verification_result = match order.order_type {
+				OrderType::Forced => {
+					ensure!(
+						IsLiquidatorSignerWhitelisted::<T>::get(liquidator_pub_key),
+						Error::<T>::TradeBatchError542
+					);
+					let liquidator_pub_key_felt = liquidator_pub_key
+						.try_to_felt()
+						.map_err(|_| Error::<T>::TradeBatchError538)?;
 
-			// Order could not be hashed
-			ensure!(order_hash.is_ok(), Error::<T>::TradeBatchError534);
+					ecdsa_verify(&liquidator_pub_key_felt, &order_hash, &sig)
+				},
+				_ => {
+					let public_key_felt =
+						T::TradingAccountPallet::get_public_key(&order.account_id)
+							.and_then(|key| key.try_to_felt().ok())
+							.ok_or(Error::<T>::TradeBatchError538)?;
 
-			let public_key = T::TradingAccountPallet::get_public_key(&order.account_id);
-
-			// Public key not found for this account_id
-			ensure!(public_key.is_some(), Error::<T>::TradeBatchError537);
-
-			let public_key_felt = public_key.unwrap().try_to_felt();
-
-			// Public Key U256 could not be converted to FieldElement
-			ensure!(public_key_felt.is_ok(), Error::<T>::TradeBatchError538);
-
-			let order_hash = order_hash.unwrap();
-
-			let verification = ecdsa_verify(&public_key_felt.unwrap(), &order_hash, &sig);
+					ecdsa_verify(&public_key_felt, &order_hash, &sig)
+				},
+			};
 
 			// Signature verification returned error or false
-			ensure!(verification.is_ok() && verification.unwrap(), Error::<T>::TradeBatchError536);
+			ensure!(
+				verification_result.is_ok() && verification_result.unwrap(),
+				Error::<T>::TradeBatchError536
+			);
 
 			let order_hash_u256 = order_hash.to_u256();
 			// Check for order hash collision
@@ -1423,12 +1498,37 @@ pub mod pallet {
 				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
-				Error::<T>::TradeBatchError541 => 541,
 				Error::<T>::TradeBatchError540 => 540,
+				Error::<T>::TradeBatchError541 => 541,
+				Error::<T>::TradeBatchError542 => 542,
 				_ => 500,
 			}
 		}
 
+		fn add_liquidator_signer_internal(pub_key: U256) {
+			// Store the new signer
+			LiquidatorSigners::<T>::append(pub_key);
+			IsLiquidatorSignerWhitelisted::<T>::insert(pub_key, true);
+
+			// Emit the SignerAdded event
+			Self::deposit_event(Event::LiquidatorSignerAdded { signer: pub_key });
+		}
+
+		fn remove_liquidator_signer_internal(pub_key: U256) {
+			// Read the state of signers
+			let signers_array = LiquidatorSigners::<T>::get();
+
+			// remove the signer from the array
+			let updated_array: Vec<U256> =
+				signers_array.into_iter().filter(|&signer| signer != pub_key).collect();
+
+			// Update the state
+			IsLiquidatorSignerWhitelisted::<T>::insert(pub_key, false);
+			LiquidatorSigners::<T>::put(updated_array);
+
+			// Emit the SignerRemoved event
+			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
+		}
 		fn order_hash_check(order_id: u128, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
