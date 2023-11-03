@@ -51,7 +51,7 @@ impl ExtendedMarket {
 		extended_market
 	}
 
-	pub fn set_minimum_minimum_order_size(
+	pub fn set_minimum_order_size(
 		self: ExtendedMarket,
 		minimum_order_size: FixedI128,
 	) -> ExtendedMarket {
