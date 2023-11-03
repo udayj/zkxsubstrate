@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: stand2-node
+  tag: stand1-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
