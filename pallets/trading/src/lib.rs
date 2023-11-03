@@ -201,7 +201,6 @@ pub mod pallet {
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
-		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
 		TradeBatchError539,
 		/// If taker is forced, force closure flag must be present
 		TradeBatchError540,
