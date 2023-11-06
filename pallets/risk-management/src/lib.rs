@@ -162,11 +162,16 @@ pub mod pallet {
 			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
 			if pnl < FixedI128::zero() {
 				let new_size = (TWO_POINT_FIVE_FI128 * position.margin_amount) / price;
-				position_value = new_size * price;
+				let new_size = new_size.round_to_precision(market.step_precision.into());
+				let value_to_sell = (position.size - new_size) * price;
+				// Calculate the new borrowed amount if the total position size is
+				// above calculated new_size
+				let new_borrowed_amount = position.borrowed_amount - value_to_sell;
+				position_value = (new_size * price) - new_borrowed_amount;
 				maintenance_requirement =
 					position.avg_execution_price * new_size * req_margin_fraction;
 			} else {
-				position_value = position.size * price;
+				position_value = (position.size * price) - position.borrowed_amount;
 				maintenance_requirement =
 					position.avg_execution_price * position.size * req_margin_fraction;
 			}
