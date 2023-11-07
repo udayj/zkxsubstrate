@@ -201,7 +201,6 @@ pub mod pallet {
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
-		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
 		TradeBatchError539,
 		/// If taker is forced, force closure flag must be present
 		TradeBatchError540,
@@ -1683,6 +1682,8 @@ pub mod pallet {
 
 			let force_closure_flag = ForceClosureFlagMap::<T>::get(account_id, collateral_id);
 			let deleveragable_position = DeleveragableMap::<T>::get(account_id, collateral_id);
+			let unused_balance =
+				T::TradingAccountPallet::get_unused_balance(account_id, collateral_id);
 
 			AccountInfo {
 				positions,
@@ -1691,6 +1692,7 @@ pub mod pallet {
 				collateral_balance,
 				force_closure_flag,
 				deleveragable_position,
+				unused_balance,
 			}
 		}
 

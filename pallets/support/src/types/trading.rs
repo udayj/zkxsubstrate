@@ -197,6 +197,7 @@ pub struct AccountInfo {
 	pub collateral_balance: FixedI128,
 	pub force_closure_flag: Option<ForceClosureFlag>,
 	pub deleveragable_position: DeleveragablePosition,
+	pub unused_balance: FixedI128,
 }
 
 // Impls

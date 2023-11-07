@@ -76,7 +76,7 @@ pub fn eth_usdc() -> ExtendedMarket {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
+			break // If we reach the bound, stop adding elements.
 		}
 	}
 
@@ -112,7 +112,7 @@ pub fn link_usdc() -> ExtendedMarket {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
+			break // If we reach the bound, stop adding elements.
 		}
 	}
 
@@ -148,7 +148,7 @@ pub fn btc_usdc() -> ExtendedMarket {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
+			break // If we reach the bound, stop adding elements.
 		}
 	}
 
@@ -169,7 +169,7 @@ pub fn btc_usdc() -> ExtendedMarket {
 			minimum_leverage: 1.into(),
 			maximum_leverage: 10.into(),
 			currently_allowed_leverage: 8.into(),
-			maintenance_margin_fraction: 1.into(),
+			maintenance_margin_fraction: FixedI128::from_inner(75000000000000000),
 			initial_margin_fraction: 1.into(),
 			incremental_initial_margin_fraction: 1.into(),
 			incremental_position_size: 1.into(),

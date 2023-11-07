@@ -11,14 +11,13 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::*;
-	use frame_support::traits::UnixTime;
+	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime};
 	use frame_system::pallet_prelude::*;
-	use sp_arithmetic::fixed_point::FixedI128;
-	use sp_arithmetic::traits::Zero;
-	use zkx_support::traits::{MarketInterface, PricesInterface};
-	use zkx_support::types::{MultiplePrices, Price};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use zkx_support::{
+		traits::{MarketInterface, PricesInterface},
+		types::{MultiplePrices, Price},
+	};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -161,7 +160,7 @@ pub mod pallet {
 			}
 		}
 
-		fn get_index_price(market_id: u128) -> FixedI128 {
+		fn get_mark_price(market_id: u128) -> FixedI128 {
 			let index_price = IndexPricesMap::<T>::get(market_id);
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();

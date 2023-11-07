@@ -150,4 +150,14 @@ impl Order {
 		let signature_info = SignatureInfo { sig_r, sig_s, ..self.signature_info };
 		Order { signature_info, ..self }
 	}
+
+	pub fn sign_order_liquidator(self: Order, private_key: FieldElement, liquidator_pub_key: U256) -> Order {
+		let order_hash = self.hash(&self.signature_info.hash_type).unwrap();
+		let signature = sign(&private_key, &order_hash, &FieldElement::ONE).unwrap();
+
+		let sig_r = signature.r.to_u256();
+		let sig_s = signature.s.to_u256();
+		let signature_info = SignatureInfo { sig_r, sig_s, liquidator_pub_key, ..self.signature_info };
+		Order { signature_info, ..self }
+	}
 }

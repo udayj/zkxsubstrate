@@ -465,7 +465,7 @@ pub mod pallet {
 					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Short);
 
 				// Get Mark price
-				let mark_price = T::PricesPallet::get_index_price(curr_market_id);
+				let mark_price = T::PricesPallet::get_mark_price(curr_market_id);
 
 				if mark_price == FixedI128::zero() {
 					return (0.into(), 0.into())
