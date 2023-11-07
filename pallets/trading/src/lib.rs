@@ -14,6 +14,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::Vec,
 		pallet_prelude::{ValueQuery, *},
+		traits::UnixTime,
 	};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
@@ -47,6 +48,7 @@ pub mod pallet {
 		type TradingFeesPallet: TradingFeesInterface;
 		type PricesPallet: PricesInterface;
 		type RiskManagementPallet: RiskManagementInterface;
+		type TimeProvider: UnixTime;
 	}
 
 	#[pallet::storage]
@@ -487,6 +489,10 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
+				// Get the current timestamp
+				let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+				let mut created_timestamp: u64 = current_timestamp;
+
 				let is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
@@ -566,17 +572,20 @@ pub mod pallet {
 								markets,
 							);
 						}
+					} else {
+						created_timestamp = position_details.created_timestamp;
 					}
 
 					updated_position = Position {
 						market_id,
 						direction: element.direction,
-						side: element.side,
 						avg_execution_price,
 						size: new_position_size,
 						margin_amount,
 						borrowed_amount,
 						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
 						realized_pnl: new_realized_pnl,
 					};
 					PositionsMap::<T>::set(
@@ -738,16 +747,18 @@ pub mod pallet {
 							(market_id, element.direction),
 						);
 					} else {
+						created_timestamp = position_details.created_timestamp;
 						// To do - Calculate pnl
 						updated_position = Position {
 							market_id,
 							direction: element.direction,
-							side: element.side,
 							avg_execution_price,
 							size: new_position_size,
 							margin_amount,
 							borrowed_amount,
 							leverage: new_leverage,
+							created_timestamp,
+							modified_timestamp: current_timestamp,
 							realized_pnl: new_realized_pnl,
 						};
 						PositionsMap::<T>::set(
