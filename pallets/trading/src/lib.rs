@@ -1630,9 +1630,6 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-				least_collateral_ratio,
-				least_collateral_ratio_position,
-				least_collateral_ratio_position_asset_price,
 			) = T::TradingAccountPallet::get_margin_info(
 				account_id,
 				collateral_id,
@@ -1646,14 +1643,11 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-				least_collateral_ratio,
-				least_collateral_ratio_position,
-				least_collateral_ratio_position_asset_price,
 			}
 		}
 
 		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo {
-			let (_, total_margin, available_margin, _, _, _, _, _) =
+			let (_, total_margin, available_margin, _, _) =
 				T::TradingAccountPallet::get_margin_info(
 					account_id,
 					collateral_id,

@@ -14,10 +14,7 @@ pub mod pallet {
 	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use primitive_types::U256;
-	use sp_arithmetic::{
-		traits::{Bounded, Zero},
-		FixedI128,
-	};
+	use sp_arithmetic::{traits::Zero, FixedI128};
 	use sp_io::hashing::blake2_256;
 	use zkx_support::{
 		ecdsa_verify,
@@ -28,8 +25,7 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
-			PositionDetailsForRiskManagement, TradingAccount, TradingAccountMinimal,
-			WithdrawalRequest,
+			TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -365,14 +361,15 @@ pub mod pallet {
 				block_number,
 			});
 
-			// Check whether the withdrawal leads to the position to be liquidatable or deleveraged
-			let (_, withdrawable_amount) = Self::calculate_amount_to_withdraw(
+			// Get withdrawal amount before withdrawal leads to the position to be liquidatable or
+			// deleveraged
+			let safe_withdrawal_amount = Self::calculate_amount_to_withdraw(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
 
 			ensure!(
-				withdrawal_request.amount <= withdrawable_amount,
+				withdrawal_request.amount <= safe_withdrawal_amount,
 				Error::<T>::InvalidWithdrawalRequest
 			);
 
@@ -421,61 +418,43 @@ pub mod pallet {
 			AccountCollateralsMap::<T>::insert(account_id, collaterals);
 		}
 
-		fn get_risk_parameters_position(
+		fn get_risk_parameters(
 			position: &Position,
 			direction: Direction,
-			market_price: FixedI128,
+			mark_price: FixedI128,
 			market_id: u128,
-		) -> (FixedI128, FixedI128, FixedI128) {
+		) -> (FixedI128, FixedI128) {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
-			let req_margin = market.maintenance_margin_fraction;
+			let req_margin_fraction = market.maintenance_margin_fraction;
 
 			// Calculate the maintenance requirement
 			let maintenance_position = position.avg_execution_price * position.size;
-			let maintenance_requirement = req_margin * maintenance_position;
+			let maintenance_requirement = req_margin_fraction * maintenance_position;
 
-			if market_price == FixedI128::zero() {
-				return (0.into(), maintenance_requirement, 0.into())
+			if mark_price == FixedI128::zero() {
+				return (0.into(), maintenance_requirement)
 			}
 
-			// Calculate pnl to check if it is the least collateralized position
-			let price_diff: FixedI128;
-			if direction == Direction::Long {
-				price_diff = market_price - position.avg_execution_price;
+			// Calculate pnl
+			let price_diff = if direction == Direction::Long {
+				mark_price - position.avg_execution_price
 			} else {
-				price_diff = position.avg_execution_price - market_price;
-			}
+				position.avg_execution_price - mark_price
+			};
 
 			let pnl = price_diff * position.size;
 
-			// Margin ratio calculation
-			let numerator = position.margin_amount + pnl;
-			let denominator = position.size * market_price;
-			let collateral_ratio_position = numerator / denominator;
-
-			return (pnl, maintenance_requirement, collateral_ratio_position)
+			return (pnl, maintenance_requirement)
 		}
 
 		fn calculate_margin_info(
 			account_id: U256,
 			new_position_maintanence_requirement: FixedI128,
 			markets: Vec<u128>,
-		) -> (FixedI128, FixedI128, FixedI128, PositionDetailsForRiskManagement, FixedI128) {
+		) -> (FixedI128, FixedI128) {
 			let mut unrealized_pnl_sum: FixedI128 = 0.into();
 			let mut maintenance_margin_requirement: FixedI128 =
 				new_position_maintanence_requirement;
-			let mut least_collateral_ratio: FixedI128 = FixedI128::max_value();
-			let mut least_collateral_ratio_position: PositionDetailsForRiskManagement =
-				PositionDetailsForRiskManagement {
-					market_id: 0,
-					direction: Direction::Long,
-					avg_execution_price: 0.into(),
-					size: 0.into(),
-					margin_amount: 0.into(),
-					borrowed_amount: 0.into(),
-					leverage: 0.into(),
-				};
-			let mut least_collateral_ratio_position_asset_price: FixedI128 = 0.into();
 			for curr_market_id in markets {
 				// Get Long position
 				let long_position: Position =
@@ -485,104 +464,43 @@ pub mod pallet {
 				let short_position: Position =
 					T::TradingPallet::get_position(account_id, curr_market_id, Direction::Short);
 
-				// Get Index price
-				let market_price = T::PricesPallet::get_index_price(curr_market_id);
+				// Get Mark price
+				let mark_price = T::PricesPallet::get_index_price(curr_market_id);
 
-				if market_price == FixedI128::zero() {
-					return (
-						0.into(),
-						0.into(),
-						1.into(),
-						PositionDetailsForRiskManagement {
-							market_id: 0,
-							direction: Direction::Long,
-							avg_execution_price: 0.into(),
-							size: 0.into(),
-							margin_amount: 0.into(),
-							borrowed_amount: 0.into(),
-							leverage: 0.into(),
-						},
-						0.into(),
-					)
+				if mark_price == FixedI128::zero() {
+					return (0.into(), 0.into())
 				}
 
 				let long_maintanence_requirement;
 				let long_pnl;
-				let long_collateral_ratio;
 
 				if long_position.size == 0.into() {
-					long_collateral_ratio = FixedI128::max_value();
 					long_maintanence_requirement = 0.into();
 					long_pnl = 0.into();
 				} else {
 					// Get risk parameters of the position
-					(long_pnl, long_maintanence_requirement, long_collateral_ratio) =
-						Self::get_risk_parameters_position(
-							&long_position,
-							Direction::Long,
-							market_price,
-							curr_market_id,
-						);
+					(long_pnl, long_maintanence_requirement) = Self::get_risk_parameters(
+						&long_position,
+						Direction::Long,
+						mark_price,
+						curr_market_id,
+					);
 				}
 
 				let short_maintanence_requirement;
 				let short_pnl;
-				let short_collateral_ratio;
 
 				if short_position.size == 0.into() {
-					short_collateral_ratio = FixedI128::max_value();
 					short_maintanence_requirement = 0.into();
 					short_pnl = 0.into();
 				} else {
 					// Get risk parameters of the position
-					(short_pnl, short_maintanence_requirement, short_collateral_ratio) =
-						Self::get_risk_parameters_position(
-							&short_position,
-							Direction::Short,
-							market_price,
-							curr_market_id,
-						);
-				}
-
-				let curr_long_position: PositionDetailsForRiskManagement =
-					PositionDetailsForRiskManagement {
-						market_id: curr_market_id,
-						direction: Direction::Long,
-						avg_execution_price: long_position.avg_execution_price,
-						size: long_position.size,
-						margin_amount: long_position.margin_amount,
-						borrowed_amount: long_position.borrowed_amount,
-						leverage: long_position.leverage,
-					};
-
-				let curr_short_position: PositionDetailsForRiskManagement =
-					PositionDetailsForRiskManagement {
-						market_id: curr_market_id,
-						direction: Direction::Short,
-						avg_execution_price: short_position.avg_execution_price,
-						size: short_position.size,
-						margin_amount: short_position.margin_amount,
-						borrowed_amount: short_position.borrowed_amount,
-						leverage: short_position.leverage,
-					};
-
-				let new_least_collateral_ratio_position: PositionDetailsForRiskManagement;
-				let new_least_collateral_ratio_position_asset_price;
-				let mut new_least_collateral_ratio =
-					FixedI128::min(least_collateral_ratio, short_collateral_ratio);
-				new_least_collateral_ratio =
-					FixedI128::min(new_least_collateral_ratio, long_collateral_ratio);
-
-				if new_least_collateral_ratio == least_collateral_ratio {
-					new_least_collateral_ratio_position = least_collateral_ratio_position;
-					new_least_collateral_ratio_position_asset_price =
-						least_collateral_ratio_position_asset_price;
-				} else if new_least_collateral_ratio == short_collateral_ratio {
-					new_least_collateral_ratio_position_asset_price = market_price;
-					new_least_collateral_ratio_position = curr_short_position;
-				} else {
-					new_least_collateral_ratio_position_asset_price = market_price;
-					new_least_collateral_ratio_position = curr_long_position;
+					(short_pnl, short_maintanence_requirement) = Self::get_risk_parameters(
+						&short_position,
+						Direction::Short,
+						mark_price,
+						curr_market_id,
+					);
 				}
 
 				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
@@ -590,19 +508,8 @@ pub mod pallet {
 				maintenance_margin_requirement = maintenance_margin_requirement +
 					short_maintanence_requirement +
 					long_maintanence_requirement;
-
-				least_collateral_ratio = new_least_collateral_ratio;
-				least_collateral_ratio_position = new_least_collateral_ratio_position;
-				least_collateral_ratio_position_asset_price =
-					new_least_collateral_ratio_position_asset_price;
 			}
-			return (
-				unrealized_pnl_sum,
-				maintenance_margin_requirement,
-				least_collateral_ratio,
-				least_collateral_ratio_position,
-				least_collateral_ratio_position_asset_price,
-			)
+			return (unrealized_pnl_sum, maintenance_margin_requirement)
 		}
 
 		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
@@ -647,37 +554,31 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn calculate_amount_to_withdraw(
-			account_id: U256,
-			collateral_id: u128,
-		) -> (FixedI128, FixedI128) {
+		fn calculate_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128 {
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
 			if current_balance <= FixedI128::zero() {
-				return (FixedI128::zero(), FixedI128::zero())
+				return FixedI128::zero()
 			}
 
-			let (
-				liq_result,
-				total_account_value,
-				_,
-				_,
-				total_maintenance_requirement,
-				_,
-				least_collateral_ratio_position,
-				_,
-			) = Self::get_margin_info(account_id, collateral_id, FixedI128::zero(), FixedI128::zero());
+			let (liq_result, total_account_value, _, _, total_maintenance_requirement) =
+				Self::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			// if TMR == 0, it means that market price is not within TTL, so user should be possible
 			// to withdraw whole balance
 			if total_maintenance_requirement == FixedI128::zero() {
-				return (current_balance, current_balance)
+				return current_balance
 			}
 
 			// if TAV <= 0, it means that user is already under water and thus withdrawal is not
 			// possible
 			if total_account_value <= FixedI128::zero() {
-				return (FixedI128::zero(), FixedI128::zero())
+				return FixedI128::zero()
 			}
 
 			let safe_withdrawal_amount;
@@ -687,83 +588,12 @@ pub mod pallet {
 			} else {
 				let safe_amount = total_account_value - total_maintenance_requirement;
 				if current_balance < safe_amount {
-					return (current_balance, current_balance)
+					return current_balance
 				}
 				safe_withdrawal_amount = safe_amount;
 			}
 
-			let withdrawable_amount = Self::get_amount_to_withdraw(
-				total_account_value,
-				total_maintenance_requirement,
-				least_collateral_ratio_position,
-				current_balance,
-			);
-
-			return (safe_withdrawal_amount, withdrawable_amount)
-		}
-
-		fn get_amount_to_withdraw(
-			total_account_value: FixedI128,
-			total_maintenance_requirement: FixedI128,
-			least_collateral_ratio_position: PositionDetailsForRiskManagement,
-			current_balance: FixedI128,
-		) -> FixedI128 {
-			let two_point_five = FixedI128::from_inner(2500000000000000000);
-
-			// This function will only be called in these cases:
-			// i) if TAV < TMR ii) if (TAV - TMR) < balance
-			// we calculate maximum amount that can be sold so that the position won't get
-			// liquidated calculate new TAV and new TMR to get maximum withdrawable amount
-			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
-
-			// Get Market price
-			let market_price =
-				T::PricesPallet::get_index_price(least_collateral_ratio_position.market_id);
-
-			let min_leverage_times_margin =
-				two_point_five * least_collateral_ratio_position.margin_amount;
-			let new_size = min_leverage_times_margin / market_price;
-
-			// calculate account value and maintenance requirement of least collateral position
-			// before reducing size AV = (size * current_price) - borrowed_amount
-			// MR = req_margin * size * avg_execution_price
-			let account_value_initial = (least_collateral_ratio_position.size * market_price) -
-				least_collateral_ratio_position.borrowed_amount;
-
-			let market =
-				T::MarketPallet::get_market(least_collateral_ratio_position.market_id).unwrap();
-			let req_margin = market.maintenance_margin_fraction;
-			let leveraged_position_value_initial = least_collateral_ratio_position.size *
-				least_collateral_ratio_position.avg_execution_price;
-			let maintenance_requirement_initial = req_margin * leveraged_position_value_initial;
-
-			// calculate account value and maintenance requirement of least collateral position
-			// after reducing size
-			let amount_to_be_sold = least_collateral_ratio_position.size - new_size;
-			let amount_to_be_sold_value = amount_to_be_sold * market_price;
-			let new_borrowed_amount =
-				least_collateral_ratio_position.borrowed_amount - amount_to_be_sold_value;
-			let account_value_after = (new_size * market_price) - new_borrowed_amount;
-			let leveraged_position_value_after =
-				new_size * least_collateral_ratio_position.avg_execution_price;
-			let maintenance_requirement_after = req_margin * leveraged_position_value_after;
-
-			// calculate new TAV and new TMR after reducing size
-			let account_value_difference = account_value_after - account_value_initial;
-			let maintenance_requirement_difference =
-				maintenance_requirement_after - maintenance_requirement_initial;
-			let new_tav = total_account_value + account_value_difference;
-			let new_tmr = total_maintenance_requirement + maintenance_requirement_difference;
-
-			let new_sub_result = new_tav - new_tmr;
-			if new_sub_result <= FixedI128::zero() {
-				return FixedI128::zero()
-			}
-			if current_balance <= new_sub_result {
-				return current_balance
-			} else {
-				return new_sub_result
-			}
+			safe_withdrawal_amount
 		}
 	}
 
@@ -883,16 +713,7 @@ pub mod pallet {
 			collateral_id: u128,
 			new_position_maintanence_requirement: FixedI128,
 			new_position_margin: FixedI128,
-		) -> (
-			bool,
-			FixedI128,
-			FixedI128,
-			FixedI128,
-			FixedI128,
-			FixedI128,
-			PositionDetailsForRiskManagement,
-			FixedI128,
-		) {
+		) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128) {
 			// Get markets corresponding of the collateral
 			let markets: Vec<u128> =
 				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
@@ -911,51 +732,14 @@ pub mod pallet {
 					available_margin,   // available_margin
 					0.into(),           // unrealized_pnl_sum
 					0.into(),           // maintenance_margin_requirement
-					0.into(),           // least_collateral_ratio
-					PositionDetailsForRiskManagement {
-						market_id: 0,
-						direction: Direction::Long,
-						avg_execution_price: 0.into(),
-						size: 0.into(),
-						margin_amount: 0.into(),
-						borrowed_amount: 0.into(),
-						leverage: 0.into(),
-					}, // least_collateral_ratio_position
-					0.into(),           // least_collateral_ratio_position_asset_price
 				)
 			}
 
-			let (
-				unrealized_pnl_sum,
-				maintenance_margin_requirement,
-				least_collateral_ratio,
-				least_collateral_ratio_position,
-				least_collateral_ratio_position_asset_price,
-			) = Self::calculate_margin_info(account_id, new_position_maintanence_requirement, markets);
-
-			// If any of the position's ttl is outdated
-			if least_collateral_ratio_position_asset_price == 0.into() {
-				let available_margin_temp = collateral_balance - new_position_margin;
-				let available_margin = available_margin_temp - initial_margin_sum;
-				return (
-					false,              // is_liquidation
-					collateral_balance, // total_margin
-					available_margin,   // available_margin
-					0.into(),           // unrealized_pnl_sum
-					0.into(),           // maintenance_margin_requirement
-					0.into(),           // least_collateral_ratio
-					PositionDetailsForRiskManagement {
-						market_id: 0,
-						direction: Direction::Long,
-						avg_execution_price: 0.into(),
-						size: 0.into(),
-						margin_amount: 0.into(),
-						borrowed_amount: 0.into(),
-						leverage: 0.into(),
-					}, // least_collateral_ratio_position
-					0.into(),           // least_collateral_ratio_position_asset_price
-				)
-			}
+			let (unrealized_pnl_sum, maintenance_margin_requirement) = Self::calculate_margin_info(
+				account_id,
+				new_position_maintanence_requirement,
+				markets,
+			);
 
 			// Add the new position's margin
 			let total_initial_margin_sum = initial_margin_sum + new_position_margin;
@@ -970,11 +754,7 @@ pub mod pallet {
 
 			// If it's a long position with 1x leverage, ignore it
 			if total_margin <= maintenance_margin_requirement {
-				if !((least_collateral_ratio_position.direction == Direction::Long) &&
-					(least_collateral_ratio_position.leverage == 1.into()))
-				{
-					is_liquidation = true;
-				}
+				is_liquidation = true;
 			}
 
 			return (
@@ -983,9 +763,6 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-				least_collateral_ratio,
-				least_collateral_ratio_position,
-				least_collateral_ratio_position_asset_price,
 			)
 		}
 

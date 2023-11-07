@@ -185,9 +185,6 @@ pub struct MarginInfo {
 	pub available_margin: FixedI128,
 	pub unrealized_pnl_sum: FixedI128,
 	pub maintenance_margin_requirement: FixedI128,
-	pub least_collateral_ratio: FixedI128,
-	pub least_collateral_ratio_position: PositionDetailsForRiskManagement,
-	pub least_collateral_ratio_position_asset_price: FixedI128,
 }
 
 #[derive(
