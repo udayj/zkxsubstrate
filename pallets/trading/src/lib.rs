@@ -1682,6 +1682,8 @@ pub mod pallet {
 
 			let force_closure_flag = ForceClosureFlagMap::<T>::get(account_id, collateral_id);
 			let deleveragable_position = DeleveragableMap::<T>::get(account_id, collateral_id);
+			let unused_balance =
+				T::TradingAccountPallet::get_unused_balance(account_id, collateral_id);
 
 			AccountInfo {
 				positions,
@@ -1690,6 +1692,7 @@ pub mod pallet {
 				collateral_balance,
 				force_closure_flag,
 				deleveragable_position,
+				unused_balance,
 			}
 		}
 

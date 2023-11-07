@@ -49,7 +49,7 @@ pub mod pallet {
 			let mut total_maintenance_margin = FixedI128::zero();
 
 			for market in markets {
-				let mark_price = T::PricesPallet::get_index_price(market);
+				let mark_price = T::PricesPallet::get_mark_price(market);
 				// If price is 0, we abort risk management
 				if mark_price == FixedI128::zero() {
 					return (true, FixedI128::zero())
@@ -89,7 +89,7 @@ pub mod pallet {
 				let req_margin_fraction = market.maintenance_margin_fraction;
 
 				let position = T::TradingPallet::get_position(account_id, market_id, direction);
-				let mark_price = T::PricesPallet::get_index_price(market_id);
+				let mark_price = T::PricesPallet::get_mark_price(market_id);
 
 				let price_diff = if position.direction == Direction::Long {
 					mark_price - position.avg_execution_price
@@ -118,6 +118,8 @@ pub mod pallet {
 				if leverage_after_deleveraging <= 2.into() {
 					let new_size = (TWO_FI128 * position.margin_amount) / mark_price;
 					let amount_to_be_sold = position.size - new_size;
+					let amount_to_be_sold =
+						amount_to_be_sold.round_to_precision(market.step_precision.into());
 					(true, amount_to_be_sold)
 				} else {
 					(true, amount_to_be_sold)
