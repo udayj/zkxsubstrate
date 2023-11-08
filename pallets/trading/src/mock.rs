@@ -10,14 +10,14 @@ use pallet_zkx_trading_account;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage
+	BuildStorage,
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test 
+	pub enum Test
 	{
 		System: frame_system,
 		Markets: pallet_market,
@@ -99,6 +99,7 @@ impl trading::Config for Test {
 	type RiskManagementPallet = RiskManagement;
 	type TradingAccountPallet = TradingAccounts;
 	type TradingFeesPallet = TradingFees;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_timestamp::Config for Test {

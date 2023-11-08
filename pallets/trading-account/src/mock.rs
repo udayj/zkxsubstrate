@@ -7,14 +7,14 @@ use pallet_trading_fees;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage
+	BuildStorage,
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test 
+	pub enum Test
 	{
 		System: frame_system,
 		TradingAccountModule: pallet_trading_account,
@@ -96,6 +96,7 @@ impl pallet_trading::Config for Test {
 	type TradingFeesPallet = TradingFees;
 	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_risk_management::Config for Test {

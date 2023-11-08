@@ -328,6 +328,7 @@ impl pallet_trading::Config for Runtime {
 	type TradingFeesPallet = TradingFees;
 	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
+	type TimeProvider = Timestamp;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(

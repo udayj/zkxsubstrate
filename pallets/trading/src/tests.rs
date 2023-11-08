@@ -183,10 +183,11 @@ fn it_works_for_open_trade_simple() {
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Long,
-			side: Side::Buy,
 			margin_amount: 100.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -197,10 +198,11 @@ fn it_works_for_open_trade_simple() {
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Short,
-			side: Side::Buy,
 			margin_amount: 100.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
@@ -252,10 +254,11 @@ fn it_works_for_open_trade_with_leverage() {
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Long,
-			side: Side::Buy,
 			margin_amount: 20.into(),
 			borrowed_amount: 80.into(),
 			leverage: 5.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -266,10 +269,11 @@ fn it_works_for_open_trade_with_leverage() {
 			avg_execution_price: 100.into(),
 			size: 1.into(),
 			direction: Direction::Short,
-			side: Side::Buy,
 			margin_amount: 20.into(),
 			borrowed_amount: 80.into(),
 			leverage: 5.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
@@ -410,10 +414,11 @@ fn it_works_for_open_trade_partial_open() {
 			avg_execution_price: 99.into(),
 			size: 2.into(),
 			direction: Direction::Short,
-			side: Side::Buy,
 			margin_amount: 198.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position1);
@@ -1535,8 +1540,11 @@ fn test_fee_while_closing_order() {
 
 		// Since we are opening orders without setting the fee for open orders, fee won't be
 		// deducted from balance
-		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 10000.into());
-		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 10000.into());
+		let usdc_id: u128 = usdc().asset.id;
+		let balance_1 = TradingAccounts::balances(alice_id, usdc_id);
+		assert_eq!(balance_1, 10000.into());
+		let balance_2 = TradingAccounts::balances(bob_id, usdc_id);
+		assert_eq!(balance_2, 10000.into());
 
 		// Close orders
 		let alice_close_order_1 = Order::new(203_u128, alice_id)

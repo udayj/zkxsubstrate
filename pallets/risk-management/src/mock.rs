@@ -99,6 +99,7 @@ impl pallet_trading::Config for Test {
 	type RiskManagementPallet = RiskManagement;
 	type TradingAccountPallet = TradingAccounts;
 	type TradingFeesPallet = TradingFees;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_timestamp::Config for Test {
