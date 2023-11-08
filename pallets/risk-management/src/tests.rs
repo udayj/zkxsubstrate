@@ -130,10 +130,11 @@ fn test_liquidation() {
 			avg_execution_price: 0.into(),
 			size: 0.into(),
 			direction: Direction::Long,
-			side: Side::Buy,
 			margin_amount: 0.into(),
 			borrowed_amount: 0.into(),
 			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -223,10 +224,11 @@ fn test_deleveraging() {
 			avg_execution_price: 10000.into(),
 			size: FixedI128::from_inner(4700000000000000000),
 			direction: Direction::Long,
-			side: Side::Sell,
 			margin_amount: 10000.into(),
 			borrowed_amount: 37450.into(),
 			leverage: FixedI128::from_inner(4750000000000000000),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -354,10 +356,11 @@ fn test_liquidation_after_deleveraging() {
 			avg_execution_price: 0.into(),
 			size: 0.into(),
 			direction: Direction::Long,
-			side: Side::Buy,
 			margin_amount: 0.into(),
 			borrowed_amount: 0.into(),
 			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);

@@ -1541,9 +1541,9 @@ fn test_fee_while_closing_order() {
 		// Since we are opening orders without setting the fee for open orders, fee won't be
 		// deducted from balance
 		let usdc_id: u128 = usdc().asset.id;
-		let balance_1 = TradingAccounts::balances(account_id_1, usdc_id);
+		let balance_1 = TradingAccounts::balances(alice_id, usdc_id);
 		assert_eq!(balance_1, 10000.into());
-		let balance_2 = TradingAccounts::balances(account_id_2, usdc_id);
+		let balance_2 = TradingAccounts::balances(bob_id, usdc_id);
 		assert_eq!(balance_2, 10000.into());
 
 		// Close orders
