@@ -174,10 +174,6 @@ pub mod pallet {
 		TradeBatchError526,
 		/// Position marked to be liquidated, but deleveraging order passed
 		TradeBatchError527,
-		/// Invalid liquidation or deleveraging market
-		TradeBatchError528,
-		/// Invalid liquidation or deleveraging market direction
-		TradeBatchError529,
 		/// Position cannot be opened becuase of passive risk management
 		TradeBatchError531,
 		/// Not enough margin to cover losses - short limit sell or long limit sell
@@ -1474,8 +1470,6 @@ pub mod pallet {
 				Error::<T>::TradeBatchError524 => 524,
 				Error::<T>::TradeBatchError526 => 526,
 				Error::<T>::TradeBatchError527 => 527,
-				Error::<T>::TradeBatchError528 => 528,
-				Error::<T>::TradeBatchError529 => 529,
 				Error::<T>::TradeBatchError531 => 531,
 				Error::<T>::TradeBatchError532 => 532,
 				Error::<T>::TradeBatchError533 => 533,
