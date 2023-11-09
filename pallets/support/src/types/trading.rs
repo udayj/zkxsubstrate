@@ -189,7 +189,6 @@ pub struct AccountInfo {
 	pub total_margin: FixedI128,
 	pub collateral_balance: FixedI128,
 	pub force_closure_flag: Option<ForceClosureFlag>,
-	pub amount_to_be_sold: FixedI128,
 	pub unused_balance: FixedI128,
 }
 

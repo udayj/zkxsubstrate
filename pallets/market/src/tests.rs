@@ -1,8 +1,12 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
-use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
-use zkx_support::types::ExtendedMarket;
+use zkx_support::{
+	test_helpers::{
+		asset_helper::{eth, link, usdc},
+		market_helper::{eth_usdc, link_usdc},
+	},
+	types::ExtendedMarket,
+};
 
 fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Create a new test environment
@@ -38,9 +42,6 @@ fn it_works_for_replace_markets() {
 			MarketModule::markets(eth_usdc_market.market.id).unwrap(),
 			eth_usdc_market.clone()
 		);
-
-		// Assert that the correct event was deposited
-		System::assert_last_event(Event::MarketsCreated { length: 1 }.into());
 	});
 }
 

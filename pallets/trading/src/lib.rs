@@ -1660,7 +1660,6 @@ pub mod pallet {
 				T::TradingAccountPallet::get_balance(account_id, collateral_id);
 
 			let force_closure_flag = ForceClosureFlagMap::<T>::get(account_id, collateral_id);
-			let amount_to_be_sold = DeleveragableMap::<T>::get(account_id, collateral_id);
 			let unused_balance =
 				T::TradingAccountPallet::get_unused_balance(account_id, collateral_id);
 
@@ -1670,7 +1669,6 @@ pub mod pallet {
 				total_margin,
 				collateral_balance,
 				force_closure_flag,
-				amount_to_be_sold,
 				unused_balance,
 			}
 		}

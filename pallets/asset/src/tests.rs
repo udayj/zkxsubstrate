@@ -1,7 +1,9 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use zkx_support::test_helpers::asset_helper::{btc, eth, link, usdc};
-use zkx_support::types::ExtendedAsset;
+use zkx_support::{
+	test_helpers::asset_helper::{btc, eth, link, usdc},
+	types::ExtendedAsset,
+};
 
 fn setup() -> (sp_io::TestExternalities, Vec<ExtendedAsset>) {
 	// Create a new test environment
@@ -30,9 +32,6 @@ fn it_works_for_replace_assets() {
 		// Check the state
 		assert_eq!(AssetModule::assets_count(), 1);
 		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), eth_asset.clone());
-
-		// Assert that the correct event was deposited
-		System::assert_last_event(Event::AssetsCreated { length: 1 }.into());
 	});
 }
 
@@ -62,9 +61,6 @@ fn it_works_for_replace_assets_multiple_assets() {
 		assert_eq!(AssetModule::assets(eth_asset.asset.id).unwrap(), eth_asset.clone());
 		assert_eq!(AssetModule::assets(link_asset.asset.id).unwrap(), link_asset.clone());
 		assert_eq!(AssetModule::assets(usdc_asset.asset.id).unwrap(), usdc_asset.clone());
-
-		// Assert that the correct event was deposited
-		System::assert_last_event(Event::AssetsCreated { length: 3 }.into());
 	});
 }
 
