@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, DeleveragablePosition,
-	Direction, ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market,
-	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side,
-	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
+	ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
+	Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved,
+	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -54,9 +54,9 @@ pub trait TradingInterface {
 		account_id: U256,
 		collateral_id: u128,
 		force_closure_flag: ForceClosureFlag,
-		deleveragable_position: DeleveragablePosition,
+		amount_to_be_sold: FixedI128,
 	);
-	fn get_deleveragable_position(account_id: U256, collateral_id: u128) -> DeleveragablePosition;
+	fn get_deleveragable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_account_margin_info(account_id: U256, collateral_id: u128) -> MarginInfo;
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;

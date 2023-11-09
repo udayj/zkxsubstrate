@@ -28,9 +28,9 @@ pub mod pallet {
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, DeleveragablePosition, Direction, ForceClosureFlag,
-			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionExtended, Side, SignatureInfo, TimeInForce,
+			AccountInfo, BalanceChangeReason, Direction, ForceClosureFlag, FundModifyType,
+			MarginInfo, Market, Order, OrderSide, OrderType, Position, PositionExtended, Side,
+			SignatureInfo, TimeInForce,
 		},
 		Signature,
 	};
@@ -94,17 +94,10 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, (u128, Direction), FixedI128, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn deleveragable_position)]
-	// Here, k1 - account_id,  k2 -  collateral_id, v -  DeleveragablePosition
-	pub(super) type DeleveragableMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256,
-		Blake2_128Concat,
-		u128,
-		DeleveragablePosition,
-		ValueQuery,
-	>;
+	#[pallet::getter(fn deleveragable_amount)]
+	// Here, k1 - account_id,  k2 -  collateral_id, v -  amount_to_be_sold
+	pub(super) type DeleveragableMap<T: Config> =
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn force_closure_flag)]
@@ -670,26 +663,20 @@ pub mod pallet {
 					if force_closure_flag.is_some() &&
 						force_closure_flag.unwrap() == ForceClosureFlag::Deleverage
 					{
-						let deleveragable_position =
+						let deleveragable_amount =
 							DeleveragableMap::<T>::get(element.account_id, collateral_id);
-						let new_deleverage_position_size =
-							deleveragable_position.amount_to_be_sold - quantity_to_execute;
+						let new_deleverage_amount = deleveragable_amount - quantity_to_execute;
 
-						if new_deleverage_position_size == FixedI128::zero() {
+						if new_deleverage_amount == FixedI128::zero() {
 							DeleveragableMap::<T>::remove(element.account_id, collateral_id);
 
 							// Remove the liquidation flag and check for deferred deposits
 							Self::reset_force_closure_flags(element.account_id, collateral_id)?;
 						} else {
-							let new_deleverage_position = DeleveragablePosition {
-								market_id: deleveragable_position.market_id,
-								direction: deleveragable_position.direction,
-								amount_to_be_sold: new_deleverage_position_size,
-							};
 							DeleveragableMap::<T>::insert(
 								element.account_id,
 								collateral_id,
-								new_deleverage_position,
+								new_deleverage_amount,
 							);
 						}
 
@@ -959,20 +946,10 @@ pub mod pallet {
 					// one of Deleverage or Liquidate
 					match force_closure_flag.unwrap() {
 						ForceClosureFlag::Deleverage => {
-							let deleveragable_position =
+							let deleveragable_amount =
 								DeleveragableMap::<T>::get(&order.account_id, collateral_id);
-							ensure!(
-								deleveragable_position.market_id == market_id,
-								Error::<T>::TradeBatchError528
-							);
-							ensure!(
-								deleveragable_position.direction == order.direction,
-								Error::<T>::TradeBatchError529
-							);
-							quantity_to_execute = FixedI128::min(
-								quantity_to_execute,
-								deleveragable_position.amount_to_be_sold,
-							);
+							quantity_to_execute =
+								FixedI128::min(quantity_to_execute, deleveragable_amount);
 						},
 						_ => {
 							quantity_to_execute =
@@ -1571,7 +1548,7 @@ pub mod pallet {
 			account_id: U256,
 			collateral_id: u128,
 			force_closure_flag: ForceClosureFlag,
-			deleveragable_position: DeleveragablePosition,
+			amount_to_be_sold: FixedI128,
 		) {
 			// Liquidation
 			if force_closure_flag == ForceClosureFlag::Liquidate {
@@ -1588,7 +1565,7 @@ pub mod pallet {
 					collateral_id,
 					ForceClosureFlag::Deleverage,
 				);
-				DeleveragableMap::<T>::insert(account_id, collateral_id, deleveragable_position);
+				DeleveragableMap::<T>::insert(account_id, collateral_id, amount_to_be_sold);
 			}
 
 			// Emit event
@@ -1599,10 +1576,7 @@ pub mod pallet {
 			});
 		}
 
-		fn get_deleveragable_position(
-			account_id: U256,
-			collateral_id: u128,
-		) -> DeleveragablePosition {
+		fn get_deleveragable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
 			DeleveragableMap::<T>::get(account_id, collateral_id)
 		}
 
@@ -1692,7 +1666,7 @@ pub mod pallet {
 				T::TradingAccountPallet::get_balance(account_id, collateral_id);
 
 			let force_closure_flag = ForceClosureFlagMap::<T>::get(account_id, collateral_id);
-			let deleveragable_position = DeleveragableMap::<T>::get(account_id, collateral_id);
+			let amount_to_be_sold = DeleveragableMap::<T>::get(account_id, collateral_id);
 			let unused_balance =
 				T::TradingAccountPallet::get_unused_balance(account_id, collateral_id);
 
@@ -1702,7 +1676,7 @@ pub mod pallet {
 				total_margin,
 				collateral_balance,
 				force_closure_flag,
-				deleveragable_position,
+				amount_to_be_sold,
 				unused_balance,
 			}
 		}

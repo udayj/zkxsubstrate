@@ -18,9 +18,7 @@ pub mod pallet {
 			FixedI128Ext, MarketInterface, PricesInterface, RiskManagementInterface,
 			TradingAccountInterface, TradingInterface,
 		},
-		types::{
-			DeleveragablePosition, Direction, ForceClosureFlag, Order, OrderType, Position, Side,
-		},
+		types::{Direction, ForceClosureFlag, Order, OrderType, Position, Side},
 	};
 
 	static TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
@@ -246,18 +244,14 @@ pub mod pallet {
 						account_id,
 						collateral_id,
 						ForceClosureFlag::Deleverage,
-						DeleveragablePosition { market_id, direction, amount_to_be_sold },
+						amount_to_be_sold,
 					);
 				} else {
 					T::TradingPallet::set_flags_for_force_orders(
 						account_id,
 						collateral_id,
 						ForceClosureFlag::Liquidate,
-						DeleveragablePosition {
-							market_id,
-							direction,
-							amount_to_be_sold: FixedI128::zero(),
-						},
+						FixedI128::zero(),
 					);
 				}
 			}

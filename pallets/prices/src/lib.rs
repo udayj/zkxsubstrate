@@ -35,11 +35,10 @@ pub mod pallet {
 	pub(super) type MarketPricesMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, Price, ValueQuery>;
 
-	/// Maps market id to the IndexPrice struct.
+	/// Maps market id to the MarkPrice struct.
 	#[pallet::storage]
-	#[pallet::getter(fn index_price)]
-	pub(super) type IndexPricesMap<T: Config> =
-		StorageMap<_, Twox64Concat, u128, Price, ValueQuery>;
+	#[pallet::getter(fn mark_price)]
+	pub(super) type MarkPricesMap<T: Config> = StorageMap<_, Twox64Concat, u128, Price, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -58,8 +57,8 @@ pub mod pallet {
 		/// Multiple market prices were successfully updated
 		MultipleMarketPricesUpdated { market_prices: Vec<MultiplePrices> },
 
-		/// Multiple index prices were successfully updated
-		MultipleIndexPricesUpdated { index_prices: Vec<MultiplePrices> },
+		/// Multiple mark prices were successfully updated
+		MultipleMarkPricesUpdated { mark_prices: Vec<MultiplePrices> },
 	}
 
 	// Pallet callable functions
@@ -104,11 +103,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// update multiple index prices
+		/// update multiple mark prices
 		#[pallet::weight(0)]
-		pub fn update_index_prices(
+		pub fn update_mark_prices(
 			origin: OriginFor<T>,
-			index_prices: Vec<MultiplePrices>,
+			mark_prices: Vec<MultiplePrices>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
@@ -117,7 +116,7 @@ pub mod pallet {
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
 			// Iterate through the vector of markets and add to market map
-			for curr_market in &index_prices {
+			for curr_market in &mark_prices {
 				ensure!(curr_market.price >= FixedI128::zero(), Error::<T>::InvalidMarketPrice);
 
 				// Get Market from the corresponding Id
@@ -126,19 +125,19 @@ pub mod pallet {
 					None => return Err(Error::<T>::MarketNotFound.into()),
 				};
 
-				// Create a struct object for the index price
-				let new_index_price: Price = Price {
+				// Create a struct object for the mark price
+				let new_mark_price: Price = Price {
 					asset_id: market.asset,
 					collateral_id: market.asset_collateral,
 					timestamp: current_timestamp,
 					price: curr_market.price,
 				};
 
-				IndexPricesMap::<T>::insert(curr_market.market_id, new_index_price);
+				MarkPricesMap::<T>::insert(curr_market.market_id, new_mark_price);
 			}
 
 			// Emits event
-			Self::deposit_event(Event::MultipleIndexPricesUpdated { index_prices });
+			Self::deposit_event(Event::MultipleMarkPricesUpdated { mark_prices });
 
 			Ok(())
 		}
@@ -161,18 +160,18 @@ pub mod pallet {
 		}
 
 		fn get_mark_price(market_id: u128) -> FixedI128 {
-			let index_price = IndexPricesMap::<T>::get(market_id);
+			let mark_price = MarkPricesMap::<T>::get(market_id);
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
 			// Get Market from the corresponding Id
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
-			let time_difference = current_timestamp - index_price.timestamp;
+			let time_difference = current_timestamp - mark_price.timestamp;
 			if time_difference > market.ttl.into() {
 				FixedI128::zero()
 			} else {
-				index_price.price
+				mark_price.price
 			}
 		}
 
