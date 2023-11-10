@@ -93,7 +93,7 @@ fn test_liquidation() {
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 5000.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -138,6 +138,9 @@ fn test_liquidation() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_none(), true);
 	});
 }
 
@@ -187,7 +190,7 @@ fn test_deleveraging() {
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -232,6 +235,9 @@ fn test_deleveraging() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_none(), true);
 	});
 }
 
@@ -282,7 +288,7 @@ fn test_liquidation_after_deleveraging() {
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -312,14 +318,11 @@ fn test_liquidation_after_deleveraging() {
 			vec![charlie_order, alice_forced_order]
 		));
 
-		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
-		println!("Position after deleveraging {:?}", alice_position);
-
 		// Decrease the price of the asset for liquidation
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 6500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let dave_order = Order::new(206_u128, dave_id)
@@ -414,7 +417,7 @@ fn test_invalid_forced_order() {
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 9500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -443,9 +446,6 @@ fn test_invalid_forced_order() {
 			// orders
 			vec![charlie_order, alice_forced_order]
 		));
-
-		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
-		println!("Position after liquidation {:?}", alice_position);
 	});
 }
 
@@ -496,7 +496,7 @@ fn test_invalid_liquidator() {
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_index_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -525,8 +525,5 @@ fn test_invalid_liquidator() {
 			// orders
 			vec![charlie_order, alice_forced_order]
 		));
-
-		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
-		println!("Position after liquidation {:?}", alice_position);
 	});
 }

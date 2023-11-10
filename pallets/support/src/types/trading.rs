@@ -158,15 +158,6 @@ pub struct PositionDetailsForRiskManagement {
 	pub leverage: FixedI128,
 }
 
-#[derive(
-	Clone, Copy, Decode, Default, Deserialize, Encode, PartialEq, RuntimeDebug, Serialize, TypeInfo,
-)]
-pub struct DeleveragablePosition {
-	pub market_id: u128,
-	pub direction: Direction,
-	pub amount_to_be_sold: FixedI128,
-}
-
 // Batch Related
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ExecutedBatch {
@@ -198,7 +189,6 @@ pub struct AccountInfo {
 	pub total_margin: FixedI128,
 	pub collateral_balance: FixedI128,
 	pub force_closure_flag: Option<ForceClosureFlag>,
-	pub deleveragable_position: DeleveragablePosition,
 	pub unused_balance: FixedI128,
 }
 

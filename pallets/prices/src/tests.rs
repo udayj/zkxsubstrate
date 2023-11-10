@@ -1,9 +1,13 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use sp_arithmetic::FixedI128;
-use zkx_support::test_helpers::asset_helper::{eth, link, usdc};
-use zkx_support::test_helpers::market_helper::{eth_usdc, link_usdc};
-use zkx_support::types::{ExtendedMarket, MultiplePrices, Price};
+use zkx_support::{
+	test_helpers::{
+		asset_helper::{eth, link, usdc},
+		market_helper::{eth_usdc, link_usdc},
+	},
+	types::{ExtendedMarket, MultiplePrices, Price},
+};
 
 fn setup() -> (ExtendedMarket, ExtendedMarket) {
 	assert_ok!(Timestamp::set(None.into(), 100));
@@ -88,7 +92,7 @@ fn test_update_market_prices() {
 }
 
 #[test]
-fn test_update_index_prices() {
+fn test_update_mark_prices() {
 	new_test_ext().execute_with(|| {
 		let (market1, market2) = setup();
 		// Go past genesis block so events get deposited
@@ -96,25 +100,25 @@ fn test_update_index_prices() {
 		// Dispatch a signed extrinsic.
 		let markets = vec![market1.clone(), market2.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id: market1.market.id, price: 100.into() };
-		let index_price2 = MultiplePrices { market_id: market2.market.id, price: 200.into() };
-		index_prices.push(index_price1);
-		index_prices.push(index_price2);
-		assert_ok!(MarketPricesModule::update_index_prices(
+		let mut mark_prices: Vec<MultiplePrices> = Vec::new();
+		let mark_price1 = MultiplePrices { market_id: market1.market.id, price: 100.into() };
+		let mark_price2 = MultiplePrices { market_id: market2.market.id, price: 200.into() };
+		mark_prices.push(mark_price1);
+		mark_prices.push(mark_price2);
+		assert_ok!(MarketPricesModule::update_mark_prices(
 			RuntimeOrigin::signed(1),
-			index_prices.clone()
+			mark_prices.clone()
 		));
 
-		let index_price: Price = MarketPricesModule::index_price(market1.market.id);
+		let mark_price: Price = MarketPricesModule::mark_price(market1.market.id);
 		let expected_price: FixedI128 = 100.into();
-		assert_eq!(expected_price, index_price.price);
+		assert_eq!(expected_price, mark_price.price);
 
-		let index_price = MarketPricesModule::index_price(market2.market.id);
+		let mark_price = MarketPricesModule::mark_price(market2.market.id);
 		let expected_price: FixedI128 = 200.into();
-		assert_eq!(expected_price, index_price.price);
+		assert_eq!(expected_price, mark_price.price);
 
 		// Assert that the correct event was deposited
-		System::assert_last_event(Event::MultipleIndexPricesUpdated { index_prices }.into());
+		System::assert_last_event(Event::MultipleMarkPricesUpdated { mark_prices }.into());
 	});
 }

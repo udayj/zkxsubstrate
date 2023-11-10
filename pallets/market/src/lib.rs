@@ -11,12 +11,16 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::{DispatchResult, *};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{DispatchResult, *},
+	};
 	use frame_system::pallet_prelude::*;
 	use sp_arithmetic::fixed_point::FixedI128;
-	use zkx_support::traits::{AssetInterface, MarketInterface};
-	use zkx_support::types::{ExtendedMarket, Market};
+	use zkx_support::{
+		traits::{AssetInterface, MarketInterface},
+		types::{ExtendedMarket, Market},
+	};
 
 	static DELETION_LIMIT: u32 = 100;
 
@@ -61,8 +65,6 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Markets were successfully created
-		MarketsCreated { length: u64 },
 		/// Market successfully created
 		MarketCreated { market: ExtendedMarket },
 		/// Market successfully updated
@@ -109,18 +111,18 @@ pub mod pallet {
 					Error::<T>::InvalidLeverage
 				);
 				ensure!(
-					(current_market.minimum_leverage
-						..current_market.maximum_leverage + FixedI128::from_inner(1))
+					(current_market.minimum_leverage..
+						current_market.maximum_leverage + FixedI128::from_inner(1))
 						.contains(&current_market.currently_allowed_leverage),
 					Error::<T>::InvalidLeverage
 				);
 
 				MarketMap::<T>::insert(current_market.id, extended_market.clone());
+
+				Self::deposit_event(Event::MarketCreated { market: extended_market });
 			}
 
 			MarketsCount::<T>::put(length);
-
-			Self::deposit_event(Event::MarketsCreated { length });
 
 			Ok(())
 		}

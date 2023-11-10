@@ -11,11 +11,12 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use zkx_support::traits::AssetInterface;
-	use zkx_support::types::{Asset, ExtendedAsset};
+	use zkx_support::{
+		traits::AssetInterface,
+		types::{Asset, ExtendedAsset},
+	};
 
 	static DELETION_LIMIT: u32 = 100;
 	static DEFAULT_ASSET: u128 = 1431520323;
@@ -56,19 +57,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Assets were successfully created
-		AssetsCreated {
-			length: u64,
-		},
-		AssetCreated {
-			asset: ExtendedAsset,
-		},
-		AssetUpdated {
-			asset: ExtendedAsset,
-		},
-		AssetRemoved {
-			asset: ExtendedAsset,
-		},
+		AssetCreated { asset: ExtendedAsset },
+		AssetUpdated { asset: ExtendedAsset },
+		AssetRemoved { asset: ExtendedAsset },
 	}
 
 	// Pallet callable functions
@@ -102,11 +93,11 @@ pub mod pallet {
 				// Validate asset
 				ensure!((0..19).contains(&current_asset.decimals), Error::<T>::InvalidAsset);
 				AssetMap::<T>::insert(current_asset.id, extended_asset.clone());
+
+				Self::deposit_event(Event::AssetCreated { asset: extended_asset });
 			}
 
 			AssetsCount::<T>::put(length);
-
-			Self::deposit_event(Event::AssetsCreated { length });
 
 			Ok(())
 		}
@@ -118,7 +109,7 @@ pub mod pallet {
 
 			// Check if the asset exists
 			if let None = Self::get_asset(id) {
-				return Err(Error::<T>::InvalidAsset.into());
+				return Err(Error::<T>::InvalidAsset.into())
 			}
 
 			// Remove the asset
@@ -133,7 +124,7 @@ pub mod pallet {
 
 			// Check if the asset exists
 			if let None = Self::get_asset(extended_asset.asset.id) {
-				return Err(Error::<T>::InvalidAsset.into());
+				return Err(Error::<T>::InvalidAsset.into())
 			}
 
 			// Validate asset
@@ -151,7 +142,7 @@ pub mod pallet {
 
 			// Check if the asset exists
 			if let Some(_) = Self::get_asset(extended_asset.asset.id) {
-				return Err(Error::<T>::DuplicateAsset.into());
+				return Err(Error::<T>::DuplicateAsset.into())
 			}
 
 			// Validate asset
