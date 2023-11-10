@@ -57,10 +57,10 @@ pub mod pallet {
 	pub(super) type BatchStatusMap<T: Config> = StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn portion_executed)]
-	// k1 - order id, v - portion executed
-	pub(super) type PortionExecutedMap<T: Config> =
-		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+	#[pallet::getter(fn order_state)]
+	// k1 - order id, v - (portion executed, isCancelled flag)
+	pub(super) type OrderStateMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, (FixedI128, bool), ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
@@ -199,12 +199,16 @@ pub mod pallet {
 		TradeBatchError541,
 		/// When a non-whitelisted pub key is used in liquidation
 		TradeBatchError542,
+		/// When a cancelled order is sent for execution
+		TradeBatchError543,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
 		DuplicateSigner,
 		/// When the order is signed with a pub key that is not whitelisted
 		SignerNotWhitelisted,
+		/// When order id passed is zero
+		ZeroOrderId,
 	}
 
 	#[pallet::event]
@@ -359,7 +363,7 @@ pub mod pallet {
 					},
 				}
 
-				let order_portion_executed = PortionExecutedMap::<T>::get(element.order_id);
+				let (order_portion_executed, _) = OrderStateMap::<T>::get(element.order_id);
 				let position_details =
 					PositionsMap::<T>::get(&element.account_id, (market_id, element.direction));
 				let current_margin_locked =
@@ -390,7 +394,6 @@ pub mod pallet {
 					// Calculate quantity that needs to be executed for the current maker
 					let maker_quantity_to_execute_response = Self::calculate_quantity_to_execute(
 						order_portion_executed,
-						market_id,
 						collateral_id,
 						&position_details,
 						element,
@@ -783,7 +786,7 @@ pub mod pallet {
 					collateral_id,
 					new_margin_locked,
 				);
-				PortionExecutedMap::<T>::insert(element.order_id, new_portion_executed);
+				OrderStateMap::<T>::insert(element.order_id, (new_portion_executed, false));
 
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
@@ -863,6 +866,24 @@ pub mod pallet {
 			// Return ok
 			Ok(())
 		}
+
+		#[pallet::weight(0)]
+		pub fn cancel_order(origin: OriginFor<T>, order_id: u128) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// TODO: Add signature verification
+
+			// The order_id cannot be 0
+			ensure!(order_id != u128::zero(), Error::<T>::ZeroOrderId);
+
+			let (order_portion_executed, _) = OrderStateMap::<T>::get(order_id);
+
+			// Mark the order as cancelled order
+			OrderStateMap::<T>::insert(order_id, (order_portion_executed, true));
+
+			// Return ok
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -882,7 +903,7 @@ pub mod pallet {
 			market_id: u128,
 			collateral_id: u128,
 		) -> Result<FixedI128, Error<T>> {
-			let order_portion_executed = PortionExecutedMap::<T>::get(order.order_id);
+			let (order_portion_executed, _) = OrderStateMap::<T>::get(order.order_id);
 
 			let position_details =
 				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
@@ -905,7 +926,6 @@ pub mod pallet {
 
 			let quantity_response = Self::calculate_quantity_to_execute(
 				order_portion_executed,
-				market_id,
 				collateral_id,
 				&position_details,
 				&order,
@@ -919,7 +939,6 @@ pub mod pallet {
 
 		fn calculate_quantity_to_execute(
 			portion_executed: FixedI128,
-			market_id: u128,
 			collateral_id: u128,
 			position_details: &Position,
 			order: &Order,
@@ -970,6 +989,10 @@ pub mod pallet {
 			// Validate that the user is registered
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
 			ensure!(is_registered, Error::<T>::TradeBatchError510);
+
+			// Check whether the order is a cancelled order
+			let (_, is_cancelled) = OrderStateMap::<T>::get(order.order_id);
+			ensure!(!is_cancelled, Error::<T>::TradeBatchError543);
 
 			// Validate that if force closure flag is set
 			// order type can only be 'Forced'
