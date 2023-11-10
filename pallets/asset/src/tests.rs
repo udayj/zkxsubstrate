@@ -1,4 +1,4 @@
-use crate::{mock::*, Event};
+use crate::mock::*;
 use frame_support::assert_ok;
 use zkx_support::{
 	test_helpers::asset_helper::{btc, eth, link, usdc},
