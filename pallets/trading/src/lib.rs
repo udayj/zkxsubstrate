@@ -357,6 +357,7 @@ pub mod pallet {
 				InitialMarginMap::<T>::get((market_id, Direction::Long));
 			let mut initial_margin_locked_short: FixedI128 =
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
+			let mut min_timestamp: u64 = batch_timestamp;
 
 			for element in &orders {
 				let mut margin_amount: FixedI128;
@@ -823,16 +824,21 @@ pub mod pallet {
 				BatchStatusMap::<T>::insert(batch_id, true);
 
 				// Add order_id to timestamp map
-				let orders_by_timestamp = OrdersMap::<T>::get(element.timestamp);
-				let mut orders_list;
-				if orders_by_timestamp.is_none() {
-					orders_list = Vec::<u128>::new();
-				} else {
-					orders_list = orders_by_timestamp.unwrap();
+				if order_portion_executed == FixedI128::zero() {
+					let orders_by_timestamp = OrdersMap::<T>::get(element.timestamp);
+					let mut orders_list;
+					if orders_by_timestamp.is_none() {
+						orders_list = Vec::<u128>::new();
+					} else {
+						orders_list = orders_by_timestamp.unwrap();
+					}
+					orders_list.push(element.order_id);
+					OrdersMap::<T>::insert(element.timestamp, orders_list);
+
+					if element.timestamp < min_timestamp {
+						min_timestamp = element.timestamp;
+					}
 				}
-				orders_list.push(element.order_id);
-				OrdersMap::<T>::insert(element.timestamp, orders_list);
-				Self::modify_start_timestamp(element.timestamp);
 
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
@@ -874,7 +880,14 @@ pub mod pallet {
 			}
 			batches.push(batch_id);
 			BatchesMap::<T>::insert(batch_timestamp, batches);
-			Self::modify_start_timestamp(batch_timestamp);
+
+			// Modify start timestamp
+			let start_timestamp = StartTimestamp::<T>::get();
+			if (start_timestamp.is_some() && min_timestamp < start_timestamp.unwrap()) ||
+				start_timestamp.is_none()
+			{
+				StartTimestamp::<T>::put(min_timestamp);
+			}
 
 			// Emit trade executed event
 			Self::deposit_event(Event::TradeExecuted {
@@ -945,6 +958,9 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn perform_cleanup(origin: OriginFor<T>) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
 			let start_timestamp =
 				StartTimestamp::<T>::get().ok_or(Error::<T>::StartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
@@ -1566,15 +1582,6 @@ pub mod pallet {
 			let market_price = T::PricesPallet::get_market_price(market_id);
 
 			(maintenance_requirement, market_price)
-		}
-
-		fn modify_start_timestamp(timestamp: u64) {
-			let start_timestamp = StartTimestamp::<T>::get();
-			if (start_timestamp.is_some() && timestamp < start_timestamp.unwrap()) ||
-				start_timestamp.is_none()
-			{
-				StartTimestamp::<T>::put(timestamp);
-			}
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {
