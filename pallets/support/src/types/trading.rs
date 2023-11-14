@@ -37,6 +37,7 @@ pub struct Order {
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
 	pub signature_info: SignatureInfo,
+	pub timestamp: u64,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]

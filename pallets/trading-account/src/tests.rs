@@ -1,12 +1,16 @@
 use crate::mock::*;
 use frame_support::assert_ok;
-use primitive_types::U256;
-use zkx_support::test_helpers::accounts_helper::{
-	alice, bob, charlie, create_withdrawal_request, dave, eduard, get_private_key,
-	get_trading_account_id,
+use pallet_support::{
+	test_helpers::{
+		accounts_helper::{
+			alice, bob, charlie, create_withdrawal_request, dave, eduard, get_private_key,
+			get_trading_account_id,
+		},
+		asset_helper::{btc, eth, usdc, usdt},
+	},
+	types::BalanceUpdate,
 };
-use zkx_support::test_helpers::asset_helper::{btc, eth, usdc, usdt};
-use zkx_support::types::BalanceUpdate;
+use primitive_types::U256;
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment

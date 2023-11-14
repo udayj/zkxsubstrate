@@ -1,19 +1,22 @@
 use crate::mock::*;
-use frame_support::assert_ok;
-use frame_support::dispatch::Vec;
+use frame_support::{assert_ok, dispatch::Vec};
+use pallet_support::{
+	test_helpers::{
+		asset_helper::{btc, eth, usdc, usdt},
+		market_helper::eth_usdc,
+	},
+	traits::FieldElementExt,
+	types::{
+		Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated,
+		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
+		UserDeposit,
+	},
+	FieldElement,
+};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::ConstU32;
-use sp_runtime::BoundedVec;
-use zkx_support::test_helpers::asset_helper::{btc, eth, usdc, usdt};
-use zkx_support::test_helpers::market_helper::eth_usdc;
-use zkx_support::traits::FieldElementExt;
-use zkx_support::types::{
-	Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated, SignerAdded,
-	SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
-};
-use zkx_support::FieldElement;
+use sp_runtime::{traits::ConstU32, BoundedVec};
 
 // declare test_helper module
 pub mod test_helper;

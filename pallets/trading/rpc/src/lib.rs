@@ -3,13 +3,13 @@ use jsonrpsee::{
 	proc_macros::rpc,
 	types::error::{CallError, ErrorObject},
 };
+use pallet_support::types::{AccountInfo, MarginInfo, PositionExtended};
 pub use pallet_trading_runtime_api::TradingApi as TradingRuntimeApi;
 use primitive_types::U256;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-use zkx_support::types::{AccountInfo, MarginInfo, PositionExtended};
 
 #[rpc(client, server)]
 pub trait TradingApi<BlockHash> {

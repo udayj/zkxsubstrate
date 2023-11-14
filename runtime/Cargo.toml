@@ -48,7 +48,7 @@ frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "h
 frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v1.0.0" }
 
 # Local Dependencies
-pallet-zkx-trading-account = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading-account" }
+pallet-trading-account = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading-account" }
 pallet-asset = { version = "0.0.1-dev", default-features = false, path = "../pallets/asset" }
 pallet-market = { version = "0.0.1-dev", default-features = false, path = "../pallets/market" }
 pallet-trading = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading" }
@@ -58,7 +58,7 @@ pallet-sync-facade = { version = "0.0.1-dev", default-features = false, path = "
 pallet-risk-management = { version = "0.0.1-dev", default-features = false, path = "../pallets/risk-management" }
 pallet-trading-runtime-api = { path = "../pallets/trading/rpc/runtime-api", default-features = false }
 primitive-types = { version = "0.12.1", default-features = false }
-zkx-support= { path="../pallets/support"}
+pallet-support= { path="../pallets/support"}
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v1.0.0" }
@@ -80,7 +80,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
-	"pallet-zkx-trading-account/std",
+	"pallet-trading-account/std",
 	"pallet-asset/std",
 	"pallet-market/std",
 	"pallet-prices/std",
@@ -113,7 +113,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
-	"pallet-zkx-trading-account/runtime-benchmarks",
+	"pallet-trading-account/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
@@ -126,7 +126,7 @@ try-runtime = [
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-sudo/try-runtime",
-	"pallet-zkx-trading-account/try-runtime",
+	"pallet-trading-account/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 ]

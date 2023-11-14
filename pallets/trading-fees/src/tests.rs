@@ -1,7 +1,7 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
+use pallet_support::types::{BaseFee, Discount, Side};
 use sp_arithmetic::FixedI128;
-use zkx_support::types::{BaseFee, Discount, Side};
 
 fn setup() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
 	let fee_tiers: Vec<u8> = vec![1, 2, 3];

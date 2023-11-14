@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-frame-support = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
+frame-support = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 frame-system = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive",] }
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-arithmetic = { version = "16.0.0", default-features = false }
 sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-zkx-support= { path="../support"}
+pallet-support= { path="../support"}
 
 [dev-dependencies]
 sp-core = { version = "21.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -25,7 +25,7 @@ pallet-market = { default-features = false, path = "../market" }
 pallet-prices = { default-features = false, path = "../prices" }
 pallet-risk-management = { default-features = false, path = "../risk-management" }
 pallet-trading-fees = { default-features = false, path = "../trading-fees" }
-pallet-zkx-trading-account = { default-features = false, path = "../trading-account" }
+pallet-trading-account = { default-features = false, path = "../trading-account" }
 
 
 [features]
@@ -34,6 +34,7 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "codec/std",
+    "pallet-timestamp/std",
     "scale-info/std",
     "sp-arithmetic/std",
     "sp-runtime/std"

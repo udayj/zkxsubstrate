@@ -1,13 +1,13 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use sp_arithmetic::FixedI128;
-use zkx_support::{
+use pallet_support::{
 	test_helpers::{
 		asset_helper::{eth, link, usdc},
 		market_helper::{eth_usdc, link_usdc},
 	},
 	types::{ExtendedMarket, MultiplePrices, Price},
 };
+use sp_arithmetic::FixedI128;
 
 fn setup() -> (ExtendedMarket, ExtendedMarket) {
 	assert_ok!(Timestamp::set(None.into(), 100));

@@ -1,15 +1,20 @@
+// use std::alloc::System;
+
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use primitive_types::U256;
-use sp_arithmetic::FixedI128;
-use zkx_support::{
+use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, bob, charlie, dave, get_private_key, get_trading_account_id},
 		asset_helper::{btc, eth, link, usdc},
 		market_helper::{btc_usdc, link_usdc},
-		trading_helper::setup_fee,
+		setup_fee,
 	},
 	types::{Direction, Order, OrderType, Position, Side},
+};
+use primitive_types::U256;
+use sp_arithmetic::{
+	traits::{One, Zero},
+	FixedI128,
 };
 
 fn setup() -> sp_io::TestExternalities {
@@ -20,7 +25,7 @@ fn setup() -> sp_io::TestExternalities {
 	env.execute_with(|| {
 		// Set the block number
 		System::set_block_number(1);
-		assert_ok!(Timestamp::set(None.into(), 100));
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
 
 		// Set the assets in the system
 		assert_ok!(Assets::replace_all_assets(
@@ -171,7 +176,9 @@ fn it_works_for_open_trade_simple() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_order.clone(), bob_order.clone()]
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Check the execution of orders
@@ -186,8 +193,8 @@ fn it_works_for_open_trade_simple() {
 			margin_amount: 100.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
-			created_timestamp: 0,
-			modified_timestamp: 0,
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -201,8 +208,8 @@ fn it_works_for_open_trade_simple() {
 			margin_amount: 100.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
-			created_timestamp: 0,
-			modified_timestamp: 0,
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
@@ -244,7 +251,9 @@ fn it_works_for_open_trade_with_leverage() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_order.clone(), bob_order.clone()]
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Check the execution of orders
@@ -257,8 +266,8 @@ fn it_works_for_open_trade_with_leverage() {
 			margin_amount: 20.into(),
 			borrowed_amount: 80.into(),
 			leverage: 5.into(),
-			created_timestamp: 0,
-			modified_timestamp: 0,
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
@@ -272,8 +281,8 @@ fn it_works_for_open_trade_with_leverage() {
 			margin_amount: 20.into(),
 			borrowed_amount: 80.into(),
 			leverage: 5.into(),
-			created_timestamp: 0,
-			modified_timestamp: 0,
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
@@ -314,7 +323,9 @@ fn it_works_for_close_trade_simple() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_open_order.clone(), bob_open_order.clone()]
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Close close orders
@@ -341,7 +352,9 @@ fn it_works_for_close_trade_simple() {
 			// oracle_price
 			105.into(),
 			// orders
-			vec![alice_close_order.clone(), bob_close_order.clone()]
+			vec![alice_close_order.clone(), bob_close_order.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Check for balances
@@ -387,7 +400,9 @@ fn it_works_for_open_trade_partial_open() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_open_order_2 = Order::new(203_u128, alice_id)
@@ -405,7 +420,9 @@ fn it_works_for_open_trade_partial_open() {
 			// price
 			98.into(),
 			// order
-			vec![alice_open_order_2.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_2.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let position1 = Trading::positions(bob_id, (market_id, Direction::Short));
@@ -417,8 +434,8 @@ fn it_works_for_open_trade_partial_open() {
 			margin_amount: 198.into(),
 			borrowed_amount: 0.into(),
 			leverage: 1.into(),
-			created_timestamp: 0,
-			modified_timestamp: 0,
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position1);
@@ -459,7 +476,9 @@ fn it_works_for_close_trade_partial_close() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_open_order_2 = Order::new(203_u128, alice_id)
@@ -485,7 +504,9 @@ fn it_works_for_close_trade_partial_close() {
 			// price
 			105.into(),
 			// orders
-			vec![alice_open_order_2.clone(), bob_close_order_1.clone()]
+			vec![alice_open_order_2.clone(), bob_close_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_close_order_2 = Order::new(205_u128, alice_id)
@@ -504,7 +525,9 @@ fn it_works_for_close_trade_partial_close() {
 			// price
 			100.into(),
 			// order
-			vec![bob_close_order_1.clone(), alice_close_order_2.clone()]
+			vec![bob_close_order_1.clone(), alice_close_order_2.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Check for balances
@@ -565,7 +588,9 @@ fn it_works_for_open_trade_multiple_makers() {
 				bob_open_order_1.clone(),
 				charlie_open_order_1,
 				dave_open_order_1
-			]
+			],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
@@ -609,7 +634,9 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Create orders
@@ -634,7 +661,9 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_2.clone(), bob_open_order_2.clone()]
+			vec![alice_open_order_2.clone(), bob_open_order_2.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -672,7 +701,9 @@ fn it_reverts_for_trade_with_invalid_market() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -713,7 +744,9 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -753,7 +786,9 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_close_order_1 = Order::new(203_u128, alice_id)
@@ -779,7 +814,9 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			market_id,
 			// price
 			105.into(),
-			vec![alice_close_order_1, bob_close_order_1]
+			vec![alice_close_order_1, bob_close_order_1],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_open_order_2 = Order::new(205_u128, alice_id)
@@ -803,7 +840,9 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			market_id,
 			// price
 			100.into(),
-			vec![alice_open_order_2, bob_close_order_2]
+			vec![alice_open_order_2, bob_close_order_2],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -843,7 +882,9 @@ fn it_produces_error_when_user_not_registered() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 510 }.into());
@@ -885,7 +926,9 @@ fn it_produces_error_when_size_too_small() {
 			// price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 505 }.into());
@@ -925,7 +968,9 @@ fn it_produces_error_when_market_id_is_different() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 504 }.into());
@@ -965,7 +1010,9 @@ fn it_produces_error_when_leverage_is_invalid() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 502 }.into());
@@ -1004,7 +1051,9 @@ fn it_produces_error_when_signature_is_invalid() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 536 }.into());
@@ -1055,7 +1104,9 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 				alice_open_order_1.clone(),
 				bob_open_order_1.clone(),
 				charlie_open_order_1.clone()
-			]
+			],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 202, error_code: 512 }.into());
@@ -1095,7 +1146,9 @@ fn it_produces_error_when_maker_is_market_order() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_order.clone(), bob_order.clone()]
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 518 }.into());
@@ -1136,7 +1189,9 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_close_order_1 = Order::new(203_u128, alice_id)
@@ -1162,7 +1217,9 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let alice_close_order_2 = Order::new(205_u128, alice_id)
@@ -1184,7 +1241,9 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_close_order_2.clone(), bob_close_order_2.clone()]
+			vec![alice_close_order_2.clone(), bob_close_order_2.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
@@ -1237,7 +1296,9 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 				alice_open_order_1.clone(),
 				bob_open_order_1.clone(),
 				charlie_open_order_1.clone()
-			]
+			],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		System::assert_has_event(Event::OrderError { order_id: 203, error_code: 511 }.into());
@@ -1277,7 +1338,9 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -1315,7 +1378,9 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -1355,7 +1420,9 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -1394,7 +1461,9 @@ fn it_works_when_taker_long_buy_price_very_low() {
 			// price
 			100.into(),
 			// order
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 	});
 }
@@ -1442,7 +1511,9 @@ fn test_fee_while_opening_order() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		assert_eq!(
@@ -1477,7 +1548,9 @@ fn test_fee_while_opening_order() {
 			// oracle_price
 			105.into(),
 			// orders
-			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		assert_eq!(
@@ -1535,7 +1608,9 @@ fn test_fee_while_closing_order() {
 			// oracle_price
 			100.into(),
 			// orders
-			vec![alice_open_order_1.clone(), bob_open_order_1.clone()]
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		// Since we are opening orders without setting the fee for open orders, fee won't be
@@ -1570,7 +1645,9 @@ fn test_fee_while_closing_order() {
 			// oracle_price
 			105.into(),
 			// orders
-			vec![alice_close_order_1.clone(), bob_close_order_1.clone()]
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
 		));
 
 		assert_eq!(
@@ -1582,5 +1659,195 @@ fn test_fee_while_closing_order() {
 			FixedI128::from_inner(9990392500000000000000)
 		);
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+	});
+}
+
+#[test]
+// cleanup of order and batch details
+fn it_works_for_cleanup() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create order 1
+		let alice_order =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940360,
+		));
+
+		Timestamp::set_timestamp(1702359600000);
+		let b = Timestamp::now();
+		print!("Block time {:?}", b);
+
+		// Create order 2
+		let alice_order = Order::new(203_u128, alice_id)
+			.set_timestamp(1702359500)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(204_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_timestamp(1702359400)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1702359550,
+		));
+
+		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
+
+		let order1 = Trading::order_state(201);
+		assert_eq!(order1.0, FixedI128::zero());
+		let order2 = Trading::order_state(202);
+		assert_eq!(order2.0, FixedI128::zero());
+		let order3 = Trading::order_state(203);
+		assert_eq!(order3.0, FixedI128::one());
+		let order4 = Trading::order_state(204);
+		assert_eq!(order4.0, FixedI128::one());
+
+		let order1 = Trading::order_hash(201);
+		assert_eq!(order1, U256::zero());
+		let order2 = Trading::order_hash(202);
+		assert_eq!(order2, U256::zero());
+		let order3 = Trading::order_hash(203);
+		assert_ne!(order3, U256::zero());
+		let order4 = Trading::order_hash(204);
+		assert_ne!(order4, U256::zero());
+
+		let batch1 = Trading::batch_status(U256::from(1_u8));
+		assert_eq!(batch1, false);
+		let batch2 = Trading::batch_status(U256::from(2_u8));
+		assert_eq!(batch2, true);
+
+		let start_timestamp = Trading::start_timestamp();
+		assert_eq!(1702359600, start_timestamp.unwrap());
+
+		let timestamp1 = Trading::orders(1699940278);
+		assert_eq!(false, timestamp1.is_some());
+		let timestamp2 = Trading::orders(1702359500);
+		assert_eq!(vec![203_u128], timestamp2.unwrap());
+		let timestamp3 = Trading::orders(1702359400);
+		assert_eq!(vec![204_u128], timestamp3.unwrap());
+
+		let timestamp1 = Trading::batches(1699940360);
+		assert_eq!(false, timestamp1.is_some());
+		let timestamp2 = Trading::batches(1702359550);
+		assert_eq!(vec![U256::from(2_u8)], timestamp2.unwrap());
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError545")]
+// batch older than 4 weeks
+fn it_does_not_work_for_old_batch() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create order 1
+		let alice_order =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1697521100,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError544")]
+// batch older than 4 weeks
+fn it_does_not_work_for_old_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create order 1
+		let alice_order =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_timestamp(1697521100)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940360,
+		));
 	});
 }

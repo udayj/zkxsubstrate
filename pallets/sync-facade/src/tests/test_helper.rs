@@ -1,15 +1,17 @@
 use frame_support::dispatch::Vec;
+use pallet_support::{
+	ecdsa_sign,
+	helpers::pedersen_hash_multiple,
+	traits::{FeltSerializedArrayExt, FieldElementExt},
+	types::{
+		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
+		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	},
+	FieldElement,
+};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::traits::ConstU32;
-use sp_runtime::BoundedVec;
-use zkx_support::helpers::pedersen_hash_multiple;
-use zkx_support::traits::{FeltSerializedArrayExt, FieldElementExt};
-use zkx_support::types::{
-	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
-	SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
-};
-use zkx_support::{ecdsa_sign, FieldElement};
+use sp_runtime::{traits::ConstU32, BoundedVec};
 
 pub trait MarketUpdatedTrait {
 	fn new(

@@ -1,5 +1,5 @@
 [package]
-name = "pallet-zkx-trading-account"
+name = "pallet-trading-account"
 version = "0.0.1-dev"
 description = "FRAME pallet template for defining custom runtime logic."
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
@@ -24,7 +24,7 @@ sp-arithmetic = { version = "16.0.0", default-features = false }
 sp-io = { version = "23.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false, branch = "polkadot-v1.0.0" }
 
 sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-zkx-support= { path="../support"}
+pallet-support= { path="../support"}
 fixed = {version="1.23.1"}
 
 [dev-dependencies]

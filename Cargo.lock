@@ -4646,14 +4646,15 @@ dependencies = [
  "pallet-prices",
  "pallet-risk-management",
  "pallet-sudo",
+ "pallet-support",
  "pallet-sync-facade",
  "pallet-timestamp",
  "pallet-trading",
+ "pallet-trading-account",
  "pallet-trading-fees",
  "pallet-trading-runtime-api",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
- "pallet-zkx-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -4670,7 +4671,6 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
- "zkx-support",
 ]
 
 [[package]]
@@ -4862,13 +4862,13 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-support",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -4946,6 +4946,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-asset",
+ "pallet-support",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -4953,7 +4954,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -4964,6 +4964,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
+ "pallet-support",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -4972,7 +4973,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -4985,10 +4985,11 @@ dependencies = [
  "pallet-market",
  "pallet-prices",
  "pallet-risk-management",
+ "pallet-support",
  "pallet-timestamp",
  "pallet-trading",
+ "pallet-trading-account",
  "pallet-trading-fees",
- "pallet-zkx-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -4997,7 +4998,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "starknet-crypto",
- "zkx-support",
 ]
 
 [[package]]
@@ -5037,6 +5037,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-support"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "itertools 0.11.0",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-io",
+ "sp-runtime",
+ "starknet-core",
+ "starknet-crypto",
+ "starknet-ff",
+]
+
+[[package]]
 name = "pallet-sync-facade"
 version = "0.0.1-dev"
 dependencies = [
@@ -5046,10 +5065,11 @@ dependencies = [
  "pallet-market",
  "pallet-prices",
  "pallet-risk-management",
+ "pallet-support",
  "pallet-timestamp",
  "pallet-trading",
+ "pallet-trading-account",
  "pallet-trading-fees",
- "pallet-zkx-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5057,7 +5077,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -5088,9 +5107,10 @@ dependencies = [
  "pallet-market",
  "pallet-prices",
  "pallet-risk-management",
+ "pallet-support",
  "pallet-timestamp",
+ "pallet-trading-account",
  "pallet-trading-fees",
- "pallet-zkx-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5099,7 +5119,32 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "starknet-crypto",
- "zkx-support",
+]
+
+[[package]]
+name = "pallet-trading-account"
+version = "0.0.1-dev"
+dependencies = [
+ "fixed",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-asset",
+ "pallet-market",
+ "pallet-prices",
+ "pallet-risk-management",
+ "pallet-support",
+ "pallet-timestamp",
+ "pallet-trading",
+ "pallet-trading-fees",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "starknet-crypto",
 ]
 
 [[package]]
@@ -5108,6 +5153,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-support",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5115,7 +5161,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -5123,13 +5168,13 @@ name = "pallet-trading-rpc"
 version = "1.0.0"
 dependencies = [
  "jsonrpsee",
+ "pallet-support",
  "pallet-trading-runtime-api",
  "parity-scale-codec",
  "primitive-types",
  "sp-api",
  "sp-blockchain",
  "sp-runtime",
- "zkx-support",
 ]
 
 [[package]]
@@ -5137,9 +5182,9 @@ name = "pallet-trading-runtime-api"
 version = "1.0.0"
 dependencies = [
  "frame-support",
+ "pallet-support",
  "primitive-types",
  "sp-api",
- "zkx-support",
 ]
 
 [[package]]
@@ -5184,32 +5229,6 @@ dependencies = [
  "sp-api",
  "sp-runtime",
  "sp-weights",
-]
-
-[[package]]
-name = "pallet-zkx-trading-account"
-version = "0.0.1-dev"
-dependencies = [
- "fixed",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-asset",
- "pallet-market",
- "pallet-prices",
- "pallet-risk-management",
- "pallet-timestamp",
- "pallet-trading",
- "pallet-trading-fees",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
- "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "starknet-crypto",
- "zkx-support",
 ]
 
 [[package]]
@@ -10621,25 +10640,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.38",
-]
-
-[[package]]
-name = "zkx-support"
-version = "0.0.1-dev"
-dependencies = [
- "frame-support",
- "frame-system",
- "itertools 0.11.0",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
- "serde",
- "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io",
- "sp-runtime",
- "starknet-core",
- "starknet-crypto",
- "starknet-ff",
 ]
 
 [[package]]

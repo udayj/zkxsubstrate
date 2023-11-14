@@ -1,8 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::dispatch::Vec;
+use pallet_support::types::{AccountInfo, MarginInfo, PositionExtended};
 use primitive_types::U256;
-use zkx_support::types::{AccountInfo, MarginInfo, PositionExtended};
 
 // Here we declare the runtime API. It is implemented it the `impl` block in
 // runtime file (the `runtime-api/src/lib.rs`)
