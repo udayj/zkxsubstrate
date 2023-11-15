@@ -6,8 +6,8 @@ use pallet_prices;
 use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading;
+use pallet_trading_account;
 use pallet_trading_fees;
-use pallet_zkx_trading_account;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -26,7 +26,7 @@ frame_support::construct_runtime!(
 		Assets: pallet_asset,
 		RiskManagement: pallet_risk_management,
 		Timestamp: pallet_timestamp,
-		TradingAccounts: pallet_zkx_trading_account,
+		TradingAccounts: pallet_trading_account,
 		TradingFees: pallet_trading_fees,
 		Trading: pallet_trading,
 		SyncFacade: sync_facade,
@@ -78,7 +78,7 @@ impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
 
-impl pallet_zkx_trading_account::Config for Test {
+impl pallet_trading_account::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;

@@ -13,13 +13,11 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{
 		dispatch::Vec,
-		pallet_prelude::{ValueQuery, *},
+		pallet_prelude::{OptionQuery, ValueQuery, *},
 		traits::UnixTime,
 	};
 	use frame_system::pallet_prelude::*;
-	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
-	use zkx_support::{
+	use pallet_support::{
 		ecdsa_verify,
 		helpers::sig_u256_to_sig_felt,
 		traits::{
@@ -34,7 +32,10 @@ pub mod pallet {
 		},
 		Signature,
 	};
+	use primitive_types::U256;
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
+	static FOUR_WEEKS: u64 = 2419200;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -128,6 +129,22 @@ pub mod pallet {
 	pub(super) type IsLiquidatorSignerWhitelisted<T: Config> =
 		StorageMap<_, Twox64Concat, U256, bool, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn orders)]
+	// k1 - timestamp, v - vector of order_ids
+	pub(super) type OrdersMap<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u128>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn batches)]
+	// k1 - timestamp, v - vector of batch_ids
+	pub(super) type BatchesMap<T: Config> =
+		StorageMap<_, Twox64Concat, u64, Vec<U256>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn start_timestamp)]
+	// The beginning timestamp for which batch_id and order_id info are stored
+	pub(super) type StartTimestamp<T: Config> = StorageValue<_, u64, OptionQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -201,6 +218,10 @@ pub mod pallet {
 		TradeBatchError542,
 		/// When a cancelled order is sent for execution
 		TradeBatchError543,
+		/// Order is older than 4 weeks
+		TradeBatchError544,
+		/// Batch is older than 4 weeks
+		TradeBatchError545,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -209,6 +230,8 @@ pub mod pallet {
 		SignerNotWhitelisted,
 		/// When order id passed is zero
 		ZeroOrderId,
+		/// Start timestamp is not set
+		StartTimestampEmpty,
 	}
 
 	#[pallet::event]
@@ -269,11 +292,18 @@ pub mod pallet {
 			market_id: u128,
 			oracle_price: FixedI128,
 			orders: Vec<Order>,
+			batch_timestamp: u64,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
 			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
+
+			// Check whether the batch is older than 4 weeks
+			// Get the current timestamp
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			ensure!(batch_timestamp >= timestamp_limit, Error::<T>::TradeBatchError545);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -327,6 +357,7 @@ pub mod pallet {
 				InitialMarginMap::<T>::get((market_id, Direction::Long));
 			let mut initial_margin_locked_short: FixedI128 =
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
+			let mut min_timestamp: u64 = batch_timestamp;
 
 			for element in &orders {
 				let mut margin_amount: FixedI128;
@@ -343,9 +374,15 @@ pub mod pallet {
 				let new_realized_pnl: FixedI128;
 				let opening_fee: FixedI128;
 				let order_side: OrderSide;
+				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(element, oracle_price, &market, collateral_id);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -480,10 +517,6 @@ pub mod pallet {
 				}
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
-
-				// Get the current timestamp
-				let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-				let mut created_timestamp: u64 = current_timestamp;
 
 				let is_final: bool;
 				// BUY order
@@ -788,6 +821,25 @@ pub mod pallet {
 				);
 				OrderStateMap::<T>::insert(element.order_id, (new_portion_executed, false));
 
+				BatchStatusMap::<T>::insert(batch_id, true);
+
+				// Add order_id to timestamp map
+				if order_portion_executed == FixedI128::zero() {
+					let orders_by_timestamp = OrdersMap::<T>::get(element.timestamp);
+					let mut orders_list;
+					if orders_by_timestamp.is_none() {
+						orders_list = Vec::<u128>::new();
+					} else {
+						orders_list = orders_by_timestamp.unwrap();
+					}
+					orders_list.push(element.order_id);
+					OrdersMap::<T>::insert(element.timestamp, orders_list);
+
+					if element.timestamp < min_timestamp {
+						min_timestamp = element.timestamp;
+					}
+				}
+
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
 					order_id: element.order_id,
@@ -817,6 +869,25 @@ pub mod pallet {
 			);
 
 			BatchStatusMap::<T>::insert(batch_id, true);
+
+			// Add batch_id to timestamp map
+			let batches_by_timestamp = BatchesMap::<T>::get(batch_timestamp);
+			let mut batches;
+			if batches_by_timestamp.is_none() {
+				batches = Vec::<U256>::new();
+			} else {
+				batches = batches_by_timestamp.unwrap();
+			}
+			batches.push(batch_id);
+			BatchesMap::<T>::insert(batch_timestamp, batches);
+
+			// Modify start timestamp
+			let start_timestamp = StartTimestamp::<T>::get();
+			if (start_timestamp.is_some() && min_timestamp < start_timestamp.unwrap()) ||
+				start_timestamp.is_none()
+			{
+				StartTimestamp::<T>::put(min_timestamp);
+			}
 
 			// Emit trade executed event
 			Self::deposit_event(Event::TradeExecuted {
@@ -882,6 +953,39 @@ pub mod pallet {
 			OrderStateMap::<T>::insert(order_id, (order_portion_executed, true));
 
 			// Return ok
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn perform_cleanup(origin: OriginFor<T>) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let start_timestamp =
+				StartTimestamp::<T>::get().ok_or(Error::<T>::StartTimestampEmpty)?;
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+
+			for timestamp in start_timestamp..timestamp_limit {
+				let batches = BatchesMap::<T>::get(timestamp);
+				if batches.is_some() {
+					for batch in batches.unwrap() {
+						BatchStatusMap::<T>::remove(batch);
+					}
+					BatchesMap::<T>::remove(timestamp);
+				}
+
+				let orders = OrdersMap::<T>::get(timestamp);
+				if orders.is_some() {
+					for order in orders.unwrap() {
+						OrderStateMap::<T>::remove(order);
+						OrderHashMap::<T>::remove(order);
+					}
+					OrdersMap::<T>::remove(timestamp);
+				}
+			}
+			StartTimestamp::<T>::put(current_timestamp);
+
 			Ok(())
 		}
 	}
@@ -985,6 +1089,7 @@ pub mod pallet {
 			_oracle_price: FixedI128,
 			market: &Market,
 			collateral_id: u128,
+			current_timestamp: u64,
 		) -> Result<(), Error<T>> {
 			// Validate that the user is registered
 			let is_registered = T::TradingAccountPallet::is_registered_user(order.account_id);
@@ -993,6 +1098,10 @@ pub mod pallet {
 			// Check whether the order is a cancelled order
 			let (_, is_cancelled) = OrderStateMap::<T>::get(order.order_id);
 			ensure!(!is_cancelled, Error::<T>::TradeBatchError543);
+
+			// Check whether the order is older than 4 weeks
+			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			ensure!(order.timestamp >= timestamp_limit, Error::<T>::TradeBatchError544);
 
 			// Validate that if force closure flag is set
 			// order type can only be 'Forced'

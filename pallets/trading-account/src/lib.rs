@@ -13,10 +13,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use primitive_types::U256;
-	use sp_arithmetic::{traits::Zero, FixedI128};
-	use sp_io::hashing::blake2_256;
-	use zkx_support::{
+	use pallet_support::{
 		ecdsa_verify,
 		helpers::sig_u256_to_sig_felt,
 		traits::{
@@ -29,6 +26,9 @@ pub mod pallet {
 		},
 		Signature,
 	};
+	use primitive_types::U256;
+	use sp_arithmetic::{traits::Zero, FixedI128};
+	use sp_io::hashing::blake2_256;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

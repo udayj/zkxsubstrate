@@ -24,7 +24,7 @@ primitive-types = { version = "0.12.1", default-features = false }
 
 # local packages
 pallet-trading-runtime-api = { path = "./runtime-api", default-features = false }
-zkx-support= { path="../../support"}
+pallet-support= { path="../../support"}
 
 [features]
 default = ["std"]

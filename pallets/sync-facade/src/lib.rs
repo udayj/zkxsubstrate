@@ -10,17 +10,19 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use primitive_types::U256;
-	use zkx_support::helpers::pedersen_hash_multiple;
-	use zkx_support::traits::{
-		AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
-		TradingAccountInterface, U256Ext,
+	use pallet_support::{
+		ecdsa_verify,
+		helpers::pedersen_hash_multiple,
+		traits::{
+			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
+			TradingAccountInterface, U256Ext,
+		},
+		types::{ExtendedAsset, ExtendedMarket, SyncSignature, UniversalEvent},
+		FieldElement, Signature,
 	};
-	use zkx_support::types::{ExtendedAsset, ExtendedMarket, SyncSignature, UniversalEvent};
-	use zkx_support::{ecdsa_verify, FieldElement, Signature};
+	use primitive_types::U256;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -322,7 +324,7 @@ pub mod pallet {
 				.take(quorum)
 				.count();
 
-			return valid_sigs == quorum;
+			return valid_sigs == quorum
 		}
 
 		fn verify_signature(
@@ -347,30 +349,22 @@ pub mod pallet {
 
 		fn get_block_and_event_number(event: &UniversalEvent) -> (u64, u32) {
 			match event {
-				UniversalEvent::MarketUpdated(market_updated) => {
-					(market_updated.block_number, market_updated.event_index)
-				},
-				UniversalEvent::AssetUpdated(user_withdrawal) => {
-					(user_withdrawal.block_number, user_withdrawal.event_index)
-				},
-				UniversalEvent::MarketRemoved(market_removed) => {
-					(market_removed.block_number, market_removed.event_index)
-				},
-				UniversalEvent::AssetRemoved(asset_removed) => {
-					(asset_removed.block_number, asset_removed.event_index)
-				},
-				UniversalEvent::UserDeposit(user_deposit) => {
-					(user_deposit.block_number, user_deposit.event_index)
-				},
-				UniversalEvent::SignerAdded(signer_added) => {
-					(signer_added.block_number, signer_added.event_index)
-				},
-				UniversalEvent::SignerRemoved(signer_removed) => {
-					(signer_removed.block_number, signer_removed.event_index)
-				},
-				UniversalEvent::QuorumSet(quorum_set) => {
-					(quorum_set.block_number, quorum_set.event_index)
-				},
+				UniversalEvent::MarketUpdated(market_updated) =>
+					(market_updated.block_number, market_updated.event_index),
+				UniversalEvent::AssetUpdated(user_withdrawal) =>
+					(user_withdrawal.block_number, user_withdrawal.event_index),
+				UniversalEvent::MarketRemoved(market_removed) =>
+					(market_removed.block_number, market_removed.event_index),
+				UniversalEvent::AssetRemoved(asset_removed) =>
+					(asset_removed.block_number, asset_removed.event_index),
+				UniversalEvent::UserDeposit(user_deposit) =>
+					(user_deposit.block_number, user_deposit.event_index),
+				UniversalEvent::SignerAdded(signer_added) =>
+					(signer_added.block_number, signer_added.event_index),
+				UniversalEvent::SignerRemoved(signer_removed) =>
+					(signer_removed.block_number, signer_removed.event_index),
+				UniversalEvent::QuorumSet(quorum_set) =>
+					(quorum_set.block_number, quorum_set.event_index),
 			}
 		}
 	}

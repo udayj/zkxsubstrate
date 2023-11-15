@@ -1,5 +1,5 @@
 [package]
-name = "zkx-support"
+name = "pallet-support"
 version = "0.0.1-dev"
 description = "Shared files for all pallets"
 authors = ["ZKX"]

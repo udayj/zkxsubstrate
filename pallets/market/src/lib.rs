@@ -16,11 +16,11 @@ pub mod pallet {
 		pallet_prelude::{DispatchResult, *},
 	};
 	use frame_system::pallet_prelude::*;
-	use sp_arithmetic::fixed_point::FixedI128;
-	use zkx_support::{
+	use pallet_support::{
 		traits::{AssetInterface, MarketInterface},
 		types::{ExtendedMarket, Market},
 	};
+	use sp_arithmetic::fixed_point::FixedI128;
 
 	static DELETION_LIMIT: u32 = 100;
 

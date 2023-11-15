@@ -1,6 +1,6 @@
 use crate::mock::*;
 use frame_support::assert_ok;
-use zkx_support::{
+use pallet_support::{
 	test_helpers::{
 		asset_helper::{eth, link, usdc},
 		market_helper::{eth_usdc, link_usdc},

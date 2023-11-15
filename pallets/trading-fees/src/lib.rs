@@ -11,14 +11,14 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::dispatch::Vec;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
+	use pallet_support::{
+		traits::TradingFeesInterface,
+		types::{BaseFee, Discount, OrderSide, Side},
+	};
 	use primitive_types::U256;
-	use sp_arithmetic::fixed_point::FixedI128;
-	use sp_arithmetic::traits::Zero;
-	use zkx_support::traits::TradingFeesInterface;
-	use zkx_support::types::{BaseFee, Discount, OrderSide, Side};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	static DELETION_LIMIT: u32 = 100;
 
@@ -169,7 +169,7 @@ pub mod pallet {
 			let non_discount: FixedI128 = one - discount;
 			let fee: FixedI128 = base_fee * non_discount;
 
-			return (fee, base_fee_tier, discount_tier);
+			return (fee, base_fee_tier, discount_tier)
 		}
 	}
 
@@ -185,11 +185,11 @@ pub mod pallet {
 			while tier >= 1 {
 				fee_details = BaseFeeTierMap::<T>::get(tier, side);
 				if number_of_tokens >= fee_details.number_of_tokens {
-					break;
+					break
 				}
 				tier -= 1;
 			}
-			return (fee_details.maker_fee, fee_details.taker_fee, tier);
+			return (fee_details.maker_fee, fee_details.taker_fee, tier)
 		}
 
 		fn find_user_discount(
@@ -202,11 +202,11 @@ pub mod pallet {
 			while tier >= 1 {
 				discount_details = DiscountTierMap::<T>::get(tier, side);
 				if number_of_tokens >= discount_details.number_of_tokens {
-					break;
+					break
 				}
 				tier -= 1;
 			}
-			return (discount_details.discount, tier);
+			return (discount_details.discount, tier)
 		}
 
 		fn update_base_fee(

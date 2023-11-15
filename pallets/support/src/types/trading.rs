@@ -37,6 +37,7 @@ pub struct Order {
 	pub post_only: bool,
 	pub time_in_force: TimeInForce,
 	pub signature_info: SignatureInfo,
+	pub timestamp: u64,
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -325,6 +326,8 @@ impl Hashable for Order {
 		}
 
 		elements.push(FieldElement::from(u8::from(self.time_in_force)));
+
+		elements.push(FieldElement::from(self.timestamp));
 
 		match &hash_type {
 			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),

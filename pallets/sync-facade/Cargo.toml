@@ -14,7 +14,7 @@ sp-arithmetic = { version = "16.0.0", default-features = false }
 sp-runtime = { version = "24.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
-zkx-support= { path="../support"}
+pallet-support= { path="../support"}
 
 [dev-dependencies]
 sp-core = { version = "21.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
@@ -25,7 +25,7 @@ pallet-market = { default-features = false, path = "../market" }
 pallet-prices = { default-features = false, path = "../prices" }
 pallet-risk-management = { default-features = false, path = "../risk-management" }
 pallet-trading-fees = { default-features = false, path = "../trading-fees" }
-pallet-zkx-trading-account = { default-features = false, path = "../trading-account" }
+pallet-trading-account = { default-features = false, path = "../trading-account" }
 pallet-trading = { default-features = false, path = "../trading" }
 
 [features]

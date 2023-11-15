@@ -11,15 +11,15 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use primitive_types::U256;
-	use sp_arithmetic::{traits::Zero, FixedI128};
-	use zkx_support::{
+	use pallet_support::{
 		traits::{
 			FixedI128Ext, MarketInterface, PricesInterface, RiskManagementInterface,
 			TradingAccountInterface, TradingInterface,
 		},
 		types::{Direction, ForceClosureFlag, Order, OrderType, Position, Side},
 	};
+	use primitive_types::U256;
+	use sp_arithmetic::{traits::Zero, FixedI128};
 
 	static TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
 	static TWO_POINT_FIVE_FI128: FixedI128 = FixedI128::from_inner(2500000000000000000);

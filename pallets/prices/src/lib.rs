@@ -13,11 +13,11 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime};
 	use frame_system::pallet_prelude::*;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
-	use zkx_support::{
+	use pallet_support::{
 		traits::{MarketInterface, PricesInterface},
 		types::{MultiplePrices, Price},
 	};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);

@@ -13,7 +13,7 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use zkx_support::{
+	use pallet_support::{
 		traits::AssetInterface,
 		types::{Asset, ExtendedAsset},
 	};

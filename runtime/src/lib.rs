@@ -52,12 +52,12 @@ pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_prices;
 pub use pallet_risk_management;
+use pallet_support::traits::TradingInterface;
+pub use pallet_support::types::{AccountInfo, MarginInfo, PositionExtended};
 pub use pallet_sync_facade;
 pub use pallet_trading;
+pub use pallet_trading_account;
 pub use pallet_trading_fees;
-pub use pallet_zkx_trading_account;
-use zkx_support::traits::TradingInterface;
-pub use zkx_support::types::{AccountInfo, MarginInfo, PositionExtended};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -279,7 +279,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 /// Configure the pallet-template in pallets/template.
-impl pallet_zkx_trading_account::Config for Runtime {
+impl pallet_trading_account::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type TradingPallet = Trading;
@@ -289,7 +289,7 @@ impl pallet_zkx_trading_account::Config for Runtime {
 
 impl pallet_risk_management::Config for Runtime {
 	type TradingPallet = Trading;
-	type TradingAccountPallet = ZkxTradingAccount;
+	type TradingAccountPallet = TradingAccount;
 	type MarketPallet = Markets;
 	type PricesPallet = Prices;
 }
@@ -315,7 +315,7 @@ impl pallet_trading_fees::Config for Runtime {
 
 impl pallet_sync_facade::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type TradingAccountPallet = ZkxTradingAccount;
+	type TradingAccountPallet = TradingAccount;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
 }
@@ -324,7 +324,7 @@ impl pallet_trading::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
-	type TradingAccountPallet = ZkxTradingAccount;
+	type TradingAccountPallet = TradingAccount;
 	type TradingFeesPallet = TradingFees;
 	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
@@ -341,7 +341,7 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
-		ZkxTradingAccount: pallet_zkx_trading_account,
+		TradingAccount: pallet_trading_account,
 		Assets: pallet_asset,
 		Markets: pallet_market,
 		SyncFacade: pallet_sync_facade,
@@ -396,7 +396,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_sudo, Sudo]
-		[pallet_zkx_trading_account, ZkxTradingAccount]
+		[pallet_trading_account, TradingAccount]
 	);
 }
 
