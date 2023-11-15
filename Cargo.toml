@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "node",
+    "pallets/abr",
     "pallets/asset",
     "pallets/market",
     "pallets/prices",
