@@ -725,7 +725,7 @@ pub mod pallet {
 			let initial_margin_sum = LockedMarginMap::<T>::get(account_id, collateral_id);
 
 			if markets.len() == 0 {
-				let available_margin = collateral_balance + new_position_margin;
+				let available_margin = collateral_balance - new_position_margin;
 				return (
 					false,              // is_liquidation
 					collateral_balance, // total_margin
