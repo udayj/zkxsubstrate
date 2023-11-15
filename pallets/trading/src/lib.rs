@@ -300,9 +300,10 @@ pub mod pallet {
 			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
 
 			// Check whether the batch is older than 4 weeks
-			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			// Converting timestamp in milliseconds to seconds
+			let batch_timestamp = batch_timestamp / 1000;
 			ensure!(batch_timestamp >= timestamp_limit, Error::<T>::TradeBatchError545);
 
 			// Validate market
@@ -825,7 +826,9 @@ pub mod pallet {
 
 				// Add order_id to timestamp map
 				if order_portion_executed == FixedI128::zero() {
-					let orders_by_timestamp = OrdersMap::<T>::get(element.timestamp);
+					// Convert timestamp from milliseconds to seconds
+					let order_timestamp = element.timestamp / 1000;
+					let orders_by_timestamp = OrdersMap::<T>::get(order_timestamp);
 					let mut orders_list;
 					if orders_by_timestamp.is_none() {
 						orders_list = Vec::<u128>::new();
@@ -833,10 +836,10 @@ pub mod pallet {
 						orders_list = orders_by_timestamp.unwrap();
 					}
 					orders_list.push(element.order_id);
-					OrdersMap::<T>::insert(element.timestamp, orders_list);
+					OrdersMap::<T>::insert(order_timestamp, orders_list);
 
-					if element.timestamp < min_timestamp {
-						min_timestamp = element.timestamp;
+					if order_timestamp < min_timestamp {
+						min_timestamp = order_timestamp;
 					}
 				}
 

@@ -1696,7 +1696,7 @@ fn it_works_for_cleanup() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940360,
+			1699940360000,
 		));
 
 		Timestamp::set_timestamp(1702359600000);
@@ -1705,12 +1705,12 @@ fn it_works_for_cleanup() {
 
 		// Create order 2
 		let alice_order = Order::new(203_u128, alice_id)
-			.set_timestamp(1702359500)
+			.set_timestamp(1702359500000)
 			.sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204_u128, bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
-			.set_timestamp(1702359400)
+			.set_timestamp(1702359400000)
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
@@ -1726,7 +1726,7 @@ fn it_works_for_cleanup() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1702359550,
+			1702359550000,
 		));
 
 		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
@@ -1806,7 +1806,7 @@ fn it_does_not_work_for_old_batch() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1697521100,
+			1697521100000,
 		));
 	});
 }
@@ -1847,7 +1847,7 @@ fn it_does_not_work_for_old_order() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940360,
+			1699940360000,
 		));
 	});
 }

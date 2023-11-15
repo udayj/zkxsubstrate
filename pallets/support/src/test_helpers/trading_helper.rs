@@ -90,7 +90,7 @@ impl Order {
 				sig_r: U256::zero(),
 				sig_s: U256::zero(),
 			},
-			timestamp: 1699940278,
+			timestamp: 1699940278000,
 		}
 	}
 

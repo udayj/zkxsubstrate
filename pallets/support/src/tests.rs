@@ -101,7 +101,7 @@ fn test_order_signature() {
 
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"3327157168071900049168742382147316426375465909292722120167383177610287160716",
+		"2853447424465248992992625177668866455963077383224898997047090550229358049653",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);

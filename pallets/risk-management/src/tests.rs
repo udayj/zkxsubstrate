@@ -88,7 +88,7 @@ fn test_liquidation() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset
@@ -124,7 +124,7 @@ fn test_liquidation() {
 			// orders
 			vec![charlie_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
@@ -189,7 +189,7 @@ fn test_deleveraging() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset
@@ -225,7 +225,7 @@ fn test_deleveraging() {
 			// orders
 			vec![charlie_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
@@ -291,7 +291,7 @@ fn test_liquidation_after_deleveraging() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset
@@ -327,7 +327,7 @@ fn test_liquidation_after_deleveraging() {
 			// orders
 			vec![charlie_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset for liquidation
@@ -363,7 +363,7 @@ fn test_liquidation_after_deleveraging() {
 			// orders
 			vec![dave_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
@@ -426,7 +426,7 @@ fn test_invalid_forced_order() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset
@@ -462,7 +462,7 @@ fn test_invalid_forced_order() {
 			// orders
 			vec![charlie_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 	});
 }
@@ -509,7 +509,7 @@ fn test_invalid_liquidator() {
 			// orders
 			vec![alice_order.clone(), bob_order.clone()],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 
 		// Decrease the price of the asset
@@ -545,7 +545,7 @@ fn test_invalid_liquidator() {
 			// orders
 			vec![charlie_order, alice_forced_order],
 			// batch_timestamp
-			1699940278,
+			1699940278000,
 		));
 	});
 }

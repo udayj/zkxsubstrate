@@ -48,6 +48,7 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
+pub use pallet_abr;
 pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_prices;
@@ -294,6 +295,10 @@ impl pallet_risk_management::Config for Runtime {
 	type PricesPallet = Prices;
 }
 
+impl pallet_abr::Config for Runtime {
+	type TradingAccountPallet = TradingAccount;
+}
+
 impl pallet_asset::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
@@ -342,6 +347,7 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
 		TradingAccount: pallet_trading_account,
+		ABR: pallet_abr,
 		Assets: pallet_asset,
 		Markets: pallet_market,
 		SyncFacade: pallet_sync_facade,

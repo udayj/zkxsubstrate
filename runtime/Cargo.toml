@@ -49,6 +49,7 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 
 # Local Dependencies
 pallet-trading-account = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading-account" }
+pallet-abr = { version = "0.0.1-dev", default-features = false, path = "../pallets/abr" }
 pallet-asset = { version = "0.0.1-dev", default-features = false, path = "../pallets/asset" }
 pallet-market = { version = "0.0.1-dev", default-features = false, path = "../pallets/market" }
 pallet-trading = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading" }
