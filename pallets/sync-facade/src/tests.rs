@@ -1,4 +1,4 @@
-use crate::mock::*;
+use crate::{mock::*, Event};
 use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
@@ -7,7 +7,7 @@ use pallet_support::{
 	},
 	traits::FieldElementExt,
 	types::{
-		Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated,
+		Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated, QuorumSet,
 		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
 		UserDeposit,
 	},
@@ -219,10 +219,10 @@ fn sync_add_signer_events() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while adding signer");
 
-		// assert_eq!(SyncFacade::signers().len(), 2);
-		// assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
-		// assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
-		// assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+		assert_eq!(SyncFacade::signers().len(), 2);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
 	});
 }
 
@@ -372,6 +372,103 @@ fn sync_remove_market_event() {
 }
 
 #[test]
+fn sync_quorum_set_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	let quroum_set_event_1 = <QuorumSet as QuorumSetTrait>::new(1, 2_u8, 1337);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_quorum_set_event(quroum_set_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// add a signer
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
+			.expect("error while adding signer");
+		// add assets
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		// add markets
+		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating market");
+
+		assert_eq!(SyncFacade::get_signers_quorum(), 2_u8);
+	});
+}
+
+#[test]
+fn sync_quorum_set_event_insufficient_signers() {
+	// Get a test environment
+	let mut env = setup();
+
+	let quroum_set_event_1 = <QuorumSet as QuorumSetTrait>::new(1, 2_u8, 1337);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_quorum_set_event(quroum_set_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// add assets
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		// add markets
+		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating market");
+
+		assert_eq!(SyncFacade::get_signers_quorum(), 1_u8);
+		System::assert_has_event(Event::QuorumSetError { quorum: 2_u8 }.into());
+	});
+}
+
+#[test]
+fn sync_remove_non_existent_market_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	let removed_market_event_1 = <MarketRemoved as MarketRemovedTrait>::new(1, 42_u128, 1337);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_removed_event(removed_market_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating market");
+
+		// Assert error debugging event has been emitted
+		System::assert_has_event(Event::MarketRemovedError { id: 42_u128 }.into());
+	});
+}
+
+#[test]
 fn sync_update_asset_event_bump_asset() {
 	// Get a test environment
 	let mut env = setup();
@@ -437,6 +534,35 @@ fn sync_update_remove_asset() {
 			.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 1);
+	});
+}
+
+#[test]
+fn sync_update_remove_non_existent_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let remove_asset_event_1 = <AssetRemoved as AssetRemovedTrait>::new(1, 42_u128, 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_asset_removed_event(remove_asset_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating asset");
+
+		// Assert error event has been emitted
+		System::assert_has_event(Event::AssetRemovedError { id: 42_u128 }.into());
 	});
 }
 
@@ -580,6 +706,46 @@ fn sync_remove_signer_events() {
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
+	});
+}
+
+#[test]
+fn sync_remove_non_existent_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Add a signer that can be removed using sync events
+	env.execute_with(|| {
+		// Add a signer
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
+	});
+
+	let remove_signer_event_1 = <SignerRemoved as SignerRemovedTrait>::new(1, 42_u128.into(), 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_removed_event(remove_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 2);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..2].to_vec());
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+
+		// Assert error event has been emitted
+		System::assert_has_event(Event::SignerRemovedError { pub_key: 42_u128.into() }.into());
 	});
 }
 
