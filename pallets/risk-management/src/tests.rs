@@ -93,9 +93,10 @@ fn test_liquidation() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 5000.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 5000.into(), mark_price: 5000.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -194,9 +195,10 @@ fn test_deleveraging() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -296,9 +298,10 @@ fn test_liquidation_after_deleveraging() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -332,9 +335,10 @@ fn test_liquidation_after_deleveraging() {
 
 		// Decrease the price of the asset for liquidation
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 6500.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 6500.into(), mark_price: 6500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for deleveraging
 		let dave_order = Order::new(206_u128, dave_id)
@@ -431,9 +435,10 @@ fn test_invalid_forced_order() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 9500.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 9500.into(), mark_price: 9500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -514,9 +519,10 @@ fn test_invalid_liquidator() {
 
 		// Decrease the price of the asset
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
-		let index_price1 = MultiplePrices { market_id, price: 8500.into() };
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_mark_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
