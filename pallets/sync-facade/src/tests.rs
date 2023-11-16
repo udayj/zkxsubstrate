@@ -811,3 +811,100 @@ fn sync_deposit_events() {
 		assert_eq!(SyncFacade::get_sync_state(), (1337, 2, events_batch_hash.to_u256()));
 	});
 }
+
+#[test]
+fn sync_deposit_event_non_existent_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let alice_account = TradingAccountMinimal {
+		account_address: U256::from(100),
+		pub_key: U256::from(1000),
+		index: 1,
+	};
+	let alice_account_id = get_trading_account_id(alice_account);
+
+	let deposit_event_1 = <UserDeposit as UserDepositTrait>::new(
+		1,
+		alice_account,
+		12345_u128,
+		U256::from(1),
+		FixedI128::from(123),
+		1337,
+	);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_user_deposit_event(deposit_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		let alice_balance = TradingAccounts::balances(alice_account_id, 12345_u128);
+
+		assert_eq!(alice_balance, 0.into());
+
+		// Assert error event has been emitted
+		System::assert_has_event(Event::UserDepositError { collateral_id: 12345_u128 }.into());
+	});
+}
+
+#[test]
+fn sync_deposit_event_non_collateral_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let alice_account = TradingAccountMinimal {
+		account_address: U256::from(100),
+		pub_key: U256::from(1000),
+		index: 1,
+	};
+	let alice_account_id = get_trading_account_id(alice_account);
+
+	let deposit_event_1 = <UserDeposit as UserDepositTrait>::new(
+		1,
+		alice_account,
+		btc().asset.id,
+		U256::from(1),
+		FixedI128::from(123),
+		1337,
+	);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_user_deposit_event(deposit_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), usdt(), btc()])
+			.expect("error while adding assets");
+
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding deposit event");
+
+		let alice_balance = TradingAccounts::balances(alice_account_id, btc().asset.id);
+
+		assert_eq!(alice_balance, 0.into());
+
+		// Assert error event has been emitted
+		System::assert_has_event(Event::UserDepositError { collateral_id: btc().asset.id }.into());
+	});
+}

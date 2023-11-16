@@ -79,6 +79,8 @@ pub mod pallet {
 		SignerRemovedError { pub_key: U256 },
 		/// An invalid request to set a signer
 		QuorumSetError { quorum: u8 },
+		/// An invalid request for user deposit
+		UserDepositError { collateral_id: u128 },
 	}
 
 	#[pallet::error]
@@ -317,11 +319,24 @@ pub mod pallet {
 						};
 					},
 					UniversalEvent::UserDeposit(user_deposit) => {
-						T::TradingAccountPallet::deposit_internal(
-							user_deposit.trading_account,
-							user_deposit.collateral_id,
-							user_deposit.amount,
-						);
+						// Check if the Asset exists and is valid
+						if let Some(asset) = T::AssetPallet::get_asset(user_deposit.collateral_id) {
+							if asset.is_collateral {
+								T::TradingAccountPallet::deposit_internal(
+									user_deposit.trading_account,
+									user_deposit.collateral_id,
+									user_deposit.amount,
+								);
+							} else {
+								Self::deposit_event(Event::UserDepositError {
+									collateral_id: user_deposit.collateral_id,
+								});
+							}
+						} else {
+							Self::deposit_event(Event::UserDepositError {
+								collateral_id: user_deposit.collateral_id,
+							});
+						}
 					},
 					UniversalEvent::SignerAdded(signer_added) => {
 						Self::add_signer_internal(signer_added.signer);
