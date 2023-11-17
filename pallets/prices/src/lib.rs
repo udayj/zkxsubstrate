@@ -75,7 +75,7 @@ pub mod pallet {
 		InvalidPrice,
 		/// Invalid value for Market Id
 		MarketNotFound,
-		/// Invalid value for price interval
+		/// Price interval should be >= 1 second
 		InvalidPriceInterval,
 	}
 
@@ -157,6 +157,8 @@ pub mod pallet {
 		pub fn update_price_interval(origin: OriginFor<T>, price_interval: u64) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
+
+			let price_interval = price_interval / 1000;
 
 			ensure!(price_interval > 0, Error::<T>::InvalidPriceInterval);
 

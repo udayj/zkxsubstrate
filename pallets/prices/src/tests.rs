@@ -65,7 +65,7 @@ fn test_historical_prices() {
 		let markets = vec![market1.clone(), market2.clone()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
-		assert_ok!(PricesModule::update_price_interval(RuntimeOrigin::signed(1), 60));
+		assert_ok!(PricesModule::update_price_interval(RuntimeOrigin::signed(1), 60000));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
