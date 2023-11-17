@@ -17,7 +17,7 @@ pub struct HistoricalPrice {
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct MarketPrice {
+pub struct LastTradedPrice {
 	pub timestamp: u64,
 	pub price: FixedI128,
 }

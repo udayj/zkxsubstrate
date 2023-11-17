@@ -98,8 +98,8 @@ pub trait MarketInterface {
 pub trait PricesInterface {
 	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_mark_price(market_id: u128) -> FixedI128;
-	fn get_market_price(market_id: u128) -> FixedI128;
-	fn update_market_price(market_id: u128, price: FixedI128);
+	fn get_last_traded_price(market_id: u128) -> FixedI128;
+	fn update_last_traded_price(market_id: u128, price: FixedI128);
 }
 
 pub trait FixedI128Ext {

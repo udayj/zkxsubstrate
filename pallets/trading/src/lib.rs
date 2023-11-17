@@ -320,10 +320,10 @@ pub mod pallet {
 			// validates oracle_price
 			ensure!(oracle_price > FixedI128::zero(), Error::<T>::TradeBatchError513);
 
-			//Update market price
-			let market_price = T::PricesPallet::get_market_price(market_id);
-			if market_price == FixedI128::zero() {
-				T::PricesPallet::update_market_price(market_id, oracle_price);
+			//Update last traded price
+			let last_traded_price = T::PricesPallet::get_last_traded_price(market_id);
+			if last_traded_price == FixedI128::zero() {
+				T::PricesPallet::update_last_traded_price(market_id, oracle_price);
 			}
 
 			let collateral_id: u128 = market.asset_collateral;
@@ -1582,9 +1582,9 @@ pub mod pallet {
 			let position_value = position.size * position.avg_execution_price;
 			let maintenance_requirement = position_value * required_margin;
 
-			let market_price = T::PricesPallet::get_market_price(market_id);
+			let mark_price = T::PricesPallet::get_mark_price(market_id);
 
-			(maintenance_requirement, market_price)
+			(maintenance_requirement, mark_price)
 		}
 
 		fn get_error_code(error: Error<T>) -> u16 {
@@ -1719,17 +1719,17 @@ pub mod pallet {
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
 
 				if long_pos.size != FixedI128::zero() {
-					let (maintenance_requirement, market_price) =
+					let (maintenance_requirement, mark_price) =
 						Self::get_maintenance_requirement(element, &long_pos);
 					let position_extended =
-						PositionExtended::new(long_pos, maintenance_requirement, market_price);
+						PositionExtended::new(long_pos, maintenance_requirement, mark_price);
 					pos_vec.push(position_extended);
 				}
 				if short_pos.size != FixedI128::zero() {
-					let (maintenance_requirement, market_price) =
+					let (maintenance_requirement, mark_price) =
 						Self::get_maintenance_requirement(element, &short_pos);
 					let position_extended =
-						PositionExtended::new(short_pos, maintenance_requirement, market_price);
+						PositionExtended::new(short_pos, maintenance_requirement, mark_price);
 					pos_vec.push(position_extended);
 				}
 			}
@@ -1776,17 +1776,17 @@ pub mod pallet {
 				let short_pos: Position =
 					PositionsMap::<T>::get(account_id, (element, Direction::Short));
 				if long_pos.size != FixedI128::zero() {
-					let (maintenance_requirement, market_price) =
+					let (maintenance_requirement, mark_price) =
 						Self::get_maintenance_requirement(element, &long_pos);
 					let position_extended =
-						PositionExtended::new(long_pos, maintenance_requirement, market_price);
+						PositionExtended::new(long_pos, maintenance_requirement, mark_price);
 					positions.push(position_extended);
 				}
 				if short_pos.size != FixedI128::zero() {
-					let (maintenance_requirement, market_price) =
+					let (maintenance_requirement, mark_price) =
 						Self::get_maintenance_requirement(element, &short_pos);
 					let position_extended =
-						PositionExtended::new(short_pos, maintenance_requirement, market_price);
+						PositionExtended::new(short_pos, maintenance_requirement, mark_price);
 					positions.push(position_extended);
 				}
 			}
