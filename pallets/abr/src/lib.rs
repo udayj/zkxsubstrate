@@ -2,6 +2,12 @@
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
@@ -17,8 +23,12 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type TradingAccountPallet: TradingAccountInterface;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub (super) fn deposit_event)]
+	pub enum Event<T: Config> {}
 
 	impl<T: Config> Pallet<T> {
 		fn calculate_effective_abr(premiums: &[FixedI128]) -> FixedI128 {
@@ -144,7 +154,7 @@ pub mod pallet {
 			(lower_band, upper_band)
 		}
 
-		fn calculate_sliding_mean(prices: &[FixedI128], window: usize) -> Vec<FixedI128> {
+		pub fn calculate_sliding_mean(prices: &[FixedI128], window: usize) -> Vec<FixedI128> {
 			// Initialize the result vector with the size of prices vector
 			let total_len = prices.len();
 			let mut result = Vec::<FixedI128>::with_capacity(total_len);
