@@ -96,12 +96,13 @@ fn test_liquidation() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 5000.into(), mark_price: 5000.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
 			.set_size(5.into())
 			.set_price(5000.into())
+			.set_leverage(5.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
 		let alice_forced_order = Order::new(203_u128, alice_id)
@@ -198,7 +199,7 @@ fn test_deleveraging() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -301,7 +302,7 @@ fn test_liquidation_after_deleveraging() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940365000));
 
 		// Place Forced order for deleveraging
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -338,11 +339,13 @@ fn test_liquidation_after_deleveraging() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 6500.into(), mark_price: 6500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940366000));
+		let price = Prices::current_price(market_id);
 
 		// Place Forced order for deleveraging
 		let dave_order = Order::new(206_u128, dave_id)
 			.set_size(5.into())
+			.set_leverage(5.into())
 			.set_price(6500.into())
 			.sign_order(get_private_key(dave().pub_key));
 
@@ -438,7 +441,7 @@ fn test_invalid_forced_order() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 9500.into(), mark_price: 9500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)
@@ -522,7 +525,7 @@ fn test_invalid_liquidator() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices));
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204_u128, charlie_id)

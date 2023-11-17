@@ -39,7 +39,11 @@ fn test_update_prices() {
 		};
 		prices.push(mark_price1);
 		prices.push(mark_price2);
-		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices.clone()));
+		assert_ok!(PricesModule::update_prices(
+			RuntimeOrigin::signed(1),
+			prices.clone(),
+			1699940367000
+		));
 
 		let price = PricesModule::current_price(market1.market.id);
 		assert_eq!(FixedI128::from_u32(100), price.mark_price);
@@ -80,7 +84,11 @@ fn test_historical_prices() {
 		};
 		prices.push(mark_price1);
 		prices.push(mark_price2);
-		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices.clone()));
+		assert_ok!(PricesModule::update_prices(
+			RuntimeOrigin::signed(1),
+			prices.clone(),
+			1702359600000
+		));
 
 		let price = PricesModule::current_price(market1.market.id);
 		assert_eq!(FixedI128::from_u32(100), price.mark_price);
@@ -123,7 +131,11 @@ fn test_historical_prices() {
 		};
 		prices.push(mark_price1);
 		prices.push(mark_price2);
-		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices.clone()));
+		assert_ok!(PricesModule::update_prices(
+			RuntimeOrigin::signed(1),
+			prices.clone(),
+			1702359620000
+		));
 
 		let price = PricesModule::current_price(market1.market.id);
 		assert_eq!(FixedI128::from_u32(109), price.mark_price);
@@ -163,7 +175,11 @@ fn test_historical_prices() {
 		};
 		prices.push(mark_price1);
 		prices.push(mark_price2);
-		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices.clone()));
+		assert_ok!(PricesModule::update_prices(
+			RuntimeOrigin::signed(1),
+			prices.clone(),
+			1702359661000
+		));
 
 		let price = PricesModule::current_price(market1.market.id);
 		assert_eq!(FixedI128::from_u32(151), price.mark_price);

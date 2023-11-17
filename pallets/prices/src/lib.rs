@@ -19,6 +19,8 @@ pub mod pallet {
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
+	const MILLIS_PER_SECOND: u64 = 1000;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -94,18 +96,22 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// update index and mark prices for several markets
 		#[pallet::weight(0)]
-		pub fn update_prices(origin: OriginFor<T>, prices: Vec<MultiplePrices>) -> DispatchResult {
+		pub fn update_prices(
+			origin: OriginFor<T>,
+			prices: Vec<MultiplePrices>,
+			timestamp: u64,
+		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
 			// Get the current timestamp and last timestamp for which prices were updated
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp = timestamp / MILLIS_PER_SECOND;
 			let last_timestamp: u64 = LastTimestamp::<T>::get();
 			let price_interval: u64 = PriceInterval::<T>::get();
 
 			// Check whether historical prices needs to be updated
 			let needs_update =
-				(last_timestamp == 0) || (last_timestamp + price_interval <= current_timestamp);
+				(last_timestamp == 0) || (last_timestamp + price_interval <= timestamp);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -113,19 +119,22 @@ pub mod pallet {
 				ensure!(curr_market.mark_price >= FixedI128::zero(), Error::<T>::InvalidPrice);
 
 				// Get Market from the corresponding Id
-				let market = match T::MarketPallet::get_market(curr_market.market_id) {
+				match T::MarketPallet::get_market(curr_market.market_id) {
 					Some(m) => m,
 					None => return Err(Error::<T>::MarketNotFound.into()),
 				};
 
-				// Create a struct object for the current price
-				let new_price: CurrentPrice = CurrentPrice {
-					timestamp: current_timestamp,
-					index_price: curr_market.index_price,
-					mark_price: curr_market.mark_price,
-				};
+				let current_price = CurrentPricesMap::<T>::get(curr_market.market_id);
+				if timestamp > current_price.timestamp {
+					// Create a struct object for the current price
+					let new_price: CurrentPrice = CurrentPrice {
+						timestamp,
+						index_price: curr_market.index_price,
+						mark_price: curr_market.mark_price,
+					};
 
-				CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
+					CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
+				}
 
 				if needs_update {
 					// Update historical price
@@ -134,7 +143,7 @@ pub mod pallet {
 						mark_price: curr_market.mark_price,
 					};
 					HistoricalPricesMap::<T>::insert(
-						current_timestamp,
+						timestamp,
 						curr_market.market_id,
 						historical_price,
 					);
@@ -142,8 +151,8 @@ pub mod pallet {
 			}
 
 			if needs_update {
-				PriceTimestamps::<T>::append(current_timestamp);
-				LastTimestamp::<T>::put(current_timestamp);
+				PriceTimestamps::<T>::append(timestamp);
+				LastTimestamp::<T>::put(timestamp);
 			}
 
 			// Emits event
@@ -158,7 +167,7 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
-			let price_interval = price_interval / 1000;
+			let price_interval = price_interval / MILLIS_PER_SECOND;
 
 			ensure!(price_interval > 0, Error::<T>::InvalidPriceInterval);
 
@@ -168,60 +177,50 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> Pallet<T> {
+		pub fn get_price(market_id: u128, timestamp: u64, price: FixedI128) -> FixedI128 {
+			let market = T::MarketPallet::get_market(market_id);
+			match market {
+				Some(market) => {
+					// Get the current timestamp
+					let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+
+					let time_difference = current_timestamp - timestamp;
+					if time_difference > market.ttl.into() {
+						FixedI128::zero()
+					} else {
+						price
+					}
+				},
+				None => FixedI128::zero(),
+			}
+		}
+	}
+
 	impl<T: Config> PricesInterface for Pallet<T> {
 		fn get_last_traded_price(market_id: u128) -> FixedI128 {
 			let last_traded_price = LastTradedPricesMap::<T>::get(market_id);
-			// Get the current timestamp
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
-			// Get Market from the corresponding Id
-			let market = T::MarketPallet::get_market(market_id).unwrap();
-			let time_difference = current_timestamp - last_traded_price.timestamp;
-			if time_difference > market.ttl.into() {
-				FixedI128::zero()
-			} else {
-				last_traded_price.price
-			}
+			Self::get_price(market_id, last_traded_price.timestamp, last_traded_price.price)
 		}
 
 		fn get_mark_price(market_id: u128) -> FixedI128 {
 			let price = CurrentPricesMap::<T>::get(market_id);
-			// Get the current timestamp
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
-			// Get Market from the corresponding Id
-			let market = T::MarketPallet::get_market(market_id).unwrap();
-
-			let time_difference = current_timestamp - price.timestamp;
-			if time_difference > market.ttl.into() {
-				FixedI128::zero()
-			} else {
-				price.mark_price
-			}
+			Self::get_price(market_id, price.timestamp, price.mark_price)
 		}
 
 		fn get_index_price(market_id: u128) -> FixedI128 {
 			let price = CurrentPricesMap::<T>::get(market_id);
-			// Get the current timestamp
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
-			// Get Market from the corresponding Id
-			let market = T::MarketPallet::get_market(market_id).unwrap();
-
-			let time_difference = current_timestamp - price.timestamp;
-			if time_difference > market.ttl.into() {
-				FixedI128::zero()
-			} else {
-				price.index_price
-			}
+			Self::get_price(market_id, price.timestamp, price.index_price)
 		}
 
 		fn update_last_traded_price(market_id: u128, price: FixedI128) {
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
-			let new_last_traded_price: LastTradedPrice =
-				LastTradedPrice { timestamp: current_timestamp, price };
+			let new_last_traded_price = LastTradedPrice { timestamp: current_timestamp, price };
 
 			// Update last traded price
 			LastTradedPricesMap::<T>::insert(market_id, new_last_traded_price);

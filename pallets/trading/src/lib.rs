@@ -451,8 +451,6 @@ pub mod pallet {
 					// For a maker execution price will always be the price in its order object
 					execution_price = element.price;
 
-					quantity_executed = quantity_executed + quantity_to_execute;
-					total_order_volume = total_order_volume + (element.price * quantity_to_execute);
 					order_side = OrderSide::Maker;
 				} else {
 					// Taker Order
@@ -813,6 +811,10 @@ pub mod pallet {
 							initial_margin_locked_short - margin_lock_amount
 					}
 				}
+
+				// Update quantity_executed and total_order_volume
+				quantity_executed = quantity_executed + quantity_to_execute;
+				total_order_volume = total_order_volume + (element.price * quantity_to_execute);
 
 				// Update locked margin and portion executed
 				T::TradingAccountPallet::set_locked_margin(
