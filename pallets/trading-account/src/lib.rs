@@ -891,5 +891,9 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		fn get_accounts_count() -> u128 {
+			AccountsCount::<T>::get()
+		}
 	}
 }

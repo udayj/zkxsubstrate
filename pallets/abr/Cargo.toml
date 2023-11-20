@@ -11,7 +11,7 @@ frame-system = { default-features = false, version = "4.0.0-dev", git = "https:/
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive",] }
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-
+sp-arithmetic = { version = "16.0.0", default-features = false }
 pallet-support= { path="../support"}
 
 [dev-dependencies]
