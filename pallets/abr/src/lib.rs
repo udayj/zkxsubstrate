@@ -10,7 +10,7 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
@@ -52,8 +52,8 @@ pub mod pallet {
 
 			for iterator in 0..total_len {
 				// TODO(merkle-groot): possibly check for division by zero error here
-				premiums[iterator] =
-					(mark_prices[iterator] - index_prices[iterator]) / mark_prices[iterator];
+				premiums
+					.push((mark_prices[iterator] - index_prices[iterator]) / mark_prices[iterator]);
 			}
 
 			premiums
@@ -135,8 +135,8 @@ pub mod pallet {
 					);
 
 					// Add to lower and upper band vectors
-					lower_band[iterator] = mean_prices[iterator] - std;
-					upper_band[iterator] = mean_prices[iterator] + std;
+					lower_band.push(mean_prices[iterator] - std);
+					upper_band.push(mean_prices[iterator] + std);
 				} else {
 					// Calculate the standard deviation factor
 					let std = Self::calculate_std(
@@ -146,8 +146,8 @@ pub mod pallet {
 					);
 
 					// Add to lower and upper band vectors
-					lower_band[iterator] = mean_prices[iterator] - std;
-					upper_band[iterator] = mean_prices[iterator] + std;
+					lower_band.push(mean_prices[iterator] - std);
+					upper_band.push(mean_prices[iterator] + std);
 				}
 			}
 
@@ -157,6 +157,7 @@ pub mod pallet {
 		pub fn calculate_sliding_mean(prices: &[FixedI128], window: usize) -> Vec<FixedI128> {
 			// Initialize the result vector with the size of prices vector
 			let total_len = prices.len();
+			print!("the length is {:?}", total_len);
 			let mut result = Vec::<FixedI128>::with_capacity(total_len);
 
 			// Handle Edge case
@@ -177,13 +178,13 @@ pub mod pallet {
 					window_sum = window_sum + prices[iterator];
 
 					// Add to result array
-					result[iterator] = window_sum / FixedI128::from((iterator + 1) as i128);
+					result.push(window_sum / FixedI128::from((iterator + 1) as i128));
 				} else {
 					// Add the current price and remove the first price in the sum
 					window_sum = window_sum - prices[iterator - window] + prices[iterator];
 
 					// Add to result array
-					result[iterator] = window_sum / window_fixed;
+					result.push(window_sum / window_fixed);
 				}
 			}
 
@@ -196,20 +197,23 @@ pub mod pallet {
 			base_abr_rate: FixedI128,
 			boll_width: FixedI128,
 			window: usize,
-		) -> FixedI128 {
+		)
+		// -> FixedI128
+		{
 			let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
-			let (upper_band, lower_band) =
-				Self::calculate_bollinger_bands(&mark_prices, &mean_prices, window, boll_width);
-			let mut premiums = Self::calculate_premium(&mark_prices, &index_prices);
-			let premiums_w_jumps = Self::calculate_jump(
-				&mut premiums,
-				&upper_band,
-				&lower_band,
-				&mark_prices,
-				&index_prices,
-			);
+			print!("Mean prices {:?}", mean_prices);
+			// let (upper_band, lower_band) =
+			// 	Self::calculate_bollinger_bands(&mark_prices, &mean_prices, window, boll_width);
+			// let mut premiums = Self::calculate_premium(&mark_prices, &index_prices);
+			// let premiums_w_jumps = Self::calculate_jump(
+			// 	&mut premiums,
+			// 	&upper_band,
+			// 	&lower_band,
+			// 	&mark_prices,
+			// 	&index_prices,
+			// );
 
-			Self::calculate_effective_abr(&premiums_w_jumps) + base_abr_rate
+			// Self::calculate_effective_abr(&premiums_w_jumps) + base_abr_rate
 		}
 	}
 }
