@@ -94,6 +94,7 @@ pub trait MarketInterface {
 	fn update_market_internal(extended_market: ExtendedMarket);
 	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
+	fn get_all_markets() -> Vec<u128>;
 }
 
 pub trait PricesInterface {

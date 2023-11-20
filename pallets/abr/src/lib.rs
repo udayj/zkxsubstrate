@@ -6,8 +6,14 @@ pub use pallet::*;
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use pallet_support::{traits::TradingAccountInterface, types::ABRState};
-	use sp_arithmetic::fixed_point::FixedI128;
+	use pallet_support::{
+		traits::{MarketInterface, TradingAccountInterface},
+		types::ABRState,
+	};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+
+	// Minimum ABR interval
+	pub const ABR_INTERVAL_MIN: u64 = 3600;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -16,6 +22,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type TradingAccountPallet: TradingAccountInterface;
+		type MarketPallet: MarketInterface;
 	}
 
 	/// Stores the state of ABR
@@ -76,10 +83,18 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// When no.of users per batch provided is invalid
+		InvalidUsersPerBatch,
+		/// When ABR interval provided is invalid
+		InvalidAbrInterval,
 		/// When timestamp provided is invalid
 		InvalidTimestamp,
-		/// When ABR state is invalid while setting timestamp
+		/// When ABR state is invalid
 		InvalidState,
+		/// When ABR value is already set for the market
+		AbrValueAlreadySet,
+		/// When market provided is not tradable
+		MarketNotTradable,
 	}
 
 	#[pallet::event]
@@ -89,11 +104,41 @@ pub mod pallet {
 		AbrTimestampSet { epoch: u64, timestamp: u64 },
 		/// ABR state changed successfully
 		AbrStateChanged { epoch: u64, state: ABRState },
+		/// ABR value set successfully
+		AbrValueSet { epoch: u64, market_id: u128, abr_value: FixedI128, abr_last_price: FixedI128 },
 	}
 
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// External function to be called for setting ABR interval
+		#[pallet::weight(0)]
+		pub fn set_abr_interval(origin: OriginFor<T>, new_abr_interval: u64) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			//  ABR interval must be >= one hour
+			ensure!(new_abr_interval >= ABR_INTERVAL_MIN, Error::<T>::InvalidAbrInterval);
+
+			AbrInterval::<T>::put(new_abr_interval);
+			Ok(())
+		}
+		/// External function to be called for setting no.of users per batch
+		#[pallet::weight(0)]
+		pub fn set_no_of_users_per_batch(
+			origin: OriginFor<T>,
+			new_no_of_users_per_batch: u128,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// No of users in a batch must be > 0
+			ensure!(new_no_of_users_per_batch > 0, Error::<T>::InvalidUsersPerBatch);
+
+			UsersPerBatch::<T>::put(new_no_of_users_per_batch);
+			Ok(())
+		}
+
 		/// External function to be called for setting ABR timestamp
 		#[pallet::weight(0)]
 		pub fn set_abr_timestamp(origin: OriginFor<T>, new_timestamp: u64) -> DispatchResult {
@@ -150,6 +195,53 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// External function to be called for setting ABR value
+		#[pallet::weight(0)]
+		pub fn set_abr_value(origin: OriginFor<T>, market_id: u128) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// Get current state and epoch
+			let current_state = AbrState::<T>::get();
+			let current_epoch = AbrEpoch::<T>::get();
+			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+
+			// Validate market
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
+
+			// ABR must be in state 1
+			ensure!(current_state == ABRState::State1, Error::<T>::InvalidState);
+
+			// Check if the market's abr is already set
+			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
+
+			// Calculate ABR
+			let (abr_value, abr_last_price) = Self::calculate_abr(market_id);
+
+			// Set the market's ABR value as true
+			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
+
+			// Update ABR value for the market
+			EpochMarketToAbrValueMap::<T>::insert(current_epoch, market_id, abr_value);
+
+			// Update Last price used while computing ABR
+			EpochMarketToLastPriceMap::<T>::insert(current_epoch, market_id, abr_last_price);
+
+			// Emit ABR Value set event
+			Self::deposit_event(Event::AbrValueSet {
+				epoch: current_epoch,
+				market_id,
+				abr_value,
+				abr_last_price,
+			});
+
+			// Check if all markets are set, if yes change the state
+			Self::check_abr_markets_status(current_epoch);
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -181,6 +273,26 @@ pub mod pallet {
 			} else {
 				return q + 1
 			}
+		}
+
+		fn calculate_abr(market_id: u128) -> (FixedI128, FixedI128) {
+			return (FixedI128::zero(), FixedI128::zero())
+		}
+
+		fn check_abr_markets_status(epoch: u64) {
+			// get all the markets available in the system
+			let markets = T::MarketPallet::get_all_markets();
+
+			// Check the state of each market
+			for market_id in markets {
+				let market_status = AbrMarketStatusMap::<T>::get(epoch, market_id);
+				if market_status == false {
+					return
+				}
+			}
+
+			// Change the state if all the market's ABR value is set
+			AbrState::<T>::put(ABRState::State2);
 		}
 	}
 }
