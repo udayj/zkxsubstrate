@@ -14,12 +14,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
-		traits::TradingAccountInterface,
-	};
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
-	use pallet_support::{
 		traits::{MarketInterface, TradingAccountInterface},
 		types::ABRState,
 	};
@@ -306,7 +300,11 @@ pub mod pallet {
 
 		// 	// Self::calculate_effective_abr(&premiums_w_jumps) + base_abr_rate
 		// }
+	}
 	
+	// Pallet callable functions
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// External function to be called for setting ABR interval
 		#[pallet::weight(0)]
 		pub fn set_abr_interval(origin: OriginFor<T>, new_abr_interval: u64) -> DispatchResult {
