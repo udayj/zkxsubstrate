@@ -86,9 +86,6 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Last traded price was successfully updated
 		LastTradedPriceUpdated { market_id: u128, price: LastTradedPrice },
-
-		/// Multiple prices were successfully updated
-		MultiplePricesUpdated { prices: Vec<MultiplePrices> },
 	}
 
 	// Pallet callable functions
@@ -154,9 +151,6 @@ pub mod pallet {
 				PriceTimestamps::<T>::append(timestamp);
 				LastTimestamp::<T>::put(timestamp);
 			}
-
-			// Emits event
-			Self::deposit_event(Event::MultiplePricesUpdated { prices });
 
 			Ok(())
 		}
