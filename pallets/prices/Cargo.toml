@@ -23,6 +23,9 @@ sp-runtime = { version = "24.0.0", default-features = false, git = "https://gith
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
 pallet-trading-account = { default-features = false, path = "../trading-account" }
+pallet-trading = { default-features = false, path = "../trading" }
+pallet-risk-management = { default-features = false, path = "../risk-management" }
+pallet-trading-fees = { default-features = false, path = "../trading-fees" }
 
 [features]
 default = ["std"]
