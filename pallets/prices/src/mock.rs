@@ -1,4 +1,4 @@
-use crate as pallet_market_prices;
+use crate as pallet_prices;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_market;
@@ -6,17 +6,17 @@ use pallet_timestamp;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage
+	BuildStorage,
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test 
+	pub enum Test
 	{
 		System: frame_system,
-		MarketPricesModule: pallet_market_prices,
+		PricesModule: pallet_prices,
 		MarketModule: pallet_market,
 		Timestamp: pallet_timestamp,
 		AssetModule: pallet_asset
@@ -65,7 +65,7 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-impl pallet_market_prices::Config for Test {
+impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = MarketModule;
 	type TimeProvider = Timestamp;
