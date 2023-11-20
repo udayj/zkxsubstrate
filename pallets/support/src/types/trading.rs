@@ -143,7 +143,7 @@ pub struct PositionExtended {
 	pub modified_timestamp: u64,
 	pub realized_pnl: FixedI128,
 	pub maintenance_margin: FixedI128,
-	pub market_price: FixedI128,
+	pub mark_price: FixedI128,
 }
 
 #[derive(
@@ -268,7 +268,7 @@ impl PositionExtended {
 	pub fn new(
 		position: Position,
 		maintenance_margin: FixedI128,
-		market_price: FixedI128,
+		mark_price: FixedI128,
 	) -> PositionExtended {
 		PositionExtended {
 			market_id: position.market_id.into(),
@@ -282,7 +282,7 @@ impl PositionExtended {
 			modified_timestamp: position.modified_timestamp,
 			realized_pnl: position.realized_pnl,
 			maintenance_margin,
-			market_price,
+			mark_price,
 		}
 	}
 }

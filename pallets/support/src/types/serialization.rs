@@ -1,14 +1,15 @@
-use crate::traits::{FeltSerializedArrayExt, U256Ext};
-use crate::types::common::convert_to_u128_pair;
-use crate::types::{
-	Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
-	SignerRemoved, TradingAccountMinimal, UniversalEvent, UserDeposit,
+use crate::{
+	traits::{FeltSerializedArrayExt, U256Ext},
+	types::{
+		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
+		MarketUpdated, SignerAdded, SignerRemoved, TradingAccountMinimal, UniversalEvent,
+		UserDeposit,
+	},
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::traits::ConstU32;
-use sp_runtime::BoundedVec;
+use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 use super::QuorumSet;
@@ -42,7 +43,10 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError> {
 		// This works as fixedI128 values in l2 events are positive
-		let inner_value: u128 = fixed_value.into_inner().try_into().unwrap();
+		let inner_value: u128 = fixed_value
+			.into_inner()
+			.try_into()
+			.map_err(|_| FromByteSliceError::OutOfRange)?;
 
 		self.push(FieldElement::from(inner_value));
 		Ok(())

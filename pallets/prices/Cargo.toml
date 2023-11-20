@@ -9,6 +9,7 @@ edition = "2021"
 frame-support = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
 frame-system = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive",] }
+pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-arithmetic = { version = "16.0.0", default-features = false }
@@ -21,7 +22,6 @@ sp-io = { version = "23.0.0", git = "https://github.com/paritytech/substrate.git
 sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
-pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
 
 [features]
 default = ["std"]
@@ -29,6 +29,7 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "codec/std",
+    "pallet-timestamp/std",
     "scale-info/std",
     "sp-arithmetic/std",
 ]

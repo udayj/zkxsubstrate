@@ -71,6 +71,16 @@ pub mod pallet {
 		SignerRemoved { signer: U256 },
 		/// New Quorum requirement set by the admin
 		QuorumSet { quorum: u8 },
+		/// A invalid request to remove non-existent market
+		MarketRemovedError { id: u128 },
+		/// An invalid request to remove non-existent asset
+		AssetRemovedError { id: u128 },
+		/// An invalid request to remove non-existent signer
+		SignerRemovedError { pub_key: U256 },
+		/// An invalid request to set a signer
+		QuorumSetError { quorum: u8 },
+		/// An invalid request for user deposit
+		UserDepositError { collateral_id: u128 },
 	}
 
 	#[pallet::error]
@@ -91,6 +101,8 @@ pub mod pallet {
 		OldBatch,
 		/// Not enough signatures for a sync tx
 		InsufficientSignatures,
+		/// Invalid FieldElement value
+		ConversionError,
 	}
 
 	// Pallet callable functions
@@ -167,6 +179,7 @@ pub mod pallet {
 			ensure!(events_batch.len() != 0, Error::<T>::EmptyBatch);
 
 			// Fetch the block number of last event in the batch
+			// Unwrap will not fail since we are checking for 0 length in previous line
 			let (block_number, event_index) =
 				Self::get_block_and_event_number(events_batch.last().unwrap());
 
@@ -175,7 +188,7 @@ pub mod pallet {
 			ensure!(block_number >= last_block_number, Error::<T>::OldBatch);
 
 			// Compute the batch hash
-			let batch_hash = Self::compute_batch_hash(&events_batch);
+			let batch_hash = Self::compute_batch_hash(&events_batch)?;
 
 			// Check if the batch is already processed
 			let batch_hash_u256 = batch_hash.to_u256();
@@ -276,28 +289,83 @@ pub mod pallet {
 						}
 					},
 					UniversalEvent::MarketRemoved(market_removed) => {
-						// Remove the market
-						T::MarketPallet::remove_market_internal(market_removed.id);
+						// Check if the Market exists
+						match T::MarketPallet::get_market(market_removed.id) {
+							// If yes, remove it
+							Some(_) => {
+								T::MarketPallet::remove_market_internal(market_removed.id);
+							},
+							// If not, emit an error
+							None => {
+								Self::deposit_event(Event::MarketRemovedError {
+									id: market_removed.id,
+								});
+							},
+						};
 					},
 					UniversalEvent::AssetRemoved(asset_removed) => {
-						// Remove the asset
-						T::AssetPallet::remove_asset_internal(asset_removed.id);
+						// Check if the Asset exists
+						match T::AssetPallet::get_asset(asset_removed.id) {
+							// If yes, remove it
+							Some(_) => {
+								T::AssetPallet::remove_asset_internal(asset_removed.id);
+							},
+							// If not, emit an error
+							None => {
+								Self::deposit_event(Event::AssetRemovedError {
+									id: asset_removed.id,
+								});
+							},
+						};
 					},
 					UniversalEvent::UserDeposit(user_deposit) => {
-						T::TradingAccountPallet::deposit_internal(
-							user_deposit.trading_account,
-							user_deposit.collateral_id,
-							user_deposit.amount,
-						);
+						// Check if the Asset exists and is valid
+						if let Some(asset) = T::AssetPallet::get_asset(user_deposit.collateral_id) {
+							if asset.is_collateral {
+								T::TradingAccountPallet::deposit_internal(
+									user_deposit.trading_account,
+									user_deposit.collateral_id,
+									user_deposit.amount,
+								);
+							} else {
+								Self::deposit_event(Event::UserDepositError {
+									collateral_id: user_deposit.collateral_id,
+								});
+							}
+						} else {
+							Self::deposit_event(Event::UserDepositError {
+								collateral_id: user_deposit.collateral_id,
+							});
+						}
 					},
 					UniversalEvent::SignerAdded(signer_added) => {
 						Self::add_signer_internal(signer_added.signer);
 					},
 					UniversalEvent::SignerRemoved(signer_removed) => {
-						Self::remove_signer_internal(signer_removed.signer);
+						// Check if the signer exists
+						match IsSignerWhitelisted::<T>::get(signer_removed.signer) {
+							// If yes, remove it
+							true => {
+								Self::remove_signer_internal(signer_removed.signer);
+							},
+							// If not, emit an error
+							false => {
+								Self::deposit_event(Event::SignerRemovedError {
+									pub_key: signer_removed.signer,
+								});
+							},
+						};
 					},
-					UniversalEvent::QuorumSet(_quorum_set) => {
-						// TODO(merkle-groot): Add a handling function here
+					UniversalEvent::QuorumSet(quorum_set) => {
+						// Check if there are enough signers in the system
+						match quorum_set.quorum <= Signers::<T>::get().len() as u8 {
+							// If yes, set the new quorum
+							true => Self::set_signers_quorum_internal(quorum_set.quorum),
+							// If not, emit an error
+							false => Self::deposit_event(Event::QuorumSetError {
+								quorum: quorum_set.quorum,
+							}),
+						}
 					},
 				}
 			}
@@ -312,19 +380,27 @@ pub mod pallet {
 				.iter()
 				.filter(|&curr_signature| {
 					// Convert the data to felt252
-					let pub_key_felt252 = curr_signature.signer_pub_key.try_to_felt().unwrap();
-					let signature_felt252 = Signature {
-						r: curr_signature.r.try_to_felt().unwrap(),
-						s: curr_signature.s.try_to_felt().unwrap(),
-					};
+					let pub_key_result = curr_signature.signer_pub_key.try_to_felt();
+					let r_value_result = curr_signature.r.try_to_felt();
+					let s_value_result = curr_signature.s.try_to_felt();
 
-					// Check if the sig is valid
-					Self::verify_signature(pub_key_felt252, hash, signature_felt252)
+					match pub_key_result.is_ok() & r_value_result.is_ok() & s_value_result.is_ok() {
+						true => {
+							let signature_felt252 = Signature {
+								r: r_value_result.unwrap(),
+								s: s_value_result.unwrap(),
+							};
+
+							// Check if the sig is valid
+							Self::verify_signature(pub_key_result.unwrap(), hash, signature_felt252)
+						},
+						false => false,
+					}
 				})
 				.take(quorum)
 				.count();
 
-			return valid_sigs == quorum
+			valid_sigs == quorum
 		}
 
 		fn verify_signature(
@@ -338,13 +414,17 @@ pub mod pallet {
 			}
 		}
 
-		fn compute_batch_hash(events_batch: &Vec<UniversalEvent>) -> FieldElement {
+		fn compute_batch_hash(
+			events_batch: &Vec<UniversalEvent>,
+		) -> Result<FieldElement, Error<T>> {
 			// Convert the array of enums to array of felts
 			let mut flattened_array: Vec<FieldElement> = Vec::new();
-			flattened_array.try_append_universal_event_array(&events_batch).unwrap();
+			flattened_array
+				.try_append_universal_event_array(&events_batch)
+				.map_err(|_| Error::<T>::ConversionError)?;
 
 			// Compute hash of the array and return
-			pedersen_hash_multiple(&flattened_array)
+			Ok(pedersen_hash_multiple(&flattened_array))
 		}
 
 		fn get_block_and_event_number(event: &UniversalEvent) -> (u64, u32) {

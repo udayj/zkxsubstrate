@@ -4,8 +4,9 @@ use pallet_support::{
 	helpers::pedersen_hash_multiple,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, SignerAdded,
-		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, QuorumSet,
+		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
+		UserDeposit,
 	},
 	FieldElement,
 };
@@ -58,6 +59,10 @@ pub trait SignerAddedTrait {
 
 pub trait SignerRemovedTrait {
 	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerRemoved;
+}
+
+pub trait QuorumSetTrait {
+	fn new(event_index: u32, quorum: u8, block_number: u64) -> QuorumSet;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
@@ -121,6 +126,12 @@ impl UserDepositTrait for UserDeposit {
 	}
 }
 
+impl QuorumSetTrait for QuorumSet {
+	fn new(event_index: u32, quorum: u8, block_number: u64) -> QuorumSet {
+		QuorumSet { event_index, quorum, block_number }
+	}
+}
+
 pub trait UniversalEventArray {
 	fn new() -> Vec<UniversalEvent>;
 	fn add_market_updated_event(&mut self, market_updated_event: MarketUpdated);
@@ -130,6 +141,7 @@ pub trait UniversalEventArray {
 	fn add_user_deposit_event(&mut self, user_deposit_event: UserDeposit);
 	fn add_signer_added_event(&mut self, signer_added_event: SignerAdded);
 	fn add_signer_removed_event(&mut self, signer_removed_event: SignerRemoved);
+	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet);
 	fn compute_hash(&self) -> FieldElement;
 }
 
@@ -194,6 +206,10 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 
 	fn add_signer_removed_event(&mut self, signer_removed_event: SignerRemoved) {
 		self.push(UniversalEvent::SignerRemoved(signer_removed_event));
+	}
+
+	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet) {
+		self.push(UniversalEvent::QuorumSet(quorum_set_event));
 	}
 
 	fn compute_hash(&self) -> FieldElement {
