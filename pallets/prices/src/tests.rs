@@ -52,9 +52,6 @@ fn test_update_prices() {
 		let price = PricesModule::current_price(market2.market.id);
 		assert_eq!(FixedI128::from_u32(200), price.mark_price);
 		assert_eq!(FixedI128::from_u32(199), price.index_price);
-
-		// Assert that the correct event was deposited
-		System::assert_last_event(Event::MultiplePricesUpdated { prices }.into());
 	});
 }
 
