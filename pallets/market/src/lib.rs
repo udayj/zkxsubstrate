@@ -254,5 +254,13 @@ pub mod pallet {
 				Err(_) => return None,
 			};
 		}
+
+		fn get_all_markets() -> Vec<u128> {
+			let mut markets = Vec::<u128>::new();
+			for (key, _) in MarketMap::<T>::iter() {
+				markets.push(key);
+			}
+			markets
+		}
 	}
 }

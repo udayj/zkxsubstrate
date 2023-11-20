@@ -296,7 +296,9 @@ impl pallet_risk_management::Config for Runtime {
 }
 
 impl pallet_abr::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
 	type TradingAccountPallet = TradingAccount;
+	type MarketPallet = Markets;
 }
 
 impl pallet_asset::Config for Runtime {
