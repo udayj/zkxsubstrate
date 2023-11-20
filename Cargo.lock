@@ -4638,7 +4638,6 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "pallet-abr",
  "pallet-asset",
  "pallet-aura",
  "pallet-balances",
@@ -4858,23 +4857,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-abr"
-version = "0.0.1-dev"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-support",
- "pallet-trading-account",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
- "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core",
- "sp-io",
- "sp-runtime",
-]
-
-[[package]]
 name = "pallet-asset"
 version = "0.0.1-dev"
 dependencies = [
@@ -4984,6 +4966,7 @@ dependencies = [
  "pallet-market",
  "pallet-support",
  "pallet-timestamp",
+ "pallet-trading-account",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
