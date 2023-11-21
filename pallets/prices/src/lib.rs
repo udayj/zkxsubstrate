@@ -431,7 +431,7 @@ pub mod pallet {
 			}
 		}
 
-		fn calculate_abr_test(market_id: u128) -> (FixedI128, FixedI128) {
+		fn calculate_abr_test(_market_id: u128) -> (FixedI128, FixedI128) {
 			return (FixedI128::zero(), FixedI128::zero())
 		}
 

@@ -24,10 +24,7 @@ pub mod helpers {
 	use frame_support::dispatch::Vec;
 	use itertools::fold;
 	use primitive_types::U256;
-	use sp_arithmetic::{
-		fixed_point::FixedI128,
-		traits::{One, Zero},
-	};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	use starknet_crypto::pedersen_hash;
 
 	// Function to perform pedersen hash of an array of field elements
