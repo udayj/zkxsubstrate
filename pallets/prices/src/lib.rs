@@ -452,14 +452,13 @@ pub mod pallet {
 		}
 
 		fn calculate_effective_abr(premiums: &[FixedI128]) -> FixedI128 {
-			let mut premium_sum = FixedI128::zero();
-			let total_len = premiums.len();
+			// Find the sum of the premium vec
+			let premium_sum =
+				premiums.iter().fold(FixedI128::zero(), |acc, &premium| acc + premium);
 
-			for iterator in 0..total_len {
-				premium_sum = premium_sum + premiums[iterator];
-			}
-
-			premium_sum / (FixedI128::from((total_len * 8) as i128))
+			// Return the calculated ABR without the base
+			// py: sum(premiums)/len(premiums)*8
+			premium_sum / (FixedI128::from((premiums.len() * 8) as i128))
 		}
 
 		fn calculate_price_diff_ratios(
@@ -472,6 +471,7 @@ pub mod pallet {
 
 			for iterator in 0..total_len {
 				// TODO(merkle-groot): possibly check for division by zero error here
+				// py: diff.append(mark[i] - index[i]/mark[i])
 				premiums
 					.push((mark_prices[iterator] - index_prices[iterator]) / mark_prices[iterator]);
 			}
@@ -486,21 +486,26 @@ pub mod pallet {
 			mark_prices: &[FixedI128],
 			index_prices: &[FixedI128],
 		) -> Vec<FixedI128> {
+			// Use the total_len as the upper bound of iteration
 			let total_len = mark_prices.len();
 
 			for iterator in 0..total_len {
+				// Calculate the jump from upper and lower halves
+				//  py: upper_diff = max(mark[i] - upper[i], 0)
+				//  py: lower_diff = max(lower[i] - mark[i], 0)
 				let upper_diff =
 					max(FixedI128::zero(), mark_prices[iterator] - upper_band[iterator]);
 				let lower_diff =
 					max(FixedI128::zero(), lower_band[iterator] - mark_prices[iterator]);
 
-				print!("Upper Diff: {:?}\n", upper_diff);
-				print!("Lower Diff: {:?}\n\n", lower_diff);
-
+				// If there's a jump from the upper band
+				// Add the jump to premium
 				if upper_diff > FixedI128::zero() {
+					// py: jump = max(log(upper_diff)/mark[i], 0)
 					premiums[iterator] = premiums[iterator] +
 						max(ln(upper_diff) / index_prices[iterator], FixedI128::zero());
 				} else if lower_diff > FixedI128::zero() {
+					// py: jump = max(log(lower_diff)/spot[i], 0)
 					premiums[iterator] = premiums[iterator] -
 						max(ln(lower_diff) / index_prices[iterator], FixedI128::zero());
 				}
@@ -514,24 +519,24 @@ pub mod pallet {
 			mean: FixedI128,
 			boll_width: FixedI128,
 		) -> FixedI128 {
-			// Initialize the diff_sum
+			// find the length of the prices vec
 			let total_len = prices.len();
-			let mut diff_sum = FixedI128::zero();
 
 			// Handle Edge case
 			if total_len == 0 {
 				return FixedI128::zero();
 			}
 
-			for iterator in 0..total_len {
-				let diff = prices[iterator] - mean;
-				diff_sum = diff_sum + fixed_pow(diff, 2_u64);
-			}
+			// Find the sum of square of differences from mean
+			let diff_sum = prices
+				.iter()
+				.fold(FixedI128::zero(), |acc, &price| acc + fixed_pow(price - mean, 2_u64));
 
+			// We divide by n-1 to find the std, since it's a sample
+			// If it's 1, we don't subtract
 			let adjusted_total_len = if total_len > 1 { total_len - 1 } else { total_len };
-			let std_dev = (diff_sum /
-				FixedI128::from_inner((adjusted_total_len as i128) * 10_u128.pow(18) as i128))
-			.sqrt();
+			let std_dev = (diff_sum / FixedI128::from(adjusted_total_len as i128)).sqrt();
+
 			boll_width * std_dev
 		}
 
@@ -541,7 +546,7 @@ pub mod pallet {
 			window: usize,
 			boll_width: FixedI128,
 		) -> (Vec<FixedI128>, Vec<FixedI128>) {
-			// Initialize the result vector with the size of prices vector
+			// Initialize the upper and lower vectors with the size of prices vector
 			let total_len = prices.len();
 			let mut upper_band = Vec::<FixedI128>::with_capacity(total_len);
 			let mut lower_band = Vec::<FixedI128>::with_capacity(total_len);
@@ -552,32 +557,20 @@ pub mod pallet {
 			}
 
 			for iterator in 0..total_len {
-				// Calculate the sliding mean till the iterator
-				if iterator < window {
-					// Calculate the standard deviation factor
-					let std = Self::calculate_std(
-						&prices[0..iterator + 1],
-						mean_prices[iterator],
-						boll_width,
-					);
-
-					// Add to lower and upper band vectors
-					lower_band.push(mean_prices[iterator] - std);
-					upper_band.push(mean_prices[iterator] + std);
+				// calculate the standarad deviation for each window
+				let std = if iterator < window {
+					Self::calculate_std(&prices[0..iterator + 1], mean_prices[iterator], boll_width)
 				} else {
-					// Calculate the standard deviation factor
-					let std = Self::calculate_std(
+					Self::calculate_std(
 						&prices[iterator - window + 1..iterator + 1],
 						mean_prices[iterator],
 						boll_width,
-					);
+					)
+				};
 
-					// Add to lower and upper band vectors
-					lower_band.push(mean_prices[iterator] - std);
-					// print!("Lower band value is: {:?}\n", mean_prices[iterator] - std);
-					upper_band.push(mean_prices[iterator] + std);
-					// print!("Upper band value is: {:?}\n", mean_prices[iterator] + std);
-				}
+				// Add to lower and upper band vectors
+				lower_band.push(mean_prices[iterator] - std);
+				upper_band.push(mean_prices[iterator] + std);
 			}
 
 			(lower_band, upper_band)
@@ -626,12 +619,21 @@ pub mod pallet {
 			boll_width: FixedI128,
 			window: usize,
 		) -> FixedI128 {
+			// Calculate the sliding mean of mark_prices
 			let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
+
+			// Find the lower band and upper band of the Bollinger bands
 			let (lower_band, upper_band) =
 				Self::calculate_bollinger_bands(&mark_prices, &mean_prices, window, boll_width);
+
+			// Calculate the price diff ratio between mark_prices and index_prices
 			let price_diff_ratios = Self::calculate_price_diff_ratios(&mark_prices, &index_prices);
+
+			// Calculate the sliding mean of the price_diff_ratio vec
 			let mut price_diff_ratio_mean =
 				Self::calculate_sliding_mean(&price_diff_ratios, window);
+
+			// Add the jumps to premiums
 			let jumps_array = Self::calculate_jump(
 				&mut price_diff_ratio_mean,
 				&upper_band,
@@ -639,6 +641,8 @@ pub mod pallet {
 				&mark_prices,
 				&index_prices,
 			);
+
+			// Find the effective ABR
 			Self::calculate_effective_abr(&jumps_array) + base_abr_rate
 		}
 	}

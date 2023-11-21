@@ -12,6 +12,20 @@ use sp_arithmetic::{
 	fixed_point::FixedI128,
 	traits::{One, Zero},
 };
+
+fn compare_with_threshold(value1: FixedI128, value2: FixedI128, threshold: FixedI128) {
+	// Calculate the absolute difference between the two values
+	let mut absolute_difference = value1 - value2;
+
+	if absolute_difference < FixedI128::zero() {
+		absolute_difference =
+			absolute_difference * FixedI128::from_inner(-1 * 10_u128.pow(18) as i128);
+	}
+
+	// Check if the absolute difference is less than or equal to the threshold
+	assert!(absolute_difference <= threshold, "Large deviation in abr value");
+}
+
 fn get_data() -> (Vec<FixedI128>, Vec<FixedI128>) {
 	let eth_mark_f64 = vec![
 		281.36, 281.57, 281.58, 281.67, 281.57, 281.57, 281.69, 281.69, 281.53, 281.69, 281.7,
@@ -107,14 +121,18 @@ fn get_data() -> (Vec<FixedI128>, Vec<FixedI128>) {
 		280.36, 279.96, 279.84, 279.87, 280.31, 280.59,
 	];
 
-	(convert_to_fixed(eth_mark_f64)[0..17].to_vec(), convert_to_fixed(eth_spot_f64)[0..17].to_vec())
+	(convert_to_fixed_vec(eth_mark_f64).to_vec(), convert_to_fixed_vec(eth_spot_f64).to_vec())
 }
 
-fn convert_to_fixed(arr: Vec<f64>) -> Vec<FixedI128> {
+fn convert_to_fixed(val: f64) -> FixedI128 {
+	FixedI128::from_inner((val * 10u128.pow(18) as f64) as i128)
+}
+
+fn convert_to_fixed_vec(arr: Vec<f64>) -> Vec<FixedI128> {
 	let total_len = arr.len();
 	let mut fixed_arr = Vec::<FixedI128>::with_capacity(total_len);
 	for iterator in 0..total_len {
-		fixed_arr.push(FixedI128::from_inner((arr[iterator] * 10u128.pow(18) as f64) as i128));
+		fixed_arr.push(convert_to_fixed(arr[iterator]));
 	}
 
 	fixed_arr
@@ -329,10 +347,57 @@ fn test_abr_calculation() {
 		let result = PricesModule::calculate_abr(
 			mark_prices,
 			index_prices,
-			convert_to_fixed(vec![0.000025_f64])[0],
-			convert_to_fixed(vec![1.5])[0],
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
 			8_usize,
 		);
-		print!("the result is {:?}", result);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(4.577354961709272e-05),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_different_length() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = get_data();
+		let lengths: Vec<usize> = (0..16).map(|x| 30 + x * 30).collect();
+		let expected_results = convert_to_fixed_vec(vec![
+			3.136920261292398e-05,
+			3.460936473485622e-05,
+			3.7244108294421266e-05,
+			4.097441614714203e-05,
+			4.5702248624677484e-05,
+			4.825238555042848e-05,
+			4.877937793638838e-05,
+			5.059538314358243e-05,
+			4.990282155578724e-05,
+			4.916859454250929e-05,
+			4.873860422331853e-05,
+			4.751361795136691e-05,
+			4.706652075510182e-05,
+			4.6411078823237745e-05,
+			4.609119410798423e-05,
+			4.577354961709272e-05,
+		]);
+
+		for iterator in 0..16 {
+			let result = PricesModule::calculate_abr(
+				mark_prices[0..lengths[iterator]].to_vec(),
+				index_prices[0..lengths[iterator]].to_vec(),
+				convert_to_fixed(0.000025_f64),
+				convert_to_fixed(1.5),
+				8_usize,
+			);
+
+			print!("{:?} {:?}\n", expected_results[iterator], result);
+
+			compare_with_threshold(result, expected_results[iterator], convert_to_fixed(1e-10));
+		}
 	});
 }
