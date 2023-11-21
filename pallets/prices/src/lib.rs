@@ -16,7 +16,7 @@ pub mod pallet {
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
 		traits::{MarketInterface, PricesInterface, TradingAccountInterface},
-		types::{CurrentPrice, HistoricalPrice, LastTradedPrice, MultiplePrices, ABRState},
+		types::{ABRState, CurrentPrice, HistoricalPrice, LastTradedPrice, MultiplePrices},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -277,7 +277,7 @@ pub mod pallet {
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
 
 			// Calculate ABR
-			let (abr_value, abr_last_price) = Self::calculate_abr(market_id);
+			let (abr_value, abr_last_price) = Self::calculate_abr_test(market_id);
 
 			// Set the market's ABR value as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
@@ -431,7 +431,7 @@ pub mod pallet {
 			}
 		}
 
-		fn calculate_abr(market_id: u128) -> (FixedI128, FixedI128) {
+		fn calculate_abr_test(market_id: u128) -> (FixedI128, FixedI128) {
 			return (FixedI128::zero(), FixedI128::zero())
 		}
 
@@ -462,7 +462,7 @@ pub mod pallet {
 			premium_sum / (FixedI128::from((total_len * 8) as i128))
 		}
 
-		fn calculate_premium(
+		fn calculate_price_diff_ratios(
 			mark_prices: &[FixedI128],
 			index_prices: &[FixedI128],
 		) -> Vec<FixedI128> {
@@ -493,6 +493,9 @@ pub mod pallet {
 					max(FixedI128::zero(), mark_prices[iterator] - upper_band[iterator]);
 				let lower_diff =
 					max(FixedI128::zero(), lower_band[iterator] - mark_prices[iterator]);
+
+				print!("Upper Diff: {:?}\n", upper_diff);
+				print!("Lower Diff: {:?}\n\n", lower_diff);
 
 				if upper_diff > FixedI128::zero() {
 					premiums[iterator] = premiums[iterator] +
@@ -525,7 +528,11 @@ pub mod pallet {
 				diff_sum = diff_sum + fixed_pow(diff, 2_u64);
 			}
 
-			boll_width * (diff_sum / FixedI128::from(total_len as i128)).sqrt()
+			let adjusted_total_len = if total_len > 1 { total_len - 1 } else { total_len };
+			let std_dev = (diff_sum /
+				FixedI128::from_inner((adjusted_total_len as i128) * 10_u128.pow(18) as i128))
+			.sqrt();
+			boll_width * std_dev
 		}
 
 		fn calculate_bollinger_bands(
@@ -567,7 +574,9 @@ pub mod pallet {
 
 					// Add to lower and upper band vectors
 					lower_band.push(mean_prices[iterator] - std);
+					// print!("Lower band value is: {:?}\n", mean_prices[iterator] - std);
 					upper_band.push(mean_prices[iterator] + std);
+					// print!("Upper band value is: {:?}\n", mean_prices[iterator] + std);
 				}
 			}
 
@@ -610,30 +619,28 @@ pub mod pallet {
 			result
 		}
 
-		// fn calculate_abr(
-		// 	mark_prices: Vec<FixedI128>,
-		// 	index_prices: Vec<FixedI128>,
-		// 	base_abr_rate: FixedI128,
-		// 	boll_width: FixedI128,
-		// 	window: usize,
-		// )
-		// // -> FixedI128
-		// {
-		// 	let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
-		// 	print!("Mean prices {:?}", mean_prices);
-		// 	// let (upper_band, lower_band) =
-		// 	// 	Self::calculate_bollinger_bands(&mark_prices, &mean_prices, window, boll_width);
-		// 	// let mut premiums = Self::calculate_premium(&mark_prices, &index_prices);
-		// 	// let premiums_w_jumps = Self::calculate_jump(
-		// 	// 	&mut premiums,
-		// 	// 	&upper_band,
-		// 	// 	&lower_band,
-		// 	// 	&mark_prices,
-		// 	// 	&index_prices,
-		// 	// );
-
-		// 	// Self::calculate_effective_abr(&premiums_w_jumps) + base_abr_rate
-		// }
+		pub fn calculate_abr(
+			mark_prices: Vec<FixedI128>,
+			index_prices: Vec<FixedI128>,
+			base_abr_rate: FixedI128,
+			boll_width: FixedI128,
+			window: usize,
+		) -> FixedI128 {
+			let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
+			let (lower_band, upper_band) =
+				Self::calculate_bollinger_bands(&mark_prices, &mean_prices, window, boll_width);
+			let price_diff_ratios = Self::calculate_price_diff_ratios(&mark_prices, &index_prices);
+			let mut price_diff_ratio_mean =
+				Self::calculate_sliding_mean(&price_diff_ratios, window);
+			let jumps_array = Self::calculate_jump(
+				&mut price_diff_ratio_mean,
+				&upper_band,
+				&lower_band,
+				&mark_prices,
+				&index_prices,
+			);
+			Self::calculate_effective_abr(&jumps_array) + base_abr_rate
+		}
 	}
 
 	impl<T: Config> PricesInterface for Pallet<T> {
