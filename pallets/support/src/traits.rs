@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
-	ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	ABRState, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
+	ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved,
+	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -103,6 +103,7 @@ pub trait PricesInterface {
 	fn get_mark_price(market_id: u128) -> FixedI128;
 	fn get_last_traded_price(market_id: u128) -> FixedI128;
 	fn update_last_traded_price(market_id: u128, price: FixedI128);
+	fn get_state() -> ABRState;
 }
 
 pub trait FixedI128Ext {

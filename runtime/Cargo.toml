@@ -55,6 +55,7 @@ pallet-market = { version = "0.0.1-dev", default-features = false, path = "../pa
 pallet-trading = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading" }
 pallet-trading-fees = { version = "0.0.1-dev", default-features = false, path = "../pallets/trading-fees" }
 pallet-prices = { version = "0.0.1-dev", default-features = false, path = "../pallets/prices" }
+pallet-prices-runtime-api = { path = "../pallets/prices/rpc/runtime-api", default-features = false }
 pallet-sync-facade = { version = "0.0.1-dev", default-features = false, path = "../pallets/sync-facade" }
 pallet-risk-management = { version = "0.0.1-dev", default-features = false, path = "../pallets/risk-management" }
 pallet-trading-runtime-api = { path = "../pallets/trading/rpc/runtime-api", default-features = false }
@@ -85,6 +86,7 @@ std = [
 	"pallet-asset/std",
 	"pallet-market/std",
 	"pallet-prices/std",
+	"pallet-prices-runtime-api/std",
 	"pallet-sync-facade/std",
 	"pallet-timestamp/std",
 	"pallet-trading/std",

@@ -52,8 +52,8 @@ pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_prices;
 pub use pallet_risk_management;
-use pallet_support::traits::TradingInterface;
-pub use pallet_support::types::{AccountInfo, MarginInfo, PositionExtended};
+use pallet_support::traits::{PricesInterface, TradingInterface};
+pub use pallet_support::types::{ABRState, AccountInfo, MarginInfo, PositionExtended};
 pub use pallet_sync_facade;
 pub use pallet_trading;
 pub use pallet_trading_account;
@@ -419,6 +419,12 @@ impl_runtime_apis! {
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
 			Trading::get_account_list(start_index, end_index)
+		}
+	}
+
+	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
+		fn get_abr_state() -> ABRState {
+			Prices::get_state()
 		}
 	}
 
