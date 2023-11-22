@@ -423,8 +423,8 @@ impl_runtime_apis! {
 	}
 
 	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
-		fn get_abr_state() -> ABRState {
-			Prices::get_state()
+		fn get_remaining_markets() -> Vec<u128> {
+			Prices::get_remaining_markets()
 		}
 	}
 

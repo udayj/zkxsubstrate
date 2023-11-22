@@ -1,10 +1,10 @@
+use frame_support::dispatch::Vec;
 use jsonrpsee::{
 	core::{Error as JsonRpseeError, RpcResult},
 	proc_macros::rpc,
 	types::error::{CallError, ErrorObject},
 };
 pub use pallet_prices_runtime_api::PricesApi as PricesRuntimeApi;
-use pallet_support::types::ABRState;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
-	#[method(name = "get_abr_state")]
-	fn get_abr_state(&self, at: Option<BlockHash>) -> RpcResult<ABRState>;
+	#[method(name = "get_remaining_markets")]
+	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<u128>>;
 }
 
 /// A struct that implements the `PricesApi`.
@@ -37,11 +37,11 @@ where
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: PricesRuntimeApi<Block>,
 {
-	fn get_abr_state(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<ABRState> {
+	fn get_remaining_markets(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<u128>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-		api.get_abr_state(at).map_err(runtime_error_into_rpc_err)
+		api.get_remaining_markets(at).map_err(runtime_error_into_rpc_err)
 	}
 }
 

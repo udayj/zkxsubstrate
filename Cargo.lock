@@ -4973,6 +4973,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-support",
  "pallet-timestamp",
@@ -4992,6 +4993,7 @@ dependencies = [
 name = "pallet-prices-rpc"
 version = "1.0.0"
 dependencies = [
+ "frame-support",
  "jsonrpsee",
  "pallet-prices-runtime-api",
  "pallet-support",
@@ -5005,6 +5007,7 @@ dependencies = [
 name = "pallet-prices-runtime-api"
 version = "0.0.1-dev"
 dependencies = [
+ "frame-support",
  "pallet-support",
  "sp-api",
 ]

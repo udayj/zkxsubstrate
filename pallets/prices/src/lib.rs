@@ -547,7 +547,7 @@ pub mod pallet {
 
 		fn check_abr_markets_status(epoch: u64) {
 			// get all the markets available in the system
-			let markets = T::MarketPallet::get_all_markets();
+			let markets = T::MarketPallet::get_all_markets_by_state(true, false);
 
 			// Check the state of each market
 			for market_id in markets {
@@ -925,8 +925,56 @@ pub mod pallet {
 			);
 		}
 
-		fn get_state() -> ABRState {
-			AbrState::<T>::get()
+		fn get_remaining_markets() -> Vec<u128> {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			let markets = T::MarketPallet::get_all_markets_by_state(true, false);
+			let mut remaining_markets = Vec::<u128>::new();
+
+			// According to ABR state, return remaining markets
+			match AbrState::<T>::get() {
+				ABRState::State0 => markets,
+				ABRState::State1 => {
+					for market_id in markets {
+						let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+						if !market_status {
+							remaining_markets.push(market_id);
+						}
+					}
+					remaining_markets
+				},
+				ABRState::State2 => remaining_markets,
+			}
+		}
+
+		fn get_no_of_batches_for_current_epoch() -> u128 {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			// Return number of batches only if state is 2
+			match AbrState::<T>::get() {
+				ABRState::State2 => NoOfBatchesForEpochMap::<T>::get(current_epoch),
+				_ => 0,
+			}
+		}
+
+		fn get_last_abr_timestamp() -> u64 {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			match AbrState::<T>::get() {
+				ABRState::State0 =>
+					if current_epoch == 0 {
+						EpochToTimestampMap::<T>::get(current_epoch)
+					} else {
+						EpochToTimestampMap::<T>::get(current_epoch - 1)
+					},
+				_ => EpochToTimestampMap::<T>::get(current_epoch),
+			}
+		}
+
+		fn get_next_abr_timestamp() -> u64 {
+			let current_abr_interval = AbrInterval::<T>::get();
+			let last_timestamp = Self::get_last_abr_timestamp();
+			last_timestamp + current_abr_interval
 		}
 	}
 }

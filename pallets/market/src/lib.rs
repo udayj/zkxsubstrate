@@ -262,5 +262,17 @@ pub mod pallet {
 			}
 			markets
 		}
+
+		fn get_all_markets_by_state(is_tradable: bool, is_archived: bool) -> Vec<u128> {
+			let mut markets = Vec::<u128>::new();
+			for (key, value) in MarketMap::<T>::iter() {
+				if value.market.is_tradable == is_tradable &&
+					value.market.is_archived == is_archived
+				{
+					markets.push(key);
+				}
+			}
+			markets
+		}
 	}
 }
