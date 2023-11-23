@@ -31,8 +31,6 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
-	const MILLIS_PER_SECOND: u64 = 1000;
-
 	// ////////////
 	// Constants //
 	// ////////////
@@ -48,7 +46,10 @@ pub mod pallet {
 
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
+	// Price interval with which historical prices should be stored for ABR
 	const ABR_PRICE_INTERVAL: u64 = 60;
+	// To convert milliseconds to seconds
+	const MILLIS_PER_SECOND: u64 = 1000;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -87,21 +88,6 @@ pub mod pallet {
 		HistoricalPrice,
 		ValueQuery,
 	>;
-
-	/// Vector of timestamps for which historical prices are stored
-	#[pallet::storage]
-	#[pallet::getter(fn price_timestamps)]
-	pub(super) type PriceTimestamps<T: Config> = StorageValue<_, Vec<u64>, ValueQuery>;
-
-	/// Last timestamp for which index and mark prices were stored
-	#[pallet::storage]
-	#[pallet::getter(fn last_timestamp)]
-	pub(super) type LastTimestamp<T: Config> = StorageValue<_, u64, ValueQuery>;
-
-	/// Interval with which index and mark prices need to be stored
-	#[pallet::storage]
-	#[pallet::getter(fn price_interval)]
-	pub(super) type PriceInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	/// Stores the state of ABR
 	#[pallet::storage]
@@ -427,12 +413,6 @@ pub mod pallet {
 
 			// Get the current timestamp and last timestamp for which prices were updated
 			let timestamp = timestamp / MILLIS_PER_SECOND;
-			let last_timestamp: u64 = LastTimestamp::<T>::get();
-			let price_interval: u64 = PriceInterval::<T>::get();
-
-			// Check whether historical prices needs to be updated
-			let needs_update =
-				(last_timestamp == 0) || (last_timestamp + price_interval <= timestamp);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -458,39 +438,17 @@ pub mod pallet {
 					CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
 				}
 
-				if needs_update {
-					// Update historical price
-					let historical_price = HistoricalPrice {
-						index_price: curr_market.index_price,
-						mark_price: curr_market.mark_price,
-					};
-					HistoricalPricesMap::<T>::insert(
-						timestamp,
-						curr_market.market_id,
-						historical_price,
-					);
-				}
+				// Update historical price
+				let historical_price = HistoricalPrice {
+					index_price: curr_market.index_price,
+					mark_price: curr_market.mark_price,
+				};
+				HistoricalPricesMap::<T>::insert(
+					timestamp,
+					curr_market.market_id,
+					historical_price,
+				);
 			}
-
-			if needs_update {
-				PriceTimestamps::<T>::append(timestamp);
-				LastTimestamp::<T>::put(timestamp);
-			}
-
-			Ok(())
-		}
-
-		/// update price interval with which historical prices should be stored
-		#[pallet::weight(0)]
-		pub fn update_price_interval(origin: OriginFor<T>, price_interval: u64) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			let price_interval = price_interval / MILLIS_PER_SECOND;
-
-			ensure!(price_interval > 0, Error::<T>::InvalidPriceInterval);
-
-			PriceInterval::<T>::put(price_interval);
 
 			Ok(())
 		}

@@ -89,10 +89,10 @@ impl pallet_trading_fees::Config for Test {
 }
 
 impl pallet_risk_management::Config for Test {
-	type MarketPallet = Markets;
+	type MarketPallet = MarketModule;
 	type TradingPallet = Trading;
 	type TradingAccountPallet = TradingAccounts;
-	type PricesPallet = Prices;
+	type PricesPallet = PricesModule;
 }
 
 impl pallet_trading::Config for Test {
