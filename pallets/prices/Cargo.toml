@@ -27,9 +27,6 @@ pallet-risk-management = { default-features = false, path = "../risk-management"
 pallet-trading = { default-features = false, path = "../trading" }
 pallet-trading-fees = { default-features = false, path = "../trading-fees" }
 pallet-trading-account = { default-features = false, path = "../trading-account" }
-pallet-trading = { default-features = false, path = "../trading" }
-pallet-risk-management = { default-features = false, path = "../risk-management" }
-pallet-trading-fees = { default-features = false, path = "../trading-fees" }
 
 [features]
 default = ["std"]

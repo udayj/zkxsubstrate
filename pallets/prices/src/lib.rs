@@ -24,7 +24,7 @@ pub mod pallet {
 			TradingAccountInterface, TradingInterface,
 		},
 		types::{
-			ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
+			ABRDetails, ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
 			LastTradedPrice, MultiplePrices, PositionExtended,
 		},
 	};
@@ -971,10 +971,46 @@ pub mod pallet {
 			}
 		}
 
+		fn get_remaining_pay_abr_calls() -> u128 {
+			let current_epoch = AbrEpoch::<T>::get();
+			let no_of_batches = NoOfBatchesForEpochMap::<T>::get(current_epoch);
+			let batches_fetched: u128 = BatchesFetchedForEpochMap::<T>::get(current_epoch).into();
+
+			match AbrState::<T>::get() {
+				ABRState::State2 => no_of_batches - batches_fetched,
+				_ => 0,
+			}
+		}
+
 		fn get_next_abr_timestamp() -> u64 {
 			let current_abr_interval = AbrInterval::<T>::get();
 			let last_timestamp = Self::get_last_abr_timestamp();
 			last_timestamp + current_abr_interval
+		}
+
+		fn get_previous_abr_values(
+			starting_epoch: u64,
+			market_id: u128,
+			n: u64,
+		) -> Vec<ABRDetails> {
+			let mut abr_details = Vec::<ABRDetails>::new();
+			let current_epoch = AbrEpoch::<T>::get();
+			if (n == 0) || (current_epoch <= 1) {
+				return abr_details
+			}
+
+			let mut epoch_iterator = starting_epoch;
+			for iterator in 0..n {
+				if current_epoch <= epoch_iterator {
+					return abr_details
+				}
+
+				let abr_value = EpochMarketToAbrValueMap::<T>::get(epoch_iterator, market_id);
+				let abr_timestamp = EpochToTimestampMap::<T>::get(epoch_iterator);
+				abr_details.push(ABRDetails { abr_value, abr_timestamp });
+				epoch_iterator += 1;
+			}
+			abr_details
 		}
 	}
 }

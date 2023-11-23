@@ -1,5 +1,5 @@
 use crate::types::{
-	ABRState, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
+	ABRDetails, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
 	ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved,
 	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded,
 	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
@@ -108,6 +108,8 @@ pub trait PricesInterface {
 	fn get_no_of_batches_for_current_epoch() -> u128;
 	fn get_last_abr_timestamp() -> u64;
 	fn get_next_abr_timestamp() -> u64;
+	fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails>;
+	fn get_remaining_pay_abr_calls() -> u128;
 }
 
 pub trait FixedI128Ext {
