@@ -125,7 +125,7 @@ pub mod pallet {
 	#[pallet::getter(fn batches_fetched_for_epoch)]
 	/// key - Epoch, value - No.of batches fetched
 	pub(super) type BatchesFetchedForEpochMap<T: Config> =
-		StorageMap<_, Twox64Concat, u64, u64, ValueQuery>;
+		StorageMap<_, Twox64Concat, u64, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_market_to_abr_value)]
@@ -179,7 +179,7 @@ pub mod pallet {
 		/// ABR value set successfully
 		AbrValueSet { epoch: u64, market_id: u128, abr_value: FixedI128, abr_last_price: FixedI128 },
 		/// ABR payment made successfully
-		AbrPaymentMade { epoch: u64, batch_id: u64 },
+		AbrPaymentMade { epoch: u64, batch_id: u128 },
 	}
 
 	// Pallet callable functions
@@ -655,9 +655,9 @@ pub mod pallet {
 			let no_of_batches = NoOfBatchesForEpochMap::<T>::get(current_epoch);
 
 			// Get the lower index of the batch
-			let lower_limit = batches_fetched as u128 * no_of_users_per_batch;
+			let lower_limit = batches_fetched * no_of_users_per_batch;
 			// Get the upper index of the batch
-			let upper_limit = lower_limit as u128 + no_of_users_per_batch;
+			let upper_limit = lower_limit + no_of_users_per_batch;
 
 			// Fetch the required batch from Trading account pallet
 			let account_list = T::TradingAccountPallet::get_account_list(lower_limit, upper_limit);
