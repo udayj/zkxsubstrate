@@ -36,6 +36,8 @@ pub mod pallet {
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
 
+	const ABR_PRICE_INTERVAL: u64 = 60;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -104,6 +106,11 @@ pub mod pallet {
 	#[pallet::getter(fn abr_interval)]
 	pub(super) type AbrInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	/// Interval with which index and mark prices need to be fetched for computing ABR
+	#[pallet::storage]
+	#[pallet::getter(fn abr_price_interval)]
+	pub(super) type AbrPriceInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	/// Stores the no of users per batch
 	#[pallet::storage]
 	#[pallet::getter(fn users_per_batch)]
@@ -165,6 +172,8 @@ pub mod pallet {
 		AbrValueAlreadySet,
 		/// When market provided is not tradable
 		MarketNotTradable,
+		/// When interval provided for setting ABR price is invalid
+		InvalidAbrPriceInterval,
 	}
 
 	#[pallet::event]
@@ -197,6 +206,25 @@ pub mod pallet {
 			AbrInterval::<T>::put(new_abr_interval);
 			Ok(())
 		}
+
+		/// External function to be called for setting ABR price interval
+		#[pallet::weight(0)]
+		pub fn set_abr_price_interval(
+			origin: OriginFor<T>,
+			abr_price_interval: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let abr_price_interval = abr_price_interval / MILLIS_PER_SECOND;
+
+			//  ABR price interval must be > 0
+			ensure!(abr_price_interval > 0, Error::<T>::InvalidAbrPriceInterval);
+
+			AbrPriceInterval::<T>::put(abr_price_interval);
+			Ok(())
+		}
+
 		/// External function to be called for setting no.of users per batch
 		#[pallet::weight(0)]
 		pub fn set_no_of_users_per_batch(
@@ -290,6 +318,9 @@ pub mod pallet {
 
 			// Check if the market's abr is already set
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
+
+			// Fetch index and mark prices
+			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
 
 			// Calculate ABR
 			let (abr_value, abr_last_price) = Self::calculate_abr_test(market_id);
@@ -756,6 +787,29 @@ pub mod pallet {
 					}
 				}
 			}
+		}
+
+		pub fn get_prices_for_abr(market_id: u128) -> (Vec<FixedI128>, Vec<FixedI128>) {
+			let mut index_prices = Vec::<FixedI128>::new();
+			let mut mark_prices = Vec::<FixedI128>::new();
+
+			let current_epoch = AbrEpoch::<T>::get();
+			let epoch_start_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+			let abr_interval = AbrInterval::<T>::get();
+			let epoch_end_timestamp = epoch_start_timestamp + abr_interval;
+			let mut timestamp = epoch_start_timestamp;
+
+			while timestamp <= epoch_end_timestamp {
+				let price = HistoricalPricesMap::<T>::get(timestamp, market_id);
+				if price.index_price != FixedI128::zero() && price.mark_price != FixedI128::zero() {
+					index_prices.push(price.index_price);
+					mark_prices.push(price.mark_price);
+					timestamp += ABR_PRICE_INTERVAL;
+				} else {
+					timestamp += 1;
+				}
+			}
+			(index_prices, mark_prices)
 		}
 
 		pub fn calculate_abr(
