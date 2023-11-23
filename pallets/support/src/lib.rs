@@ -24,10 +24,7 @@ pub mod helpers {
 	use frame_support::dispatch::Vec;
 	use itertools::fold;
 	use primitive_types::U256;
-	use sp_arithmetic::{
-		fixed_point::FixedI128,
-		traits::{One, Zero},
-	};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	use starknet_crypto::pedersen_hash;
 
 	// Function to perform pedersen hash of an array of field elements
@@ -69,10 +66,6 @@ pub mod helpers {
 		}
 	}
 
-	fn factorial(n: u64) -> FixedI128 {
-		(1..=n).fold(FixedI128::one(), |acc, x| acc * FixedI128::from(x as i128))
-	}
-
 	pub fn fixed_pow(base: FixedI128, exp: u64) -> FixedI128 {
 		if exp == 0 {
 			// Anything raised to the power of 0 is 1
@@ -96,20 +89,8 @@ pub mod helpers {
 		result
 	}
 
-	fn power_series(x: FixedI128, terms: u64) -> FixedI128 {
-		(0..terms).fold(FixedI128::zero(), |acc, i| {
-			let term = fixed_pow(x, i) / factorial(i);
-			acc + term
-		})
-	}
-
 	pub fn ln(x: FixedI128) -> FixedI128 {
-		if x <= FixedI128::zero() {
-			// Logarithm is undefined for non-positive numbers
-			panic!("Natural logarithm is undefined for non-positive numbers.");
-		}
-
-		// ln(x) = (x - 1) - (x - 1)^2/2 + (x - 1)^3/3 - (x - 1)^4/4 + ...
-		(x - FixedI128::one()) * power_series((x - FixedI128::one()) / x, 10_u64)
+		let ln_f64 = x.to_float().ln();
+		FixedI128::from((ln_f64 * 10_u128.pow(18) as f64) as i128)
 	}
 }

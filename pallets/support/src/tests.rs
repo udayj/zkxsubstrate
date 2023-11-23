@@ -1,13 +1,13 @@
 use crate::{
 	ecdsa_verify,
-	helpers::{ln, pedersen_hash_multiple},
+	helpers::pedersen_hash_multiple,
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
-use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+use sp_arithmetic::fixed_point::FixedI128;
 use starknet_core::crypto::ecdsa_sign;
 use starknet_crypto::{get_public_key, pedersen_hash};
 use starknet_ff::FieldElement;

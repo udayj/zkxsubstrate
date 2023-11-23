@@ -3,6 +3,10 @@ use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_market;
 use pallet_timestamp;
+use pallet_trading;
+use pallet_trading_account;
+use pallet_risk_management;
+use pallet_trading_fees;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -19,7 +23,11 @@ frame_support::construct_runtime!(
 		PricesModule: pallet_prices,
 		MarketModule: pallet_market,
 		Timestamp: pallet_timestamp,
-		AssetModule: pallet_asset
+		AssetModule: pallet_asset,
+		TradingAccountPallet: pallet_trading_account,
+		TradingModule: pallet_trading,
+		RiskManagementModule: pallet_risk_management,
+		TradingFeesModule: pallet_trading_fees
 	}
 );
 
@@ -58,6 +66,17 @@ impl pallet_market::Config for Test {
 	type AssetPallet = AssetModule;
 }
 
+impl pallet_risk_management::Config for Test {
+	type MarketPallet = MarketModule;
+	type TradingPallet = TradingModule;
+	type TradingAccountPallet = TradingAccountPallet;
+	type PricesPallet = PricesModule;
+}
+
+impl pallet_trading_fees::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+}
+
 impl pallet_timestamp::Config for Test {
 	type Moment = u64;
 	type OnTimestampSet = ();
@@ -65,10 +84,30 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
+impl pallet_trading::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = AssetModule;
+	type MarketPallet = MarketModule;
+	type PricesPallet = PricesModule;
+	type RiskManagementPallet = RiskManagementModule;
+	type TradingAccountPallet = TradingAccountPallet;
+	type TradingFeesPallet = TradingFeesModule;
+	type TimeProvider = Timestamp;
+}
+
 impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MarketPallet = MarketModule;
 	type TimeProvider = Timestamp;
+	type TradingAccountPallet = TradingAccountPallet;
+}
+
+impl pallet_trading_account::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = AssetModule;
+	type MarketPallet = MarketModule;
+	type PricesPallet = PricesModule;
+	type TradingPallet = TradingModule;
 }
 
 // Build genesis storage according to the mock runtime.

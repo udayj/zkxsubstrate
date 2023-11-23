@@ -1,30 +1,48 @@
-use crate::{mock::*, Event};
+use crate::mock::*;
 use frame_support::assert_ok;
 use pallet_support::{
 	test_helpers::{
 		asset_helper::{eth, link, usdc},
 		market_helper::{eth_usdc, link_usdc},
 	},
-	types::{ExtendedMarket, MultiplePrices},
+	types::MultiplePrices,
 };
-use sp_arithmetic::FixedI128;
+use sp_arithmetic::fixed_point::FixedI128;
 
-fn setup() -> (ExtendedMarket, ExtendedMarket) {
-	assert_ok!(Timestamp::set(None.into(), 1699940367000));
+// declare test_helper module
+pub mod test_helper;
+use test_helper::*;
+
+fn setup() -> sp_io::TestExternalities {
+	// Create a new test environment
+	let mut test_env = new_test_ext();
+
 	let assets = vec![eth(), usdc(), link()];
-	assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
 
-	(eth_usdc(), link_usdc())
+	// Set the signers using admin account
+	test_env.execute_with(|| {
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
+		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+	});
+
+	test_env.into()
 }
 
 #[test]
 fn test_update_prices() {
-	new_test_ext().execute_with(|| {
-		let (market1, market2) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
+	// Get a test environment
+	let mut env = setup();
+
+	// test variables
+	let market1 = eth_usdc();
+	let market2 = link_usdc();
+
+	env.execute_with(|| {
 		// Dispatch a signed extrinsic.
-		let markets = vec![market1.clone(), market2.clone()];
+		let markets = vec![eth_usdc(), link_usdc()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -32,7 +50,7 @@ fn test_update_prices() {
 			index_price: 102.into(),
 			mark_price: 100.into(),
 		};
-		let mark_price2 = MultiplePrices {
+		let mark_price2: MultiplePrices = MultiplePrices {
 			market_id: market2.market.id,
 			index_price: 199.into(),
 			mark_price: 200.into(),
@@ -57,13 +75,17 @@ fn test_update_prices() {
 
 #[test]
 fn test_historical_prices() {
-	new_test_ext().execute_with(|| {
-		let (market1, market2) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
+	// Get a test environment
+	let mut env = setup();
+
+	// test variables
+	let market1 = eth_usdc();
+	let market2 = link_usdc();
+
+	env.execute_with(|| {
 		Timestamp::set_timestamp(1702359600000);
 
-		let markets = vec![market1.clone(), market2.clone()];
+		let markets = vec![eth_usdc(), link_usdc()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
 
 		assert_ok!(PricesModule::update_price_interval(RuntimeOrigin::signed(1), 60000));
@@ -199,5 +221,161 @@ fn test_historical_prices() {
 
 		let last_timestamp = PricesModule::last_timestamp();
 		assert_eq!(1702359661, last_timestamp);
+	});
+}
+
+#[test]
+fn test_abr_calculation_eth_usdc_1() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_eth_usdc_prices_1();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(4.577354961709272e-05),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_calculation_eth_usdc_2() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_eth_usdc_prices_2();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(4.492383850355448e-05),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_calculation_btc_usdc_1() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_1();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(8.83808701975073e-05),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_calculation_btc_usdc_2() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_2();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(0.0011603379908277198),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_calculation_btc_usdt_1() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdt_prices_1();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(-0.0002730150595400045),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_calculation_btc_usdt_2() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdt_prices_2();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result,
+			convert_to_fixed(-0.0009117240376668166),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
+fn test_abr_different_length() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_eth_usdc_prices_1();
+		let lengths: Vec<usize> = (0..16).map(|x| 30 + x * 30).collect();
+		let expected_results = mock_prices::expected_prices_eth_usdc_1();
+
+		for iterator in 0..16 {
+			let result = PricesModule::calculate_abr(
+				mark_prices[0..lengths[iterator]].to_vec(),
+				index_prices[0..lengths[iterator]].to_vec(),
+				convert_to_fixed(0.000025_f64),
+				convert_to_fixed(1.5),
+				8_usize,
+			);
+
+			compare_with_threshold(result, expected_results[iterator], convert_to_fixed(1e-10));
+		}
 	});
 }
