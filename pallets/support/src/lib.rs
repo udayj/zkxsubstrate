@@ -71,7 +71,7 @@ pub mod helpers {
 	pub fn fixed_pow(base: FixedI128, exp: u64) -> FixedI128 {
 		if exp == 0 {
 			// Anything raised to the power of 0 is 1
-			return FixedI128::one();
+			return FixedI128::one()
 		}
 
 		let mut result = FixedI128::one();

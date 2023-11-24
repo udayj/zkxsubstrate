@@ -33,9 +33,21 @@ pub mod pallet {
 
 	const MILLIS_PER_SECOND: u64 = 1000;
 
+	// ////////////
+	// Constants //
+	// ////////////
+
+	// To do checks for bollinger width
+	const BOLLINGER_WIDTH_15: FixedI128 = FixedI128::from_inner(1500000000000000000);
+	const BOLLINGER_WIDTH_20: FixedI128 = FixedI128::from_inner(2000000000000000000);
+	const BOLLINGER_WIDTH_25: FixedI128 = FixedI128::from_inner(2500000000000000000);
+
+	// To do checks for base_abr_rate
+	const BASE_ABR_MIN: FixedI128 = FixedI128::from_inner(12500000000000);
+	const BASE_ABR_MAX: FixedI128 = FixedI128::from_inner(100000000000000);
+
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
-
 	const ABR_PRICE_INTERVAL: u64 = 60;
 
 	#[pallet::pallet]
@@ -106,11 +118,6 @@ pub mod pallet {
 	#[pallet::getter(fn abr_interval)]
 	pub(super) type AbrInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
 
-	/// Interval with which index and mark prices need to be fetched for computing ABR
-	#[pallet::storage]
-	#[pallet::getter(fn abr_price_interval)]
-	pub(super) type AbrPriceInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
-
 	/// Stores the no of users per batch
 	#[pallet::storage]
 	#[pallet::getter(fn users_per_batch)]
@@ -152,6 +159,16 @@ pub mod pallet {
 	pub(super) type AbrMarketStatusMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, u64, Blake2_128Concat, u128, bool, ValueQuery>;
 
+	/// Stores the base ABR
+	#[pallet::storage]
+	#[pallet::getter(fn base_abr)]
+	pub(super) type BaseAbr<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
+	/// Stores the bollinger width
+	#[pallet::storage]
+	#[pallet::getter(fn bollinger_width)]
+	pub(super) type BollingerWidth<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Invalid value for price
@@ -174,6 +191,10 @@ pub mod pallet {
 		MarketNotTradable,
 		/// When interval provided for setting ABR price is invalid
 		InvalidAbrPriceInterval,
+		/// When Base ABR provided is not within the range
+		InvalidBaseAbr,
+		/// When bollinger width provided is invalid
+		InvalidBollingerWidth,
 	}
 
 	#[pallet::event]
@@ -207,21 +228,43 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// External function to be called for setting ABR price interval
+		/// External function to be called for setting base ABR
 		#[pallet::weight(0)]
-		pub fn set_abr_price_interval(
+		pub fn set_base_abr(origin: OriginFor<T>, new_base_abr: FixedI128) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			//  Base ABR must be >= BASE_ABR_MIN and <= BASE_ABR_MAX
+			ensure!(
+				(new_base_abr <= BASE_ABR_MAX) && (new_base_abr >= BASE_ABR_MIN),
+				Error::<T>::InvalidBaseAbr
+			);
+
+			BaseAbr::<T>::put(new_base_abr);
+			Ok(())
+		}
+
+		/// External function to be called for setting bollinger width
+		#[pallet::weight(0)]
+		pub fn set_bollinger_width(
 			origin: OriginFor<T>,
-			abr_price_interval: u64,
+			new_bollinger_width: FixedI128,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
-			let abr_price_interval = abr_price_interval / MILLIS_PER_SECOND;
+			let is_valid: bool;
+			if (new_bollinger_width == BOLLINGER_WIDTH_15) ||
+				(new_bollinger_width == BOLLINGER_WIDTH_20) ||
+				(new_bollinger_width == BOLLINGER_WIDTH_25)
+			{
+				is_valid = true;
+			} else {
+				is_valid = false;
+			}
+			ensure!(is_valid, Error::<T>::InvalidBollingerWidth);
 
-			//  ABR price interval must be > 0
-			ensure!(abr_price_interval > 0, Error::<T>::InvalidAbrPriceInterval);
-
-			AbrPriceInterval::<T>::put(abr_price_interval);
+			BollingerWidth::<T>::put(new_bollinger_width);
 			Ok(())
 		}
 
@@ -322,8 +365,13 @@ pub mod pallet {
 			// Fetch index and mark prices
 			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
 
+			// Fetch base ABR and bollinger width
+			let base_abr = BaseAbr::<T>::get();
+			let bollinger_width = BollingerWidth::<T>::get();
+
 			// Calculate ABR
-			let (abr_value, abr_last_price) = Self::calculate_abr_test(market_id);
+			let (abr_value, abr_last_price) =
+				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 
 			// Set the market's ABR value as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
@@ -496,10 +544,6 @@ pub mod pallet {
 			} else {
 				return q + 1
 			}
-		}
-
-		fn calculate_abr_test(_market_id: u128) -> (FixedI128, FixedI128) {
-			return (FixedI128::zero(), FixedI128::zero())
 		}
 
 		fn check_abr_markets_status(epoch: u64) {
@@ -818,7 +862,7 @@ pub mod pallet {
 			base_abr_rate: FixedI128,
 			boll_width: FixedI128,
 			window: usize,
-		) -> FixedI128 {
+		) -> (FixedI128, FixedI128) {
 			// Calculate the sliding mean of mark_prices
 			let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
 
@@ -843,7 +887,12 @@ pub mod pallet {
 			);
 
 			// Find the effective ABR
-			Self::calculate_effective_abr(&jumps_array) + base_abr_rate
+			let abr_value = Self::calculate_effective_abr(&jumps_array) + base_abr_rate;
+			let mut abr_last_price: FixedI128 = FixedI128::zero();
+			if mark_prices.len() != 0 {
+				abr_last_price = mark_prices[mark_prices.len() - 1];
+			}
+			return (abr_value, abr_last_price)
 		}
 	}
 
