@@ -29,7 +29,7 @@ pub mod pallet {
 		},
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedI128};
 
 	const MILLIS_PER_SECOND: u64 = 1000;
 
@@ -797,35 +797,15 @@ pub mod pallet {
 						// If the abr is negative
 						if abr_value <= FixedI128::zero() {
 							if position.direction == Direction::Short {
-								T::TradingAccountPallet::transfer_from(
-									user,
-									collateral,
-									payment_amount,
-									BalanceChangeReason::ABR,
-								);
+								Self::user_pays(user, collateral, payment_amount);
 							} else {
-								T::TradingAccountPallet::transfer(
-									user,
-									collateral,
-									payment_amount,
-									BalanceChangeReason::ABR,
-								);
+								Self::user_receives(user, collateral, payment_amount);
 							}
 						} else {
 							if position.direction == Direction::Short {
-								T::TradingAccountPallet::transfer(
-									user,
-									collateral,
-									payment_amount,
-									BalanceChangeReason::ABR,
-								);
+								Self::user_receives(user, collateral, payment_amount);
 							} else {
-								T::TradingAccountPallet::transfer_from(
-									user,
-									collateral,
-									payment_amount,
-									BalanceChangeReason::ABR,
-								);
+								Self::user_pays(user, collateral, payment_amount);
 							}
 						}
 					}
@@ -893,6 +873,24 @@ pub mod pallet {
 				abr_last_price = mark_prices[mark_prices.len() - 1];
 			}
 			return (abr_value, abr_last_price)
+		}
+
+		pub fn user_pays(user: U256, collateral: u128, payment_amount: FixedI128) {
+			T::TradingAccountPallet::transfer_from(
+				user,
+				collateral,
+				payment_amount,
+				BalanceChangeReason::ABR,
+			);
+		}
+
+		pub fn user_receives(user: U256, collateral: u128, payment_amount: FixedI128) {
+			T::TradingAccountPallet::transfer(
+				user,
+				collateral,
+				payment_amount,
+				BalanceChangeReason::ABR,
+			);
 		}
 	}
 
