@@ -98,6 +98,7 @@ pub enum BalanceChangeReason {
 	PnlRealization,
 	Withdrawal,
 	WithdrawalFee,
+	ABR,
 }
 
 #[derive(
@@ -242,6 +243,7 @@ impl From<BalanceChangeReason> for u8 {
 			BalanceChangeReason::PnlRealization => 4_u8,
 			BalanceChangeReason::Withdrawal => 5_u8,
 			BalanceChangeReason::WithdrawalFee => 6_u8,
+			BalanceChangeReason::ABR => 7_u8,
 		}
 	}
 }

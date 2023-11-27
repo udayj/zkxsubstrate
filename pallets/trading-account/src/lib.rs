@@ -895,5 +895,9 @@ pub mod pallet {
 		fn get_accounts_count() -> u128 {
 			AccountsCount::<T>::get()
 		}
+
+		fn get_collaterals_of_user(account_id: U256) -> Vec<u128> {
+			AccountCollateralsMap::<T>::get(account_id)
+		}
 	}
 }

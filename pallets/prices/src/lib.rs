@@ -11,19 +11,44 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{DispatchResult, *},
+		traits::UnixTime,
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
-		traits::{MarketInterface, PricesInterface, TradingAccountInterface},
-		types::{ABRState, CurrentPrice, HistoricalPrice, LastTradedPrice, MultiplePrices},
+		traits::{
+			AssetInterface, FixedI128Ext, MarketInterface, PricesInterface,
+			TradingAccountInterface, TradingInterface,
+		},
+		types::{
+			ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
+			LastTradedPrice, MultiplePrices, PositionExtended,
+		},
 	};
+	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	const MILLIS_PER_SECOND: u64 = 1000;
 
+	// ////////////
+	// Constants //
+	// ////////////
+
+	// To do checks for bollinger width
+	const BOLLINGER_WIDTH_15: FixedI128 = FixedI128::from_inner(1500000000000000000);
+	const BOLLINGER_WIDTH_20: FixedI128 = FixedI128::from_inner(2000000000000000000);
+	const BOLLINGER_WIDTH_25: FixedI128 = FixedI128::from_inner(2500000000000000000);
+
+	// To do checks for base_abr_rate
+	const BASE_ABR_MIN: FixedI128 = FixedI128::from_inner(12500000000000);
+	const BASE_ABR_MAX: FixedI128 = FixedI128::from_inner(100000000000000);
+
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
+	const ABR_PRICE_INTERVAL: u64 = 60;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -31,8 +56,10 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
+		type TradingPallet: TradingInterface;
 		type TimeProvider: UnixTime;
 	}
 
@@ -112,7 +139,7 @@ pub mod pallet {
 	#[pallet::getter(fn batches_fetched_for_epoch)]
 	/// key - Epoch, value - No.of batches fetched
 	pub(super) type BatchesFetchedForEpochMap<T: Config> =
-		StorageMap<_, Twox64Concat, u64, u64, ValueQuery>;
+		StorageMap<_, Twox64Concat, u64, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_market_to_abr_value)]
@@ -131,6 +158,16 @@ pub mod pallet {
 	/// key1 - Epoch, Key2 - Market_id, value - Status of the market
 	pub(super) type AbrMarketStatusMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, u64, Blake2_128Concat, u128, bool, ValueQuery>;
+
+	/// Stores the base ABR
+	#[pallet::storage]
+	#[pallet::getter(fn base_abr)]
+	pub(super) type BaseAbr<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
+	/// Stores the bollinger width
+	#[pallet::storage]
+	#[pallet::getter(fn bollinger_width)]
+	pub(super) type BollingerWidth<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -152,6 +189,12 @@ pub mod pallet {
 		AbrValueAlreadySet,
 		/// When market provided is not tradable
 		MarketNotTradable,
+		/// When interval provided for setting ABR price is invalid
+		InvalidAbrPriceInterval,
+		/// When Base ABR provided is not within the range
+		InvalidBaseAbr,
+		/// When bollinger width provided is invalid
+		InvalidBollingerWidth,
 	}
 
 	#[pallet::event]
@@ -165,6 +208,8 @@ pub mod pallet {
 		AbrStateChanged { epoch: u64, state: ABRState },
 		/// ABR value set successfully
 		AbrValueSet { epoch: u64, market_id: u128, abr_value: FixedI128, abr_last_price: FixedI128 },
+		/// ABR payment made successfully
+		AbrPaymentMade { epoch: u64, batch_id: u128 },
 	}
 
 	// Pallet callable functions
@@ -182,6 +227,47 @@ pub mod pallet {
 			AbrInterval::<T>::put(new_abr_interval);
 			Ok(())
 		}
+
+		/// External function to be called for setting base ABR
+		#[pallet::weight(0)]
+		pub fn set_base_abr(origin: OriginFor<T>, new_base_abr: FixedI128) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			//  Base ABR must be >= BASE_ABR_MIN and <= BASE_ABR_MAX
+			ensure!(
+				(new_base_abr <= BASE_ABR_MAX) && (new_base_abr >= BASE_ABR_MIN),
+				Error::<T>::InvalidBaseAbr
+			);
+
+			BaseAbr::<T>::put(new_base_abr);
+			Ok(())
+		}
+
+		/// External function to be called for setting bollinger width
+		#[pallet::weight(0)]
+		pub fn set_bollinger_width(
+			origin: OriginFor<T>,
+			new_bollinger_width: FixedI128,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let is_valid: bool;
+			if (new_bollinger_width == BOLLINGER_WIDTH_15) ||
+				(new_bollinger_width == BOLLINGER_WIDTH_20) ||
+				(new_bollinger_width == BOLLINGER_WIDTH_25)
+			{
+				is_valid = true;
+			} else {
+				is_valid = false;
+			}
+			ensure!(is_valid, Error::<T>::InvalidBollingerWidth);
+
+			BollingerWidth::<T>::put(new_bollinger_width);
+			Ok(())
+		}
+
 		/// External function to be called for setting no.of users per batch
 		#[pallet::weight(0)]
 		pub fn set_no_of_users_per_batch(
@@ -249,7 +335,7 @@ pub mod pallet {
 			// Emit ABR state changed event
 			Self::deposit_event(Event::AbrStateChanged {
 				epoch: new_epoch,
-				state: ABRState::State0,
+				state: ABRState::State1,
 			});
 
 			Ok(())
@@ -276,8 +362,16 @@ pub mod pallet {
 			// Check if the market's abr is already set
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
 
+			// Fetch index and mark prices
+			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
+
+			// Fetch base ABR and bollinger width
+			let base_abr = BaseAbr::<T>::get();
+			let bollinger_width = BollingerWidth::<T>::get();
+
 			// Calculate ABR
-			let (abr_value, abr_last_price) = Self::calculate_abr_test(market_id);
+			let (abr_value, abr_last_price) =
+				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 
 			// Set the market's ABR value as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
@@ -298,6 +392,27 @@ pub mod pallet {
 
 			// Check if all markets are set, if yes change the state
 			Self::check_abr_markets_status(current_epoch);
+
+			Ok(())
+		}
+
+		/// External function to be called for making ABR payments
+		#[pallet::weight(0)]
+		pub fn make_abr_payments(origin: OriginFor<T>) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// Get current state, epoch and timestamp
+			let current_state = AbrState::<T>::get();
+			let current_epoch = AbrEpoch::<T>::get();
+			let current_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+
+			// ABR must be in state 2
+			ensure!(current_state == ABRState::State2, Error::<T>::InvalidState);
+
+			let users_list = Self::get_current_batch(current_epoch);
+
+			Self::pay_abr(current_epoch, users_list, current_timestamp);
 
 			Ok(())
 		}
@@ -431,10 +546,6 @@ pub mod pallet {
 			}
 		}
 
-		fn calculate_abr_test(_market_id: u128) -> (FixedI128, FixedI128) {
-			return (FixedI128::zero(), FixedI128::zero())
-		}
-
 		fn check_abr_markets_status(epoch: u64) {
 			// get all the markets available in the system
 			let markets = T::MarketPallet::get_all_markets();
@@ -524,7 +635,7 @@ pub mod pallet {
 
 			// Handle Edge case
 			if total_len == 0 {
-				return FixedI128::zero();
+				return FixedI128::zero()
 			}
 
 			// Find the sum of square of differences from mean
@@ -553,7 +664,7 @@ pub mod pallet {
 
 			// Handle Edge case
 			if total_len == 0 || window == 0 {
-				return (upper_band, lower_band);
+				return (upper_band, lower_band)
 			}
 
 			for iterator in 0..total_len {
@@ -583,7 +694,7 @@ pub mod pallet {
 
 			// Handle Edge case
 			if total_len == 0 || window == 0 {
-				return result;
+				return result
 			}
 
 			// Initialize window_sum and convert window size to FixedI128
@@ -612,13 +723,126 @@ pub mod pallet {
 			result
 		}
 
+		pub fn get_current_batch(current_epoch: u64) -> Vec<U256> {
+			// Get the current batch details
+			let no_of_users_per_batch = UsersPerBatch::<T>::get();
+			let batches_fetched = BatchesFetchedForEpochMap::<T>::get(current_epoch);
+			let no_of_batches = NoOfBatchesForEpochMap::<T>::get(current_epoch);
+
+			// Get the lower index of the batch
+			let lower_limit = batches_fetched * no_of_users_per_batch;
+			// Get the upper index of the batch
+			let upper_limit = lower_limit + no_of_users_per_batch;
+
+			// Fetch the required batch from Trading account pallet
+			let account_list = T::TradingAccountPallet::get_account_list(lower_limit, upper_limit);
+
+			// Increment batches_fetched
+			let new_batches_fetched = batches_fetched + 1;
+			BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
+
+			// Emit ABR Payment made event
+			Self::deposit_event(Event::AbrPaymentMade {
+				epoch: current_epoch,
+				batch_id: batches_fetched,
+			});
+
+			// If all batches are fetched, increment state and epoch
+			if new_batches_fetched as u128 == no_of_batches {
+				// Emit ABR state changed event
+				Self::deposit_event(Event::AbrStateChanged {
+					epoch: current_epoch,
+					state: ABRState::State0,
+				});
+				AbrState::<T>::put(ABRState::State0);
+				AbrEpoch::<T>::put(current_epoch + 1);
+			}
+			account_list
+		}
+
+		pub fn pay_abr(epoch: u64, users_list: Vec<U256>, timestamp: u64) {
+			for user in users_list {
+				// Get all collaterals in the system
+				let collaterals = T::TradingAccountPallet::get_collaterals_of_user(user);
+				// Iterate through all collaterals
+				for collateral in collaterals {
+					// Get all the open positions of the user
+					let mut positions: Vec<PositionExtended> =
+						T::TradingPallet::get_positions(user, collateral);
+					// Sort the positions which are within the timestamp
+					positions.retain(|position: &PositionExtended| {
+						position.created_timestamp <= timestamp
+					});
+
+					// Iterate through all open positions
+					for position in positions {
+						// This will always fit in u128
+						let market_id: u128 = position.market_id.try_into().unwrap();
+						let collateral_asset = T::AssetPallet::get_asset(collateral).unwrap();
+						let collateral_token_decimal = collateral_asset.decimals;
+
+						// Get the abr value
+						let abr_value = EpochMarketToAbrValueMap::<T>::get(epoch, market_id);
+
+						// Get the abr last price
+						let abr_last_price = EpochMarketToLastPriceMap::<T>::get(epoch, market_id);
+
+						// Find if the abr_rate is +ve or -ve
+						let mut payment_amount = abr_value * abr_last_price * position.size;
+						if payment_amount < FixedI128::zero() {
+							payment_amount.neg();
+						};
+						payment_amount =
+							payment_amount.round_to_precision(collateral_token_decimal.into());
+						// If the abr is negative
+						if abr_value <= FixedI128::zero() {
+							if position.direction == Direction::Short {
+								Self::user_pays(user, collateral, payment_amount);
+							} else {
+								Self::user_receives(user, collateral, payment_amount);
+							}
+						} else {
+							if position.direction == Direction::Short {
+								Self::user_receives(user, collateral, payment_amount);
+							} else {
+								Self::user_pays(user, collateral, payment_amount);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		pub fn get_prices_for_abr(market_id: u128) -> (Vec<FixedI128>, Vec<FixedI128>) {
+			let mut index_prices = Vec::<FixedI128>::new();
+			let mut mark_prices = Vec::<FixedI128>::new();
+
+			let current_epoch = AbrEpoch::<T>::get();
+			let epoch_start_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+			let abr_interval = AbrInterval::<T>::get();
+			let epoch_end_timestamp = epoch_start_timestamp + abr_interval;
+			let mut timestamp = epoch_start_timestamp;
+
+			while timestamp <= epoch_end_timestamp {
+				let price = HistoricalPricesMap::<T>::get(timestamp, market_id);
+				if price.index_price != FixedI128::zero() && price.mark_price != FixedI128::zero() {
+					index_prices.push(price.index_price);
+					mark_prices.push(price.mark_price);
+					timestamp += ABR_PRICE_INTERVAL;
+				} else {
+					timestamp += 1;
+				}
+			}
+			(index_prices, mark_prices)
+		}
+
 		pub fn calculate_abr(
 			mark_prices: Vec<FixedI128>,
 			index_prices: Vec<FixedI128>,
 			base_abr_rate: FixedI128,
 			boll_width: FixedI128,
 			window: usize,
-		) -> FixedI128 {
+		) -> (FixedI128, FixedI128) {
 			// Calculate the sliding mean of mark_prices
 			let mean_prices = Self::calculate_sliding_mean(&mark_prices, window);
 
@@ -643,7 +867,30 @@ pub mod pallet {
 			);
 
 			// Find the effective ABR
-			Self::calculate_effective_abr(&jumps_array) + base_abr_rate
+			let abr_value = Self::calculate_effective_abr(&jumps_array) + base_abr_rate;
+			let mut abr_last_price: FixedI128 = FixedI128::zero();
+			if mark_prices.len() != 0 {
+				abr_last_price = mark_prices[mark_prices.len() - 1];
+			}
+			return (abr_value, abr_last_price)
+		}
+
+		pub fn user_pays(user: U256, collateral: u128, payment_amount: FixedI128) {
+			T::TradingAccountPallet::transfer_from(
+				user,
+				collateral,
+				payment_amount,
+				BalanceChangeReason::ABR,
+			);
+		}
+
+		pub fn user_receives(user: U256, collateral: u128, payment_amount: FixedI128) {
+			T::TradingAccountPallet::transfer(
+				user,
+				collateral,
+				payment_amount,
+				BalanceChangeReason::ABR,
+			);
 		}
 	}
 
