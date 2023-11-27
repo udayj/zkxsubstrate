@@ -85,7 +85,6 @@ std = [
 	"pallet-asset/std",
 	"pallet-market/std",
 	"pallet-prices/std",
-	"pallet-support/std",
 	"pallet-sync-facade/std",
 	"pallet-timestamp/std",
 	"pallet-trading/std",

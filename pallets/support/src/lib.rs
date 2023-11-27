@@ -21,8 +21,10 @@ pub mod test_helpers;
 pub mod helpers {
 	use super::{FieldElement, FromByteSliceError};
 	use crate::traits::U256Ext;
+	use core::f64;
 	use frame_support::dispatch::Vec;
 	use itertools::fold;
+	use libm::log10;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	use starknet_crypto::pedersen_hash;
@@ -90,7 +92,11 @@ pub mod helpers {
 	}
 
 	pub fn ln(x: FixedI128) -> FixedI128 {
-		let ln_f64 = x.to_float().ln();
-		FixedI128::from((ln_f64 * 10_u128.pow(18) as f64) as i128)
+		let val = x.into_inner();
+		let f_val: f64 = val as f64;
+		let log10_div = 18 as f64; // DIV for FixedI128 is 10^18, hence log10(DIV) = 18
+		let log10_val = log10(f_val) - log10_div as f64;
+		let ln_val = log10_val * f64::consts::LN_10;
+		FixedI128::from((ln_val * 10_u128.pow(18) as f64) as i128)
 	}
 }
