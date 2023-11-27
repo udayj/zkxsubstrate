@@ -29,7 +29,7 @@ pub mod pallet {
 		},
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedI128};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	const MILLIS_PER_SECOND: u64 = 1000;
 
