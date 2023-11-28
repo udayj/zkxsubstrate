@@ -2,10 +2,10 @@ use crate as pallet_prices;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_market;
+use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading;
 use pallet_trading_account;
-use pallet_risk_management;
 use pallet_trading_fees;
 use sp_core::H256;
 use sp_runtime::{
@@ -24,10 +24,10 @@ frame_support::construct_runtime!(
 		MarketModule: pallet_market,
 		Timestamp: pallet_timestamp,
 		AssetModule: pallet_asset,
-		TradingAccountPallet: pallet_trading_account,
-		TradingModule: pallet_trading,
-		RiskManagementModule: pallet_risk_management,
-		TradingFeesModule: pallet_trading_fees
+		RiskManagement: pallet_risk_management,
+		Trading: pallet_trading,
+		TradingFees: pallet_trading_fees,
+		TradingAccounts: pallet_trading_account
 	}
 );
 
@@ -84,22 +84,26 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
+impl pallet_trading_fees::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+}
+
+impl pallet_risk_management::Config for Test {
+	type MarketPallet = MarketModule;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = TradingAccounts;
+	type PricesPallet = PricesModule;
+}
+
 impl pallet_trading::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = AssetModule;
 	type MarketPallet = MarketModule;
 	type PricesPallet = PricesModule;
-	type RiskManagementPallet = RiskManagementModule;
-	type TradingAccountPallet = TradingAccountPallet;
-	type TradingFeesPallet = TradingFeesModule;
+	type RiskManagementPallet = RiskManagement;
+	type TradingAccountPallet = TradingAccounts;
+	type TradingFeesPallet = TradingFees;
 	type TimeProvider = Timestamp;
-}
-
-impl pallet_prices::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type MarketPallet = MarketModule;
-	type TimeProvider = Timestamp;
-	type TradingAccountPallet = TradingAccountPallet;
 }
 
 impl pallet_trading_account::Config for Test {
@@ -107,7 +111,14 @@ impl pallet_trading_account::Config for Test {
 	type AssetPallet = AssetModule;
 	type MarketPallet = MarketModule;
 	type PricesPallet = PricesModule;
-	type TradingPallet = TradingModule;
+	type TradingPallet = Trading;
+}
+
+impl pallet_prices::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type MarketPallet = MarketModule;
+	type TimeProvider = Timestamp;
+	type TradingAccountPallet = TradingAccounts;
 }
 
 // Build genesis storage according to the mock runtime.

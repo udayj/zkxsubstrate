@@ -75,6 +75,7 @@ fn test_update_prices() {
 
 #[test]
 fn test_historical_prices() {
+<<<<<<< HEAD
 	// Get a test environment
 	let mut env = setup();
 
@@ -84,11 +85,15 @@ fn test_historical_prices() {
 
 	env.execute_with(|| {
 		Timestamp::set_timestamp(1702359600000);
+=======
+	new_test_ext().execute_with(|| {
+		let (market1, market2) = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+>>>>>>> 514196b (ZKP-580 removes storing prices with intervals, now all prices stored)
 
 		let markets = vec![eth_usdc(), link_usdc()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
-
-		assert_ok!(PricesModule::update_price_interval(RuntimeOrigin::signed(1), 60000));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -125,18 +130,6 @@ fn test_historical_prices() {
 		assert_eq!(FixedI128::from_u32(200), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(199), historical_price.index_price);
 
-		let price_interval = PricesModule::price_interval();
-		assert_eq!(60, price_interval);
-
-		let timestamps = PricesModule::price_timestamps();
-		assert_eq!(vec![1702359600], timestamps);
-
-		let last_timestamp = PricesModule::last_timestamp();
-		assert_eq!(1702359600, last_timestamp);
-
-		// Set timestamp such that historical price will not get updated
-		Timestamp::set_timestamp(1702359620000);
-
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
 			market_id: market1.market.id,
@@ -165,21 +158,12 @@ fn test_historical_prices() {
 		assert_eq!(FixedI128::from_u32(190), price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359620, market1.market.id);
-		assert_eq!(FixedI128::from_u32(0), historical_price.mark_price);
-		assert_eq!(FixedI128::from_u32(0), historical_price.index_price);
+		assert_eq!(FixedI128::from_u32(109), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(110), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359620, market2.market.id);
-		assert_eq!(FixedI128::from_u32(0), historical_price.mark_price);
-		assert_eq!(FixedI128::from_u32(0), historical_price.index_price);
-
-		let timestamps = PricesModule::price_timestamps();
-		assert_eq!(vec![1702359600], timestamps);
-
-		let last_timestamp = PricesModule::last_timestamp();
-		assert_eq!(1702359600, last_timestamp);
-
-		// Set timestamp such that historical price will get updated
-		Timestamp::set_timestamp(1702359661000);
+		assert_eq!(FixedI128::from_u32(192), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(190), historical_price.index_price);
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -215,12 +199,6 @@ fn test_historical_prices() {
 		let historical_price = PricesModule::historical_price(1702359661, market2.market.id);
 		assert_eq!(FixedI128::from_u32(229), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(230), historical_price.index_price);
-
-		let timestamps = PricesModule::price_timestamps();
-		assert_eq!(vec![1702359600, 1702359661], timestamps);
-
-		let last_timestamp = PricesModule::last_timestamp();
-		assert_eq!(1702359661, last_timestamp);
 	});
 }
 

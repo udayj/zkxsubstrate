@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
-	ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	ABRDetails, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
+	ExtendedAsset, ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved,
+	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -96,6 +96,7 @@ pub trait MarketInterface {
 	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
 	fn get_all_markets() -> Vec<u128>;
+	fn get_all_markets_by_state(is_tradable: bool, is_archived: bool) -> Vec<u128>;
 }
 
 pub trait PricesInterface {
@@ -103,6 +104,12 @@ pub trait PricesInterface {
 	fn get_mark_price(market_id: u128) -> FixedI128;
 	fn get_last_traded_price(market_id: u128) -> FixedI128;
 	fn update_last_traded_price(market_id: u128, price: FixedI128);
+	fn get_remaining_markets() -> Vec<u128>;
+	fn get_no_of_batches_for_current_epoch() -> u128;
+	fn get_last_abr_timestamp() -> u64;
+	fn get_next_abr_timestamp() -> u64;
+	fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails>;
+	fn get_remaining_pay_abr_calls() -> u128;
 }
 
 pub trait FixedI128Ext {

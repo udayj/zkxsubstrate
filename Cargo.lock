@@ -4599,6 +4599,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "node-template-runtime",
+ "pallet-prices-rpc",
  "pallet-trading-rpc",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
@@ -4650,6 +4651,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-market",
  "pallet-prices",
+ "pallet-prices-runtime-api",
  "pallet-risk-management",
  "pallet-sudo",
  "pallet-support",
@@ -4971,6 +4973,7 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
+ "pallet-prices",
  "pallet-risk-management",
  "pallet-support",
  "pallet-timestamp",
@@ -4984,6 +4987,29 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-prices-rpc"
+version = "1.0.0"
+dependencies = [
+ "frame-support",
+ "jsonrpsee",
+ "pallet-prices-runtime-api",
+ "pallet-support",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-prices-runtime-api"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "pallet-support",
+ "sp-api",
 ]
 
 [[package]]

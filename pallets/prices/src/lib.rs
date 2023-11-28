@@ -24,14 +24,12 @@ pub mod pallet {
 			TradingAccountInterface, TradingInterface,
 		},
 		types::{
-			ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
+			ABRDetails, ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
 			LastTradedPrice, MultiplePrices, PositionExtended,
 		},
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
-
-	const MILLIS_PER_SECOND: u64 = 1000;
 
 	// ////////////
 	// Constants //
@@ -48,7 +46,10 @@ pub mod pallet {
 
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
+	// Price interval with which historical prices should be stored for ABR
 	const ABR_PRICE_INTERVAL: u64 = 60;
+	// To convert milliseconds to seconds
+	const MILLIS_PER_SECOND: u64 = 1000;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -87,21 +88,6 @@ pub mod pallet {
 		HistoricalPrice,
 		ValueQuery,
 	>;
-
-	/// Vector of timestamps for which historical prices are stored
-	#[pallet::storage]
-	#[pallet::getter(fn price_timestamps)]
-	pub(super) type PriceTimestamps<T: Config> = StorageValue<_, Vec<u64>, ValueQuery>;
-
-	/// Last timestamp for which index and mark prices were stored
-	#[pallet::storage]
-	#[pallet::getter(fn last_timestamp)]
-	pub(super) type LastTimestamp<T: Config> = StorageValue<_, u64, ValueQuery>;
-
-	/// Interval with which index and mark prices need to be stored
-	#[pallet::storage]
-	#[pallet::getter(fn price_interval)]
-	pub(super) type PriceInterval<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	/// Stores the state of ABR
 	#[pallet::storage]
@@ -327,16 +313,14 @@ pub mod pallet {
 			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
 
 			// Emit ABR timestamp set event
-			Self::deposit_event(Event::AbrTimestampSet {
-				epoch: new_epoch,
-				timestamp: new_timestamp,
-			});
+			Self::deposit_event(
+				Event::AbrTimestampSet { epoch: new_epoch, timestamp: new_timestamp }
+			);
 
 			// Emit ABR state changed event
-			Self::deposit_event(Event::AbrStateChanged {
-				epoch: new_epoch,
-				state: ABRState::State1,
-			});
+			Self::deposit_event(
+				Event::AbrStateChanged { epoch: new_epoch, state: ABRState::State1 }
+			);
 
 			Ok(())
 		}
@@ -429,12 +413,6 @@ pub mod pallet {
 
 			// Get the current timestamp and last timestamp for which prices were updated
 			let timestamp = timestamp / MILLIS_PER_SECOND;
-			let last_timestamp: u64 = LastTimestamp::<T>::get();
-			let price_interval: u64 = PriceInterval::<T>::get();
-
-			// Check whether historical prices needs to be updated
-			let needs_update =
-				(last_timestamp == 0) || (last_timestamp + price_interval <= timestamp);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -450,48 +428,27 @@ pub mod pallet {
 				let current_price = CurrentPricesMap::<T>::get(curr_market.market_id);
 				if timestamp > current_price.timestamp {
 					// Create a struct object for the current price
-					let new_price: CurrentPrice = CurrentPrice {
-						timestamp,
-						index_price: curr_market.index_price,
-						mark_price: curr_market.mark_price,
-					};
+					let new_price: CurrentPrice =
+						CurrentPrice {
+							timestamp,
+							index_price: curr_market.index_price,
+							mark_price: curr_market.mark_price,
+						};
 
 					CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
 				}
 
-				if needs_update {
-					// Update historical price
-					let historical_price = HistoricalPrice {
-						index_price: curr_market.index_price,
-						mark_price: curr_market.mark_price,
-					};
-					HistoricalPricesMap::<T>::insert(
-						timestamp,
-						curr_market.market_id,
-						historical_price,
-					);
-				}
+				// Update historical price
+				let historical_price = HistoricalPrice {
+					index_price: curr_market.index_price,
+					mark_price: curr_market.mark_price,
+				};
+				HistoricalPricesMap::<T>::insert(
+					timestamp,
+					curr_market.market_id,
+					historical_price,
+				);
 			}
-
-			if needs_update {
-				PriceTimestamps::<T>::append(timestamp);
-				LastTimestamp::<T>::put(timestamp);
-			}
-
-			Ok(())
-		}
-
-		/// update price interval with which historical prices should be stored
-		#[pallet::weight(0)]
-		pub fn update_price_interval(origin: OriginFor<T>, price_interval: u64) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			let price_interval = price_interval / MILLIS_PER_SECOND;
-
-			ensure!(price_interval > 0, Error::<T>::InvalidPriceInterval);
-
-			PriceInterval::<T>::put(price_interval);
 
 			Ok(())
 		}
@@ -548,7 +505,7 @@ pub mod pallet {
 
 		fn check_abr_markets_status(epoch: u64) {
 			// get all the markets available in the system
-			let markets = T::MarketPallet::get_all_markets();
+			let markets = T::MarketPallet::get_all_markets_by_state(true, false);
 
 			// Check the state of each market
 			for market_id in markets {
@@ -742,18 +699,16 @@ pub mod pallet {
 			BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
 
 			// Emit ABR Payment made event
-			Self::deposit_event(Event::AbrPaymentMade {
-				epoch: current_epoch,
-				batch_id: batches_fetched,
-			});
+			Self::deposit_event(
+				Event::AbrPaymentMade { epoch: current_epoch, batch_id: batches_fetched }
+			);
 
 			// If all batches are fetched, increment state and epoch
 			if new_batches_fetched as u128 == no_of_batches {
 				// Emit ABR state changed event
-				Self::deposit_event(Event::AbrStateChanged {
-					epoch: current_epoch,
-					state: ABRState::State0,
-				});
+				Self::deposit_event(
+					Event::AbrStateChanged { epoch: current_epoch, state: ABRState::State0 }
+				);
 				AbrState::<T>::put(ABRState::State0);
 				AbrEpoch::<T>::put(current_epoch + 1);
 			}
@@ -770,9 +725,9 @@ pub mod pallet {
 					let mut positions: Vec<PositionExtended> =
 						T::TradingPallet::get_positions(user, collateral);
 					// Sort the positions which are within the timestamp
-					positions.retain(|position: &PositionExtended| {
-						position.created_timestamp <= timestamp
-					});
+					positions.retain(
+						|position: &PositionExtended| position.created_timestamp <= timestamp
+					);
 
 					// Iterate through all open positions
 					for position in positions {
@@ -923,10 +878,97 @@ pub mod pallet {
 			LastTradedPricesMap::<T>::insert(market_id, new_last_traded_price);
 
 			// Emits event
-			Self::deposit_event(Event::LastTradedPriceUpdated {
-				market_id,
-				price: new_last_traded_price,
-			});
+			Self::deposit_event(
+				Event::LastTradedPriceUpdated { market_id, price: new_last_traded_price }
+			);
+		}
+
+		fn get_remaining_markets() -> Vec<u128> {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			let markets = T::MarketPallet::get_all_markets_by_state(true, false);
+			let mut remaining_markets = Vec::<u128>::new();
+
+			// According to ABR state, return remaining markets
+			match AbrState::<T>::get() {
+				ABRState::State0 => markets,
+				ABRState::State1 => {
+					for market_id in markets {
+						let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+						if !market_status {
+							remaining_markets.push(market_id);
+						}
+					}
+					remaining_markets
+				},
+				ABRState::State2 => remaining_markets,
+			}
+		}
+
+		fn get_no_of_batches_for_current_epoch() -> u128 {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			// Return number of batches only if state is 2
+			match AbrState::<T>::get() {
+				ABRState::State2 => NoOfBatchesForEpochMap::<T>::get(current_epoch),
+				_ => 0,
+			}
+		}
+
+		fn get_last_abr_timestamp() -> u64 {
+			let current_epoch = AbrEpoch::<T>::get();
+
+			match AbrState::<T>::get() {
+				ABRState::State0 =>
+					if current_epoch == 0 {
+						EpochToTimestampMap::<T>::get(current_epoch)
+					} else {
+						EpochToTimestampMap::<T>::get(current_epoch - 1)
+					},
+				_ => EpochToTimestampMap::<T>::get(current_epoch),
+			}
+		}
+
+		fn get_remaining_pay_abr_calls() -> u128 {
+			let current_epoch = AbrEpoch::<T>::get();
+			let no_of_batches = NoOfBatchesForEpochMap::<T>::get(current_epoch);
+			let batches_fetched: u128 = BatchesFetchedForEpochMap::<T>::get(current_epoch).into();
+
+			match AbrState::<T>::get() {
+				ABRState::State2 => no_of_batches - batches_fetched,
+				_ => 0,
+			}
+		}
+
+		fn get_next_abr_timestamp() -> u64 {
+			let current_abr_interval = AbrInterval::<T>::get();
+			let last_timestamp = Self::get_last_abr_timestamp();
+			last_timestamp + current_abr_interval
+		}
+
+		fn get_previous_abr_values(
+			starting_epoch: u64,
+			market_id: u128,
+			n: u64,
+		) -> Vec<ABRDetails> {
+			let mut abr_details = Vec::<ABRDetails>::new();
+			let current_epoch = AbrEpoch::<T>::get();
+			if (n == 0) || (current_epoch <= 1) {
+				return abr_details
+			}
+
+			let mut epoch_iterator = starting_epoch;
+			for iterator in 0..n {
+				if current_epoch <= epoch_iterator {
+					return abr_details
+				}
+
+				let abr_value = EpochMarketToAbrValueMap::<T>::get(epoch_iterator, market_id);
+				let abr_timestamp = EpochToTimestampMap::<T>::get(epoch_iterator);
+				abr_details.push(ABRDetails { abr_value, abr_timestamp });
+				epoch_iterator += 1;
+			}
+			abr_details
 		}
 	}
 }
