@@ -1,11 +1,15 @@
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
-use pallet_support::types::{BaseFee, Side};
+use pallet_support::{
+	test_helpers::asset_helper::usdc,
+	types::{BaseFee, Side},
+};
 use sp_arithmetic::FixedI128;
 
-const collateral_id: u128 = 1431520323;
-
 fn setup() -> (Vec<u8>, Vec<BaseFee>) {
+	// Set the assets in the system
+	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc()]));
+
 	let fee_tiers: Vec<u8> = vec![1, 2, 3];
 	let mut fee_details: Vec<BaseFee> = Vec::new();
 	let base_fee1 = BaseFee {
@@ -41,18 +45,18 @@ fn test_update_fees() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
 		));
 
 		assert_eq!(TradingFeesModule::max_base_fee_tier(), 3);
-		let base_fee0 = TradingFeesModule::base_fee_tier(collateral_id, (1, Side::Buy));
+		let base_fee0 = TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy));
 		assert_eq!(base_fee0, fee_details[0]);
-		let base_fee1 = TradingFeesModule::base_fee_tier(collateral_id, (2, Side::Buy));
+		let base_fee1 = TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Buy));
 		assert_eq!(base_fee1, fee_details[1]);
-		let base_fee2 = TradingFeesModule::base_fee_tier(collateral_id, (3, Side::Buy));
+		let base_fee2 = TradingFeesModule::base_fee_tier(usdc().asset.id, (3, Side::Buy));
 		assert_eq!(base_fee2, fee_details[2]);
 
 		// Assert that the correct event was deposited
@@ -80,7 +84,7 @@ fn test_update_fees_with_invalid_volume() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -108,7 +112,7 @@ fn test_update_fees_with_invalid_fee() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -136,7 +140,7 @@ fn test_update_fees_with_invalid_tier() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -163,7 +167,7 @@ fn test_update_fees_with_tiers_length_mismatch() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -184,7 +188,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -197,7 +201,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -219,7 +223,7 @@ fn test_update_fees_with_multiple_calls() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),
@@ -244,7 +248,7 @@ fn test_update_fees_with_multiple_calls() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
-			collateral_id,
+			usdc().asset.id,
 			side,
 			fee_tiers,
 			fee_details.clone(),

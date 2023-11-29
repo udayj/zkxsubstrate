@@ -14,7 +14,7 @@ pub mod pallet {
 	use frame_support::{dispatch::Vec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
-		traits::TradingFeesInterface,
+		traits::{AssetInterface, TradingFeesInterface},
 		types::{BaseFee, OrderSide, Side},
 	};
 	use primitive_types::U256;
@@ -28,6 +28,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type AssetPallet: AssetInterface;
 	}
 
 	#[pallet::storage]
@@ -58,6 +59,10 @@ pub mod pallet {
 		InvalidVolume,
 		/// There should be atleast one fee tier
 		ZeroFeeTiers,
+		/// Asset does not exist
+		AssetNotFound,
+		/// Asset is not a collateral
+		AssetNotCollateral,
 	}
 
 	#[pallet::event]
@@ -81,6 +86,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;
+
+			// Validate that the asset exists and it is a collateral
+			if let Some(asset) = T::AssetPallet::get_asset(collateral_id) {
+				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
+			} else {
+				ensure!(false, Error::<T>::AssetNotFound);
+			}
 
 			// Clear all mappings
 			let _ = MaxBaseFeeTier::<T>::kill();
