@@ -135,7 +135,7 @@ pub trait TradingFeesInterface {
 		side: Side,
 		order_side: OrderSide,
 		number_of_tokens: U256,
-	) -> (FixedI128, u8, u8);
+	) -> (FixedI128, u8);
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

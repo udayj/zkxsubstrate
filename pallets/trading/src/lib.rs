@@ -1329,7 +1329,7 @@ pub mod pallet {
 
 			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
 
-			let (fee_rate, _, _) = T::TradingFeesPallet::get_fee_rate(
+			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
 				Side::Buy,
 				order_side,
@@ -1557,7 +1557,7 @@ pub mod pallet {
 				}
 			}
 
-			let (fee_rate, _, _) = T::TradingFeesPallet::get_fee_rate(
+			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
 				Side::Sell,
 				order_side,

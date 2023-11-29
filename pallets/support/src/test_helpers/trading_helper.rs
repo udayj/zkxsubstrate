@@ -1,15 +1,13 @@
 use crate::{
 	traits::{FieldElementExt, Hashable},
-	types::{
-		BaseFee, Direction, Discount, HashType, Order, OrderType, Side, SignatureInfo, TimeInForce,
-	},
+	types::{BaseFee, Direction, HashType, Order, OrderType, Side, SignatureInfo, TimeInForce},
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_crypto::{sign, FieldElement};
 
-pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
+pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>) {
 	// TODO(merkle-groot): Using manual pushing because vec! has some issues in support pallet
 	// fee tiers
 	let mut fee_tiers = Vec::<u8>::new();
@@ -38,29 +36,7 @@ pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>, Vec<u8>, Vec<Discount>) {
 	};
 	fee_details.push(base_fee3);
 
-	// discount tiers
-	let mut discount_tiers = Vec::<u8>::new();
-	discount_tiers.push(1_u8);
-	discount_tiers.push(2_u8);
-	discount_tiers.push(3_u8);
-	discount_tiers.push(4_u8);
-
-	// discount details
-	let mut discount_details = Vec::<Discount>::new();
-	let discount1 =
-		Discount { volume: 0.into(), discount: FixedI128::from_inner(30000000000000000) };
-	discount_details.push(discount1);
-	let discount2 =
-		Discount { volume: 1000.into(), discount: FixedI128::from_inner(50000000000000000) };
-	discount_details.push(discount2);
-	let discount3 =
-		Discount { volume: 4000.into(), discount: FixedI128::from_inner(75000000000000000) };
-	discount_details.push(discount3);
-	let discount4 =
-		Discount { volume: 7500.into(), discount: FixedI128::from_inner(100000000000000000) };
-	discount_details.push(discount4);
-
-	(fee_tiers, fee_details, discount_tiers, discount_details)
+	(fee_tiers, fee_details)
 }
 
 impl Order {

@@ -10,9 +10,3 @@ pub struct BaseFee {
 	pub maker_fee: FixedI128,
 	pub taker_fee: FixedI128,
 }
-
-#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct Discount {
-	pub volume: U256,
-	pub discount: FixedI128,
-}
