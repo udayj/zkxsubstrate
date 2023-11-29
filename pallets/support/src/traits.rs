@@ -131,6 +131,7 @@ pub trait FieldElementExt {
 
 pub trait TradingFeesInterface {
 	fn get_fee_rate(
+		collateral_id: u128,
 		side: Side,
 		order_side: OrderSide,
 		number_of_tokens: U256,

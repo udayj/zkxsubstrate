@@ -1484,6 +1484,7 @@ fn test_fee_while_opening_order() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees_and_discounts(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Buy,
 			fee_tiers,
 			fee_details.clone(),
@@ -1581,6 +1582,7 @@ fn test_fee_while_closing_order() {
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees_and_discounts(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Sell,
 			fee_tiers,
 			fee_details.clone(),
