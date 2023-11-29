@@ -11,7 +11,7 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
-	use frame_support::{dispatch::Vec, pallet_prelude::*};
+	use frame_support::{dispatch::Vec, pallet_prelude::*, Blake2_128Concat};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
@@ -57,6 +57,17 @@ pub mod pallet {
 	// Here, key is the trading_account_id and value is the trading account
 	pub(super) type AccountMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, TradingAccount, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn monetary_account_volume)]
+	pub(super) type MonetaryAccountVolumeMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, Vec<FixedI128>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn monetary_account_volume)]
+	pub(super) type MonetaryAccountLastTxTimestamp<T: Config> = 
+		StorageMap<_, Blake2_128Concat, U256, u64, OptionQuery>;
+	
 
 	#[pallet::storage]
 	#[pallet::getter(fn withdrawal_status)]
@@ -898,6 +909,25 @@ pub mod pallet {
 
 		fn get_collaterals_of_user(account_id: U256) -> Vec<u128> {
 			AccountCollateralsMap::<T>::get(account_id)
+		}
+
+		fn update_and_get_cumulative_volume(account_id: U256, collateral_id: u128, new_volume: FixedI128) -> FixedI128{
+
+			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
+
+				let monetary_account_address = trading_account.account_address;
+				if let Some(vol31) = MonetaryAccountVolumeMap::<T>::get(monetary_account_address) {
+					
+					let last_tx_timestamp = MonetaryAccountLastTxTimestamp::<T>::get(monetary_account_address).unwrap();
+					let current_timestamp = T::TimeProvider::now().as_secs();
+					
+				}
+				else {
+					
+					// write new volume to storage and return 0 for previous usable volume
+					return FixedI128::from_inner(0);
+				}
+			}
 		}
 	}
 }

@@ -99,4 +99,23 @@ pub mod helpers {
 		let ln_val = log10_val * f64::consts::LN_10;
 		FixedI128::from((ln_val * 10_u128.pow(18) as f64) as i128)
 	}
+
+	pub fn shift_and_recompute(volume_array: &Vec<FixedI128>, shift_value: usize) -> (Vec<FixedI128>, FixedI128) {
+
+		if shift_value > 30 {
+			return (Vec::from([FixedI128::from_inner(0);31]), FixedI128::from_inner(0))
+		}
+		let mut updated_volume_array = volume_array.clone();
+		updated_volume_array.rotate_right(shift_value);
+		for i in 0..shift_value {
+			if let Some(elem) = updated_volume_array.get_mut(i) {
+				*elem = FixedI128::from_inner(0);
+			}
+		}
+		let mut total_volume: FixedI128 = FixedI128::from_inner(0);
+		for elem in &updated_volume_array[1..] {
+			total_volume = total_volume.add(elem.clone());
+		}
+		(updated_volume_array, total_volume)
+	}
 }

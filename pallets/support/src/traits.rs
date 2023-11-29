@@ -46,6 +46,7 @@ pub trait TradingAccountInterface {
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 	fn get_accounts_count() -> u128;
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
+	fn update_and_get_cumulative_volume(account_id: U256, collateral_id: u128, new_volume: FixedI128) -> FixedI128;
 }
 
 pub trait TradingInterface {
