@@ -11,11 +11,11 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
-	use frame_support::{dispatch::Vec, pallet_prelude::*, Blake2_128Concat};
+	use frame_support::{dispatch::Vec, pallet_prelude::*, Blake2_128Concat, traits::UnixTime,};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::sig_u256_to_sig_felt,
+		helpers::{sig_u256_to_sig_felt, shift_and_recompute, get_day_diff, calc_30day_volume},
 		traits::{
 			AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
 			TradingAccountInterface, TradingInterface, U256Ext,
@@ -40,6 +40,7 @@ pub mod pallet {
 		type TradingPallet: TradingInterface;
 		type MarketPallet: MarketInterface;
 		type PricesPallet: PricesInterface;
+		type TimeProvider: UnixTime;
 	}
 
 	#[pallet::storage]
@@ -61,12 +62,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn monetary_account_volume)]
 	pub(super) type MonetaryAccountVolumeMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<FixedI128>, OptionQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, Vec<FixedI128>, OptionQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn monetary_account_volume)]
+	#[pallet::getter(fn monetary_account_tx_timestamp)]
 	pub(super) type MonetaryAccountLastTxTimestamp<T: Config> = 
-		StorageMap<_, Blake2_128Concat, U256, u64, OptionQuery>;
+		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, u64, OptionQuery>;
 	
 
 	#[pallet::storage]
@@ -911,23 +912,43 @@ pub mod pallet {
 			AccountCollateralsMap::<T>::get(account_id)
 		}
 
-		fn update_and_get_cumulative_volume(account_id: U256, collateral_id: u128, new_volume: FixedI128) -> FixedI128{
+		fn update_and_get_cumulative_volume(account_id: U256, market_id: u128, new_volume: FixedI128) -> FixedI128{
 
+			let collateral_id = T::MarketPallet::get_market(market_id).unwrap().asset_collateral;
 			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
 
 				let monetary_account_address = trading_account.account_address;
-				if let Some(vol31) = MonetaryAccountVolumeMap::<T>::get(monetary_account_address) {
+				let current_timestamp = T::TimeProvider::now().as_secs();
+				if let Some(vol31) = MonetaryAccountVolumeMap::<T>::get(monetary_account_address, collateral_id) {
 					
-					let last_tx_timestamp = MonetaryAccountLastTxTimestamp::<T>::get(monetary_account_address).unwrap();
-					let current_timestamp = T::TimeProvider::now().as_secs();
+					let last_tx_timestamp = MonetaryAccountLastTxTimestamp::<T>::get(monetary_account_address, collateral_id).unwrap();
 					
+					let day_diff = 	get_day_diff(current_timestamp, last_tx_timestamp);
+
+					if day_diff == 0 {
+						let mut vol31 = vol31.clone();
+						let mut present_day_volume = vol31.get_mut(0).unwrap();
+						*present_day_volume = present_day_volume.clone().add(new_volume);
+						let last_30day_volume = calc_30day_volume(&vol31);
+						MonetaryAccountVolumeMap::<T>::set(monetary_account_address, collateral_id, Some(vol31));
+						MonetaryAccountLastTxTimestamp::<T>::set(monetary_account_address, collateral_id, Some(current_timestamp));
+						return last_30day_volume;
+					}
+					let (updated_volume, last_30day_volume) = shift_and_recompute(&vol31, new_volume, day_diff);
+					MonetaryAccountVolumeMap::<T>::set(monetary_account_address, collateral_id, Some(updated_volume));
+					MonetaryAccountLastTxTimestamp::<T>::set(monetary_account_address, collateral_id, Some(current_timestamp));
+					return last_30day_volume;
 				}
 				else {
 					
 					// write new volume to storage and return 0 for previous usable volume
+					MonetaryAccountVolumeMap::<T>::set(monetary_account_address, collateral_id, Some(Vec::from([FixedI128::from_inner(0);31])));
+					MonetaryAccountLastTxTimestamp::<T>::set(monetary_account_address, collateral_id,Some(current_timestamp));
 					return FixedI128::from_inner(0);
 				}
 			}
+
+			FixedI128::from_inner(0)
 		}
 	}
 }

@@ -100,7 +100,7 @@ pub mod helpers {
 		FixedI128::from((ln_val * 10_u128.pow(18) as f64) as i128)
 	}
 
-	pub fn shift_and_recompute(volume_array: &Vec<FixedI128>, shift_value: usize) -> (Vec<FixedI128>, FixedI128) {
+	pub fn shift_and_recompute(volume_array: &Vec<FixedI128>, new_volume: FixedI128, shift_value: usize) -> (Vec<FixedI128>, FixedI128) {
 
 		if shift_value > 30 {
 			return (Vec::from([FixedI128::from_inner(0);31]), FixedI128::from_inner(0))
@@ -112,10 +112,28 @@ pub mod helpers {
 				*elem = FixedI128::from_inner(0);
 			}
 		}
+		let mut present_day_volume = updated_volume_array.get_mut(0).unwrap();
+		*present_day_volume = new_volume;
+
+		let total_volume = calc_30day_volume(&updated_volume_array);
+		(updated_volume_array, total_volume)
+	}
+
+	pub fn get_day_diff(timestamp_prev: u64, timestamp_cur: u64) -> usize {
+
+		let timestamp_start:u64 = 1701129600; // Unix timestamp for 28th Nov 12:00 AM UTC
+		let one_day = 24*60*60;
+		let day_prev = (timestamp_prev-timestamp_start)/(one_day);
+		let day_cur = (timestamp_cur-timestamp_start)/(one_day);
+		return (day_cur - day_prev) as usize;
+	}
+
+	pub fn calc_30day_volume(volume_array: &Vec<FixedI128>) -> FixedI128 {
+
 		let mut total_volume: FixedI128 = FixedI128::from_inner(0);
-		for elem in &updated_volume_array[1..] {
+		for elem in &volume_array[1..] {
 			total_volume = total_volume.add(elem.clone());
 		}
-		(updated_volume_array, total_volume)
+		total_volume
 	}
 }

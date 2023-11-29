@@ -1331,6 +1331,7 @@ pub mod pallet {
 			// trading account find monetary account address for account_id
 			// adjusts the sliding window for volume if required, stores new volume
 			// trading fee pallet queries for volume when required directly from trading account pallet
+			let total_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price);
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
@@ -1556,6 +1557,8 @@ pub mod pallet {
 			}
 			// if it is not a forced order
 			// then update volume as in process_open_orders
+			let total_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price);
+			
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
