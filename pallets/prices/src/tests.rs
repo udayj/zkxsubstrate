@@ -75,7 +75,6 @@ fn test_update_prices() {
 
 #[test]
 fn test_historical_prices() {
-<<<<<<< HEAD
 	// Get a test environment
 	let mut env = setup();
 
@@ -85,12 +84,6 @@ fn test_historical_prices() {
 
 	env.execute_with(|| {
 		Timestamp::set_timestamp(1702359600000);
-=======
-	new_test_ext().execute_with(|| {
-		let (market1, market2) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
->>>>>>> 514196b (ZKP-580 removes storing prices with intervals, now all prices stored)
 
 		let markets = vec![eth_usdc(), link_usdc()];
 		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
@@ -217,7 +210,7 @@ fn test_abr_calculation_eth_usdc_1() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(4.577354961709272e-05),
 			convert_to_fixed(1e-10),
 		);
@@ -239,7 +232,7 @@ fn test_abr_calculation_eth_usdc_2() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(4.492383850355448e-05),
 			convert_to_fixed(1e-10),
 		);
@@ -261,7 +254,7 @@ fn test_abr_calculation_btc_usdc_1() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(8.83808701975073e-05),
 			convert_to_fixed(1e-10),
 		);
@@ -283,7 +276,7 @@ fn test_abr_calculation_btc_usdc_2() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(0.0011603379908277198),
 			convert_to_fixed(1e-10),
 		);
@@ -305,7 +298,7 @@ fn test_abr_calculation_btc_usdt_1() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(-0.0002730150595400045),
 			convert_to_fixed(1e-10),
 		);
@@ -327,7 +320,7 @@ fn test_abr_calculation_btc_usdt_2() {
 			8_usize,
 		);
 		compare_with_threshold(
-			result,
+			result.0,
 			convert_to_fixed(-0.0009117240376668166),
 			convert_to_fixed(1e-10),
 		);
@@ -353,7 +346,7 @@ fn test_abr_different_length() {
 				8_usize,
 			);
 
-			compare_with_threshold(result, expected_results[iterator], convert_to_fixed(1e-10));
+			compare_with_threshold(result.0, expected_results[iterator], convert_to_fixed(1e-10));
 		}
 	});
 }

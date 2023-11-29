@@ -32,10 +32,9 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
-		));
+		assert_ok!(
+			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
+		);
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
