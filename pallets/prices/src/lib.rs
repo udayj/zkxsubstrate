@@ -36,13 +36,13 @@ pub mod pallet {
 	// ////////////
 
 	// To do checks for bollinger width
-	const BOLLINGER_WIDTH_15: FixedI128 = FixedI128::from_inner(1500000000000000000);
-	const BOLLINGER_WIDTH_20: FixedI128 = FixedI128::from_inner(2000000000000000000);
-	const BOLLINGER_WIDTH_25: FixedI128 = FixedI128::from_inner(2500000000000000000);
+	const BOLLINGER_WIDTH_15: FixedI128 = FixedI128::from_inner(1500000000000000000); //1.5
+	const BOLLINGER_WIDTH_20: FixedI128 = FixedI128::from_inner(2000000000000000000); //2.0
+	const BOLLINGER_WIDTH_25: FixedI128 = FixedI128::from_inner(2500000000000000000); //2.5
 
 	// To do checks for base_abr_rate
-	const BASE_ABR_MIN: FixedI128 = FixedI128::from_inner(12500000000000);
-	const BASE_ABR_MAX: FixedI128 = FixedI128::from_inner(100000000000000);
+	const BASE_ABR_MIN: FixedI128 = FixedI128::from_inner(12500000000000); // 0.0000125
+	const BASE_ABR_MAX: FixedI128 = FixedI128::from_inner(100000000000000); // 0.0001
 
 	// Minimum ABR interval
 	const ABR_INTERVAL_MIN: u64 = 3600;
@@ -181,6 +181,8 @@ pub mod pallet {
 		InvalidBaseAbr,
 		/// When bollinger width provided is invalid
 		InvalidBollingerWidth,
+		/// Not enough prices to calculate ABR
+		NotEnoughPrices,
 	}
 
 	#[pallet::event]
@@ -284,8 +286,15 @@ pub mod pallet {
 			// ABR must be in state 0
 			ensure!(current_state == ABRState::State0, Error::<T>::InvalidState);
 
-			let last_timestamp = Self::get_last_abr_timestamp();
+			// This check is added to prevent setting too much future time as ABR timestamp.
+			// Maximum we can set is by 8 hours buffer time
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			ensure!(
+				current_timestamp + current_abr_interval >= new_timestamp,
+				Error::<T>::InvalidTimestamp
+			);
 
+			let last_timestamp = Self::get_last_abr_timestamp();
 			// Enforces last_abr_timestamp + abr_interval < new_timestamp
 			ensure!(
 				last_timestamp + current_abr_interval <= new_timestamp,
@@ -313,14 +322,16 @@ pub mod pallet {
 			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
 
 			// Emit ABR timestamp set event
-			Self::deposit_event(
-				Event::AbrTimestampSet { epoch: new_epoch, timestamp: new_timestamp }
-			);
+			Self::deposit_event(Event::AbrTimestampSet {
+				epoch: new_epoch,
+				timestamp: new_timestamp,
+			});
 
 			// Emit ABR state changed event
-			Self::deposit_event(
-				Event::AbrStateChanged { epoch: new_epoch, state: ABRState::State1 }
-			);
+			Self::deposit_event(Event::AbrStateChanged {
+				epoch: new_epoch,
+				state: ABRState::State1,
+			});
 
 			Ok(())
 		}
@@ -335,6 +346,11 @@ pub mod pallet {
 			let current_state = AbrState::<T>::get();
 			let current_epoch = AbrEpoch::<T>::get();
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+
+			// Make sure ABR interval has passed
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let epoch_end_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+			ensure!(current_timestamp >= epoch_end_timestamp, Error::<T>::NotEnoughPrices);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id).unwrap();
@@ -428,12 +444,11 @@ pub mod pallet {
 				let current_price = CurrentPricesMap::<T>::get(curr_market.market_id);
 				if timestamp > current_price.timestamp {
 					// Create a struct object for the current price
-					let new_price: CurrentPrice =
-						CurrentPrice {
-							timestamp,
-							index_price: curr_market.index_price,
-							mark_price: curr_market.mark_price,
-						};
+					let new_price: CurrentPrice = CurrentPrice {
+						timestamp,
+						index_price: curr_market.index_price,
+						mark_price: curr_market.mark_price,
+					};
 
 					CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
 				}
@@ -699,16 +714,18 @@ pub mod pallet {
 			BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
 
 			// Emit ABR Payment made event
-			Self::deposit_event(
-				Event::AbrPaymentMade { epoch: current_epoch, batch_id: batches_fetched }
-			);
+			Self::deposit_event(Event::AbrPaymentMade {
+				epoch: current_epoch,
+				batch_id: batches_fetched,
+			});
 
 			// If all batches are fetched, increment state and epoch
 			if new_batches_fetched as u128 == no_of_batches {
 				// Emit ABR state changed event
-				Self::deposit_event(
-					Event::AbrStateChanged { epoch: current_epoch, state: ABRState::State0 }
-				);
+				Self::deposit_event(Event::AbrStateChanged {
+					epoch: current_epoch,
+					state: ABRState::State0,
+				});
 				AbrState::<T>::put(ABRState::State0);
 				AbrEpoch::<T>::put(current_epoch + 1);
 			}
@@ -725,9 +742,9 @@ pub mod pallet {
 					let mut positions: Vec<PositionExtended> =
 						T::TradingPallet::get_positions(user, collateral);
 					// Sort the positions which are within the timestamp
-					positions.retain(
-						|position: &PositionExtended| position.created_timestamp <= timestamp
-					);
+					positions.retain(|position: &PositionExtended| {
+						position.created_timestamp <= timestamp
+					});
 
 					// Iterate through all open positions
 					for position in positions {
@@ -773,9 +790,9 @@ pub mod pallet {
 			let mut mark_prices = Vec::<FixedI128>::new();
 
 			let current_epoch = AbrEpoch::<T>::get();
-			let epoch_start_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+			let epoch_end_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
 			let abr_interval = AbrInterval::<T>::get();
-			let epoch_end_timestamp = epoch_start_timestamp + abr_interval;
+			let epoch_start_timestamp = epoch_end_timestamp - abr_interval;
 			let mut timestamp = epoch_start_timestamp;
 
 			while timestamp <= epoch_end_timestamp {
@@ -878,9 +895,10 @@ pub mod pallet {
 			LastTradedPricesMap::<T>::insert(market_id, new_last_traded_price);
 
 			// Emits event
-			Self::deposit_event(
-				Event::LastTradedPriceUpdated { market_id, price: new_last_traded_price }
-			);
+			Self::deposit_event(Event::LastTradedPriceUpdated {
+				market_id,
+				price: new_last_traded_price,
+			});
 		}
 
 		fn get_remaining_markets() -> Vec<u128> {
@@ -958,7 +976,7 @@ pub mod pallet {
 			}
 
 			let mut epoch_iterator = starting_epoch;
-			for iterator in 0..n {
+			for _ in 0..n {
 				if current_epoch <= epoch_iterator {
 					return abr_details
 				}
