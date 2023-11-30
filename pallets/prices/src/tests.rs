@@ -42,7 +42,7 @@ fn setup_trading() -> sp_io::TestExternalities {
 	env.execute_with(|| {
 		// Set the block number
 		System::set_block_number(1);
-		assert_ok!(Timestamp::set(None.into(), 1699940367000));
+		assert_ok!(Timestamp::set(None.into(), 1699940278000));
 
 		// Set the assets in the system
 		assert_ok!(AssetModule::replace_all_assets(
@@ -83,14 +83,14 @@ fn setup_trading() -> sp_io::TestExternalities {
 
 fn set_prices(market_id: u128) {
 	let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_1();
-	let mut interval: u64 = 0;
+	let mut interval: u64 = 1699940278000;
 	for i in 0..mark_prices.len() {
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let price: MultiplePrices =
 			MultiplePrices { market_id, index_price: index_prices[i], mark_price: mark_prices[i] };
 		prices.push(price);
 		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices, interval));
-		interval += 60;
+		interval += 60000;
 	}
 }
 
@@ -451,10 +451,10 @@ fn test_abr_flow_for_btc_orders() {
 		));
 
 		// Change block timestamp
-		Timestamp::set_timestamp(1699940306800);
+		Timestamp::set_timestamp(1699969078000);
 
 		// Set ABR timestamp
-		assert_ok!(PricesModule::set_abr_timestamp(RuntimeOrigin::signed(1), 1699940335600));
+		assert_ok!(PricesModule::set_abr_timestamp(RuntimeOrigin::signed(1), 1699969078));
 
 		let abr_state = PricesModule::abr_state();
 		println!("abr_state {:?}", abr_state);
@@ -474,13 +474,16 @@ fn test_abr_flow_for_btc_orders() {
 		let epoch_market_to_last_price = PricesModule::epoch_market_to_last_price(1, market_id);
 		println!("epoch_market_to_last_price: {:?}", epoch_market_to_last_price);
 
+		// Pay ABR
+		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
+
 		let balance = TradingAccounts::balances(alice_id, btc_usdc().market.asset_collateral);
 		println!("Alice balance: {:?}", balance);
 
 		let balance = TradingAccounts::balances(bob_id, btc_usdc().market.asset_collateral);
 		println!("Bob balance: {:?}", balance);
 
-		// Pay ABR
-		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
+		let event_record = System::events();
+		println!("Events: {:?}", event_record);
 	});
 }
