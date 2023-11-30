@@ -377,13 +377,14 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response = Self::perform_validations(
-					element,
-					oracle_price,
-					&market,
-					collateral_id,
-					current_timestamp,
-				);
+				let validation_response =
+					Self::perform_validations(
+						element,
+						oracle_price,
+						&market,
+						collateral_id,
+						current_timestamp,
+					);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -415,6 +416,9 @@ pub mod pallet {
 						element.direction,
 						element.side,
 						element.order_type,
+						element.price,
+						oracle_price,
+						&orders[orders.len() - 1],
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -600,18 +604,19 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position = Position {
-						market_id,
-						direction: element.direction,
-						avg_execution_price,
-						size: new_position_size,
-						margin_amount,
-						borrowed_amount,
-						leverage: new_leverage,
-						created_timestamp,
-						modified_timestamp: current_timestamp,
-						realized_pnl: new_realized_pnl,
-					};
+					updated_position =
+						Position {
+							market_id,
+							direction: element.direction,
+							avg_execution_price,
+							size: new_position_size,
+							margin_amount,
+							borrowed_amount,
+							leverage: new_leverage,
+							created_timestamp,
+							modified_timestamp: current_timestamp,
+							realized_pnl: new_realized_pnl,
+						};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -1189,6 +1194,9 @@ pub mod pallet {
 			current_direction: Direction,
 			current_side: Side,
 			order_type: OrderType,
+			maker_price: FixedI128,
+			oracle_price: FixedI128,
+			taker_order: &Order,
 		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
@@ -1204,6 +1212,15 @@ pub mod pallet {
 			);
 
 			ensure!(order_type == OrderType::Limit, Error::<T>::TradeBatchError518);
+
+			// Check whether the maker price is valid with respect to taker slippage
+			Self::validate_within_slippage(
+				taker_order.slippage,
+				oracle_price,
+				maker_price,
+				taker_order.direction,
+				taker_order.side,
+			)?;
 
 			Ok(())
 		}
@@ -1745,12 +1762,13 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+			) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			MarginInfo {
 				is_liquidation,
