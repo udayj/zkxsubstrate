@@ -232,6 +232,8 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
+		/// Trade Volume Calculation Error
+		TradeVolumeCalculationError,
 	}
 
 	#[pallet::event]
@@ -1326,12 +1328,9 @@ pub mod pallet {
 			);
 
 			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
-			// now calc volume as order_size*execution_price, check collateral from order->mkt->collateral
-			// call trading account with account_id, volume, collateral
-			// trading account find monetary account address for account_id
-			// adjusts the sliding window for volume if required, stores new volume
-			// trading fee pallet queries for volume when required directly from trading account pallet
-			let total_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price);
+			
+			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price).or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;
@@ -1556,9 +1555,16 @@ pub mod pallet {
 				}
 			}
 			// if it is not a forced order
-			// then update volume as in process_open_orders
-			let total_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price);
-			
+			// then update volume with present trade
+			let mut total_30day_volume:FixedI128;
+			if order.order_type == OrderType::Forced {
+				total_30day_volume = FixedI128::from_inner(0);
+			}
+			else{
+				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price).or_else(
+				|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+			}
+			 
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Sell, order_side, U256::zero());
 			let fee = fee_rate * leveraged_order_value;

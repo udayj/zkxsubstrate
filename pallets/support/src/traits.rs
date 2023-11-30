@@ -4,13 +4,15 @@ use crate::types::{
 	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded,
 	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
-use frame_support::dispatch::Vec;
+use frame_support::{dispatch::Vec};
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec, DispatchResult};
 use starknet_ff::{FieldElement, FromByteSliceError};
+use codec::alloc::boxed::Box;
 
 pub trait TradingAccountInterface {
+	type VolumeError;
 	fn deposit_internal(
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
@@ -46,7 +48,11 @@ pub trait TradingAccountInterface {
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 	fn get_accounts_count() -> u128;
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
-	fn update_and_get_cumulative_volume(account_id: U256, collateral_id: u128, new_volume: FixedI128) -> FixedI128;
+	fn update_and_get_cumulative_volume(
+		account_id: U256, 
+		market_id: u128, 
+		new_volume: FixedI128) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
 }
 
 pub trait TradingInterface {
