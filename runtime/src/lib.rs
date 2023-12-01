@@ -315,6 +315,7 @@ impl pallet_prices::Config for Runtime {
 
 impl pallet_trading_fees::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 }
 
 impl pallet_sync_facade::Config for Runtime {

@@ -5191,6 +5191,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-asset",
  "pallet-support",
  "parity-scale-codec",
  "primitive-types",

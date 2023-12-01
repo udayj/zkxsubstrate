@@ -68,13 +68,14 @@ impl pallet_market::Config for Test {
 
 impl pallet_risk_management::Config for Test {
 	type MarketPallet = MarketModule;
-	type TradingPallet = TradingModule;
-	type TradingAccountPallet = TradingAccountPallet;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = TradingAccounts;
 	type PricesPallet = PricesModule;
 }
 
 impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = AssetModule;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -82,17 +83,6 @@ impl pallet_timestamp::Config for Test {
 	type OnTimestampSet = ();
 	type MinimumPeriod = ConstU64<5>;
 	type WeightInfo = ();
-}
-
-impl pallet_trading_fees::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-}
-
-impl pallet_risk_management::Config for Test {
-	type MarketPallet = MarketModule;
-	type TradingPallet = Trading;
-	type TradingAccountPallet = TradingAccounts;
-	type PricesPallet = PricesModule;
 }
 
 impl pallet_trading::Config for Test {
@@ -116,9 +106,11 @@ impl pallet_trading_account::Config for Test {
 
 impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = AssetModule;
 	type MarketPallet = MarketModule;
 	type TimeProvider = Timestamp;
 	type TradingAccountPallet = TradingAccounts;
+	type TradingPallet = Trading;
 }
 
 // Build genesis storage according to the mock runtime.
