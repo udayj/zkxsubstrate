@@ -122,6 +122,7 @@ pub mod helpers {
 				}
 			}
 		}
+		// add new volume to present day cumulative volume which is stored in index 0 of the volume vector
 		let mut present_day_volume = updated_volume_array.get_mut(0).unwrap();
 		*present_day_volume = present_day_volume.clone().add(new_volume);
 
@@ -134,6 +135,7 @@ pub mod helpers {
 	pub fn get_day_diff(timestamp_prev: u64, timestamp_cur: u64) -> usize {
 
 		// We use timestamp start as a dummy reference value to calculate day no. for any given timestamp
+		// We do this since we are only intereted in the relative difference between given timestamps
 		let timestamp_start:u64 = 1701129600; // Unix timestamp for 28th Nov 12:00 AM UTC
 		let one_day = 24*60*60;
 		let day_prev = (timestamp_prev-timestamp_start)/(one_day);

@@ -62,7 +62,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn monetary_account_volume)]
 	// Maps from (monetary_account_address,collateral_id)-> volume vector
-	// This stores 31 days of volume, starting from day of last trade
+	// This stores 31 days of volume, starting from day of last trade (index 0 stores volume for most recent day of trade)
 	pub(super) type MonetaryAccountVolumeMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, Vec<FixedI128>, OptionQuery>;
 
@@ -922,6 +922,8 @@ pub mod pallet {
 
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days' volume)
 		// and returns the current last 30 days volume not including the present day volume
+		// This function is meant to be called only during trade execution and hence volume vector is updated 
+		// only during trade execution
 		fn update_and_get_cumulative_volume(account_id: U256, market_id: u128, new_volume: FixedI128) -> 
 		Result<FixedI128, Self::VolumeError>{
 			// find collateral id corresponding to the given market id 
@@ -962,6 +964,7 @@ pub mod pallet {
 		}
 
 		// This is a read-only function that returns the last 30 days volume (not including the current day)
+		// The volume vector is updated only when update_and_get_cumulative_volume() is called during execution of trade
 		fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError> {
 
 			// find collateral id corresponding to the market id given

@@ -1329,7 +1329,11 @@ pub mod pallet {
 
 			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
 			
-			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price).or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
+				order.account_id, 
+				order.market_id,
+				order_size*execution_price).or_else(
+				|_| Err(Error::<T>::TradeVolumeCalculationError))?;
 
 			let (fee_rate, _, _) =
 				T::TradingFeesPallet::get_fee_rate(Side::Buy, order_side, U256::zero());
@@ -1561,7 +1565,10 @@ pub mod pallet {
 				total_30day_volume = FixedI128::from_inner(0);
 			}
 			else{
-				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(order.account_id, order.market_id,order_size*execution_price).or_else(
+				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
+					order.account_id, 
+					order.market_id,
+					order_size*execution_price).or_else(
 				|_| Err(Error::<T>::TradeVolumeCalculationError))?;
 			}
 			 
