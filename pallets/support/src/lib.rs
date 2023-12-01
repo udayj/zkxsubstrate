@@ -29,6 +29,9 @@ pub mod helpers {
 	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	use starknet_crypto::pedersen_hash;
 
+	// Unix timestamp for 28th Nov 12:00 AM UTC
+	pub const TIMESTAMP_START: u64 = 1701129600;
+
 	// Function to perform pedersen hash of an array of field elements
 	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
 		// hash is computed as follows
@@ -100,18 +103,20 @@ pub mod helpers {
 		FixedI128::from((ln_val * 10_u128.pow(18) as f64) as i128)
 	}
 
-	// Function to recompute volume vector based on the difference in days between current trade and last trade
-	// The difference in days is represented by the shift_value
-	// new_volume for current day is added to the 1st element of volume vector which represents the cumulative volume 
-	// for present day
-	pub fn shift_and_recompute(volume_array: &Vec<FixedI128>, new_volume: FixedI128, shift_value: usize) -> (Vec<FixedI128>, FixedI128) {
-
+	// Function to recompute volume vector based on the difference in days between current trade and
+	// last trade The difference in days is represented by the shift_value
+	// new_volume for current day is added to the 1st element of volume vector which represents the
+	// cumulative volume for present day
+	pub fn shift_and_recompute(
+		volume_array: &Vec<FixedI128>,
+		new_volume: FixedI128,
+		shift_value: usize,
+	) -> (Vec<FixedI128>, FixedI128) {
 		let mut updated_volume_array: Vec<FixedI128>;
 		if shift_value > 30 {
 			// No trades have happened in last 30 days
-			updated_volume_array = Vec::from([FixedI128::from_inner(0);31]);
-		}
-		else {
+			updated_volume_array = Vec::from([FixedI128::from_inner(0); 31]);
+		} else {
 			updated_volume_array = volume_array.clone();
 			// Based on the difference in no. of days, zero out the volume for those many days
 			// Shift the volume vector prior to zeroing days of no trade
@@ -122,8 +127,9 @@ pub mod helpers {
 				}
 			}
 		}
-		// add new volume to present day cumulative volume which is stored in index 0 of the volume vector
-		let mut present_day_volume = updated_volume_array.get_mut(0).unwrap();
+		// add new volume to present day cumulative volume which is stored in index 0 of the volume
+		// vector
+		let present_day_volume = updated_volume_array.get_mut(0).unwrap();
 		*present_day_volume = present_day_volume.clone().add(new_volume);
 
 		let total_volume = calc_30day_volume(&updated_volume_array);
@@ -133,19 +139,17 @@ pub mod helpers {
 	// Function to calculate difference in days between two timestamps
 	// Assumes that timestamp_cur > timestamp_prev
 	pub fn get_day_diff(timestamp_prev: u64, timestamp_cur: u64) -> usize {
-
-		// We use timestamp start as a dummy reference value to calculate day no. for any given timestamp
-		// We do this since we are only intereted in the relative difference between given timestamps
-		let timestamp_start:u64 = 1701129600; // Unix timestamp for 28th Nov 12:00 AM UTC
-		let one_day = 24*60*60;
-		let day_prev = (timestamp_prev-timestamp_start)/(one_day);
-		let day_cur = (timestamp_cur-timestamp_start)/(one_day);
+		// We use timestamp start as a dummy reference value to calculate day no. for any given
+		// timestamp We do this since we are only intereted in the relative difference between given
+		// timestamps
+		let one_day = 24 * 60 * 60;
+		let day_prev = (timestamp_prev - TIMESTAMP_START) / (one_day);
+		let day_cur = (timestamp_cur - TIMESTAMP_START) / (one_day);
 		return (day_cur - day_prev) as usize;
 	}
 
 	// Function to calculate 30day volume from volume vector
 	pub fn calc_30day_volume(volume_array: &Vec<FixedI128>) -> FixedI128 {
-
 		let mut total_volume: FixedI128 = FixedI128::from_inner(0);
 		// start from 2nd element since 1st element stores volume for current day
 		for elem in &volume_array[1..] {

@@ -19,16 +19,16 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::sig_u256_to_sig_felt,
+		helpers::{sig_u256_to_sig_felt, TIMESTAMP_START},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, RiskManagementInterface, TradingAccountInterface,
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, Direction, ForceClosureFlag, FundModifyType,
-			MarginInfo, Market, Order, OrderSide, OrderType, Position, PositionExtended, Side,
-			SignatureInfo, TimeInForce,
+			AccountInfo, BalanceChangeReason, Direction, FeeRates, ForceClosureFlag,
+			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
+			PositionExtended, Side, SignatureInfo, TimeInForce,
 		},
 		Signature,
 	};
@@ -1330,12 +1330,13 @@ pub mod pallet {
 			);
 
 			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
-			
+
 			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-				order.account_id, 
+				order.account_id,
 				order.market_id,
-				order_size*execution_price).or_else(
-				|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+				order_size * execution_price,
+			)
+			.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
 
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
@@ -1567,18 +1568,18 @@ pub mod pallet {
 
 			// if it is not a forced order
 			// then update volume with present trade
-			let mut total_30day_volume:FixedI128;
+			let total_30day_volume: FixedI128;
 			if order.order_type == OrderType::Forced {
 				total_30day_volume = FixedI128::from_inner(0);
-			}
-			else{
+			} else {
 				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-					order.account_id, 
+					order.account_id,
 					order.market_id,
-					order_size*execution_price).or_else(
-				|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+					order_size * execution_price,
+				)
+				.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
 			}
-			 
+
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
 				Side::Sell,
@@ -1853,6 +1854,33 @@ pub mod pallet {
 			collateral_id: u128,
 		) -> Option<ForceClosureFlag> {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
+		}
+
+		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
+			let zero = FixedI128::zero();
+			let is_registered = T::TradingAccountPallet::is_registered_user(account_id);
+			if !is_registered {
+				return (FeeRates::new(zero, zero, zero, zero), 0)
+			}
+
+			let last_30day_volume: FixedI128;
+			match T::TradingAccountPallet::get_30day_volume(account_id, market_id) {
+				Ok(value) => last_30day_volume = value,
+				Err(_) => return (FeeRates::new(zero, zero, zero, zero), 0),
+			}
+
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+
+			let fee_rates =
+				T::TradingFeesPallet::get_all_fee_rates(market.asset_collateral, last_30day_volume);
+
+			let one_day = 24 * 60 * 60;
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let diff = current_timestamp - TIMESTAMP_START;
+			let seconds_to_expiry = one_day - (diff % one_day);
+			let expires_at = current_timestamp + seconds_to_expiry;
+
+			(fee_rates, expires_at)
 		}
 	}
 }
