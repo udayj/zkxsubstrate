@@ -1480,15 +1480,14 @@ fn test_fee_while_opening_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		let (fee_tiers, fee_details) = setup_fee();
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFees::update_base_fees_and_discounts(
+		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Buy,
 			fee_tiers,
 			fee_details.clone(),
-			discount_tiers,
-			discount_details.clone()
 		));
 
 		// Create orders
@@ -1517,11 +1516,11 @@ fn test_fee_while_opening_order() {
 
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(9998060000000000000000)
+			FixedI128::from_inner(9998000000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9995150000000000000000)
+			FixedI128::from_inner(9995000000000000000000)
 		);
 
 		let alice_close_order_1 = Order::new(203_u128, alice_id)
@@ -1554,11 +1553,11 @@ fn test_fee_while_opening_order() {
 
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(10003060000000000000000)
+			FixedI128::from_inner(10003000000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9990150000000000000000)
+			FixedI128::from_inner(9990000000000000000000)
 		);
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
 	});
@@ -1577,15 +1576,14 @@ fn test_fee_while_closing_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		let (fee_tiers, fee_details) = setup_fee();
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFees::update_base_fees_and_discounts(
+		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Sell,
 			fee_tiers,
 			fee_details.clone(),
-			discount_tiers,
-			discount_details.clone()
 		));
 
 		// Create orders
@@ -1651,11 +1649,11 @@ fn test_fee_while_closing_order() {
 
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(10002963000000000000000)
+			FixedI128::from_inner(10002900000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9990392500000000000000)
+			FixedI128::from_inner(9990250000000000000000)
 		);
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
 	});
