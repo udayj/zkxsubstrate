@@ -29,8 +29,8 @@ pub mod helpers {
 	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	use starknet_crypto::pedersen_hash;
 
-	// Unix timestamp for 28th Nov 12:00 AM UTC
-	pub const TIMESTAMP_START: u64 = 1701129600;
+	// Unix timestamp for 1st Nov 12:00 AM UTC
+	pub const TIMESTAMP_START: u64 = 1698796800;
 
 	// Function to perform pedersen hash of an array of field elements
 	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {

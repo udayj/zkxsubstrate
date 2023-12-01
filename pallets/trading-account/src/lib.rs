@@ -956,7 +956,7 @@ pub mod pallet {
 					)
 					.unwrap();
 
-					let day_diff = get_day_diff(current_timestamp, last_tx_timestamp);
+					let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
 
 					// Compute new volume vector, shifting the volumes, if there is a day diff
 					// Also find last 30 days volume after computing the new volume vector
@@ -1028,7 +1028,7 @@ pub mod pallet {
 					)
 					.unwrap();
 
-					let day_diff = get_day_diff(current_timestamp, last_tx_timestamp);
+					let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
 
 					// we can ignore the updated volume vector since this function is meant to be
 					// used in read-only calls
