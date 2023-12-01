@@ -1333,7 +1333,7 @@ pub mod pallet {
 				collateral_id,
 				Side::Buy,
 				order_side,
-				U256::zero(),
+				FixedI128::zero(),
 			);
 			let fee = fee_rate * leveraged_order_value;
 			let trading_fee = FixedI128::from_inner(0) - fee;
@@ -1561,7 +1561,7 @@ pub mod pallet {
 				collateral_id,
 				Side::Sell,
 				order_side,
-				U256::zero(),
+				FixedI128::zero(),
 			);
 			let fee = fee_rate * leveraged_order_value;
 

@@ -17,7 +17,6 @@ pub mod pallet {
 		traits::{AssetInterface, TradingFeesInterface},
 		types::{BaseFee, OrderSide, Side},
 	};
-	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	static DELETION_LIMIT: u32 = 100;
@@ -122,7 +121,7 @@ pub mod pallet {
 			collateral_id: u128,
 			side: Side,
 			order_side: OrderSide,
-			volume: U256,
+			volume: FixedI128,
 		) -> (FixedI128, u8) {
 			// Get the max base fee tier
 			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
@@ -144,7 +143,7 @@ pub mod pallet {
 		fn find_user_base_fee(
 			collateral_id: u128,
 			side: Side,
-			volume: U256,
+			volume: FixedI128,
 			current_max_base_fee_tier: u8,
 		) -> (FixedI128, FixedI128, u8) {
 			let mut tier = current_max_base_fee_tier;
@@ -171,7 +170,7 @@ pub mod pallet {
 				tier = fee_tiers[pos];
 				fee_info = fee_details[pos];
 				ensure!(tier > 0_u8, Error::<T>::InvalidTier);
-				ensure!(fee_info.volume >= U256::zero(), Error::<T>::InvalidVolume);
+				ensure!(fee_info.volume >= FixedI128::zero(), Error::<T>::InvalidVolume);
 				ensure!(fee_info.maker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
 				ensure!(fee_info.taker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
 
@@ -187,7 +186,7 @@ pub mod pallet {
 					ensure!(fee_info.maker_fee < lower_tier_fee.maker_fee, Error::<T>::InvalidFee);
 					ensure!(fee_info.taker_fee < lower_tier_fee.taker_fee, Error::<T>::InvalidFee);
 				} else {
-					ensure!(lower_tier_fee.volume == U256::zero(), Error::<T>::InvalidVolume);
+					ensure!(lower_tier_fee.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
 				}
 
 				// Verify whether the base fee of the tier being updated/added is correct

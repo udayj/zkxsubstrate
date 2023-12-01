@@ -134,7 +134,7 @@ pub trait TradingFeesInterface {
 		collateral_id: u128,
 		side: Side,
 		order_side: OrderSide,
-		number_of_tokens: U256,
+		volume: FixedI128,
 	) -> (FixedI128, u8);
 }
 
