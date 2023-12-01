@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		traits::{AssetInterface, TradingFeesInterface},
-		types::{BaseFee, OrderSide, Side},
+		types::{BaseFee, FeeRates, OrderSide, Side},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -135,6 +135,26 @@ pub mod pallet {
 			} else {
 				(base_fee_taker, base_fee_tier)
 			}
+		}
+
+		fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates {
+			// Get the max base fee tier
+			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
+			// Calculate base fee of the maker, taker and base fee tier
+			let (maker_buy, taker_buy, _) = Self::find_user_base_fee(
+				collateral_id,
+				Side::Buy,
+				volume,
+				current_max_base_fee_tier,
+			);
+			let (maker_sell, taker_sell, _) = Self::find_user_base_fee(
+				collateral_id,
+				Side::Sell,
+				volume,
+				current_max_base_fee_tier,
+			);
+
+			FeeRates { maker_buy, maker_sell, taker_buy, taker_sell }
 		}
 	}
 

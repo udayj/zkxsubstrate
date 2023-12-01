@@ -53,7 +53,9 @@ pub use pallet_market;
 pub use pallet_prices;
 pub use pallet_risk_management;
 use pallet_support::traits::{PricesInterface, TradingInterface};
-pub use pallet_support::types::{ABRDetails, ABRState, AccountInfo, MarginInfo, PositionExtended};
+pub use pallet_support::types::{
+	ABRDetails, ABRState, AccountInfo, FeeRates, MarginInfo, PositionExtended,
+};
 pub use pallet_sync_facade;
 pub use pallet_trading;
 pub use pallet_trading_account;
@@ -421,6 +423,10 @@ impl_runtime_apis! {
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
 			Trading::get_account_list(start_index, end_index)
+		}
+
+		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
+			Trading::get_fee(account_id, market_id)
 		}
 	}
 
