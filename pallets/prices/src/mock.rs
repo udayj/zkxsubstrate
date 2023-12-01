@@ -102,6 +102,7 @@ impl pallet_trading_account::Config for Test {
 	type MarketPallet = MarketModule;
 	type PricesPallet = PricesModule;
 	type TradingPallet = Trading;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_prices::Config for Test {

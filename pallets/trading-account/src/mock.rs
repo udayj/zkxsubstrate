@@ -60,6 +60,7 @@ impl pallet_trading_account::Config for Test {
 	type TradingPallet = Trading;
 	type MarketPallet = Markets;
 	type PricesPallet = Prices;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_asset::Config for Test {
