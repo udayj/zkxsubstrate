@@ -418,6 +418,9 @@ pub mod pallet {
 						element.direction,
 						element.side,
 						element.order_type,
+						element.price,
+						oracle_price,
+						&orders[orders.len() - 1],
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -1193,6 +1196,9 @@ pub mod pallet {
 			current_direction: Direction,
 			current_side: Side,
 			order_type: OrderType,
+			maker_price: FixedI128,
+			oracle_price: FixedI128,
+			taker_order: &Order,
 		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
@@ -1208,6 +1214,15 @@ pub mod pallet {
 			);
 
 			ensure!(order_type == OrderType::Limit, Error::<T>::TradeBatchError518);
+
+			// Check whether the maker price is valid with respect to taker slippage
+			Self::validate_within_slippage(
+				taker_order.slippage,
+				oracle_price,
+				maker_price,
+				taker_order.direction,
+				taker_order.side,
+			)?;
 
 			Ok(())
 		}

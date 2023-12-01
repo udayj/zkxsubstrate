@@ -1385,7 +1385,6 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError506")]
 // Taker long buy slippage check
 fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 	let mut env = setup();
@@ -1423,6 +1422,8 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 506 }.into());
 	});
 }
 
@@ -1899,5 +1900,57 @@ fn it_does_not_work_for_not_enough_balance() {
 
 		System::assert_has_event(Event::OrderError { order_id: 301, error_code: 501 }.into());
 		System::assert_has_event(Event::TradeExecutionFailed { batch_id: U256::from(1_u8) }.into());
+	});
+}
+
+#[test]
+// trade batch with 2 takers in which one taker's price is valid to taker and other taker's price
+// is invalid to taker, so second maker should not get executed
+fn it_works_when_one_maker_price_is_valid_for_taker() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_price(3000.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			.set_price(2010.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		let dave_open_order_1 = Order::new(204_u128, dave_id)
+			.set_price(0.into())
+			.set_size(2.into())
+			.set_order_type(OrderType::Market)
+			.set_slippage(FixedI128::from_inner(50000000000000000))
+			.sign_order(get_private_key(dave().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			2.into(),
+			// market_id
+			market_id,
+			// price
+			2000.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone(), dave_open_order_1],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 506 }.into());
 	});
 }

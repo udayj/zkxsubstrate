@@ -13,10 +13,18 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
+    {{ if eq .Values.env "sandbox" }}
+    - "l3-front.sandbox.zkx.fi"
+    {{ else }}
     - "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
+    {{ end }}
     secretName: l3-front
   rules:
+  {{ if eq .Values.env "sandbox" }}
+  - host: "l3-front.sandbox.zkx.fi"
+  {{ else }}
   - host: "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
+  {{ end }}
     http:
       paths:
         - pathType: Prefix
