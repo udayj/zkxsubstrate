@@ -263,7 +263,7 @@ pub mod pallet {
 			order_type: u8,
 			execution_price: FixedI128,
 			pnl: FixedI128,
-			opening_fee: FixedI128,
+			fee: FixedI128,
 			is_final: bool,
 			is_maker: bool,
 		},
@@ -374,19 +374,19 @@ pub mod pallet {
 				let new_margin_locked: FixedI128;
 				let mut new_portion_executed: FixedI128;
 				let realized_pnl: FixedI128;
+				let pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
-				let opening_fee: FixedI128;
+				let fee: FixedI128;
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(
-						element,
-						oracle_price,
-						&market,
-						collateral_id,
-						current_timestamp,
-					);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -548,7 +548,7 @@ pub mod pallet {
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
 							margin_lock_amount = margin_lock;
-							realized_pnl = trading_fee;
+							fee = trading_fee;
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
@@ -577,8 +577,8 @@ pub mod pallet {
 					new_leverage = (margin_amount + borrowed_amount) / margin_amount;
 					new_leverage = new_leverage.round_to_precision(2);
 					new_margin_locked = current_margin_locked + margin_lock_amount;
-					new_realized_pnl = position_details.realized_pnl + realized_pnl;
-					opening_fee = realized_pnl;
+					new_realized_pnl = position_details.realized_pnl - fee;
+					pnl = FixedI128::zero() - fee;
 
 					// If the user previously does not have any position in this market
 					// then add the market to CollateralToMarketMap
@@ -606,19 +606,18 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position =
-						Position {
-							market_id,
-							direction: element.direction,
-							avg_execution_price,
-							size: new_position_size,
-							margin_amount,
-							borrowed_amount,
-							leverage: new_leverage,
-							created_timestamp,
-							modified_timestamp: current_timestamp,
-							realized_pnl: new_realized_pnl,
-						};
+					updated_position = Position {
+						market_id,
+						direction: element.direction,
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
+						realized_pnl: new_realized_pnl,
+					};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -662,12 +661,14 @@ pub mod pallet {
 							_balance,
 							margin_lock,
 							current_pnl,
+							trading_fee,
 						)) => {
 							margin_amount = margin;
 							borrowed_amount = borrowed;
 							avg_execution_price = average_execution;
 							margin_lock_amount = margin_lock;
 							realized_pnl = current_pnl;
+							fee = trading_fee;
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
@@ -729,7 +730,7 @@ pub mod pallet {
 					}
 
 					new_realized_pnl = position_details.realized_pnl + realized_pnl;
-					opening_fee = FixedI128::zero();
+					pnl = realized_pnl - fee;
 
 					// If the user does not have any position in this market
 					// then remove the market from CollateralToMarketMap
@@ -861,8 +862,8 @@ pub mod pallet {
 					side: element.side.into(),
 					order_type: element.order_type.into(),
 					execution_price,
-					pnl: realized_pnl,
-					opening_fee,
+					pnl,
+					fee,
 					is_final,
 					is_maker: element.order_id != orders[orders.len() - 1].order_id,
 				});
@@ -1387,7 +1388,10 @@ pub mod pallet {
 			execution_price: FixedI128,
 			market_id: u128,
 			collateral_id: u128,
-		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
+		) -> Result<
+			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
+			Error<T>,
+		> {
 			let actual_execution_price: FixedI128;
 			let price_diff: FixedI128;
 			let block_number = <frame_system::Pallet<T>>::block_number();
@@ -1602,13 +1606,13 @@ pub mod pallet {
 				total_30day_volume,
 			);
 
-			let fee = fee_rate * leveraged_order_value;
+			let trading_fee = fee_rate * leveraged_order_value;
 
 			// Deduct fee while closing a position
 			T::TradingAccountPallet::transfer_from(
 				order.account_id,
 				collateral_id,
-				fee,
+				trading_fee,
 				BalanceChangeReason::Fee,
 			);
 
@@ -1619,6 +1623,7 @@ pub mod pallet {
 				unused_balance,
 				margin_amount_to_reduce,
 				pnl,
+				trading_fee,
 			))
 		}
 
@@ -1794,13 +1799,12 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			MarginInfo {
 				is_liquidation,
