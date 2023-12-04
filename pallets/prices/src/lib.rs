@@ -186,8 +186,6 @@ pub mod pallet {
 		InvalidBaseAbr,
 		/// When bollinger width provided is invalid
 		InvalidBollingerWidth,
-		/// Not enough prices to calculate ABR
-		NotEnoughPrices,
 		/// Invalid value for initialisation timestamp
 		InvalidInitialisationTimestamp,
 		/// Set ABR value called before the abr interval is met
@@ -221,7 +219,7 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
-			let timestamp = timestamp / MILLIS_PER_SECOND;
+			let timestamp = Self::convert_to_seconds(timestamp);
 
 			ensure!(timestamp > 0, Error::<T>::InvalidInitialisationTimestamp);
 
@@ -305,19 +303,24 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get current state and epoch
-			let current_state = AbrState::<T>::get();
 			let current_epoch = AbrEpoch::<T>::get();
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 
-			if current_state == ABRState::State0 {
+			if AbrState::<T>::get() == ABRState::State0 {
+				// This call transitions the state to State::1
 				Self::set_abr_timestamp(current_epoch)?;
 			}
+
+			let current_state = AbrState::<T>::get();
 
 			// ABR must be in state 1
 			ensure!(current_state == ABRState::State1, Error::<T>::InvalidState);
 
 			// Validate market
-			let market = T::MarketPallet::get_market(market_id).unwrap();
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			let market = market.unwrap();
+
 			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
 
 			// Check if the market's abr is already set
@@ -389,7 +392,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get the current timestamp and last timestamp for which prices were updated
-			let timestamp = timestamp / MILLIS_PER_SECOND;
+			let timestamp = Self::convert_to_seconds(timestamp);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -848,10 +851,8 @@ pub mod pallet {
 
 			// Find the effective ABR
 			let abr_value = Self::calculate_effective_abr(&jumps_array) + base_abr_rate;
-			let mut abr_last_price: FixedI128 = FixedI128::zero();
-			if mark_prices.len() != 0 {
-				abr_last_price = mark_prices[mark_prices.len() - 1];
-			}
+			let abr_last_price =
+				mark_prices.last().map_or_else(|| FixedI128::zero(), |&value| value);
 			return (abr_value, abr_last_price)
 		}
 
@@ -964,6 +965,10 @@ pub mod pallet {
 				ABRState::State2 => no_of_batches - batches_fetched,
 				_ => 0,
 			}
+		}
+
+		fn convert_to_seconds(time_in_milli: u64) -> u64 {
+			time_in_milli / MILLIS_PER_SECOND
 		}
 
 		fn get_next_abr_timestamp() -> u64 {
