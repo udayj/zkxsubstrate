@@ -1,6 +1,6 @@
 use crate::{
 	ecdsa_verify,
-	helpers::pedersen_hash_multiple,
+	helpers::compute_hash_on_elements,
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
@@ -85,7 +85,7 @@ fn test_felt_and_hash_values() {
 
 	// correct value = compute_hash_on_elements([-100,100,1,2])
 	assert_eq!(
-		pedersen_hash_multiple(&elements),
+		compute_hash_on_elements(&elements),
 		FieldElement::from_dec_str(
 			"1420103144340050848018289014363061324075028314390235365070247630498414256754"
 		)

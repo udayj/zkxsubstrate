@@ -1,4 +1,4 @@
-use crate::helpers::pedersen_hash_multiple;
+use crate::helpers::compute_hash_on_elements;
 use crate::traits::{FixedI128Ext, Hashable, U256Ext};
 use crate::types::common::{convert_to_u128_pair, HashType};
 use codec::{Decode, Encode};
@@ -78,7 +78,7 @@ impl Hashable for WithdrawalRequest {
 		elements.push(FieldElement::from(self.timestamp));
 
 		let result = match hash_type {
-			HashType::Pedersen => pedersen_hash_multiple(&elements),
+			HashType::Pedersen => compute_hash_on_elements(&elements),
 			HashType::Poseidon => poseidon_hash_many(&elements),
 		};
 
