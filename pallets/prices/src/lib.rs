@@ -89,6 +89,11 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// Stores the timestamp at which substrate was initialised
+	#[pallet::storage]
+	#[pallet::getter(fn initialisation_timestamp)]
+	pub(super) type InitialisationTimestamp<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	/// Stores the state of ABR
 	#[pallet::storage]
 	#[pallet::getter(fn abr_state)]
@@ -181,8 +186,10 @@ pub mod pallet {
 		InvalidBaseAbr,
 		/// When bollinger width provided is invalid
 		InvalidBollingerWidth,
-		/// Not enough prices to calculate ABR
-		NotEnoughPrices,
+		/// Invalid value for initialisation timestamp
+		InvalidInitialisationTimestamp,
+		/// Set ABR value called before the abr interval is met
+		EarlyAbrCall,
 	}
 
 	#[pallet::event]
@@ -203,6 +210,23 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// External function to be called for setting Initialisation timestamp
+		#[pallet::weight(0)]
+		pub fn set_initialisation_timestamp(
+			origin: OriginFor<T>,
+			timestamp: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let timestamp = Self::convert_to_seconds(timestamp);
+
+			ensure!(timestamp > 0, Error::<T>::InvalidInitialisationTimestamp);
+
+			InitialisationTimestamp::<T>::put(timestamp);
+			Ok(())
+		}
+
 		/// External function to be called for setting ABR interval
 		#[pallet::weight(0)]
 		pub fn set_abr_interval(origin: OriginFor<T>, new_abr_interval: u64) -> DispatchResult {
@@ -272,70 +296,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// External function to be called for setting ABR timestamp
-		#[pallet::weight(0)]
-		pub fn set_abr_timestamp(origin: OriginFor<T>, new_timestamp: u64) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			// Get current state, epoch and ABR interval
-			let current_state = AbrState::<T>::get();
-			let current_epoch = AbrEpoch::<T>::get();
-			let current_abr_interval = AbrInterval::<T>::get();
-
-			// ABR must be in state 0
-			ensure!(current_state == ABRState::State0, Error::<T>::InvalidState);
-
-			// This check is added to prevent setting too much future time as ABR timestamp.
-			// Maximum we can set is by 8 hours buffer time
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			ensure!(
-				current_timestamp + current_abr_interval >= new_timestamp,
-				Error::<T>::InvalidTimestamp
-			);
-
-			let last_timestamp = Self::get_last_abr_timestamp();
-			// Enforces last_abr_timestamp + abr_interval < new_timestamp
-			ensure!(
-				last_timestamp + current_abr_interval <= new_timestamp,
-				Error::<T>::InvalidTimestamp
-			);
-
-			let new_epoch;
-			if current_epoch == 0 {
-				new_epoch = current_epoch + 1;
-				AbrEpoch::<T>::put(new_epoch);
-			} else {
-				new_epoch = current_epoch;
-			}
-
-			AbrState::<T>::put(ABRState::State1);
-			EpochToTimestampMap::<T>::insert(new_epoch, new_timestamp);
-
-			// Get no of users in a batch
-			let users_per_batch = UsersPerBatch::<T>::get();
-
-			// Get the no of batches
-			let no_of_batches = Self::calculate_no_of_batches(users_per_batch);
-
-			// Write the no of batches for this epoch
-			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
-
-			// Emit ABR timestamp set event
-			Self::deposit_event(Event::AbrTimestampSet {
-				epoch: new_epoch,
-				timestamp: new_timestamp,
-			});
-
-			// Emit ABR state changed event
-			Self::deposit_event(Event::AbrStateChanged {
-				epoch: new_epoch,
-				state: ABRState::State1,
-			});
-
-			Ok(())
-		}
-
 		/// External function to be called for setting ABR value
 		#[pallet::weight(0)]
 		pub fn set_abr_value(origin: OriginFor<T>, market_id: u128) -> DispatchResult {
@@ -343,21 +303,25 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get current state and epoch
-			let current_state = AbrState::<T>::get();
 			let current_epoch = AbrEpoch::<T>::get();
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 
-			// Make sure ABR interval has passed
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let epoch_end_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
-			ensure!(current_timestamp >= epoch_end_timestamp, Error::<T>::NotEnoughPrices);
+			if AbrState::<T>::get() == ABRState::State0 {
+				// This call transitions the state to State::1
+				Self::set_abr_timestamp(current_epoch)?;
+			}
 
-			// Validate market
-			let market = T::MarketPallet::get_market(market_id).unwrap();
-			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
+			let current_state = AbrState::<T>::get();
 
 			// ABR must be in state 1
 			ensure!(current_state == ABRState::State1, Error::<T>::InvalidState);
+
+			// Validate market
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			let market = market.unwrap();
+
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
 
 			// Check if the market's abr is already set
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
@@ -428,7 +392,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get the current timestamp and last timestamp for which prices were updated
-			let timestamp = timestamp / MILLIS_PER_SECOND;
+			let timestamp = Self::convert_to_seconds(timestamp);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -695,6 +659,53 @@ pub mod pallet {
 			result
 		}
 
+		pub fn set_abr_timestamp(current_epoch: u64) -> Result<(), Error<T>> {
+			let abr_interval = AbrInterval::<T>::get();
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+
+			let new_epoch: u64;
+			let last_abr_timestamp: u64;
+
+			if current_epoch == 0 {
+				new_epoch = 1;
+				AbrEpoch::<T>::put(new_epoch);
+				last_abr_timestamp = InitialisationTimestamp::<T>::get();
+			} else {
+				new_epoch = current_epoch;
+				last_abr_timestamp = EpochToTimestampMap::<T>::get(current_epoch - 1);
+			}
+
+			let next_abr_timestamp = last_abr_timestamp + abr_interval;
+
+			ensure!(current_timestamp >= next_abr_timestamp, Error::<T>::EarlyAbrCall);
+
+			AbrState::<T>::put(ABRState::State1);
+			EpochToTimestampMap::<T>::insert(new_epoch, next_abr_timestamp);
+
+			// Get no of users in a batch
+			let users_per_batch = UsersPerBatch::<T>::get();
+
+			// Get the no of batches
+			let no_of_batches = Self::calculate_no_of_batches(users_per_batch);
+
+			// Write the no of batches for this epoch
+			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
+
+			// Emit ABR timestamp set event
+			Self::deposit_event(Event::AbrTimestampSet {
+				epoch: new_epoch,
+				timestamp: next_abr_timestamp,
+			});
+
+			// Emit ABR state changed event
+			Self::deposit_event(Event::AbrStateChanged {
+				epoch: new_epoch,
+				state: ABRState::State1,
+			});
+
+			Ok(())
+		}
+
 		pub fn get_current_batch(current_epoch: u64) -> Vec<U256> {
 			// Get the current batch details
 			let no_of_users_per_batch = UsersPerBatch::<T>::get();
@@ -840,10 +851,8 @@ pub mod pallet {
 
 			// Find the effective ABR
 			let abr_value = Self::calculate_effective_abr(&jumps_array) + base_abr_rate;
-			let mut abr_last_price: FixedI128 = FixedI128::zero();
-			if mark_prices.len() != 0 {
-				abr_last_price = mark_prices[mark_prices.len() - 1];
-			}
+			let abr_last_price =
+				mark_prices.last().map_or_else(|| FixedI128::zero(), |&value| value);
 			return (abr_value, abr_last_price)
 		}
 
@@ -956,6 +965,10 @@ pub mod pallet {
 				ABRState::State2 => no_of_batches - batches_fetched,
 				_ => 0,
 			}
+		}
+
+		fn convert_to_seconds(time_in_milli: u64) -> u64 {
+			time_in_milli / MILLIS_PER_SECOND
 		}
 
 		fn get_next_abr_timestamp() -> u64 {
