@@ -100,6 +100,7 @@ pub trait MarketInterface {
 }
 
 pub trait PricesInterface {
+	fn convert_to_seconds(time_in_milli: u64) -> u64;
 	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_mark_price(market_id: u128) -> FixedI128;
 	fn get_last_traded_price(market_id: u128) -> FixedI128;

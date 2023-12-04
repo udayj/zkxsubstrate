@@ -6,14 +6,13 @@ use pallet_support::{
 		asset_helper::{btc, eth, link, usdc},
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 	},
-	types::{Direction, MultiplePrices, Order, OrderType, Position, Side},
+	types::{Direction, MultiplePrices, Order, OrderType},
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
 // declare test_helper module
 pub mod test_helper;
-use sp_io::transaction_index::index;
 use test_helper::*;
 
 fn setup() -> sp_io::TestExternalities {
