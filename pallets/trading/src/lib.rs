@@ -1361,7 +1361,6 @@ pub mod pallet {
 				total_30day_volume,
 			);
 			let fee = fee_rate * leveraged_order_value;
-			let trading_fee = FixedI128::from_inner(0) - fee;
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			T::TradingAccountPallet::transfer_from(
@@ -1377,7 +1376,7 @@ pub mod pallet {
 				average_execution_price,
 				available_margin,
 				margin_order_value,
-				trading_fee,
+				fee,
 			))
 		}
 
@@ -1606,13 +1605,13 @@ pub mod pallet {
 				total_30day_volume,
 			);
 
-			let trading_fee = fee_rate * leveraged_order_value;
+			let fee = fee_rate * leveraged_order_value;
 
 			// Deduct fee while closing a position
 			T::TradingAccountPallet::transfer_from(
 				order.account_id,
 				collateral_id,
-				trading_fee,
+				fee,
 				BalanceChangeReason::Fee,
 			);
 
@@ -1623,7 +1622,7 @@ pub mod pallet {
 				unused_balance,
 				margin_amount_to_reduce,
 				pnl,
-				trading_fee,
+				fee,
 			))
 		}
 
