@@ -13,19 +13,16 @@ use starknet_crypto::{get_public_key, pedersen_hash};
 use starknet_ff::{FieldElement, FromByteSliceError};
 use hex;
 
-
+// reference implementation to test conversion from string to FieldElement
 pub fn hex_to_field_element(text: &str) -> Result<FieldElement, FromByteSliceError> {
     let cleaned_hex_string = text.trim_start_matches("0x");
-    let mut bytes_vec = hex::decode(cleaned_hex_string).map_err(|err| FromByteSliceError::InvalidLength)?;
-
+    let mut bytes_vec = hex::decode(cleaned_hex_string).map_err(|_err| FromByteSliceError::InvalidLength)?;
     while bytes_vec.len() < 32 {
         bytes_vec.insert(0, 0);
     }
-
     let bytes_array = bytes_vec[..32].try_into().expect("Wrong length for bytes array");
-
     FieldElement::from_bytes_be(&bytes_array).map_err(
-		|err| FromByteSliceError::InvalidLength)
+		|_err| FromByteSliceError::InvalidLength)
 	}
 
 pub fn string_to_felt(str: &str) -> Result<FieldElement, FromByteSliceError> {
@@ -41,7 +38,6 @@ pub fn string_to_felt(str: &str) -> Result<FieldElement, FromByteSliceError> {
 }
 #[test]
 fn test_enum_felt() {
-
 	let a = FieldElement::from_hex_be(hex::encode("BUY").as_str()).unwrap();
 	let b = string_to_felt("BUY").unwrap();
 	assert_eq!(a,b,"Error");
@@ -158,7 +154,7 @@ fn test_felt_and_hash_values() {
 
 #[test]
 fn test_order_signature() {
-	let order = Order::new(201_u128, U256::from(0),);
+	let order = Order::new(201_u128, U256::from(0));
 	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(

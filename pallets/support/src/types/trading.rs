@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::RuntimeDebug;
 use starknet_crypto::poseidon_hash_many;
-use starknet_ff::{FieldElement, FromByteSliceError};
+use starknet_ff::{FieldElement};
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SignatureInfo {
@@ -234,7 +234,6 @@ impl From<TimeInForce> for u8 {
 }
 
 impl From<Direction> for &str {
-
 	fn from(value: Direction) -> &'static str {
 		match value {
 			Direction::Long => "LONG",
@@ -244,7 +243,6 @@ impl From<Direction> for &str {
 }
 
 impl From<Side> for &str {
-
 	fn from(value: Side) -> &'static str {
 		match value {
 			Side::Buy => "BUY",
@@ -252,8 +250,8 @@ impl From<Side> for &str {
 		}
 	}
 }
-impl From<OrderType> for &str {
 
+impl From<OrderType> for &str {
 	fn from(value: OrderType) -> &'static str {
 		match value {
 			OrderType::Market => "MARKET",
@@ -264,7 +262,6 @@ impl From<OrderType> for &str {
 }
 
 impl From<TimeInForce> for &str {
-
 	fn from(value: TimeInForce) -> &'static str {
 		match value {
 			TimeInForce::GTC => "GTC",
@@ -330,7 +327,6 @@ impl PositionExtended {
 }
 
 mod general_conversion_error {
-
 	#[derive(Debug)]
 	pub enum GeneralConversionError {
 		U256ToFieldElementError,
@@ -357,34 +353,35 @@ impl Hashable for Order {
 
 		let order_type:&str = self.order_type.into();
 		elements.push(FieldElement::from_hex_be(
-			hex::encode(order_type).as_str()
-		).map_err(|_err| GeneralConversionError::EnumToFieldElementError)?);
+			hex::encode(order_type).as_str()).map_err(|_err| GeneralConversionError::EnumToFieldElementError
+		)?);
 
 		let direction:&str = self.direction.into();
 		elements.push(FieldElement::from_hex_be(
 			hex::encode(direction).as_str()).map_err(
-			|_err| GeneralConversionError::EnumToFieldElementError
+		|_err| GeneralConversionError::EnumToFieldElementError
 		)?);
 
 		let side:&str = self.side.into();
 		elements.push(FieldElement::from_hex_be(
 			hex::encode(side).as_str()).map_err(
-			|_err| GeneralConversionError::EnumToFieldElementError)?);
+		|_err| GeneralConversionError::EnumToFieldElementError)?);
 
 		let u256_representation = &self.price.to_u256();
 		elements.push(u256_representation.try_to_felt().map_err(
-			|_err| GeneralConversionError::U256ToFieldElementError)?);
+		|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.size.to_u256();
 		elements.push(u256_representation.try_to_felt().map_err(
-			|_err| GeneralConversionError::U256ToFieldElementError)?);
+		|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.leverage.to_u256();
 		elements.push(u256_representation.try_to_felt().map_err(
-			|_err| GeneralConversionError::U256ToFieldElementError)?);
+		|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.slippage.to_u256();
-		elements.push(u256_representation.try_to_felt().map_err(|_err| GeneralConversionError::U256ToFieldElementError)?);
+		elements.push(u256_representation.try_to_felt().map_err(
+			|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
