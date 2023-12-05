@@ -233,6 +233,46 @@ impl From<TimeInForce> for u8 {
 	}
 }
 
+impl From<Direction> for &str {
+
+	fn from(value: Direction) -> &'static str {
+		match value {
+			Direction::Long => "LONG",
+			Direction::Short => "SHORT"
+		}
+	}
+}
+
+impl From<Side> for &str {
+
+	fn from(value: Side) -> &'static str {
+		match value {
+			Side::Buy => "BUY",
+			Side::Sell => "SELL"
+		}
+	}
+}
+impl From<OrderType> for &str {
+
+	fn from(value: OrderType) -> &'static str {
+		match value {
+			OrderType::Market => "MARKET",
+			OrderType::Limit => "LIMIT",
+			OrderType::Forced => "FORCED"
+		}
+	}
+}
+
+impl From<TimeInForce> for &str {
+
+	fn from(value: TimeInForce) -> &'static str {
+		match value {
+			TimeInForce::GTC => "GTC",
+			TimeInForce::FOK => "FOK",
+			TimeInForce::IOC => "IOC"
+		}
+	}
+}
 impl From<BalanceChangeReason> for u8 {
 	fn from(value: BalanceChangeReason) -> u8 {
 		match value {
@@ -289,16 +329,25 @@ impl PositionExtended {
 	}
 }
 
+mod general_conversion_error {
+
+	#[derive(Debug)]
+	pub enum GeneralConversionError {
+		U256ToFieldElementError,
+		EnumToFieldElementError
+	}
+}
+
+pub use general_conversion_error::GeneralConversionError;
+
 impl Hashable for Order {
-	// No error apart from error during conversion from U256 to FieldElement should happen
-	// Hence associated type is defined to be exactly that error i.e.
-	// starknet_ff::FromByteSliceError
-	type ConversionError = FromByteSliceError;
+	
+	type ConversionError = GeneralConversionError;
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
 		let mut elements: Vec<FieldElement> = Vec::new();
 
-		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id)?;
+		let (account_id_low, account_id_high) = convert_to_u128_pair(self.account_id).map_err(|_err| GeneralConversionError::U256ToFieldElementError)?;
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 
@@ -306,28 +355,47 @@ impl Hashable for Order {
 
 		elements.push(FieldElement::from(self.market_id));
 
-		elements.push(FieldElement::from(u8::from(self.order_type)));
-		elements.push(FieldElement::from(u8::from(self.direction)));
-		elements.push(FieldElement::from(u8::from(self.side)));
+		let order_type:&str = self.order_type.into();
+		elements.push(FieldElement::from_hex_be(
+			hex::encode(order_type).as_str()
+		).map_err(|_err| GeneralConversionError::EnumToFieldElementError)?);
+
+		let direction:&str = self.direction.into();
+		elements.push(FieldElement::from_hex_be(
+			hex::encode(direction).as_str()).map_err(
+			|_err| GeneralConversionError::EnumToFieldElementError
+		)?);
+
+		let side:&str = self.side.into();
+		elements.push(FieldElement::from_hex_be(
+			hex::encode(side).as_str()).map_err(
+			|_err| GeneralConversionError::EnumToFieldElementError)?);
 
 		let u256_representation = &self.price.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
+		elements.push(u256_representation.try_to_felt().map_err(
+			|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.size.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
+		elements.push(u256_representation.try_to_felt().map_err(
+			|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.leverage.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
+		elements.push(u256_representation.try_to_felt().map_err(
+			|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		let u256_representation = &self.slippage.to_u256();
-		elements.push(u256_representation.try_to_felt()?);
+		elements.push(u256_representation.try_to_felt().map_err(|_err| GeneralConversionError::U256ToFieldElementError)?);
 
 		match self.post_only {
 			true => elements.push(FieldElement::from(1_u8)),
 			false => elements.push(FieldElement::from(0_u8)),
 		}
 
-		elements.push(FieldElement::from(u8::from(self.time_in_force)));
+		let time_in_force:&str = self.time_in_force.into();
+		elements.push(FieldElement::from_hex_be(
+			hex::encode(time_in_force).as_str()).map_err(
+			|_err| GeneralConversionError::EnumToFieldElementError
+			)?);
 
 		elements.push(FieldElement::from(self.timestamp));
 
