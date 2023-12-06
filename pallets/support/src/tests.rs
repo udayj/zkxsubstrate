@@ -1,10 +1,11 @@
 use crate::{
 	ecdsa_verify,
-	helpers::compute_hash_on_elements,
+	helpers::{compute_hash_on_elements, calc_30day_volume, get_day_diff, shift_and_recompute},
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
 };
+use codec::alloc::vec;
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -235,4 +236,56 @@ fn test_round_to_precision_1() {
 	// 10000000000000.123456789123456789, 1
 	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(1);
 	assert_eq!(val, FixedI128::from_inner(10000000000000100000000000000000));
+}
+
+#[test]
+fn test_calc_30day_volume() {
+
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+
+	assert_eq!(calc_30day_volume(&volume), 465.into(), "Error in calculating volume");
+}
+
+#[test]
+fn test_get_day_diff() {
+
+	let mut t_prev = 1701880189;
+	let mut t_cur = 1701880189;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701883789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701912589;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701991789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701993601;
+	assert_eq!(get_day_diff(t_prev, t_cur), 2,"Error in day diff");
+}
+
+#[test]
+fn test_shift_and_recompute() {
+
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 0);
+	assert_eq!(updated_volume, volume, "Error in updated volume");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume");
+
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 0);
+
+	let mut new_volume = vec![];
+	for i in 1..31 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume");
 }
