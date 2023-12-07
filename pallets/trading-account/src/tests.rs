@@ -6,9 +6,11 @@ use pallet_support::{
 			alice, bob, charlie, create_withdrawal_request, dave, eduard, get_private_key,
 			get_trading_account_id,
 		},
-		asset_helper::{btc, eth, usdc, usdt},
+		asset_helper::{btc, eth, usdc, usdt, link},
+		market_helper::{btc_usdc, link_usdc}
 	},
-	types::BalanceUpdate,
+	types::{BalanceUpdate, Order, 
+		trading::{Direction, OrderType}}, traits::TradingAccountInterface
 };
 use primitive_types::U256;
 
@@ -20,10 +22,14 @@ fn setup() -> sp_io::TestExternalities {
 	env.execute_with(|| {
 		// Set the block number
 		System::set_block_number(1);
-
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
 		// Set the assets in the system
 		assert_ok!(
-			Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), usdt()])
+			Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), link(), btc(), usdt()])
+		);
+
+		assert_ok!(
+			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
 		);
 
 		// Add accounts to the system
@@ -354,5 +360,53 @@ fn test_withdraw_with_insufficient_balance() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+	});
+}
+
+// basic first trade for the system - no prior trades exist
+#[test]
+fn test_volume_update_first_trade() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+		// Create orders
+		let alice_order =
+			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202_u128, bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		let alice_30day_volume = TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+
+		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp");
 	});
 }

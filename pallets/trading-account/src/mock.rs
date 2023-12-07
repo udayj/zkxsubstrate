@@ -2,6 +2,7 @@ use crate as pallet_trading_account;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_risk_management;
+use pallet_support::traits::TradingAccountInterface;
 use pallet_timestamp;
 use pallet_trading_fees;
 use sp_core::H256;
