@@ -452,7 +452,7 @@ pub mod pallet {
 			let req_margin_fraction = market.maintenance_margin_fraction;
 
 			// Calculate the maintenance requirement
-			let maintenance_position = position.avg_execution_price * position.size;
+			let maintenance_position = mark_price * position.size;
 			let maintenance_requirement = req_margin_fraction * maintenance_position;
 
 			if mark_price == FixedI128::zero() {
