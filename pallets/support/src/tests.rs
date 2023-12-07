@@ -274,10 +274,13 @@ fn test_shift_and_recompute() {
 		let element:FixedI128 = i.into();
 		volume.push(element);
 	}
-	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 0);
-	assert_eq!(updated_volume, volume, "Error in updated volume");
-	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume");
 
+	// trade in same day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 0);
+	assert_eq!(updated_volume, volume, "Error in updated volume 1");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 1");
+
+	// trade in same day with 100 new volume
 	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 0);
 
 	let mut new_volume = vec![];
@@ -286,6 +289,52 @@ fn test_shift_and_recompute() {
 		new_volume.push(element);
 	}
 	new_volume.insert(0, 100.into());
-	assert_eq!(updated_volume, new_volume, "Error in updated volume");
-	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume");
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 2");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 2");
+
+	// trade on next day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 3");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 3");
+
+	// trade on next day with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 4");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 4");
+
+	// trade after 2 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 2);
+
+	let mut new_volume = vec![];
+	for i in 0..29 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 5");
+	assert_eq!(total_30day_volume, 406.into(), "Error in calculating volume 5");
+
+	// trade after 31 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 31);
+
+	let mut new_volume = Vec::from([FixedI128::from_inner(0); 30]);
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 6");
+	assert_eq!(total_30day_volume, 0.into(), "Error in calculating volume 6");
+
 }
