@@ -10,7 +10,8 @@ use pallet_support::{
 		market_helper::{btc_usdc, link_usdc}
 	},
 	types::{BalanceUpdate, Order, 
-		trading::{Direction, OrderType}}, traits::TradingAccountInterface
+		trading::{Direction, OrderType}}, 
+	traits::TradingAccountInterface
 };
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
@@ -28,7 +29,6 @@ fn setup() -> sp_io::TestExternalities {
 		assert_ok!(
 			Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), link(), btc(), usdt()])
 		);
-
 		assert_ok!(
 			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
 		);
@@ -370,7 +370,6 @@ fn test_volume_update_two_trades() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -389,7 +388,9 @@ fn test_volume_update_two_trades() {
 		let alice_30day_volume = TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
 		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id);
+		// None type volume is returned in case of no prior trades
 		assert_eq!(alice_volume_actual.is_none(), true, "Error in trade volume vector");
+		// Initial 30 day volume is 0 with no prior trades
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
@@ -416,7 +417,7 @@ fn test_volume_update_two_trades() {
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
-		// Check timestamp recorde for last trade
+		// Check timestamp recorded for last trade
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
@@ -430,9 +431,9 @@ fn test_volume_update_two_trades() {
 		let alice_order =
 			Order::new(203_u128, alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204_u128, bob_id)
-    		.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
+									.set_direction(Direction::Short)
+									.set_order_type(OrderType::Market)
+									.sign_order(get_private_key(bob().pub_key));
 		
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
@@ -457,16 +458,19 @@ fn test_volume_update_two_trades() {
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 2");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();30]);
 		
-		alice_volume_expected.insert(0,200.into());
+		alice_volume_expected.insert(0,200.into()); // trade volume should get added cumulatively to same day
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, 1699940367, "Error in timestamp 3");
 	});
 }
@@ -476,7 +480,6 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -516,10 +519,12 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			1699940367000,
 		));
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();30]);
 		alice_volume_expected.insert(0,100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
@@ -527,10 +532,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let alice_order =
 			Order::new(203_u128, alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204_u128, bob_id)
-    		.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
-		
+    								.set_direction(Direction::Short)
+									.set_order_type(OrderType::Market)
+									.sign_order(get_private_key(bob().pub_key));
 		// next trade on next day i.e. day 2
 		Timestamp::set_timestamp((init_timestamp + one_day)*1000);
 
@@ -543,7 +547,8 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-2");
 
 		// volume vector should also be the same since it is only updated when a trade is made
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();30]);
 		alice_volume_expected.insert(0,100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
@@ -567,22 +572,25 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let alice_30day_volume = TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
 
-		// 30 day volume should now include previous day's trade volume
+		// 30 day volume should include previous day's trade volume
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-3");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-3");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + one_day, "Error in timestamp 2");
 
 		// Check volume vector
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();29]);
 		
 		alice_volume_expected.insert(0,100.into()); // previous day's trade
 		alice_volume_expected.insert(0,100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 3");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, init_timestamp + one_day, "Error in timestamp 3");
 
 		// next trade on same 2nd day
@@ -591,9 +599,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let alice_order =
 			Order::new(205_u128, alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(206_u128, bob_id)
-    		.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
+									.set_direction(Direction::Short)
+									.set_order_type(OrderType::Market)
+									.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
@@ -618,17 +626,20 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-4");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-4");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + one_day + (one_day/2), "Error in timestamp 4");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();29]);
 		
 		alice_volume_expected.insert(0,100.into()); // previous day's trade volume
 		alice_volume_expected.insert(0,200.into()); // current day's trade volume
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 4");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, init_timestamp + one_day + (one_day/2), "Error in timestamp 5");
 
 		// next trade on 3rd day
@@ -645,9 +656,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let alice_order =
 			Order::new(207_u128, alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(208_u128, bob_id)
-    		.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
+									.set_direction(Direction::Short)
+									.set_order_type(OrderType::Market)
+									.sign_order(get_private_key(bob().pub_key));			
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
@@ -672,10 +683,12 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-6");
 		assert_eq!(bob_30day_volume, 300.into(), "Error in 30 day volume bob-6");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + one_day + (one_day), "Error in timestamp 6");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();28]);
 		
 		alice_volume_expected.insert(0,100.into()); // day 1 trade volume
@@ -683,7 +696,8 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		alice_volume_expected.insert(0,100.into()); // present day's trade volume
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 5");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, init_timestamp + one_day + (one_day), "Error in timestamp 7");
 	});
 }
@@ -693,7 +707,6 @@ fn test_volume_update_30_days_diff() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -706,7 +719,8 @@ fn test_volume_update_30_days_diff() {
 		// Create orders
 		let alice_order =
 			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = 
+		Order::new(202_u128, bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -735,7 +749,8 @@ fn test_volume_update_30_days_diff() {
 
 		let alice_order =
 			Order::new(203_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(204_u128, bob_id)
+		let bob_order = 
+			Order::new(204_u128, bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -764,7 +779,8 @@ fn test_volume_update_30_days_diff() {
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + 30*one_day, "Error in timestamp 2");
 
 		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
@@ -774,7 +790,8 @@ fn test_volume_update_30_days_diff() {
 		alice_volume_expected.insert(0,100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+								bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, init_timestamp + 30*one_day, "Error in timestamp 3");
 	});
 }
@@ -784,7 +801,6 @@ fn test_volume_update_31_days_diff() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -807,7 +823,6 @@ fn test_volume_update_31_days_diff() {
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
-
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
@@ -824,17 +839,20 @@ fn test_volume_update_31_days_diff() {
 			1699940367000,
 		));
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();30]);
 		alice_volume_expected.insert(0,100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
 
 		let alice_order =
 			Order::new(203_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(204_u128, bob_id)
+		let bob_order = 
+			Order::new(204_u128, bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -872,16 +890,19 @@ fn test_volume_update_31_days_diff() {
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
-		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(alice().account_address, collateral_id).unwrap();
+		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									alice().account_address, collateral_id).unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + 31*one_day, "Error in timestamp 2");
 
-		let alice_volume_actual = TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id).unwrap();
+		let alice_volume_actual = TradingAccountModule::monetary_account_volume(
+									alice().account_address, collateral_id).unwrap();
 		let mut alice_volume_expected:Vec<FixedI128> = Vec::from([0.into();30]);
 		
 		alice_volume_expected.insert(0,100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
 
-		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(bob().account_address, collateral_id).unwrap();
+		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
+									bob().account_address, collateral_id).unwrap();
 		assert_eq!(bob_tx_timestamp, init_timestamp + 31*one_day, "Error in timestamp 3");
 	});
 }

@@ -240,19 +240,16 @@ fn test_round_to_precision_1() {
 
 #[test]
 fn test_calc_30day_volume() {
-
 	let mut volume:Vec<FixedI128> = vec![];
 	for i in 0..31 {
 		let element:FixedI128 = i.into();
 		volume.push(element);
 	}
-
 	assert_eq!(calc_30day_volume(&volume), 465.into(), "Error in calculating volume");
 }
 
 #[test]
 fn test_get_day_diff() {
-
 	let mut t_prev = 1701880189;
 	let mut t_cur = 1701880189;
 	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
@@ -268,7 +265,6 @@ fn test_get_day_diff() {
 
 #[test]
 fn test_shift_and_recompute() {
-
 	let mut volume:Vec<FixedI128> = vec![];
 	for i in 0..31 {
 		let element:FixedI128 = i.into();
@@ -336,5 +332,4 @@ fn test_shift_and_recompute() {
 	new_volume.insert(0, 100.into());
 	assert_eq!(updated_volume, new_volume, "Error in updated volume 6");
 	assert_eq!(total_30day_volume, 0.into(), "Error in calculating volume 6");
-
 }
