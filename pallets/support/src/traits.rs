@@ -138,6 +138,10 @@ pub trait FeltSerializedArrayExt {
 	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
 	fn append_bool(&mut self, boolean_value: bool);
 	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet);
+	fn try_append_asset_addresses(
+		&mut self,
+		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError>;
 	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_u256_pair(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError>;
