@@ -49,7 +49,7 @@ pub trait TradingApi<BlockHash> {
 	fn get_fee(
 		&self,
 		account_id: U256,
-		market_id: u128,
+		market_id: U256,
 		at: Option<BlockHash>,
 	) -> RpcResult<(FeeRates, u64)>;
 }
@@ -129,7 +129,7 @@ where
 	fn get_fee(
 		&self,
 		account_id: U256,
-		market_id: u128,
+		market_id: U256,
 		at: Option<<Block as BlockT>::Hash>,
 	) -> RpcResult<(FeeRates, u64)> {
 		let api = self.client.runtime_api();

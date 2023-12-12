@@ -2,7 +2,6 @@
 
 use frame_support::dispatch::Vec;
 use pallet_support::types::ABRDetails;
-
 // Here we declare the runtime API. It is implemented it the `impl` block in
 // runtime file (the `runtime-api/src/lib.rs`)
 sp_api::decl_runtime_apis! {

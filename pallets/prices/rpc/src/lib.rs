@@ -11,6 +11,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
+
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
 	#[method(name = "abr_get_remaining_markets")]
