@@ -3555,6 +3555,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
+
+[[package]]
 name = "libp2p"
 version = "0.51.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4593,6 +4599,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "node-template-runtime",
+ "pallet-prices-rpc",
  "pallet-trading-rpc",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
@@ -4638,13 +4645,13 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "pallet-abr",
  "pallet-asset",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-market",
  "pallet-prices",
+ "pallet-prices-runtime-api",
  "pallet-risk-management",
  "pallet-sudo",
  "pallet-support",
@@ -4665,6 +4672,7 @@ dependencies = [
  "sp-consensus-grandpa",
  "sp-core",
  "sp-inherents",
+ "sp-io",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -4858,22 +4866,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-abr"
-version = "0.0.1-dev"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-support",
- "pallet-trading-account",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
-]
-
-[[package]]
 name = "pallet-asset"
 version = "0.0.1-dev"
 dependencies = [
@@ -4981,8 +4973,13 @@ dependencies = [
  "frame-system",
  "pallet-asset",
  "pallet-market",
+ "pallet-prices",
+ "pallet-risk-management",
  "pallet-support",
  "pallet-timestamp",
+ "pallet-trading",
+ "pallet-trading-account",
+ "pallet-trading-fees",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -4990,6 +4987,29 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-prices-rpc"
+version = "1.0.0"
+dependencies = [
+ "frame-support",
+ "jsonrpsee",
+ "pallet-prices-runtime-api",
+ "pallet-support",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-prices-runtime-api"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "pallet-support",
+ "sp-api",
 ]
 
 [[package]]
@@ -5059,7 +5079,9 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "hex",
  "itertools 0.11.0",
+ "libm",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5170,6 +5192,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-asset",
  "pallet-support",
  "parity-scale-codec",
  "primitive-types",

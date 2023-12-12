@@ -22,10 +22,9 @@ fn setup() -> sp_io::TestExternalities {
 		System::set_block_number(1);
 
 		// Set the assets in the system
-		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
-			vec![eth(), usdc(), usdt()]
-		));
+		assert_ok!(
+			Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![eth(), usdc(), usdt()])
+		);
 
 		// Add accounts to the system
 		assert_ok!(TradingAccountModule::add_accounts(
@@ -276,16 +275,14 @@ fn test_withdraw_duplicate() {
 		.unwrap();
 
 		// Send the withdrawal request
-		assert_ok!(TradingAccountModule::withdraw(
-			RuntimeOrigin::signed(1),
-			withdrawal_request.clone()
-		));
+		assert_ok!(
+			TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request.clone())
+		);
 
 		// Send the withdrawal request again
-		assert_ok!(TradingAccountModule::withdraw(
-			RuntimeOrigin::signed(1),
-			withdrawal_request.clone()
-		));
+		assert_ok!(
+			TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request.clone())
+		);
 	});
 }
 

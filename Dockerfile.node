@@ -11,6 +11,7 @@ RUN apt-get update && \
 RUN rustup default stable && rustup update && rustup target add wasm32-unknown-unknown
 RUN rustup show
 
+RUN cargo build --release --package node-template-runtime
 RUN cargo build --release
 
 CMD ["/bin/bash"]

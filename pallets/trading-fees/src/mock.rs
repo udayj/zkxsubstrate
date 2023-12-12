@@ -1,19 +1,21 @@
 use crate as trading_fees;
 use frame_support::traits::{ConstU16, ConstU64};
+use pallet_asset;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage
+	BuildStorage,
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test 
+	pub enum Test
 	{
 		System: frame_system,
 		TradingFeesModule: trading_fees,
+		Assets: pallet_asset
 	}
 );
 
@@ -43,8 +45,13 @@ impl frame_system::Config for Test {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+impl pallet_asset::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+}
+
 impl trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 }
 
 // Build genesis storage according to the mock runtime.

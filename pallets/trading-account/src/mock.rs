@@ -60,6 +60,7 @@ impl pallet_trading_account::Config for Test {
 	type TradingPallet = Trading;
 	type MarketPallet = Markets;
 	type PricesPallet = Prices;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_asset::Config for Test {
@@ -80,12 +81,16 @@ impl pallet_timestamp::Config for Test {
 
 impl pallet_prices::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 	type MarketPallet = Markets;
 	type TimeProvider = Timestamp;
+	type TradingAccountPallet = TradingAccountModule;
+	type TradingPallet = Trading;
 }
 
 impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 }
 
 impl pallet_trading::Config for Test {

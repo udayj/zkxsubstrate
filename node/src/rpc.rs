@@ -38,8 +38,10 @@ where
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: pallet_trading_rpc::TradingRuntimeApi<Block>,
+	C::Api: pallet_prices_rpc::PricesRuntimeApi<Block>,
 	P: TransactionPool + 'static,
 {
+	use pallet_prices_rpc::{PricesApiServer, PricesPallet};
 	use pallet_trading_rpc::{TradingApiServer, TradingPallet};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
@@ -49,7 +51,8 @@ where
 
 	module.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
 	module.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	module.merge(TradingPallet::new(client).into_rpc())?;
+	module.merge(TradingPallet::new(client.clone()).into_rpc())?;
+	module.merge(PricesPallet::new(client).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed
