@@ -10,7 +10,6 @@ pub struct Asset {
 	pub short_name: U256,
 	pub is_tradable: bool,
 	pub is_collateral: bool,
-	pub l2_address: U256,
 	pub decimals: u8,
 }
 

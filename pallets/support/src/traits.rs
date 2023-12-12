@@ -1,8 +1,9 @@
 use crate::types::{
-	ABRDetails, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
-	ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType, MarginInfo, Market,
-	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side,
-	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
+	Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType, MarginInfo,
+	Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet,
+	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent,
+	UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -204,4 +205,9 @@ pub trait FeltSerializedArrayExt {
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
 	) -> Result<(), FromByteSliceError>;
+}
+
+pub trait ChainConstants {
+	fn starknet_chain() -> U256;
+	fn zkx_sync_chain() -> U256;
 }
