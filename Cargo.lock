@@ -4998,6 +4998,7 @@ dependencies = [
  "pallet-prices-runtime-api",
  "pallet-support",
  "parity-scale-codec",
+ "primitive-types",
  "sp-api",
  "sp-blockchain",
  "sp-runtime",
@@ -5009,6 +5010,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "pallet-support",
+ "primitive-types",
  "sp-api",
 ]
 

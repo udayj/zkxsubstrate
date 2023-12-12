@@ -454,11 +454,11 @@ impl_runtime_apis! {
 			Prices::get_next_abr_timestamp()
 		}
 
-		fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails> {
+		fn get_previous_abr_values(starting_epoch: u64, market_id: U256, n: u64) -> Vec<ABRDetails> {
 
 			// market_id is internally a u128 value hence conversion is required from U256 to u128
 			// call to as_u128() will panic if value is > 2^128
-			Prices::get_previous_abr_values(starting_epoch, market_id, n)
+			Prices::get_previous_abr_values(starting_epoch, market_id.as_u128(), n)
 		}
 	}
 

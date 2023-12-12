@@ -10,7 +10,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-
+use primitive_types::U256;
 
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
@@ -33,7 +33,7 @@ pub trait PricesApi<BlockHash> {
 	fn get_previous_abr_values(
 		&self,
 		starting_epoch: u64,
-		market_id: u128,
+		market_id: U256,
 		n: u64,
 		at: Option<BlockHash>,
 	) -> RpcResult<Vec<ABRDetails>>;
@@ -101,7 +101,7 @@ where
 	fn get_previous_abr_values(
 		&self,
 		starting_epoch: u64,
-		market_id: u128,
+		market_id: U256,
 		n: u64,
 		at: Option<<Block as BlockT>::Hash>,
 	) -> RpcResult<Vec<ABRDetails>> {
