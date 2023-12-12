@@ -4,9 +4,9 @@ use pallet_support::{
 	helpers::pedersen_hash_multiple,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, QuorumSet,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		Asset, AssetAddress, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated,
+		QuorumSet, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -29,6 +29,7 @@ pub trait AssetUpdatedTrait {
 		event_index: u32,
 		id: u128,
 		asset: Asset,
+		asset_address: BoundedVec<AssetAddress, ConstU32<256>>,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated;
@@ -82,10 +83,11 @@ impl AssetUpdatedTrait for AssetUpdated {
 		event_index: u32,
 		id: u128,
 		asset: Asset,
+		asset_addresses: BoundedVec<AssetAddress, ConstU32<256>>,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated {
-		AssetUpdated { event_index, id, asset, metadata_url, block_number }
+		AssetUpdated { event_index, id, asset, asset_addresses, metadata_url, block_number }
 	}
 }
 

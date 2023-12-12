@@ -340,7 +340,7 @@ fn test_liquidation_after_deleveraging() {
 			MultiplePrices { market_id, index_price: 6500.into(), mark_price: 6500.into() };
 		index_prices.push(index_price1);
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940366000));
-		let price = Prices::current_price(market_id);
+		let _ = Prices::current_price(market_id);
 
 		// Place Forced order for deleveraging
 		let dave_order = Order::new(206_u128, dave_id)
