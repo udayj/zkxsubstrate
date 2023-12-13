@@ -23,36 +23,13 @@ pub mod helpers {
 	use crate::traits::U256Ext;
 	use core::f64;
 	use frame_support::dispatch::Vec;
-	use itertools::fold;
 	use libm::log10;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
-	use starknet_crypto::pedersen_hash;
+	pub use starknet_core::crypto::compute_hash_on_elements;
 
 	// Unix timestamp for 1st Nov 12:00 AM UTC
 	pub const TIMESTAMP_START: u64 = 1698796800;
-
-	// Function to perform pedersen hash of an array of field elements
-	pub fn pedersen_hash_multiple(data: &Vec<FieldElement>) -> FieldElement {
-		// hash is computed as follows
-		// h(h(h(h(0, data[0]), data[1]), ...), data[n-1]), n).
-		let first_element = FieldElement::from(0_u8);
-		let last_element = FieldElement::from(data.len());
-
-		// append length of data array to the array
-		let mut elements = data.clone();
-		elements.push(last_element);
-
-		// The FieldElement array is then reduced with the pedersen hash function
-		fold(&elements, first_element, foldable_pedersen_hash)
-	}
-
-	// This function is a wrapper around pedersen_hash function where 1st element is consumable
-	// instead of being borrowed through a reference
-	// It is required due to the fn sig requirement of fold
-	fn foldable_pedersen_hash(a: FieldElement, b: &FieldElement) -> FieldElement {
-		pedersen_hash(&a, b)
-	}
 
 	pub fn sig_u256_to_sig_felt(
 		sig_r: &U256,

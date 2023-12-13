@@ -1,5 +1,5 @@
 use crate::{
-	helpers::pedersen_hash_multiple,
+	helpers::compute_hash_on_elements,
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::common::{convert_to_u128_pair, HashType},
 };
@@ -397,7 +397,7 @@ impl Hashable for Order {
 		elements.push(FieldElement::from(self.timestamp));
 
 		match &hash_type {
-			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
+			HashType::Pedersen => Ok(compute_hash_on_elements(&elements)),
 			HashType::Poseidon => Ok(poseidon_hash_many(&elements)),
 		}
 	}

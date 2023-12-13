@@ -14,7 +14,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::pedersen_hash_multiple,
+		helpers::compute_hash_on_elements,
 		traits::{
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
 			TradingAccountInterface, U256Ext,
@@ -424,7 +424,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::ConversionError)?;
 
 			// Compute hash of the array and return
-			Ok(pedersen_hash_multiple(&flattened_array))
+			Ok(compute_hash_on_elements(&flattened_array))
 		}
 
 		fn get_block_and_event_number(event: &UniversalEvent) -> (u64, u32) {
