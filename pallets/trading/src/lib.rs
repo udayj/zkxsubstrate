@@ -61,7 +61,7 @@ pub mod pallet {
 	#[pallet::getter(fn order_state)]
 	// k1 - order id, v - (portion executed, isCancelled flag)
 	pub(super) type OrderStateMap<T: Config> =
-		StorageMap<_, Twox64Concat, u128, (FixedI128, bool), ValueQuery>;
+		StorageMap<_, Twox64Concat, U256, (FixedI128, bool), ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn positions)]
@@ -116,7 +116,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn order_hash)]
 	// k1 - order id, v - order hash
-	pub(super) type OrderHashMap<T: Config> = StorageMap<_, Twox64Concat, u128, U256, ValueQuery>;
+	pub(super) type OrderHashMap<T: Config> = StorageMap<_, Twox64Concat, U256, U256, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn liquidator_signers)]
@@ -132,7 +132,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn orders)]
 	// k1 - timestamp, v - vector of order_ids
-	pub(super) type OrdersMap<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u128>, OptionQuery>;
+	pub(super) type OrdersMap<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<U256>, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn batches)]
@@ -251,11 +251,11 @@ pub mod pallet {
 		/// Trade batch failed since no makers got executed
 		TradeExecutionFailed { batch_id: U256 },
 		/// Order error
-		OrderError { order_id: u128, error_code: u16 },
+		OrderError { order_id: U256, error_code: u16 },
 		/// Order of a user executed successfully
 		OrderExecuted {
 			account_id: U256,
-			order_id: u128,
+			order_id: U256,
 			market_id: u128,
 			size: FixedI128,
 			direction: u8,
@@ -841,7 +841,7 @@ pub mod pallet {
 					let orders_by_timestamp = OrdersMap::<T>::get(order_timestamp);
 					let mut orders_list;
 					if orders_by_timestamp.is_none() {
-						orders_list = Vec::<u128>::new();
+						orders_list = Vec::<U256>::new();
 					} else {
 						orders_list = orders_by_timestamp.unwrap();
 					}
@@ -952,13 +952,13 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn cancel_order(origin: OriginFor<T>, order_id: u128) -> DispatchResult {
+		pub fn cancel_order(origin: OriginFor<T>, order_id: U256) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// TODO: Add signature verification
 
 			// The order_id cannot be 0
-			ensure!(order_id != u128::zero(), Error::<T>::ZeroOrderId);
+			ensure!(order_id != U256::zero(), Error::<T>::ZeroOrderId);
 
 			let (order_portion_executed, _) = OrderStateMap::<T>::get(order_id);
 
@@ -1700,7 +1700,7 @@ pub mod pallet {
 			// Emit the SignerRemoved event
 			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
 		}
-		fn order_hash_check(order_id: u128, order_hash: U256) -> bool {
+		fn order_hash_check(order_id: U256, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
 			// If the hash isn't stored in the contract yet

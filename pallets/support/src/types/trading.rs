@@ -25,7 +25,7 @@ pub struct SignatureInfo {
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub account_id: U256,
-	pub order_id: u128,
+	pub order_id: U256,
 	pub market_id: u128,
 	pub order_type: OrderType,
 	pub direction: Direction,
@@ -347,7 +347,11 @@ impl Hashable for Order {
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 
-		elements.push(FieldElement::from(self.order_id));
+		let (order_id_low, order_id_high) = convert_to_u128_pair(self.order_id).map_err(
+			|_| GeneralConversionError::U256ToFieldElementError
+		)?;
+		elements.push(order_id_low);
+		elements.push(order_id_high);
 
 		elements.push(FieldElement::from(self.market_id));
 

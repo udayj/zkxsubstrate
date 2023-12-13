@@ -40,7 +40,7 @@ pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>) {
 }
 
 impl Order {
-	pub fn new(order_id: u128, account_id: U256) -> Order {
+	pub fn new(order_id: U256, account_id: U256) -> Order {
 		Order {
 			account_id,
 			order_id,
@@ -68,7 +68,7 @@ impl Order {
 		Order { account_id, ..self }
 	}
 
-	pub fn set_order_id(self: Order, order_id: u128) -> Order {
+	pub fn set_order_id(self: Order, order_id: U256) -> Order {
 		Order { order_id, ..self }
 	}
 
