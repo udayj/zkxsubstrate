@@ -159,9 +159,13 @@ fn test_order_signature() {
 	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"3203336930042656909517741484932238155454713541462771003082080160562006162454",
+		"3132625918282695035920415711376638693136677687288415900988049051810724895775",
 	)
 	.unwrap();
+	// order hash should match 
+	// compute_hash_on_elements(
+	// [0,0,201,0,1,327647316308,1280265799,4347225,
+	// 100000000000000000000,1000000000000000000,1000000000000000000,100000000000000000,0,4674627,1699940278000])
 	assert_eq!(order_hash, expected_hash);
 
 	let private_key = FieldElement::from_dec_str("100").unwrap();
