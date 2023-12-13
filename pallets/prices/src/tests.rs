@@ -6,14 +6,13 @@ use pallet_support::{
 		asset_helper::{btc, eth, link, usdc},
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 	},
-	types::{Direction, MultiplePrices, Order, OrderType, Position, Side},
+	types::{Direction, MultiplePrices, Order, OrderType},
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 
 // declare test_helper module
 pub mod test_helper;
-use sp_io::transaction_index::index;
 use test_helper::*;
 
 fn setup() -> sp_io::TestExternalities {
@@ -426,6 +425,11 @@ fn test_abr_flow_for_btc_orders() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::signed(1),
+			1699940278000
+		));
+
 		// Create orders
 		let alice_order =
 			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
@@ -452,9 +456,6 @@ fn test_abr_flow_for_btc_orders() {
 
 		// Change block timestamp
 		Timestamp::set_timestamp(1699969078000);
-
-		// Set ABR timestamp
-		assert_ok!(PricesModule::set_abr_timestamp(RuntimeOrigin::signed(1), 1699969078));
 
 		let abr_state = PricesModule::abr_state();
 		println!("abr_state {:?}", abr_state);

@@ -11,8 +11,50 @@ use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_core::crypto::ecdsa_sign;
 use starknet_crypto::{get_public_key, pedersen_hash};
-use starknet_ff::FieldElement;
+use starknet_ff::{FieldElement, FromByteSliceError};
+use hex;
 
+// reference implementation to test conversion from string to FieldElement
+pub fn hex_to_field_element(text: &str) -> Result<FieldElement, FromByteSliceError> {
+    let cleaned_hex_string = text.trim_start_matches("0x");
+    let mut bytes_vec = hex::decode(cleaned_hex_string).map_err(|_err| FromByteSliceError::InvalidLength)?;
+    while bytes_vec.len() < 32 {
+        bytes_vec.insert(0, 0);
+    }
+    let bytes_array = bytes_vec[..32].try_into().expect("Wrong length for bytes array");
+    FieldElement::from_bytes_be(&bytes_array).map_err(
+		|_err| FromByteSliceError::InvalidLength)
+	}
+
+pub fn string_to_felt(str: &str) -> Result<FieldElement, FromByteSliceError> {
+    if !str.is_ascii() {
+        return Err(FromByteSliceError::OutOfRange);
+    }
+    if str.len() > 31 {
+        return Err(FromByteSliceError::InvalidLength);
+    }
+    let encoded_str = hex::encode(str);
+
+    hex_to_field_element(&encoded_str)
+}
+#[test]
+fn test_enum_felt() {
+	let a = FieldElement::from_hex_be(hex::encode("BUY").as_str()).unwrap();
+	let b = string_to_felt("BUY").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("LONG").as_str()).unwrap();
+	let b = string_to_felt("LONG").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("GTT").as_str()).unwrap();
+	let b = string_to_felt("GTT").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("MARKET").as_str()).unwrap();
+	let b = string_to_felt("MARKET").unwrap();
+	assert_eq!(a,b,"Error");
+}
 #[test]
 fn test_felt_and_hash_values() {
 	let val1 = FieldElement::from(1_u8);
@@ -22,10 +64,25 @@ fn test_felt_and_hash_values() {
 	assert_ne!(FieldElement::from(1_u8), FieldElement::from(0_u8));
 
 	let side = Side::Buy;
+	let side_str:&str = side.into();
 	let side2 = Side::Buy;
-	assert_eq!(FieldElement::from(u8::from(side)), FieldElement::from(u8::from(side2)));
+	let side2_str:&str = side2.into();
+
+	assert_eq!(
+		FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side2_str).as_str()
+		).unwrap());
 	let side3 = Side::Sell;
-	assert_ne!(FieldElement::from(u8::from(side)), FieldElement::from(u8::from(side3)));
+	let side3_str:&str = side3.into();
+	assert_ne!(FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side3_str).as_str()
+		).unwrap());
 
 	// The value of the hash is obtained from the pedersen_hash function in cairo-lang package
 	// correct value = pedersen_hash(1,2)
@@ -99,10 +156,10 @@ fn test_felt_and_hash_values() {
 #[test]
 fn test_order_signature() {
 	let order = Order::new(201_u128, U256::from(0));
-
+	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"2853447424465248992992625177668866455963077383224898997047090550229358049653",
+		"3203336930042656909517741484932238155454713541462771003082080160562006162454",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);
