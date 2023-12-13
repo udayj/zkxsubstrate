@@ -15,7 +15,7 @@ pub struct Asset {
 
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AssetAddress {
-	pub chain: U256,
+	pub chain: u128,
 	pub address: U256,
 }
 

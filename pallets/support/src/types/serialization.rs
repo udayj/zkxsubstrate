@@ -24,7 +24,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
 	) -> Result<(), FromByteSliceError> {
 		vec.iter().try_for_each(|asset_address| {
-			self.try_append_u256_pair(asset_address.chain)?;
+			self.push(FieldElement::from(asset_address.chain));
 			self.try_append_u256_pair(asset_address.address)?;
 
 			Ok(())

@@ -7,12 +7,12 @@ use sp_runtime::BoundedVec;
 
 struct Chains;
 impl ChainConstants for Chains {
-	fn starknet_chain() -> U256 {
-		U256::from(0x535441524b4e4554_u64)
+	fn starknet_chain() -> u128 {
+		0x535441524b4e4554_u128
 	}
 
-	fn zkx_sync_chain() -> U256 {
-		U256::from(0x5a4b53594e43_u64)
+	fn zkx_sync_chain() -> u128 {
+		0x5a4b53594e43_u128
 	}
 }
 

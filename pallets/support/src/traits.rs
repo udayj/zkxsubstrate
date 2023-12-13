@@ -208,6 +208,6 @@ pub trait FeltSerializedArrayExt {
 }
 
 pub trait ChainConstants {
-	fn starknet_chain() -> U256;
-	fn zkx_sync_chain() -> U256;
+	fn starknet_chain() -> u128;
+	fn zkx_sync_chain() -> u128;
 }
