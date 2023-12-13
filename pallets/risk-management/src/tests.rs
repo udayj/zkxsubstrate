@@ -61,13 +61,13 @@ fn test_liquidation() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -99,13 +99,13 @@ fn test_liquidation() {
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
-		let charlie_order = Order::new(204_u128, charlie_id)
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(5000.into())
 			.set_leverage(5.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(5000.into())
 			.set_order_type(OrderType::Forced)
@@ -164,13 +164,13 @@ fn test_deleveraging() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -202,12 +202,12 @@ fn test_deleveraging() {
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for deleveraging
-		let charlie_order = Order::new(204_u128, charlie_id)
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.set_order_type(OrderType::Forced)
@@ -267,13 +267,13 @@ fn test_liquidation_after_deleveraging() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -305,12 +305,12 @@ fn test_liquidation_after_deleveraging() {
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940365000));
 
 		// Place Forced order for deleveraging
-		let charlie_order = Order::new(204_u128, charlie_id)
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.set_order_type(OrderType::Forced)
@@ -343,13 +343,13 @@ fn test_liquidation_after_deleveraging() {
 		let _price = Prices::current_price(market_id);
 
 		// Place Forced order for deleveraging
-		let dave_order = Order::new(206_u128, dave_id)
+		let dave_order = Order::new(U256::from(206), dave_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(6500.into())
 			.sign_order(get_private_key(dave().pub_key));
 
-		let alice_forced_order = Order::new(205_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(205), alice_id)
 			.set_size(5.into())
 			.set_price(6500.into())
 			.set_order_type(OrderType::Forced)
@@ -406,13 +406,13 @@ fn test_invalid_forced_order() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -444,12 +444,12 @@ fn test_invalid_forced_order() {
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
-		let charlie_order = Order::new(204_u128, charlie_id)
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(9500.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(9500.into())
 			.set_order_type(OrderType::Forced)
@@ -490,13 +490,13 @@ fn test_invalid_liquidator() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -528,12 +528,12 @@ fn test_invalid_liquidator() {
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
 		// Place Forced order for liquidation
-		let charlie_order = Order::new(204_u128, charlie_id)
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203_u128, alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(8500.into())
 			.set_order_type(OrderType::Forced)

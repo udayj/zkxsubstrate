@@ -154,7 +154,7 @@ fn test_felt_and_hash_values() {
 
 #[test]
 fn test_order_signature() {
-	let order = Order::new(201_u128, U256::from(0));
+	let order = Order::new(U256::from(201), U256::from(0));
 	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
