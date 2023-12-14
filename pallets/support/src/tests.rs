@@ -1,17 +1,60 @@
 use crate::{
 	ecdsa_verify,
-	helpers::pedersen_hash_multiple,
+	helpers::{compute_hash_on_elements, calc_30day_volume, get_day_diff, shift_and_recompute},
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
 };
+use codec::alloc::vec;
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_core::crypto::ecdsa_sign;
 use starknet_crypto::{get_public_key, pedersen_hash};
-use starknet_ff::FieldElement;
+use starknet_ff::{FieldElement, FromByteSliceError};
+use hex;
 
+// reference implementation to test conversion from string to FieldElement
+pub fn hex_to_field_element(text: &str) -> Result<FieldElement, FromByteSliceError> {
+    let cleaned_hex_string = text.trim_start_matches("0x");
+    let mut bytes_vec = hex::decode(cleaned_hex_string).map_err(|_err| FromByteSliceError::InvalidLength)?;
+    while bytes_vec.len() < 32 {
+        bytes_vec.insert(0, 0);
+    }
+    let bytes_array = bytes_vec[..32].try_into().expect("Wrong length for bytes array");
+    FieldElement::from_bytes_be(&bytes_array).map_err(
+		|_err| FromByteSliceError::InvalidLength)
+	}
+
+pub fn string_to_felt(str: &str) -> Result<FieldElement, FromByteSliceError> {
+    if !str.is_ascii() {
+        return Err(FromByteSliceError::OutOfRange);
+    }
+    if str.len() > 31 {
+        return Err(FromByteSliceError::InvalidLength);
+    }
+    let encoded_str = hex::encode(str);
+
+    hex_to_field_element(&encoded_str)
+}
+#[test]
+fn test_enum_felt() {
+	let a = FieldElement::from_hex_be(hex::encode("BUY").as_str()).unwrap();
+	let b = string_to_felt("BUY").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("LONG").as_str()).unwrap();
+	let b = string_to_felt("LONG").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("GTT").as_str()).unwrap();
+	let b = string_to_felt("GTT").unwrap();
+	assert_eq!(a,b,"Error");
+
+	let a = FieldElement::from_hex_be(hex::encode("MARKET").as_str()).unwrap();
+	let b = string_to_felt("MARKET").unwrap();
+	assert_eq!(a,b,"Error");
+}
 #[test]
 fn test_felt_and_hash_values() {
 	let val1 = FieldElement::from(1_u8);
@@ -21,10 +64,25 @@ fn test_felt_and_hash_values() {
 	assert_ne!(FieldElement::from(1_u8), FieldElement::from(0_u8));
 
 	let side = Side::Buy;
+	let side_str:&str = side.into();
 	let side2 = Side::Buy;
-	assert_eq!(FieldElement::from(u8::from(side)), FieldElement::from(u8::from(side2)));
+	let side2_str:&str = side2.into();
+
+	assert_eq!(
+		FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side2_str).as_str()
+		).unwrap());
 	let side3 = Side::Sell;
-	assert_ne!(FieldElement::from(u8::from(side)), FieldElement::from(u8::from(side3)));
+	let side3_str:&str = side3.into();
+	assert_ne!(FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side3_str).as_str()
+		).unwrap());
 
 	// The value of the hash is obtained from the pedersen_hash function in cairo-lang package
 	// correct value = pedersen_hash(1,2)
@@ -85,7 +143,7 @@ fn test_felt_and_hash_values() {
 
 	// correct value = compute_hash_on_elements([-100,100,1,2])
 	assert_eq!(
-		pedersen_hash_multiple(&elements),
+		compute_hash_on_elements(&elements),
 		FieldElement::from_dec_str(
 			"1420103144340050848018289014363061324075028314390235365070247630498414256754"
 		)
@@ -98,10 +156,10 @@ fn test_felt_and_hash_values() {
 #[test]
 fn test_order_signature() {
 	let order = Order::new(201_u128, U256::from(0));
-
+	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"2853447424465248992992625177668866455963077383224898997047090550229358049653",
+		"3203336930042656909517741484932238155454713541462771003082080160562006162454",
 	)
 	.unwrap();
 	assert_eq!(order_hash, expected_hash);
@@ -235,4 +293,100 @@ fn test_round_to_precision_1() {
 	// 10000000000000.123456789123456789, 1
 	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(1);
 	assert_eq!(val, FixedI128::from_inner(10000000000000100000000000000000));
+}
+
+#[test]
+fn test_calc_30day_volume() {
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+	assert_eq!(calc_30day_volume(&volume), 465.into(), "Error in calculating volume");
+}
+
+#[test]
+fn test_get_day_diff() {
+	let mut t_prev = 1701880189;
+	let mut t_cur = 1701880189;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701883789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701912589;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701991789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701993601;
+	assert_eq!(get_day_diff(t_prev, t_cur), 2,"Error in day diff");
+}
+
+#[test]
+fn test_shift_and_recompute() {
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+
+	// trade in same day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 0);
+	assert_eq!(updated_volume, volume, "Error in updated volume 1");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 1");
+
+	// trade in same day with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 0);
+
+	let mut new_volume = vec![];
+	for i in 1..31 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 2");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 2");
+
+	// trade on next day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 3");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 3");
+
+	// trade on next day with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 4");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 4");
+
+	// trade after 2 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 2);
+
+	let mut new_volume = vec![];
+	for i in 0..29 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 5");
+	assert_eq!(total_30day_volume, 406.into(), "Error in calculating volume 5");
+
+	// trade after 31 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 31);
+
+	let mut new_volume = Vec::from([FixedI128::from_inner(0); 30]);
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 6");
+	assert_eq!(total_30day_volume, 0.into(), "Error in calculating volume 6");
 }

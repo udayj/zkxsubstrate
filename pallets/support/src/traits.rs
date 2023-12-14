@@ -1,8 +1,8 @@
 use crate::types::{
-	AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction, ExtendedAsset,
-	ExtendedMarket, ForceClosureFlag, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	Order, OrderSide, Position, PositionExtended, QuorumSet, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	ABRDetails, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
+	ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType, MarginInfo, Market,
+	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side,
+	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -11,6 +11,7 @@ use sp_runtime::{traits::ConstU32, BoundedVec, DispatchResult};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
 pub trait TradingAccountInterface {
+	type VolumeError;
 	fn deposit_internal(
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
@@ -44,6 +45,14 @@ pub trait TradingAccountInterface {
 	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
+	fn get_accounts_count() -> u128;
+	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
+	fn update_and_get_cumulative_volume(
+		account_id: U256,
+		market_id: u128,
+		new_volume: FixedI128,
+	) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
 }
 
 pub trait TradingInterface {
@@ -61,6 +70,7 @@ pub trait TradingInterface {
 	fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo;
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
+	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 }
 
 pub trait AssetInterface {
@@ -93,13 +103,22 @@ pub trait MarketInterface {
 	fn update_market_internal(extended_market: ExtendedMarket);
 	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
+	fn get_all_markets() -> Vec<u128>;
+	fn get_all_markets_by_state(is_tradable: bool, is_archived: bool) -> Vec<u128>;
 }
 
 pub trait PricesInterface {
+	fn convert_to_seconds(time_in_milli: u64) -> u64;
 	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_mark_price(market_id: u128) -> FixedI128;
 	fn get_last_traded_price(market_id: u128) -> FixedI128;
 	fn update_last_traded_price(market_id: u128, price: FixedI128);
+	fn get_remaining_markets() -> Vec<u128>;
+	fn get_no_of_batches_for_current_epoch() -> u128;
+	fn get_last_abr_timestamp() -> u64;
+	fn get_next_abr_timestamp() -> u64;
+	fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails>;
+	fn get_remaining_pay_abr_calls() -> u128;
 }
 
 pub trait FixedI128Ext {
@@ -121,10 +140,12 @@ pub trait FieldElementExt {
 
 pub trait TradingFeesInterface {
 	fn get_fee_rate(
+		collateral_id: u128,
 		side: Side,
 		order_side: OrderSide,
-		number_of_tokens: U256,
-	) -> (FixedI128, u8, u8);
+		volume: FixedI128,
+	) -> (FixedI128, u8);
+	fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

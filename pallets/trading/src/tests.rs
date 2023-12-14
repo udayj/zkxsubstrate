@@ -1,5 +1,3 @@
-// use std::alloc::System;
-
 use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use pallet_support::{
@@ -17,6 +15,14 @@ use sp_arithmetic::{
 	FixedI128,
 };
 
+fn assert_has_events(expected_events: Vec<RuntimeEvent>) {
+	for expected_event in &expected_events {
+		if !System::events().iter().any(|event| event.event == *expected_event) {
+			panic!("Expected event not found: {:?}", expected_event);
+		}
+	}
+}
+
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
 	let mut env = new_test_ext();
@@ -32,9 +38,10 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(
-			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
-		);
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![btc_usdc(), link_usdc()]
+		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
@@ -143,6 +150,7 @@ fn remove_signer_authorized() {
 		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer), false);
 	});
 }
+
 #[test]
 // basic open trade without any leverage
 fn it_works_for_open_trade_simple() {
@@ -212,6 +220,49 @@ fn it_works_for_open_trade_simple() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_order.direction.into(),
+				side: bob_order.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_order.direction.into(),
+				side: alice_order.side.into(),
+				order_type: alice_order.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_order.direction.into(),
+				side: bob_order.side.into(),
+				order_type: bob_order.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -285,6 +336,49 @@ fn it_works_for_open_trade_with_leverage() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_order.direction.into(),
+				side: bob_order.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_order.direction.into(),
+				side: alice_order.side.into(),
+				order_type: alice_order.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_order.direction.into(),
+				side: bob_order.side.into(),
+				order_type: bob_order.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -363,6 +457,58 @@ fn it_works_for_close_trade_simple() {
 		// Check for locked margin
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
 		assert_eq!(TradingAccounts::locked_margin(bob_id, collateral_id), 0.into());
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_open_order.direction.into(),
+				side: bob_open_order.side.into(),
+			}
+			.into(),
+			Event::TradeExecuted {
+				batch_id: U256::from(2_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 105.into(),
+				direction: bob_close_order.direction.into(),
+				side: bob_close_order.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_close_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_close_order.direction.into(),
+				side: alice_close_order.side.into(),
+				order_type: alice_close_order.order_type.into(),
+				execution_price: 105.into(),
+				pnl: 5.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_close_order.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_close_order.direction.into(),
+				side: bob_close_order.side.into(),
+				order_type: bob_close_order.order_type.into(),
+				execution_price: 105.into(),
+				pnl: (-5).into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -438,6 +584,88 @@ fn it_works_for_open_trade_partial_open() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, position1);
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+			}
+			.into(),
+			Event::TradeExecuted {
+				batch_id: U256::from(2_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 98.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: alice_open_order_1.side.into(),
+				order_type: alice_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+				order_type: bob_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: false,
+				is_maker: false,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_open_order_2.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_2.direction.into(),
+				side: alice_open_order_2.side.into(),
+				order_type: alice_open_order_2.order_type.into(),
+				execution_price: 98.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+				order_type: bob_open_order_1.order_type.into(),
+				execution_price: 98.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -480,7 +708,7 @@ fn it_works_for_close_trade_partial_close() {
 			1699940367000,
 		));
 
-		let alice_open_order_2 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(203_u128, alice_id)
 			.set_price(104.into())
 			.set_side(Side::Sell)
 			.sign_order(get_private_key(alice().pub_key));
@@ -503,7 +731,7 @@ fn it_works_for_close_trade_partial_close() {
 			// price
 			105.into(),
 			// orders
-			vec![alice_open_order_2.clone(), bob_close_order_1.clone()],
+			vec![alice_close_order_1.clone(), bob_close_order_1.clone()],
 			// batch_timestamp
 			1699940367000,
 		));
@@ -524,13 +752,71 @@ fn it_works_for_close_trade_partial_close() {
 			// price
 			100.into(),
 			// order
-			vec![bob_close_order_1.clone(), alice_close_order_2.clone()],
+			vec![alice_close_order_2.clone(), bob_close_order_1.clone()],
 			// batch_timestamp
 			1699940367000,
 		));
 
-		// Check for balances
-		// assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9998.into());
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 2.into(),
+				execution_price: 100.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+			}
+			.into(),
+			Event::TradeExecuted {
+				batch_id: U256::from(2_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 104.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+			}
+			.into(),
+			Event::TradeExecuted {
+				batch_id: U256::from(3_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 98.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+				order_type: bob_close_order_1.order_type.into(),
+				execution_price: 104.into(),
+				pnl: (-4).into(),
+				fee: 0.into(),
+				is_final: false,
+				is_maker: false,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+				order_type: bob_close_order_1.order_type.into(),
+				execution_price: 98.into(),
+				pnl: 2.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -560,7 +846,7 @@ fn it_works_for_open_trade_multiple_makers() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
-			.set_price(104.into())
+			.set_price(102.into())
 			.set_size(2.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(charlie().pub_key));
@@ -585,15 +871,23 @@ fn it_works_for_open_trade_multiple_makers() {
 			vec![
 				alice_open_order_1.clone(),
 				bob_open_order_1.clone(),
-				charlie_open_order_1,
-				dave_open_order_1
+				charlie_open_order_1.clone(),
+				dave_open_order_1.clone()
 			],
 			// batch_timestamp
 			1699940367000,
 		));
 
-		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-		println!("Events: {:?}", event_record);
+		// Check for events
+		assert_has_events(vec![Event::TradeExecuted {
+			batch_id: U256::from(1_u8),
+			market_id,
+			size: 3.into(),
+			execution_price: 102.into(),
+			direction: dave_open_order_1.direction.into(),
+			side: dave_open_order_1.side.into(),
+		}
+		.into()]);
 	});
 }
 
@@ -1481,15 +1775,14 @@ fn test_fee_while_opening_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		let (fee_tiers, fee_details) = setup_fee();
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFees::update_base_fees_and_discounts(
+		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Buy,
 			fee_tiers,
 			fee_details.clone(),
-			discount_tiers,
-			discount_details.clone()
 		));
 
 		// Create orders
@@ -1516,13 +1809,56 @@ fn test_fee_while_opening_order() {
 			1699940367000,
 		));
 
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: alice_open_order_1.side.into(),
+				order_type: alice_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: (-2).into(),
+				fee: 2.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+				order_type: bob_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: (-5).into(),
+				fee: 5.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
+
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(9998060000000000000000)
+			FixedI128::from_inner(9998000000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9995150000000000000000)
+			FixedI128::from_inner(9995000000000000000000)
 		);
 
 		let alice_close_order_1 = Order::new(203_u128, alice_id)
@@ -1555,13 +1891,56 @@ fn test_fee_while_opening_order() {
 
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(10003060000000000000000)
+			FixedI128::from_inner(10003000000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9990150000000000000000)
+			FixedI128::from_inner(9990000000000000000000)
 		);
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(2_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 105.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_close_order_1.direction.into(),
+				side: alice_close_order_1.side.into(),
+				order_type: alice_close_order_1.order_type.into(),
+				execution_price: 105.into(),
+				pnl: 5.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+				order_type: bob_close_order_1.order_type.into(),
+				execution_price: 105.into(),
+				pnl: (-5).into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -1578,15 +1957,14 @@ fn test_fee_while_closing_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details, discount_tiers, discount_details) = setup_fee();
+		let (fee_tiers, fee_details) = setup_fee();
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFees::update_base_fees_and_discounts(
+		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
+			collateral_id,
 			Side::Sell,
 			fee_tiers,
 			fee_details.clone(),
-			discount_tiers,
-			discount_details.clone()
 		));
 
 		// Create orders
@@ -1612,6 +1990,49 @@ fn test_fee_while_closing_order() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(1_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 100.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: alice_open_order_1.side.into(),
+				order_type: alice_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_open_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: bob_open_order_1.side.into(),
+				order_type: bob_open_order_1.order_type.into(),
+				execution_price: 100.into(),
+				pnl: 0.into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
 
 		// Since we are opening orders without setting the fee for open orders, fee won't be
 		// deducted from balance
@@ -1650,13 +2071,56 @@ fn test_fee_while_closing_order() {
 			1699940367000,
 		));
 
+		// Check for events
+		assert_has_events(vec![
+			Event::TradeExecuted {
+				batch_id: U256::from(2_u8),
+				market_id,
+				size: 1.into(),
+				execution_price: 105.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: alice_close_order_1.direction.into(),
+				side: alice_close_order_1.side.into(),
+				order_type: alice_close_order_1.order_type.into(),
+				execution_price: 105.into(),
+				pnl: FixedI128::from_inner((2.9 * 10u128.pow(18) as f64) as i128),
+				fee: FixedI128::from_inner((2.1 * 10u128.pow(18) as f64) as i128),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: bob_close_order_1.order_id,
+				market_id,
+				size: 1.into(),
+				direction: bob_close_order_1.direction.into(),
+				side: bob_close_order_1.side.into(),
+				order_type: bob_close_order_1.order_type.into(),
+				execution_price: 105.into(),
+				pnl: FixedI128::from_inner((-9.75 * 10u128.pow(18) as f64) as i128),
+				fee: FixedI128::from_inner((4.75 * 10u128.pow(18) as f64) as i128),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+		]);
+
 		assert_eq!(
 			TradingAccounts::balances(alice_id, collateral_id),
-			FixedI128::from_inner(10002963000000000000000)
+			FixedI128::from_inner(10002900000000000000000)
 		);
 		assert_eq!(
 			TradingAccounts::balances(bob_id, collateral_id),
-			FixedI128::from_inner(9990392500000000000000)
+			FixedI128::from_inner(9990250000000000000000)
 		);
 		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
 	});

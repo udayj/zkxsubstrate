@@ -48,13 +48,14 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-pub use pallet_abr;
 pub use pallet_asset;
 pub use pallet_market;
 pub use pallet_prices;
 pub use pallet_risk_management;
-use pallet_support::traits::TradingInterface;
-pub use pallet_support::types::{AccountInfo, MarginInfo, PositionExtended};
+use pallet_support::traits::{PricesInterface, TradingInterface};
+pub use pallet_support::types::{
+	ABRDetails, ABRState, AccountInfo, FeeRates, MarginInfo, PositionExtended,
+};
 pub use pallet_sync_facade;
 pub use pallet_trading;
 pub use pallet_trading_account;
@@ -286,6 +287,7 @@ impl pallet_trading_account::Config for Runtime {
 	type TradingPallet = Trading;
 	type MarketPallet = Markets;
 	type PricesPallet = Prices;
+	type TimeProvider = Timestamp;
 }
 
 impl pallet_risk_management::Config for Runtime {
@@ -293,10 +295,6 @@ impl pallet_risk_management::Config for Runtime {
 	type TradingAccountPallet = TradingAccount;
 	type MarketPallet = Markets;
 	type PricesPallet = Prices;
-}
-
-impl pallet_abr::Config for Runtime {
-	type TradingAccountPallet = TradingAccount;
 }
 
 impl pallet_asset::Config for Runtime {
@@ -310,12 +308,16 @@ impl pallet_market::Config for Runtime {
 
 impl pallet_prices::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 	type MarketPallet = Markets;
 	type TimeProvider = Timestamp;
+	type TradingPallet = Trading;
+	type TradingAccountPallet = TradingAccount;
 }
 
 impl pallet_trading_fees::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
 }
 
 impl pallet_sync_facade::Config for Runtime {
@@ -347,7 +349,6 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
 		TradingAccount: pallet_trading_account,
-		ABR: pallet_abr,
 		Assets: pallet_asset,
 		Markets: pallet_market,
 		SyncFacade: pallet_sync_facade,
@@ -422,6 +423,36 @@ impl_runtime_apis! {
 
 		fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256> {
 			Trading::get_account_list(start_index, end_index)
+		}
+
+		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
+			Trading::get_fee(account_id, market_id)
+		}
+	}
+
+	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
+		fn get_remaining_markets() -> Vec<u128> {
+			Prices::get_remaining_markets()
+		}
+
+		fn get_no_of_batches_for_current_epoch() -> u128 {
+			Prices::get_no_of_batches_for_current_epoch()
+		}
+
+		fn get_last_abr_timestamp() -> u64 {
+			Prices::get_last_abr_timestamp()
+		}
+
+		fn get_remaining_pay_abr_calls() -> u128 {
+			Prices::get_remaining_pay_abr_calls()
+		}
+
+		fn get_next_abr_timestamp() -> u64 {
+			Prices::get_next_abr_timestamp()
+		}
+
+		fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails> {
+			Prices::get_previous_abr_values(starting_epoch, market_id, n)
 		}
 	}
 
