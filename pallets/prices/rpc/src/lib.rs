@@ -15,7 +15,7 @@ use primitive_types::U256;
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
 	#[method(name = "abr_get_remaining_markets")]
-	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<u128>>;
+	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<U256>>;
 
 	#[method(name = "abr_get_no_of_batches_for_current_epoch")]
 	fn get_no_of_batches_for_current_epoch(&self, at: Option<BlockHash>) -> RpcResult<u128>;
@@ -60,7 +60,7 @@ where
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: PricesRuntimeApi<Block>,
 {
-	fn get_remaining_markets(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<u128>> {
+	fn get_remaining_markets(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<U256>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
