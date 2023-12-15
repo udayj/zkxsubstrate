@@ -7,7 +7,7 @@ use primitive_types::U256;
 // runtime file (the `runtime-api/src/lib.rs`)
 sp_api::decl_runtime_apis! {
 	pub trait PricesApi {
-		fn get_remaining_markets() -> Vec<u128>;
+		fn get_remaining_markets() -> Vec<U256>;
 		fn get_no_of_batches_for_current_epoch() -> u128;
 		fn get_last_abr_timestamp() -> u64;
 		fn get_remaining_pay_abr_calls() -> u128;
