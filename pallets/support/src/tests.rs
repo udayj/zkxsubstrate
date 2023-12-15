@@ -1,59 +1,59 @@
 use crate::{
 	ecdsa_verify,
-	helpers::{calc_30day_volume, compute_hash_on_elements, get_day_diff, shift_and_recompute},
+	helpers::{compute_hash_on_elements, calc_30day_volume, get_day_diff, shift_and_recompute},
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
 };
 use codec::alloc::vec;
 use frame_support::dispatch::Vec;
-use hex;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_core::crypto::ecdsa_sign;
 use starknet_crypto::{get_public_key, pedersen_hash};
 use starknet_ff::{FieldElement, FromByteSliceError};
+use hex;
 
 // reference implementation to test conversion from string to FieldElement
 pub fn hex_to_field_element(text: &str) -> Result<FieldElement, FromByteSliceError> {
-	let cleaned_hex_string = text.trim_start_matches("0x");
-	let mut bytes_vec =
-		hex::decode(cleaned_hex_string).map_err(|_err| FromByteSliceError::InvalidLength)?;
-	while bytes_vec.len() < 32 {
-		bytes_vec.insert(0, 0);
+    let cleaned_hex_string = text.trim_start_matches("0x");
+    let mut bytes_vec = hex::decode(cleaned_hex_string).map_err(|_err| FromByteSliceError::InvalidLength)?;
+    while bytes_vec.len() < 32 {
+        bytes_vec.insert(0, 0);
+    }
+    let bytes_array = bytes_vec[..32].try_into().expect("Wrong length for bytes array");
+    FieldElement::from_bytes_be(&bytes_array).map_err(
+		|_err| FromByteSliceError::InvalidLength)
 	}
-	let bytes_array = bytes_vec[..32].try_into().expect("Wrong length for bytes array");
-	FieldElement::from_bytes_be(&bytes_array).map_err(|_err| FromByteSliceError::InvalidLength)
-}
 
 pub fn string_to_felt(str: &str) -> Result<FieldElement, FromByteSliceError> {
-	if !str.is_ascii() {
-		return Err(FromByteSliceError::OutOfRange);
-	}
-	if str.len() > 31 {
-		return Err(FromByteSliceError::InvalidLength);
-	}
-	let encoded_str = hex::encode(str);
+    if !str.is_ascii() {
+        return Err(FromByteSliceError::OutOfRange);
+    }
+    if str.len() > 31 {
+        return Err(FromByteSliceError::InvalidLength);
+    }
+    let encoded_str = hex::encode(str);
 
-	hex_to_field_element(&encoded_str)
+    hex_to_field_element(&encoded_str)
 }
 #[test]
 fn test_enum_felt() {
 	let a = FieldElement::from_hex_be(hex::encode("BUY").as_str()).unwrap();
 	let b = string_to_felt("BUY").unwrap();
-	assert_eq!(a, b, "Error");
+	assert_eq!(a,b,"Error");
 
 	let a = FieldElement::from_hex_be(hex::encode("LONG").as_str()).unwrap();
 	let b = string_to_felt("LONG").unwrap();
-	assert_eq!(a, b, "Error");
+	assert_eq!(a,b,"Error");
 
 	let a = FieldElement::from_hex_be(hex::encode("GTT").as_str()).unwrap();
 	let b = string_to_felt("GTT").unwrap();
-	assert_eq!(a, b, "Error");
+	assert_eq!(a,b,"Error");
 
 	let a = FieldElement::from_hex_be(hex::encode("MARKET").as_str()).unwrap();
 	let b = string_to_felt("MARKET").unwrap();
-	assert_eq!(a, b, "Error");
+	assert_eq!(a,b,"Error");
 }
 #[test]
 fn test_felt_and_hash_values() {
@@ -64,20 +64,25 @@ fn test_felt_and_hash_values() {
 	assert_ne!(FieldElement::from(1_u8), FieldElement::from(0_u8));
 
 	let side = Side::Buy;
-	let side_str: &str = side.into();
+	let side_str:&str = side.into();
 	let side2 = Side::Buy;
-	let side2_str: &str = side2.into();
+	let side2_str:&str = side2.into();
 
 	assert_eq!(
-		FieldElement::from_hex_be(hex::encode(side_str).as_str()).unwrap(),
-		FieldElement::from_hex_be(hex::encode(side2_str).as_str()).unwrap()
-	);
+		FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side2_str).as_str()
+		).unwrap());
 	let side3 = Side::Sell;
-	let side3_str: &str = side3.into();
-	assert_ne!(
-		FieldElement::from_hex_be(hex::encode(side_str).as_str()).unwrap(),
-		FieldElement::from_hex_be(hex::encode(side3_str).as_str()).unwrap()
-	);
+	let side3_str:&str = side3.into();
+	assert_ne!(FieldElement::from_hex_be(
+			hex::encode(side_str).as_str()
+		).unwrap(), 
+		FieldElement::from_hex_be(
+			hex::encode(side3_str).as_str()
+		).unwrap());
 
 	// The value of the hash is obtained from the pedersen_hash function in cairo-lang package
 	// correct value = pedersen_hash(1,2)
@@ -151,7 +156,7 @@ fn test_felt_and_hash_values() {
 #[test]
 fn test_order_signature() {
 	let order = Order::new(201_u128, U256::from(0));
-
+	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
 		"3203336930042656909517741484932238155454713541462771003082080160562006162454",
@@ -292,9 +297,9 @@ fn test_round_to_precision_1() {
 
 #[test]
 fn test_calc_30day_volume() {
-	let mut volume: Vec<FixedI128> = vec![];
+	let mut volume:Vec<FixedI128> = vec![];
 	for i in 0..31 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		volume.push(element);
 	}
 	assert_eq!(calc_30day_volume(&volume), 465.into(), "Error in calculating volume");
@@ -302,24 +307,24 @@ fn test_calc_30day_volume() {
 
 #[test]
 fn test_get_day_diff() {
-	let t_prev = 1701880189;
+	let mut t_prev = 1701880189;
 	let mut t_cur = 1701880189;
-	assert_eq!(get_day_diff(t_prev, t_cur), 0, "Error in day diff");
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
 	t_cur = 1701883789;
-	assert_eq!(get_day_diff(t_prev, t_cur), 0, "Error in day diff");
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
 	t_cur = 1701912589;
-	assert_eq!(get_day_diff(t_prev, t_cur), 1, "Error in day diff");
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
 	t_cur = 1701991789;
-	assert_eq!(get_day_diff(t_prev, t_cur), 1, "Error in day diff");
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
 	t_cur = 1701993601;
-	assert_eq!(get_day_diff(t_prev, t_cur), 2, "Error in day diff");
+	assert_eq!(get_day_diff(t_prev, t_cur), 2,"Error in day diff");
 }
 
 #[test]
 fn test_shift_and_recompute() {
-	let mut volume: Vec<FixedI128> = vec![];
+	let mut volume:Vec<FixedI128> = vec![];
 	for i in 0..31 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		volume.push(element);
 	}
 
@@ -333,7 +338,7 @@ fn test_shift_and_recompute() {
 
 	let mut new_volume = vec![];
 	for i in 1..31 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		new_volume.push(element);
 	}
 	new_volume.insert(0, 100.into());
@@ -345,7 +350,7 @@ fn test_shift_and_recompute() {
 
 	let mut new_volume = vec![];
 	for i in 0..30 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		new_volume.push(element);
 	}
 	new_volume.insert(0, 0.into());
@@ -357,7 +362,7 @@ fn test_shift_and_recompute() {
 
 	let mut new_volume = vec![];
 	for i in 0..30 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		new_volume.push(element);
 	}
 	new_volume.insert(0, 100.into());
@@ -369,7 +374,7 @@ fn test_shift_and_recompute() {
 
 	let mut new_volume = vec![];
 	for i in 0..29 {
-		let element: FixedI128 = i.into();
+		let element:FixedI128 = i.into();
 		new_volume.push(element);
 	}
 	new_volume.insert(0, 0.into());
