@@ -19,8 +19,6 @@ pub mod pallet {
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
-	static DELETION_LIMIT: u32 = 100;
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -32,7 +30,15 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn max_base_fee_tier)]
-	pub(super) type MaxBaseFeeTier<T> = StorageValue<_, u8, ValueQuery>;
+	pub(super) type MaxBaseFeeTier<T> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		u128, // collateral_id
+		Blake2_128Concat,
+		Side, // buy or sell
+		u8,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn base_fee_tier)]
@@ -48,12 +54,8 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Invalid tier
-		InvalidTier,
 		/// Invalid fee
 		InvalidFee,
-		/// Fee tiers length mismatch
-		FeeTiersLengthMismatch,
 		/// Invalid number of tokens
 		InvalidVolume,
 		/// There should be atleast one fee tier
@@ -80,7 +82,6 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			collateral_id: u128,
 			side: Side,
-			fee_tiers: Vec<u8>,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
@@ -93,15 +94,17 @@ pub mod pallet {
 				ensure!(false, Error::<T>::AssetNotFound);
 			}
 
-			// Clear all mappings
-			let _ = MaxBaseFeeTier::<T>::kill();
-			let _ = BaseFeeTierMap::<T>::clear_prefix(collateral_id, DELETION_LIMIT, None);
+			// Delete the fee details corresponding to the current side
+			MaxBaseFeeTier::<T>::remove(collateral_id, side);
+			let max_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, side);
+			for i in 1..max_fee_tier + 1 {
+				BaseFeeTierMap::<T>::remove(collateral_id, (i, side));
+			}
 
-			ensure!(fee_tiers.len() == fee_details.len(), Error::<T>::FeeTiersLengthMismatch);
-			ensure!(fee_tiers.len() >= 1, Error::<T>::ZeroFeeTiers);
+			let fee_details_length = fee_details.len();
+			ensure!(fee_details_length >= 1, Error::<T>::ZeroFeeTiers);
 
-			let update_base_fee_response =
-				Self::update_base_fee(collateral_id, side, &fee_tiers, fee_details);
+			let update_base_fee_response = Self::update_base_fee(collateral_id, side, fee_details);
 			match update_base_fee_response {
 				Ok(()) => (),
 				Err(e) => return Err(e),
@@ -109,7 +112,7 @@ pub mod pallet {
 
 			// Emit event
 			Self::deposit_event(
-				Event::BaseFeesUpdated { fee_tiers: u8::try_from(fee_tiers.len()).unwrap() }
+				Event::BaseFeesUpdated { fee_tiers: u8::try_from(fee_details_length).unwrap() }
 			);
 
 			Ok(())
@@ -124,7 +127,7 @@ pub mod pallet {
 			volume: FixedI128,
 		) -> (FixedI128, u8) {
 			// Get the max base fee tier
-			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
+			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, side);
 			// Calculate base fee of the maker, taker and base fee tier
 			let (base_fee_maker, base_fee_taker, base_fee_tier) =
 				Self::find_user_base_fee(collateral_id, side, volume, current_max_base_fee_tier);
@@ -139,19 +142,21 @@ pub mod pallet {
 
 		fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates {
 			// Get the max base fee tier
-			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
+			let current_max_base_fee_tier_buy = MaxBaseFeeTier::<T>::get(collateral_id, Side::Buy);
 			// Calculate base fee of the maker, taker and base fee tier
 			let (maker_buy, taker_buy, _) = Self::find_user_base_fee(
 				collateral_id,
 				Side::Buy,
 				volume,
-				current_max_base_fee_tier,
+				current_max_base_fee_tier_buy,
 			);
+			let current_max_base_fee_tier_sell =
+				MaxBaseFeeTier::<T>::get(collateral_id, Side::Sell);
 			let (maker_sell, taker_sell, _) = Self::find_user_base_fee(
 				collateral_id,
 				Side::Sell,
 				volume,
-				current_max_base_fee_tier,
+				current_max_base_fee_tier_sell,
 			);
 
 			FeeRates { maker_buy, maker_sell, taker_buy, taker_sell }
@@ -181,46 +186,31 @@ pub mod pallet {
 		fn update_base_fee(
 			collateral_id: u128,
 			side: Side,
-			fee_tiers: &Vec<u8>,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
-			let mut tier: u8;
 			let mut fee_info: BaseFee;
-			for pos in 0..fee_tiers.len() {
-				tier = fee_tiers[pos];
-				fee_info = fee_details[pos];
-				ensure!(tier > 0_u8, Error::<T>::InvalidTier);
+
+			for index in 0..fee_details.len() {
+				fee_info = fee_details[index];
 				ensure!(fee_info.volume >= FixedI128::zero(), Error::<T>::InvalidVolume);
 				ensure!(fee_info.maker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
 				ensure!(fee_info.taker_fee >= FixedI128::zero(), Error::<T>::InvalidFee);
 
-				// Get the max base fee tier
-				let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get();
-				ensure!(tier <= current_max_base_fee_tier + 1_u8, Error::<T>::InvalidTier);
-
 				// Verify whether the base fee of the tier being updated/added is correct
 				// with respect to the lower tier, if lower tier exists
-				let lower_tier_fee = BaseFeeTierMap::<T>::get(collateral_id, (tier - 1_u8, side));
-				if tier - 1_u8 != 0 {
+				let lower_tier_fee = BaseFeeTierMap::<T>::get(collateral_id, (index as u8, side));
+				if index != 0 {
 					ensure!(lower_tier_fee.volume < fee_info.volume, Error::<T>::InvalidVolume);
 					ensure!(fee_info.maker_fee < lower_tier_fee.maker_fee, Error::<T>::InvalidFee);
 					ensure!(fee_info.taker_fee < lower_tier_fee.taker_fee, Error::<T>::InvalidFee);
 				} else {
 					ensure!(lower_tier_fee.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
 				}
-
-				// Verify whether the base fee of the tier being updated/added is correct
-				// with respect to the upper tier, if upper tier exists
-				let upper_tier_fee = BaseFeeTierMap::<T>::get(collateral_id, (tier + 1_u8, side));
-				if current_max_base_fee_tier > tier {
-					ensure!(fee_info.volume < upper_tier_fee.volume, Error::<T>::InvalidVolume);
-					ensure!(upper_tier_fee.maker_fee < fee_info.maker_fee, Error::<T>::InvalidFee);
-					ensure!(upper_tier_fee.taker_fee < fee_info.taker_fee, Error::<T>::InvalidFee);
-				} else {
-					MaxBaseFeeTier::<T>::put(tier);
-				}
-				BaseFeeTierMap::<T>::insert(collateral_id, (tier, side), fee_info);
+				BaseFeeTierMap::<T>::insert(collateral_id, ((index + 1) as u8, side), fee_info);
 			}
+			let max_tier = fee_details.len() as u8;
+			MaxBaseFeeTier::<T>::insert(collateral_id, side, max_tier);
+
 			Ok(())
 		}
 	}
