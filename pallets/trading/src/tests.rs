@@ -1007,6 +1007,70 @@ fn it_reverts_for_trade_with_invalid_market() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError546")]
+// trade batch with insuffient orders
+fn it_reverts_for_trade_with_insufficient_orders_1_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(201_u128, alice_id)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError546")]
+// trade batch with insuffient orders
+fn it_reverts_for_trade_with_insufficient_orders_0_orders() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "TradeBatchError522")]
 // trade batch with quantity_locked as 0
 fn it_reverts_for_trade_with_quantity_locked_zero() {

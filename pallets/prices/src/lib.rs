@@ -25,7 +25,7 @@ pub mod pallet {
 		},
 		types::{
 			ABRDetails, ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
-			LastTradedPrice, MultiplePrices, PositionExtended,
+			LastOraclePrice, MultiplePrices, PositionExtended,
 		},
 	};
 	use primitive_types::U256;
@@ -65,10 +65,10 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn last_traded_price)]
-	// k1 - market_id, v - LastTradedPrice
-	pub(super) type LastTradedPricesMap<T: Config> =
-		StorageMap<_, Twox64Concat, u128, LastTradedPrice, ValueQuery>;
+	#[pallet::getter(fn last_oracle_price)]
+	// k1 - market_id, v - LastOraclePrice
+	pub(super) type LastOraclePricesMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, LastOraclePrice, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn current_price)]
@@ -217,7 +217,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Last traded price was successfully updated
-		LastTradedPriceUpdated { market_id: u128, price: LastTradedPrice },
+		LastOraclePriceUpdated { market_id: u128, price: LastOraclePrice },
 		/// ABR timestamp set successfully
 		AbrTimestampSet { epoch: u64, timestamp: u64 },
 		/// ABR state changed successfully
@@ -933,10 +933,10 @@ pub mod pallet {
 	}
 
 	impl<T: Config> PricesInterface for Pallet<T> {
-		fn get_last_traded_price(market_id: u128) -> FixedI128 {
-			let last_traded_price = LastTradedPricesMap::<T>::get(market_id);
+		fn get_last_oracle_price(market_id: u128) -> FixedI128 {
+			let last_oracle_price = LastOraclePricesMap::<T>::get(market_id);
 
-			Self::get_price(market_id, last_traded_price.timestamp, last_traded_price.price)
+			Self::get_price(market_id, last_oracle_price.timestamp, last_oracle_price.price)
 		}
 
 		fn get_mark_price(market_id: u128) -> FixedI128 {
@@ -951,19 +951,19 @@ pub mod pallet {
 			Self::get_price(market_id, price.timestamp, price.index_price)
 		}
 
-		fn update_last_traded_price(market_id: u128, price: FixedI128) {
+		fn update_last_oracle_price(market_id: u128, price: FixedI128) {
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
-			let new_last_traded_price = LastTradedPrice { timestamp: current_timestamp, price };
+			let new_last_oracle_price = LastOraclePrice { timestamp: current_timestamp, price };
 
 			// Update last traded price
-			LastTradedPricesMap::<T>::insert(market_id, new_last_traded_price);
+			LastOraclePricesMap::<T>::insert(market_id, new_last_oracle_price);
 
 			// Emits event
-			Self::deposit_event(Event::LastTradedPriceUpdated {
+			Self::deposit_event(Event::LastOraclePriceUpdated {
 				market_id,
-				price: new_last_traded_price,
+				price: new_last_oracle_price,
 			});
 		}
 
