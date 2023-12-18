@@ -1,10 +1,11 @@
 use crate::{
 	ecdsa_verify,
-	helpers::{pedersen_hash_multiple},
+	helpers::{compute_hash_on_elements, calc_30day_volume, get_day_diff, shift_and_recompute},
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::{HashType, Order, Side},
 	Signature,
 };
+use codec::alloc::vec;
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -142,7 +143,7 @@ fn test_felt_and_hash_values() {
 
 	// correct value = compute_hash_on_elements([-100,100,1,2])
 	assert_eq!(
-		pedersen_hash_multiple(&elements),
+		compute_hash_on_elements(&elements),
 		FieldElement::from_dec_str(
 			"1420103144340050848018289014363061324075028314390235365070247630498414256754"
 		)
@@ -154,13 +155,17 @@ fn test_felt_and_hash_values() {
 
 #[test]
 fn test_order_signature() {
-	let order = Order::new(201_u128, U256::from(0));
+	let order = Order::new(U256::from(201), U256::from(0));
 	
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"3203336930042656909517741484932238155454713541462771003082080160562006162454",
+		"3132625918282695035920415711376638693136677687288415900988049051810724895775",
 	)
 	.unwrap();
+	// order hash should match 
+	// compute_hash_on_elements(
+	// [0,0,201,0,1,327647316308,1280265799,4347225,
+	// 100000000000000000000,1000000000000000000,1000000000000000000,100000000000000000,0,4674627,1699940278000])
 	assert_eq!(order_hash, expected_hash);
 
 	let private_key = FieldElement::from_dec_str("100").unwrap();
@@ -292,4 +297,100 @@ fn test_round_to_precision_1() {
 	// 10000000000000.123456789123456789, 1
 	let val = FixedI128::from_inner(10000000000000123456789123456789).round_to_precision(1);
 	assert_eq!(val, FixedI128::from_inner(10000000000000100000000000000000));
+}
+
+#[test]
+fn test_calc_30day_volume() {
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+	assert_eq!(calc_30day_volume(&volume), 465.into(), "Error in calculating volume");
+}
+
+#[test]
+fn test_get_day_diff() {
+	let mut t_prev = 1701880189;
+	let mut t_cur = 1701880189;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701883789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
+	t_cur = 1701912589;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701991789;
+	assert_eq!(get_day_diff(t_prev, t_cur), 1,"Error in day diff");
+	t_cur = 1701993601;
+	assert_eq!(get_day_diff(t_prev, t_cur), 2,"Error in day diff");
+}
+
+#[test]
+fn test_shift_and_recompute() {
+	let mut volume:Vec<FixedI128> = vec![];
+	for i in 0..31 {
+		let element:FixedI128 = i.into();
+		volume.push(element);
+	}
+
+	// trade in same day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 0);
+	assert_eq!(updated_volume, volume, "Error in updated volume 1");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 1");
+
+	// trade in same day with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 0);
+
+	let mut new_volume = vec![];
+	for i in 1..31 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 2");
+	assert_eq!(total_30day_volume, 465.into(), "Error in calculating volume 2");
+
+	// trade on next day with 0 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 0.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 3");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 3");
+
+	// trade on next day with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 1);
+
+	let mut new_volume = vec![];
+	for i in 0..30 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 4");
+	assert_eq!(total_30day_volume, 435.into(), "Error in calculating volume 4");
+
+	// trade after 2 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 2);
+
+	let mut new_volume = vec![];
+	for i in 0..29 {
+		let element:FixedI128 = i.into();
+		new_volume.push(element);
+	}
+	new_volume.insert(0, 0.into());
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 5");
+	assert_eq!(total_30day_volume, 406.into(), "Error in calculating volume 5");
+
+	// trade after 31 days with 100 new volume
+	let (updated_volume, total_30day_volume) = shift_and_recompute(&volume, 100.into(), 31);
+
+	let mut new_volume = Vec::from([FixedI128::from_inner(0); 30]);
+	new_volume.insert(0, 100.into());
+	assert_eq!(updated_volume, new_volume, "Error in updated volume 6");
+	assert_eq!(total_30day_volume, 0.into(), "Error in calculating volume 6");
 }

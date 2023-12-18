@@ -10,11 +10,12 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
+use primitive_types::U256;
 
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
 	#[method(name = "abr_get_remaining_markets")]
-	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<u128>>;
+	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<U256>>;
 
 	#[method(name = "abr_get_no_of_batches_for_current_epoch")]
 	fn get_no_of_batches_for_current_epoch(&self, at: Option<BlockHash>) -> RpcResult<u128>;
@@ -32,7 +33,7 @@ pub trait PricesApi<BlockHash> {
 	fn get_previous_abr_values(
 		&self,
 		starting_epoch: u64,
-		market_id: u128,
+		market_id: U256,
 		n: u64,
 		at: Option<BlockHash>,
 	) -> RpcResult<Vec<ABRDetails>>;
@@ -59,7 +60,7 @@ where
 	C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: PricesRuntimeApi<Block>,
 {
-	fn get_remaining_markets(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<u128>> {
+	fn get_remaining_markets(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<Vec<U256>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
@@ -100,7 +101,7 @@ where
 	fn get_previous_abr_values(
 		&self,
 		starting_epoch: u64,
-		market_id: u128,
+		market_id: U256,
 		n: u64,
 		at: Option<<Block as BlockT>::Hash>,
 	) -> RpcResult<Vec<ABRDetails>> {
