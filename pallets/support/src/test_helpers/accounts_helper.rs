@@ -1,4 +1,4 @@
-use crate::helpers::pedersen_hash_multiple;
+use crate::helpers::compute_hash_on_elements;
 use crate::traits::{FieldElementExt, FixedI128Ext, U256Ext};
 use crate::types::{convert_to_u128_pair, HashType, TradingAccountMinimal, WithdrawalRequest};
 use frame_support::dispatch::Vec;
@@ -24,7 +24,7 @@ pub fn create_withdrawal_request(
 	elements.push(amount.to_u256().try_to_felt()?);
 	elements.push(FieldElement::from(timestamp));
 
-	let msg_hash = pedersen_hash_multiple(&elements);
+	let msg_hash = compute_hash_on_elements(&elements);
 
 	// Get the signature
 	let signature = sign(&private_key, &msg_hash, &FieldElement::ONE).unwrap();

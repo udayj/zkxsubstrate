@@ -1,5 +1,5 @@
 use crate::{
-	helpers::pedersen_hash_multiple,
+	helpers::compute_hash_on_elements,
 	traits::{FixedI128Ext, Hashable, U256Ext},
 	types::common::{convert_to_u128_pair, HashType},
 };
@@ -25,7 +25,7 @@ pub struct SignatureInfo {
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Order {
 	pub account_id: U256,
-	pub order_id: u128,
+	pub order_id: U256,
 	pub market_id: u128,
 	pub order_type: OrderType,
 	pub direction: Direction,
@@ -347,7 +347,11 @@ impl Hashable for Order {
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 
-		elements.push(FieldElement::from(self.order_id));
+		let (order_id_low, order_id_high) = convert_to_u128_pair(self.order_id).map_err(
+			|_| GeneralConversionError::U256ToFieldElementError
+		)?;
+		elements.push(order_id_low);
+		elements.push(order_id_high);
 
 		elements.push(FieldElement::from(self.market_id));
 
@@ -411,7 +415,7 @@ impl Hashable for Order {
 		elements.push(FieldElement::from(self.timestamp));
 
 		match &hash_type {
-			HashType::Pedersen => Ok(pedersen_hash_multiple(&elements)),
+			HashType::Pedersen => Ok(compute_hash_on_elements(&elements)),
 			HashType::Poseidon => Ok(poseidon_hash_many(&elements)),
 		}
 	}

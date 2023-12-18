@@ -1,7 +1,7 @@
 use frame_support::dispatch::Vec;
 use pallet_support::{
 	ecdsa_sign,
-	helpers::pedersen_hash_multiple,
+	helpers::compute_hash_on_elements,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, QuorumSet,
@@ -217,6 +217,6 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		flattened_array.try_append_universal_event_array(&self).unwrap();
 
 		// Compute hash of the array and return
-		pedersen_hash_multiple(&flattened_array)
+		compute_hash_on_elements(&flattened_array)
 	}
 }
