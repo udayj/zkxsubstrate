@@ -12,11 +12,23 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
-use super::QuorumSet;
+use super::{AssetAddress, QuorumSet};
 
 impl FeltSerializedArrayExt for Vec<FieldElement> {
 	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
 		self.extend(vec.iter().map(|&value| FieldElement::from(value)));
+	}
+
+	fn try_append_asset_addresses(
+		&mut self,
+		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError> {
+		vec.iter().try_for_each(|asset_address| {
+			self.push(FieldElement::from(asset_address.chain));
+			self.try_append_u256_pair(asset_address.address)?;
+
+			Ok(())
+		})
 	}
 
 	fn append_bool(&mut self, boolean_value: bool) {
@@ -121,6 +133,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::ONE);
 		self.push(FieldElement::from(asset_updated_event.event_index));
 		self.push(FieldElement::from(asset_updated_event.id));
+		self.try_append_asset_addresses(&asset_updated_event.asset_addresses)?;
 		self.try_append_asset(&asset_updated_event.asset)?;
 		self.append_bounded_vec(&asset_updated_event.metadata_url);
 		self.push(FieldElement::from(asset_updated_event.block_number));
