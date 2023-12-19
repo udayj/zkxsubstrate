@@ -200,3 +200,61 @@ fn test_update_fees_with_multiple_calls() {
 		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 3);
 	});
 }
+
+#[test]
+fn test_update_fees_both_sides() {
+	new_test_ext().execute_with(|| {
+		let fee_details = setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let side: Side = Side::Buy;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees(
+			RuntimeOrigin::signed(1),
+			usdc().asset.id,
+			side,
+			fee_details.clone(),
+		));
+
+		// Assert that the correct event was deposited
+		System::assert_last_event(Event::BaseFeesUpdated { fee_tiers: 3 }.into());
+
+		let mut fee_details_sell: Vec<BaseFee> = Vec::new();
+		let base_fee1 = BaseFee {
+			volume: 0.into(),
+			maker_fee: FixedI128::from_inner(250000000000000),
+			taker_fee: FixedI128::from_inner(500000000000000),
+		};
+		let base_fee2 = BaseFee {
+			volume: 1000.into(),
+			maker_fee: FixedI128::from_inner(160000000000000),
+			taker_fee: FixedI128::from_inner(410000000000000),
+		};
+		fee_details_sell.push(base_fee1);
+		fee_details_sell.push(base_fee2);
+
+		let side: Side = Side::Sell;
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees(
+			RuntimeOrigin::signed(1),
+			usdc().asset.id,
+			side,
+			fee_details_sell.clone(),
+		));
+
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, Side::Buy), 3);
+		let base_fee0 = TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy));
+		assert_eq!(base_fee0, fee_details[0]);
+		let base_fee1 = TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Buy));
+		assert_eq!(base_fee1, fee_details[1]);
+		let base_fee2 = TradingFeesModule::base_fee_tier(usdc().asset.id, (3, Side::Buy));
+		assert_eq!(base_fee2, fee_details[2]);
+
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, Side::Sell), 2);
+		let base_fee0 = TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Sell));
+		assert_eq!(base_fee0, fee_details_sell[0]);
+		let base_fee1 = TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Sell));
+		assert_eq!(base_fee1, fee_details_sell[1]);
+	});
+}
