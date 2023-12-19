@@ -974,7 +974,7 @@ pub mod pallet {
 						collateral_id,
 						Some(current_timestamp),
 					);
-					return Ok(last_30day_volume);
+					return Ok(last_30day_volume)
 				} else {
 					// Here the updated_volume vector will be all 0s except 1st element which will
 					// store the new_volume
@@ -994,7 +994,7 @@ pub mod pallet {
 						collateral_id,
 						Some(current_timestamp),
 					);
-					return Ok(last_30day_volume);
+					return Ok(last_30day_volume)
 				}
 			}
 			Err(Error::<T>::AccountDoesNotExist)
@@ -1034,10 +1034,10 @@ pub mod pallet {
 					// used in read-only calls
 					let (_, last_30day_volume) =
 						shift_and_recompute(&vol31, FixedI128::from_inner(0), day_diff);
-					return Ok(last_30day_volume);
+					return Ok(last_30day_volume)
 				} else {
 					// if no volume was found then no trade has happend in last 30 days, return 0
-					return Ok(FixedI128::from_inner(0));
+					return Ok(FixedI128::from_inner(0))
 				}
 			}
 			Err(Error::<T>::AccountDoesNotExist)

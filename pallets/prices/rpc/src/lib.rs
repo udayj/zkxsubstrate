@@ -6,11 +6,11 @@ use jsonrpsee::{
 };
 pub use pallet_prices_runtime_api::PricesApi as PricesRuntimeApi;
 use pallet_support::types::ABRDetails;
+use primitive_types::U256;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-use primitive_types::U256;
 
 #[rpc(client, server)]
 pub trait PricesApi<BlockHash> {
@@ -18,13 +18,13 @@ pub trait PricesApi<BlockHash> {
 	fn get_remaining_markets(&self, at: Option<BlockHash>) -> RpcResult<Vec<U256>>;
 
 	#[method(name = "abr_get_no_of_batches_for_current_epoch")]
-	fn get_no_of_batches_for_current_epoch(&self, at: Option<BlockHash>) -> RpcResult<u128>;
+	fn get_no_of_batches_for_current_epoch(&self, at: Option<BlockHash>) -> RpcResult<u64>;
 
 	#[method(name = "abr_get_last_timestamp")]
 	fn get_last_abr_timestamp(&self, at: Option<BlockHash>) -> RpcResult<u64>;
 
 	#[method(name = "abr_get_remaining_pay_abr_calls")]
-	fn get_remaining_pay_abr_calls(&self, at: Option<BlockHash>) -> RpcResult<u128>;
+	fn get_remaining_pay_abr_calls(&self, at: Option<BlockHash>) -> RpcResult<u64>;
 
 	#[method(name = "abr_get_next_timestamp")]
 	fn get_next_abr_timestamp(&self, at: Option<BlockHash>) -> RpcResult<u64>;
@@ -70,7 +70,7 @@ where
 	fn get_no_of_batches_for_current_epoch(
 		&self,
 		at: Option<<Block as BlockT>::Hash>,
-	) -> RpcResult<u128> {
+	) -> RpcResult<u64> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
@@ -84,7 +84,7 @@ where
 		api.get_last_abr_timestamp(at).map_err(runtime_error_into_rpc_err)
 	}
 
-	fn get_remaining_pay_abr_calls(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<u128> {
+	fn get_remaining_pay_abr_calls(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<u64> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
