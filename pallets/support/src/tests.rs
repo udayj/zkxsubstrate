@@ -311,7 +311,7 @@ fn test_calc_30day_volume() {
 
 #[test]
 fn test_get_day_diff() {
-	let mut t_prev = 1701880189;
+	let t_prev = 1701880189;
 	let mut t_cur = 1701880189;
 	assert_eq!(get_day_diff(t_prev, t_cur), 0,"Error in day diff");
 	t_cur = 1701883789;

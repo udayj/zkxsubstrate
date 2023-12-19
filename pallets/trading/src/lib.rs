@@ -1584,36 +1584,36 @@ pub mod pallet {
 				}
 			}
 
-			// if it is not a forced order
-			// then update volume with present trade
-			let total_30day_volume: FixedI128;
-			if order.order_type == OrderType::Forced {
-				total_30day_volume = FixedI128::from_inner(0);
-			} else {
-				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let total_30day_volume: FixedI128 =
+				T::TradingAccountPallet::update_and_get_cumulative_volume(
 					order.account_id,
 					order.market_id,
 					order_size * execution_price,
 				)
 				.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
-			}
 
-			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-				collateral_id,
-				Side::Sell,
-				order_side,
-				total_30day_volume,
-			);
+			let fee = if order.order_type != OrderType::Forced {
+				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
+					collateral_id,
+					Side::Sell,
+					order_side,
+					total_30day_volume,
+				);
 
-			let fee = fee_rate * leveraged_order_value;
+				let fee = fee_rate * leveraged_order_value;
 
-			// Deduct fee while closing a position
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				fee,
-				BalanceChangeReason::Fee,
-			);
+				// Deduct fee while closing a position
+				T::TradingAccountPallet::transfer_from(
+					order.account_id,
+					collateral_id,
+					fee,
+					BalanceChangeReason::Fee,
+				);
+
+				fee
+			} else {
+				FixedI128::zero()
+			};
 
 			Ok((
 				margin_amount,
