@@ -166,8 +166,8 @@ fn it_works_for_open_trade_simple() {
 
 		// Create orders
 		let alice_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -280,11 +280,11 @@ fn it_works_for_open_trade_with_leverage() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(5.into())
@@ -398,8 +398,8 @@ fn it_works_for_close_trade_simple() {
 
 		// Create open orders
 		let alice_open_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_open_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
@@ -422,12 +422,12 @@ fn it_works_for_close_trade_simple() {
 		));
 
 		// Close close orders
-		let alice_close_order = Order::new(203_u128, alice_id)
+		let alice_close_order = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
 			.set_price(105.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order = Order::new(204_u128, bob_id)
+		let bob_close_order = Order::new(U256::from(204), bob_id)
 			.set_side(Side::Sell)
 			.set_price(100.into())
 			.set_order_type(OrderType::Market)
@@ -526,9 +526,9 @@ fn it_works_for_open_trade_partial_open() {
 		let market_id = btc_usdc().market.id;
 
 		let alice_open_order_1 =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_size(2.into())
@@ -550,7 +550,7 @@ fn it_works_for_open_trade_partial_open() {
 			1699940367000,
 		));
 
-		let alice_open_order_2 = Order::new(203_u128, alice_id)
+		let alice_open_order_2 = Order::new(U256::from(203), alice_id)
 			.set_price(98.into())
 			.sign_order(get_private_key(alice().pub_key));
 
@@ -682,11 +682,11 @@ fn it_works_for_close_trade_partial_close() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_size(2.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_size(2.into())
@@ -708,12 +708,12 @@ fn it_works_for_close_trade_partial_close() {
 			1699940367000,
 		));
 
-		let alice_close_order_1 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(U256::from(203), alice_id)
 			.set_price(104.into())
 			.set_side(Side::Sell)
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order_1 = Order::new(204_u128, bob_id)
+		let bob_close_order_1 = Order::new(U256::from(204), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_side(Side::Sell)
@@ -736,7 +736,7 @@ fn it_works_for_close_trade_partial_close() {
 			1699940367000,
 		));
 
-		let alice_close_order_2 = Order::new(205_u128, alice_id)
+		let alice_close_order_2 = Order::new(U256::from(205), alice_id)
 			.set_price(98.into())
 			.set_side(Side::Sell)
 			.sign_order(get_private_key(alice().pub_key));
@@ -835,23 +835,23 @@ fn it_works_for_open_trade_multiple_makers() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_price(105.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_price(99.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
 
-		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
 			.set_price(102.into())
 			.set_size(2.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let dave_open_order_1 = Order::new(204_u128, dave_id)
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
 			.set_price(100.into())
 			.set_size(3.into())
 			.set_order_type(OrderType::Market)
@@ -906,11 +906,11 @@ fn it_reverts_for_trade_with_same_batch_id() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(5.into())
@@ -933,11 +933,11 @@ fn it_reverts_for_trade_with_same_batch_id() {
 		));
 
 		// Create orders
-		let alice_open_order_2 = Order::new(203_u128, alice_id)
+		let alice_open_order_2 = Order::new(U256::from(203), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_2 = Order::new(204_u128, bob_id)
+		let bob_open_order_2 = Order::new(U256::from(204), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(5.into())
@@ -973,11 +973,11 @@ fn it_reverts_for_trade_with_invalid_market() {
 		let bob_id: U256 = get_trading_account_id(bob());
 
 		// Create orders
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(5.into())
@@ -1016,11 +1016,11 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(5.into())
@@ -1058,11 +1058,11 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_size(2.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_size(2.into())
@@ -1084,13 +1084,13 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			1699940367000,
 		));
 
-		let alice_close_order_1 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
 			.set_size(2.into())
 			.set_price(104.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order_1 = Order::new(204_u128, bob_id)
+		let bob_close_order_1 = Order::new(U256::from(204), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_side(Side::Sell)
@@ -1112,12 +1112,12 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			1699940367000,
 		));
 
-		let alice_open_order_2 = Order::new(205_u128, alice_id)
+		let alice_open_order_2 = Order::new(U256::from(205), alice_id)
 			.set_direction(Direction::Short)
 			.set_price(98.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order_2 = Order::new(206_u128, bob_id)
+		let bob_close_order_2 = Order::new(U256::from(206), bob_id)
 			.set_direction(Direction::Short)
 			.set_side(Side::Sell)
 			.set_price(98.into())
@@ -1154,11 +1154,11 @@ fn it_produces_error_when_user_not_registered() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_size(2.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_size(2.into())
@@ -1180,7 +1180,7 @@ fn it_produces_error_when_user_not_registered() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 510 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 510 }.into());
 	});
 }
 
@@ -1198,11 +1198,11 @@ fn it_produces_error_when_size_too_small() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_size(2.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_size(FixedI128::from_inner(500000000000000000))
@@ -1224,7 +1224,7 @@ fn it_produces_error_when_size_too_small() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 505 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 505 }.into());
 	});
 }
 
@@ -1241,11 +1241,11 @@ fn it_produces_error_when_market_id_is_different() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_market_id(789)
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1266,7 +1266,7 @@ fn it_produces_error_when_market_id_is_different() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 504 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 504 }.into());
 	});
 }
 
@@ -1283,11 +1283,11 @@ fn it_produces_error_when_leverage_is_invalid() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_leverage(9.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1308,7 +1308,7 @@ fn it_produces_error_when_leverage_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 502 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 502 }.into());
 	});
 }
 
@@ -1326,9 +1326,9 @@ fn it_produces_error_when_signature_is_invalid() {
 		let market_id = btc_usdc().market.id;
 
 		let alice_open_order_1 =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(charlie().pub_key));
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(charlie().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1349,7 +1349,7 @@ fn it_produces_error_when_signature_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 536 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 536 }.into());
 	});
 }
 
@@ -1367,17 +1367,17 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_direction(Direction::Short)
 			.set_price(105.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_price(99.into())
 			.sign_order(get_private_key(bob().pub_key));
 
-		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
 			.set_size(3.into())
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(charlie().pub_key));
@@ -1402,7 +1402,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 202, error_code: 512 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(202), error_code: 512 }.into());
 	});
 }
 
@@ -1420,10 +1420,10 @@ fn it_produces_error_when_maker_is_market_order() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_order = Order::new(201_u128, alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1444,7 +1444,7 @@ fn it_produces_error_when_maker_is_market_order() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 518 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 518 }.into());
 	});
 }
 
@@ -1462,10 +1462,10 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_size(2.into())
 			.sign_order(get_private_key(alice().pub_key));
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.set_size(2.into())
@@ -1487,12 +1487,12 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			1699940367000,
 		));
 
-		let alice_close_order_1 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
 			.set_size(2.into())
 			.set_price(104.into())
 			.sign_order(get_private_key(alice().pub_key));
-		let bob_close_order_1 = Order::new(204_u128, bob_id)
+		let bob_close_order_1 = Order::new(U256::from(204), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.set_side(Side::Sell)
@@ -1515,11 +1515,11 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			1699940367000,
 		));
 
-		let alice_close_order_2 = Order::new(205_u128, alice_id)
+		let alice_close_order_2 = Order::new(U256::from(205), alice_id)
 			.set_side(Side::Sell)
 			.set_price(98.into())
 			.sign_order(get_private_key(alice().pub_key));
-		let bob_close_order_2 = Order::new(206_u128, bob_id)
+		let bob_close_order_2 = Order::new(U256::from(206), bob_id)
 			.set_price(98.into())
 			.sign_order(get_private_key(bob().pub_key));
 
@@ -1542,7 +1542,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
 		println!("Events: {:?}", event_record);
 
-		System::assert_has_event(Event::OrderError { order_id: 205, error_code: 524 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(205), error_code: 524 }.into());
 	});
 }
 
@@ -1561,15 +1561,15 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_price(105.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_price(99.into())
 			.sign_order(get_private_key(bob().pub_key));
 
-		let charlie_open_order_1 = Order::new(203_u128, charlie_id)
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
 			.set_size(3.into())
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(charlie().pub_key));
@@ -1594,7 +1594,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 203, error_code: 511 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(203), error_code: 511 }.into());
 	});
 }
 
@@ -1612,11 +1612,11 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_price(99.into())
 			.sign_order(get_private_key(bob().pub_key));
 
@@ -1653,9 +1653,9 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 		let market_id = btc_usdc().market.id;
 
 		let alice_open_order_1 =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_price(101.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1691,12 +1691,12 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_direction(Direction::Short)
 			.set_price(111.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_price(99.into())
 			.sign_order(get_private_key(bob().pub_key));
@@ -1717,7 +1717,7 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 506 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 506 }.into());
 	});
 }
 
@@ -1734,12 +1734,12 @@ fn it_works_when_taker_long_buy_price_very_low() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_direction(Direction::Short)
 			.set_price(80.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_price(100.into())
 			.sign_order(get_private_key(bob().pub_key));
@@ -1787,8 +1787,8 @@ fn test_fee_while_opening_order() {
 
 		// Create orders
 		let alice_open_order_1 =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -1861,12 +1861,12 @@ fn test_fee_while_opening_order() {
 			FixedI128::from_inner(9995000000000000000000)
 		);
 
-		let alice_close_order_1 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
 			.set_price(105.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order_1 = Order::new(204_u128, bob_id)
+		let bob_close_order_1 = Order::new(U256::from(204), bob_id)
 			.set_side(Side::Sell)
 			.set_price(100.into())
 			.set_order_type(OrderType::Market)
@@ -1969,8 +1969,8 @@ fn test_fee_while_closing_order() {
 
 		// Create orders
 		let alice_open_order_1 =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -2043,12 +2043,12 @@ fn test_fee_while_closing_order() {
 		assert_eq!(balance_2, 10000.into());
 
 		// Close orders
-		let alice_close_order_1 = Order::new(203_u128, alice_id)
+		let alice_close_order_1 = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
 			.set_price(105.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_close_order_1 = Order::new(204_u128, bob_id)
+		let bob_close_order_1 = Order::new(U256::from(204), bob_id)
 			.set_side(Side::Sell)
 			.set_price(100.into())
 			.set_order_type(OrderType::Market)
@@ -2141,8 +2141,8 @@ fn it_works_for_cleanup() {
 
 		// Create order 1
 		let alice_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -2168,10 +2168,10 @@ fn it_works_for_cleanup() {
 		print!("Block time {:?}", b);
 
 		// Create order 2
-		let alice_order = Order::new(203_u128, alice_id)
+		let alice_order = Order::new(U256::from(203), alice_id)
 			.set_timestamp(1702359500000)
 			.sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(204_u128, bob_id)
+		let bob_order = Order::new(U256::from(204), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.set_timestamp(1702359400000)
@@ -2195,22 +2195,22 @@ fn it_works_for_cleanup() {
 
 		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
 
-		let order1 = Trading::order_state(201);
+		let order1 = Trading::order_state(U256::from(201));
 		assert_eq!(order1.0, FixedI128::zero());
-		let order2 = Trading::order_state(202);
+		let order2 = Trading::order_state(U256::from(202));
 		assert_eq!(order2.0, FixedI128::zero());
-		let order3 = Trading::order_state(203);
+		let order3 = Trading::order_state(U256::from(203));
 		assert_eq!(order3.0, FixedI128::one());
-		let order4 = Trading::order_state(204);
+		let order4 = Trading::order_state(U256::from(204));
 		assert_eq!(order4.0, FixedI128::one());
 
-		let order1 = Trading::order_hash(201);
+		let order1 = Trading::order_hash(U256::from(201));
 		assert_eq!(order1, U256::zero());
-		let order2 = Trading::order_hash(202);
+		let order2 = Trading::order_hash(U256::from(202));
 		assert_eq!(order2, U256::zero());
-		let order3 = Trading::order_hash(203);
+		let order3 = Trading::order_hash(U256::from(203));
 		assert_ne!(order3, U256::zero());
-		let order4 = Trading::order_hash(204);
+		let order4 = Trading::order_hash(U256::from(204));
 		assert_ne!(order4, U256::zero());
 
 		let batch1 = Trading::batch_status(U256::from(1_u8));
@@ -2224,9 +2224,9 @@ fn it_works_for_cleanup() {
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());
 		let timestamp2 = Trading::orders(1702359500);
-		assert_eq!(vec![203_u128], timestamp2.unwrap());
+		assert_eq!(vec![U256::from(203)], timestamp2.unwrap());
 		let timestamp3 = Trading::orders(1702359400);
-		assert_eq!(vec![204_u128], timestamp3.unwrap());
+		assert_eq!(vec![U256::from(204)], timestamp3.unwrap());
 
 		let timestamp1 = Trading::batches(1699940360);
 		assert_eq!(false, timestamp1.is_some());
@@ -2251,8 +2251,8 @@ fn it_does_not_work_for_old_batch() {
 
 		// Create order 1
 		let alice_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -2291,8 +2291,8 @@ fn it_does_not_work_for_old_order() {
 
 		// Create order 1
 		let alice_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.set_timestamp(1697521100)
@@ -2334,13 +2334,13 @@ fn it_does_not_work_for_not_enough_balance() {
 		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 10000.into());
 
 		// Create orders
-		let alice_order = Order::new(301_u128, alice_id)
+		let alice_order = Order::new(U256::from(301), alice_id)
 			.set_leverage(8.into())
 			.set_size(10.into())
 			.set_price(35000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(302_u128, bob_id)
+		let bob_order = Order::new(U256::from(302), bob_id)
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
 			.set_leverage(8.into())
@@ -2364,7 +2364,7 @@ fn it_does_not_work_for_not_enough_balance() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 301, error_code: 501 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(301), error_code: 501 }.into());
 		System::assert_has_event(Event::TradeExecutionFailed { batch_id: U256::from(1_u8) }.into());
 	});
 }
@@ -2384,17 +2384,17 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 		// market id
 		let market_id = btc_usdc().market.id;
 
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_price(3000.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_open_order_1 = Order::new(202_u128, bob_id)
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
 			.set_price(2010.into())
 			.set_direction(Direction::Short)
 			.sign_order(get_private_key(bob().pub_key));
 
-		let dave_open_order_1 = Order::new(204_u128, dave_id)
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
 			.set_price(0.into())
 			.set_size(2.into())
 			.set_order_type(OrderType::Market)
@@ -2417,6 +2417,6 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: 201, error_code: 506 }.into());
+		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 506 }.into());
 	});
 }

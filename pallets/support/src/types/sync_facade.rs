@@ -1,10 +1,9 @@
-use crate::types::{Asset, Market, TradingAccountMinimal};
+use crate::types::{Asset, AssetAddress, Market, TradingAccountMinimal};
 use codec::{Decode, Encode};
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::FixedI128;
-use sp_runtime::traits::ConstU32;
-use sp_runtime::{BoundedVec, RuntimeDebug};
+use sp_runtime::{traits::ConstU32, BoundedVec, RuntimeDebug};
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SyncSignature {
@@ -63,6 +62,7 @@ pub struct AssetUpdated {
 	pub event_index: u32,
 	pub id: u128,
 	pub asset: Asset,
+	pub asset_addresses: BoundedVec<AssetAddress, ConstU32<256>>,
 	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
 	pub block_number: u64,
 }

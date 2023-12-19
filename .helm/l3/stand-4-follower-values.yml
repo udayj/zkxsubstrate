@@ -181,9 +181,9 @@ node:
 
   chainData:
     # -- Database backend engine to use
-    database: rocksdb
+    database: paritydb
     # -- Set the amount of blocks to retain. If set to 0 archive node will be run
-    pruning: 500000
+    pruning: 0
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it to store chain data
     kubernetesVolumeSnapshot:
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it to store chain data
@@ -274,9 +274,9 @@ node:
     customChainspecUrl:
     chainData:
       # -- Database backend engine to use for the collator relay-chain database
-      database: rocksdb
+      database: paritydb
       # -- Set the amount of blocks to retain for the collator relay-chain database. If set to 0 archive node will be run
-      pruning: 500000
+      pruning: 0
       # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it to store relay-chain data
       kubernetesVolumeSnapshot:
       # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it to store relay-chain data
@@ -569,7 +569,13 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources: {}
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"

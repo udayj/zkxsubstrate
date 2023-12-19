@@ -712,6 +712,7 @@ spec:
           startupProbe:
             failureThreshold: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             httpGet:
               path: /health
               {{- if .Values.node.legacyRpcFlags }}

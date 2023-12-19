@@ -116,7 +116,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 101,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -434,8 +434,16 @@ impl_runtime_apis! {
 	}
 
 	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
-		fn get_remaining_markets() -> Vec<u128> {
-			Prices::get_remaining_markets()
+		fn get_remaining_markets() -> Vec<U256> {
+			let remaining_markets_u128 = Prices::get_remaining_markets();
+			let mut remaining_markets_u256:Vec<U256> = vec![];
+
+			// The Prices::get_remaining_markets call returns vec<u128>
+			// Converting market ids to U256 for returning in the RPC call
+			for market_id in remaining_markets_u128 {
+				remaining_markets_u256.push(U256::from(market_id));
+			}
+			remaining_markets_u256
 		}
 
 		fn get_no_of_batches_for_current_epoch() -> u128 {
