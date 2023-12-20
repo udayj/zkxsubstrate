@@ -154,11 +154,15 @@ fn testnet_genesis(
 		validator_set: ValidatorSetConfig {
 			initial_validators: initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
 		},
+		// session accounts must have some balance
+		// keys are set here, the initial validator set is provided by the substrate_validator_set pallet
 		session: SessionConfig {
 			keys: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone()))
 			}).collect::<Vec<_>>(),
 		},
+		// since validators are provided by the session pallet, they are not initialized separately
+		// for aura and grandpa pallets
 		aura: AuraConfig {
 			authorities: vec![],
 		},
@@ -172,6 +176,10 @@ fn testnet_genesis(
 		},
 		transaction_payment: Default::default(),
 		node_authorization: NodeAuthorizationConfig {
+			// nodes is a vector of tuples
+			// first element is the PeerID
+			// 2nd element is the accountID
+			// this defines the initial set of authorized nodes at genesis
 			nodes: vec![
 				(
 				OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap()),
