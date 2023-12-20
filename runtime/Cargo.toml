@@ -40,6 +40,8 @@ sp-std = { version = "8.0.0", default-features = false, git = "https://github.co
 sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-version = { version = "22.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-node-authorization = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+substrate-validator-set = { default-features = false, git = "https://github.com/gautamdhameja/substrate-validator-set.git", rev = "3d4052d"}
+pallet-session = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
 
 
 
@@ -81,6 +83,8 @@ std = [
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"frame-try-runtime/std",
+	"substrate-validator-set/std",
+	"pallet-session/std",
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",

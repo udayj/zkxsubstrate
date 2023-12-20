@@ -4655,6 +4655,7 @@ dependencies = [
  "pallet-prices",
  "pallet-prices-runtime-api",
  "pallet-risk-management",
+ "pallet-session",
  "pallet-sudo",
  "pallet-support",
  "pallet-sync-facade",
@@ -4681,6 +4682,7 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
  "sp-transaction-pool",
  "sp-version",
+ "substrate-validator-set",
  "substrate-wasm-builder",
 ]
 
@@ -8884,6 +8886,25 @@ dependencies = [
  "sc-rpc-api",
  "serde",
  "sp-runtime",
+]
+
+[[package]]
+name = "substrate-validator-set"
+version = "1.0.0"
+source = "git+https://github.com/gautamdhameja/substrate-validator-set.git?rev=3d4052d#3d4052decba3261712a4315c32e506000d97c1b6"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
 ]
 
 [[package]]
