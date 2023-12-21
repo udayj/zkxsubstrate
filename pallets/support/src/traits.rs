@@ -2,8 +2,8 @@ use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
 	Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType, MarginInfo,
 	Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet,
-	Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent,
-	UserDeposit,
+	Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -157,9 +157,13 @@ pub trait Hashable {
 }
 
 pub trait FeltSerializedArrayExt {
-	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
+	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
 	fn append_bool(&mut self, boolean_value: bool);
 	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet);
+	fn try_append_bounded_vec_u256(
+		&mut self,
+		vec: &BoundedVec<U256, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError>;
 	fn try_append_asset_addresses(
 		&mut self,
 		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
@@ -172,6 +176,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_trading_account(
 		&mut self,
 		trading_account: &TradingAccountMinimal,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_settings(
+		&mut self,
+		settings: &BoundedVec<Setting, ConstU32<256>>,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_market_updated_event(
 		&mut self,
@@ -200,6 +208,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_signer_removed_event(
 		&mut self,
 		signer_added: &SignerRemoved,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_settings_added_event(
+		&mut self,
+		settings_added: &SettingsAdded,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
