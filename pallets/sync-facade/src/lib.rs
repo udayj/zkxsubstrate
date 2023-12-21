@@ -19,7 +19,7 @@ pub mod pallet {
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
 			TradingAccountInterface, U256Ext,
 		},
-		types::{ExtendedAsset, ExtendedMarket, SyncSignature, UniversalEvent},
+		types::{ExtendedAsset, ExtendedMarket, Setting, SyncSignature, UniversalEvent},
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
@@ -247,6 +247,14 @@ pub mod pallet {
 			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
 		}
 
+		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
+			// Filter out the fee settings
+			// let fees_data: Vec<_> = settings
+			// 	.into_iter()
+			// 	.filter(|setting| setting.key.chars().next() == Some('b'))
+			// 	.collect();
+		}
+
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
 			for event in events_batch.iter() {
 				match event {
@@ -369,6 +377,9 @@ pub mod pallet {
 							}),
 						}
 					},
+					UniversalEvent::SettingsAdded(settings_added) => {
+						Self::handle_settings(&settings_added.settings);
+					},
 				}
 			}
 		}
@@ -447,6 +458,8 @@ pub mod pallet {
 					(signer_removed.block_number, signer_removed.event_index),
 				UniversalEvent::QuorumSet(quorum_set) =>
 					(quorum_set.block_number, quorum_set.event_index),
+				UniversalEvent::SettingsAdded(settings_added) =>
+					(settings_added.block_number, settings_added.event_index),
 			}
 		}
 	}
