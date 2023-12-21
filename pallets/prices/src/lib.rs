@@ -459,7 +459,7 @@ pub mod pallet {
 
 			if current_state == ABRState::State0 {
 				if current_epoch == 0 {
-					return EpochToTimestampMap::<T>::get(current_epoch)
+					return InitialisationTimestamp::<T>::get()
 				} else {
 					return EpochToTimestampMap::<T>::get(current_epoch - 1)
 				}
@@ -955,7 +955,7 @@ pub mod pallet {
 			match AbrState::<T>::get() {
 				ABRState::State0 =>
 					if current_epoch == 0 {
-						EpochToTimestampMap::<T>::get(current_epoch)
+						InitialisationTimestamp::<T>::get()
 					} else {
 						EpochToTimestampMap::<T>::get(current_epoch - 1)
 					},
