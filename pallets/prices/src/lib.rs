@@ -303,13 +303,11 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get current state and epoch
-			let current_epoch = AbrEpoch::<T>::get();
-			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
-			let mut new_epoch: u64 = 0;
+			let mut current_epoch = AbrEpoch::<T>::get();
 
 			if AbrState::<T>::get() == ABRState::State0 {
 				// This call transitions the state to State::1
-				new_epoch = Self::set_abr_timestamp(current_epoch)?;
+				current_epoch = Self::set_abr_timestamp(current_epoch)?;
 			}
 
 			let current_state = AbrState::<T>::get();
@@ -325,6 +323,7 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
 
 			// Check if the market's abr is already set
+			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
 
 			// Fetch index and mark prices
@@ -338,7 +337,7 @@ pub mod pallet {
 			let (abr_value, abr_last_price) =
 				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 
-			// Set the market's ABR value as true
+			// Set the market's ABR status as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
 
 			// Update ABR value for the market
@@ -349,7 +348,7 @@ pub mod pallet {
 
 			// Emit ABR Value set event
 			Self::deposit_event(Event::AbrValueSet {
-				epoch: new_epoch,
+				epoch: current_epoch,
 				market_id,
 				abr_value,
 				abr_last_price,
@@ -494,6 +493,9 @@ pub mod pallet {
 					return
 				}
 			}
+
+			// Emit ABR state changed event
+			Self::deposit_event(Event::AbrStateChanged { epoch, state: ABRState::State2 });
 
 			// Change the state if all the market's ABR value is set
 			AbrState::<T>::put(ABRState::State2);
@@ -737,13 +739,13 @@ pub mod pallet {
 
 			// If all batches are fetched, increment state and epoch
 			if no_of_batches == 0 || no_of_batches == new_batches_fetched {
-				// Emit ABR state changed event
-				Self::deposit_event(Event::AbrStateChanged {
-					epoch: current_epoch,
-					state: ABRState::State0,
-				});
 				AbrState::<T>::put(ABRState::State0);
 				AbrEpoch::<T>::put(current_epoch + 1);
+				// Emit ABR state changed event
+				Self::deposit_event(Event::AbrStateChanged {
+					epoch: current_epoch + 1,
+					state: ABRState::State0,
+				});
 			}
 			account_list
 		}
