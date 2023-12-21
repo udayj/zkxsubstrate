@@ -305,10 +305,11 @@ pub mod pallet {
 			// Get current state and epoch
 			let current_epoch = AbrEpoch::<T>::get();
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+			let mut new_epoch: u64 = 0;
 
 			if AbrState::<T>::get() == ABRState::State0 {
 				// This call transitions the state to State::1
-				Self::set_abr_timestamp(current_epoch)?;
+				new_epoch = Self::set_abr_timestamp(current_epoch)?;
 			}
 
 			let current_state = AbrState::<T>::get();
@@ -348,7 +349,7 @@ pub mod pallet {
 
 			// Emit ABR Value set event
 			Self::deposit_event(Event::AbrValueSet {
-				epoch: current_epoch,
+				epoch: new_epoch,
 				market_id,
 				abr_value,
 				abr_last_price,
@@ -659,7 +660,7 @@ pub mod pallet {
 			result
 		}
 
-		pub fn set_abr_timestamp(current_epoch: u64) -> Result<(), Error<T>> {
+		pub fn set_abr_timestamp(current_epoch: u64) -> Result<u64, Error<T>> {
 			let abr_interval = AbrInterval::<T>::get();
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
@@ -704,7 +705,7 @@ pub mod pallet {
 				state: ABRState::State1,
 			});
 
-			Ok(())
+			Ok(new_epoch)
 		}
 
 		pub fn get_current_batch(current_epoch: u64) -> Vec<U256> {
@@ -724,7 +725,9 @@ pub mod pallet {
 
 			// Increment batches_fetched
 			let new_batches_fetched = batches_fetched + 1;
-			BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
+			if no_of_batches != 0 {
+				BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
+			}
 
 			// Emit ABR Payment made event
 			Self::deposit_event(Event::AbrPaymentMade {
@@ -733,7 +736,7 @@ pub mod pallet {
 			});
 
 			// If all batches are fetched, increment state and epoch
-			if new_batches_fetched == no_of_batches {
+			if no_of_batches == 0 || no_of_batches == new_batches_fetched {
 				// Emit ABR state changed event
 				Self::deposit_event(Event::AbrStateChanged {
 					epoch: current_epoch,
