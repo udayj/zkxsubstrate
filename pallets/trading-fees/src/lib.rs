@@ -88,6 +88,18 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;
 
+			Self::update_base_fees_internal(collateral_id, side, order_side, fee_details)?;
+			Ok(())
+		}
+	}
+
+	impl<T: Config> TradingFeesInterface for Pallet<T> {
+		fn update_base_fees_internal(
+			collateral_id: u128,
+			side: Side,
+			order_side: OrderSide,
+			fee_details: Vec<BaseFee>,
+		) -> DispatchResult {
 			// Validate that the asset exists and it is a collateral
 			if let Some(asset) = T::AssetPallet::get_asset(collateral_id) {
 				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
@@ -119,9 +131,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
 
-	impl<T: Config> TradingFeesInterface for Pallet<T> {
 		fn get_fee_rate(
 			collateral_id: u128,
 			side: Side,
