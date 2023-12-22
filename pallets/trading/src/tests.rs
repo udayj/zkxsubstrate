@@ -7,7 +7,7 @@ use pallet_support::{
 		market_helper::{btc_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, Order, OrderType, Position, Side},
+	types::{Direction, Order, OrderSide, OrderType, Position, Side},
 };
 use primitive_types::U256;
 use sp_arithmetic::{
@@ -1794,13 +1794,21 @@ fn test_fee_while_opening_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details) = setup_fee();
+		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
 			collateral_id,
 			Side::Buy,
-			fee_details.clone(),
+			OrderSide::Maker,
+			fee_details_maker.clone(),
+		));
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::signed(1),
+			collateral_id,
+			Side::Buy,
+			OrderSide::Taker,
+			fee_details_taker.clone(),
 		));
 
 		// Create orders
@@ -1975,13 +1983,21 @@ fn test_fee_while_closing_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details) = setup_fee();
+		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
 			collateral_id,
 			Side::Sell,
-			fee_details.clone(),
+			OrderSide::Maker,
+			fee_details_maker.clone(),
+		));
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::signed(1),
+			collateral_id,
+			Side::Sell,
+			OrderSide::Taker,
+			fee_details_taker.clone(),
 		));
 
 		// Create orders
