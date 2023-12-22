@@ -112,7 +112,7 @@ pub mod pallet {
 	/// Stores the no of users per batch
 	#[pallet::storage]
 	#[pallet::getter(fn users_per_batch)]
-	pub(super) type UsersPerBatch<T: Config> = StorageValue<_, u128, ValueQuery>;
+	pub(super) type UsersPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_to_timestamp)]
@@ -124,13 +124,13 @@ pub mod pallet {
 	#[pallet::getter(fn no_of_batches_for_epoch)]
 	/// key - Epoch, value - No.of batches
 	pub(super) type NoOfBatchesForEpochMap<T: Config> =
-		StorageMap<_, Twox64Concat, u64, u128, ValueQuery>;
+		StorageMap<_, Twox64Concat, u64, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn batches_fetched_for_epoch)]
 	/// key - Epoch, value - No.of batches fetched
 	pub(super) type BatchesFetchedForEpochMap<T: Config> =
-		StorageMap<_, Twox64Concat, u64, u128, ValueQuery>;
+		StorageMap<_, Twox64Concat, u64, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_market_to_abr_value)]
@@ -204,7 +204,7 @@ pub mod pallet {
 		/// ABR value set successfully
 		AbrValueSet { epoch: u64, market_id: u128, abr_value: FixedI128, abr_last_price: FixedI128 },
 		/// ABR payment made successfully
-		AbrPaymentMade { epoch: u64, batch_id: u128 },
+		AbrPaymentMade { epoch: u64, batch_id: u64 },
 	}
 
 	// Pallet callable functions
@@ -284,7 +284,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_no_of_users_per_batch(
 			origin: OriginFor<T>,
-			new_no_of_users_per_batch: u128,
+			new_no_of_users_per_batch: u64,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
@@ -303,12 +303,11 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Get current state and epoch
-			let current_epoch = AbrEpoch::<T>::get();
-			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+			let mut current_epoch = AbrEpoch::<T>::get();
 
 			if AbrState::<T>::get() == ABRState::State0 {
 				// This call transitions the state to State::1
-				Self::set_abr_timestamp(current_epoch)?;
+				current_epoch = Self::set_abr_timestamp(current_epoch)?;
 			}
 
 			let current_state = AbrState::<T>::get();
@@ -324,6 +323,7 @@ pub mod pallet {
 			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
 
 			// Check if the market's abr is already set
+			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
 
 			// Fetch index and mark prices
@@ -337,7 +337,7 @@ pub mod pallet {
 			let (abr_value, abr_last_price) =
 				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 
-			// Set the market's ABR value as true
+			// Set the market's ABR status as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
 
 			// Update ABR value for the market
@@ -459,7 +459,7 @@ pub mod pallet {
 
 			if current_state == ABRState::State0 {
 				if current_epoch == 0 {
-					return EpochToTimestampMap::<T>::get(current_epoch)
+					return InitialisationTimestamp::<T>::get()
 				} else {
 					return EpochToTimestampMap::<T>::get(current_epoch - 1)
 				}
@@ -493,6 +493,9 @@ pub mod pallet {
 					return
 				}
 			}
+
+			// Emit ABR state changed event
+			Self::deposit_event(Event::AbrStateChanged { epoch, state: ABRState::State2 });
 
 			// Change the state if all the market's ABR value is set
 			AbrState::<T>::put(ABRState::State2);
@@ -659,7 +662,7 @@ pub mod pallet {
 			result
 		}
 
-		pub fn set_abr_timestamp(current_epoch: u64) -> Result<(), Error<T>> {
+		pub fn set_abr_timestamp(current_epoch: u64) -> Result<u64, Error<T>> {
 			let abr_interval = AbrInterval::<T>::get();
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
@@ -686,7 +689,8 @@ pub mod pallet {
 			let users_per_batch = UsersPerBatch::<T>::get();
 
 			// Get the no of batches
-			let no_of_batches = Self::calculate_no_of_batches(users_per_batch);
+			let no_of_batches: u64 =
+				Self::calculate_no_of_batches(users_per_batch as u128).try_into().unwrap();
 
 			// Write the no of batches for this epoch
 			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
@@ -703,7 +707,7 @@ pub mod pallet {
 				state: ABRState::State1,
 			});
 
-			Ok(())
+			Ok(new_epoch)
 		}
 
 		pub fn get_current_batch(current_epoch: u64) -> Vec<U256> {
@@ -718,11 +722,14 @@ pub mod pallet {
 			let upper_limit = lower_limit + no_of_users_per_batch;
 
 			// Fetch the required batch from Trading account pallet
-			let account_list = T::TradingAccountPallet::get_account_list(lower_limit, upper_limit);
+			let account_list =
+				T::TradingAccountPallet::get_account_list(lower_limit as u128, upper_limit as u128);
 
 			// Increment batches_fetched
 			let new_batches_fetched = batches_fetched + 1;
-			BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
+			if no_of_batches != 0 {
+				BatchesFetchedForEpochMap::<T>::insert(current_epoch, new_batches_fetched);
+			}
 
 			// Emit ABR Payment made event
 			Self::deposit_event(Event::AbrPaymentMade {
@@ -731,14 +738,14 @@ pub mod pallet {
 			});
 
 			// If all batches are fetched, increment state and epoch
-			if new_batches_fetched as u128 == no_of_batches {
-				// Emit ABR state changed event
-				Self::deposit_event(Event::AbrStateChanged {
-					epoch: current_epoch,
-					state: ABRState::State0,
-				});
+			if no_of_batches == 0 || no_of_batches == new_batches_fetched {
 				AbrState::<T>::put(ABRState::State0);
 				AbrEpoch::<T>::put(current_epoch + 1);
+				// Emit ABR state changed event
+				Self::deposit_event(Event::AbrStateChanged {
+					epoch: current_epoch + 1,
+					state: ABRState::State0,
+				});
 			}
 			account_list
 		}
@@ -932,7 +939,7 @@ pub mod pallet {
 			}
 		}
 
-		fn get_no_of_batches_for_current_epoch() -> u128 {
+		fn get_no_of_batches_for_current_epoch() -> u64 {
 			let current_epoch = AbrEpoch::<T>::get();
 
 			// Return number of batches only if state is 2
@@ -948,7 +955,7 @@ pub mod pallet {
 			match AbrState::<T>::get() {
 				ABRState::State0 =>
 					if current_epoch == 0 {
-						EpochToTimestampMap::<T>::get(current_epoch)
+						InitialisationTimestamp::<T>::get()
 					} else {
 						EpochToTimestampMap::<T>::get(current_epoch - 1)
 					},
@@ -956,10 +963,10 @@ pub mod pallet {
 			}
 		}
 
-		fn get_remaining_pay_abr_calls() -> u128 {
+		fn get_remaining_pay_abr_calls() -> u64 {
 			let current_epoch = AbrEpoch::<T>::get();
 			let no_of_batches = NoOfBatchesForEpochMap::<T>::get(current_epoch);
-			let batches_fetched: u128 = BatchesFetchedForEpochMap::<T>::get(current_epoch).into();
+			let batches_fetched = BatchesFetchedForEpochMap::<T>::get(current_epoch);
 
 			match AbrState::<T>::get() {
 				ABRState::State2 => no_of_batches - batches_fetched,
