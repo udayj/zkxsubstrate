@@ -19,10 +19,14 @@ pub mod pallet {
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
 			TradingAccountInterface, U256Ext,
 		},
-		types::{ExtendedAsset, ExtendedMarket, Setting, SyncSignature, UniversalEvent},
+		types::{
+			ExtendedAsset, ExtendedMarket, FeeSettingsType, Setting, SettingsType, SyncSignature,
+			UniversalEvent,
+		},
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
+	use std::collections::{HashMap, HashSet};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -81,6 +85,8 @@ pub mod pallet {
 		QuorumSetError { quorum: u8 },
 		/// An invalid request for user deposit
 		UserDepositError { collateral_id: u128 },
+		/// An invalid key in settings
+		SettingsKeyError { key: u128 },
 	}
 
 	#[pallet::error]
@@ -104,6 +110,15 @@ pub mod pallet {
 		/// Invalid FieldElement value
 		ConversionError,
 	}
+
+	// Constants
+	const FEE_SETTINGS: u128 = 70;
+	const GENERAL_SETTINGS: u128 = 71;
+	const MAKER_ENCODING: u128 = 77;
+	const TAKER_ENCODING: u128 = 84;
+	const OPEN_ENCODING: u128 = 79;
+	const CLOSE_ENCODING: u128 = 67;
+	const OMISSION_ENCODING: u128 = 45;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -247,12 +262,195 @@ pub mod pallet {
 			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
 		}
 
+		fn resolve_setting(
+			settings_type: u128,
+			param1: u128,
+			param2: u128,
+			param3: u128,
+		) -> Option<SettingsType> {
+			match settings_type {
+				FEE_SETTINGS => match param2 {
+					MAKER_ENCODING => match param3 {
+						OPEN_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerOpen)),
+						CLOSE_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerClose)),
+						OMISSION_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerVols)),
+						_ => {
+							Self::deposit_event(Event::SettingsKeyError { key: param3 });
+							return None;
+						},
+					},
+					TAKER_ENCODING => match param3 {
+						OPEN_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerOpen)),
+						CLOSE_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerClose)),
+						OMISSION_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerVols)),
+						_ => {
+							Self::deposit_event(Event::SettingsKeyError { key: param3 });
+							return None;
+						},
+					},
+					_ => {
+						Self::deposit_event(Event::SettingsKeyError { key: param2 });
+						return None;
+					},
+				},
+				GENERAL_SETTINGS => {
+					Self::deposit_event(Event::SettingsKeyError { key: param1 });
+					return None;
+				},
+				_ => {
+					Self::deposit_event(Event::SettingsKeyError { key: param1 });
+					return None;
+				},
+			}
+		}
+
+		fn get_ascii_value(vec: Vec<u8>) -> u128 {
+			let mut result: u128 = 0;
+			for num in vec {
+				result = (result * 256) + num as u128;
+			}
+
+			return result;
+		}
+
+		fn u256_to_string(input: U256) -> Option<(u128, u128, u128, u128)> {
+			// Create a vector to store the bytes
+			let mut bytes: Vec<u8> =
+				(0..32).map(|i| input.byte(i)).take_while(|&byte| byte != 0).collect();
+
+			// Reverse the vec
+			bytes.reverse();
+
+			// Split the vec according to the delimiter
+			let pieces: Vec<u128> = bytes
+				.split(|&e| e == 95)
+				.filter(|v| !v.is_empty())
+				.map(|v| Self::get_ascii_value(v.to_vec()))
+				.collect();
+			println!("{:?}", pieces);
+
+			if pieces.len() != 4 {
+				return None;
+			}
+
+			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
+		}
+
+		fn set_trading_fees(
+			assets_set: HashSet<u128>,
+			settings_map: HashMap<(u128, FeeSettingsType), Vec<U256>>,
+		) {
+			for &asset in assets_set.iter() {
+				// get maker and taker volumes
+				let maker_volumes = settings_map.get(&(asset, FeeSettingsType::MakerVols));
+				let taker_volumes = settings_map.get(&(asset, FeeSettingsType::TakerVols));
+
+				// Get the fee vectors of Maker
+				let maker_open_fees = settings_map.get(&(asset, FeeSettingsType::MakerOpen));
+				let maker_close_fees = settings_map.get(&(asset, FeeSettingsType::MakerClose));
+
+				// Get the fee vectors of Taker
+				let taker_open_fees = settings_map.get(&(asset, FeeSettingsType::TakerOpen));
+				let taker_close_fees = settings_map.get(&(asset, FeeSettingsType::TakerClose));
+			}
+		}
+
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
-			// Filter out the fee settings
-			// let fees_data: Vec<_> = settings
-			// 	.into_iter()
-			// 	.filter(|setting| setting.key.chars().next() == Some('b'))
-			// 	.collect();
+			let mut settings_map: HashMap<(u128, FeeSettingsType), Vec<U256>> = HashMap::new();
+			let mut assets_set: HashSet<u128> = HashSet::new();
+
+			for setting in settings {
+				// Parse the key of the current setting
+				let parsing_result = Self::u256_to_string(setting.key);
+				if parsing_result == None {
+					break;
+				}
+
+				// Get the constituents of the key
+				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
+
+				// Resolve the type of setting
+				let setting_type = Self::resolve_setting(setting_type, param1, param2, param3);
+				if setting_type == None {
+					break;
+				}
+
+				// Handle the setting
+				match setting_type.unwrap() {
+					SettingsType::FeeSettings(fee_settings_type) => match fee_settings_type {
+						FeeSettingsType::MakerVols => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert maker volume vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::MakerVols),
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerVols => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert taker volume vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::TakerVols),
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::MakerOpen => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert maker open fee vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::MakerOpen),
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::MakerClose => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert maker close fee vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::MakerClose),
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerOpen => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert taker open fee vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::TakerOpen),
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerClose => {
+							// Add the asset to the Set
+							assets_set.insert(param1);
+
+							// Insert taker close fee vector to hashmap
+							settings_map.insert(
+								(param1, FeeSettingsType::TakerClose),
+								setting.values.to_vec(),
+							);
+						},
+					},
+					SettingsType::GeneralSettings => {},
+				}
+			}
+
+			// Set the trading Fees
+			Self::set_trading_fees(assets_set, settings_map);
 		}
 
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
