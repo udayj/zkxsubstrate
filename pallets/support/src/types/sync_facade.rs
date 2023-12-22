@@ -101,3 +101,19 @@ pub struct SettingsAdded {
 	pub settings: BoundedVec<Setting, ConstU32<256>>,
 	pub block_number: u64,
 }
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SettingsType {
+	FeeSettings(FeeSettingsType),
+	GeneralSettings,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum FeeSettingsType {
+	MakerVols,
+	TakerVols,
+	MakerOpen,
+	MakerClose,
+	TakerOpen,
+	TakerClose,
+}
