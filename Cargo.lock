@@ -4592,6 +4592,7 @@ dependencies = [
 name = "node-template"
 version = "0.0.1-dev"
 dependencies = [
+ "array-bytes",
  "bs58",
  "clap",
  "frame-benchmarking",

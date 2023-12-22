@@ -5,7 +5,7 @@ use node_template_runtime::{
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{sr25519, Pair, Public, OpaquePeerId};
+use sp_core::{sr25519, Pair, Public, OpaquePeerId, crypto::UncheckedInto};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
 // The URL for the telemetry server.
@@ -102,10 +102,37 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 			testnet_genesis(
 				wasm_binary,
 				// Initial PoA authorities
+				// following should be used for PRODUCTION
+				// This is a vector of (AccountId, AuraId, GrandpaID) tuples
+				// AccountId and AuraId are derived from the Sr25519 public key string in hex without 0x prefix
+				// GrandpaId is derived from the Ed25519 public key string in hex without 0x prefix 
+				// Note the different functions used for conversion
+				// Replace each key based on custom key used
+				/*vec![
+				(
+					array_bytes::hex_n_into_unchecked("98ac86a111826e4176916ae81c7443075138b9a69760dd4536d06f8a16f2501f"),
+					array_bytes::hex2array_unchecked("98ac86a111826e4176916ae81c7443075138b9a69760dd4536d06f8a16f2501f").unchecked_into(),
+					array_bytes::hex2array_unchecked("1ce5f00ef6e89374afb625f1ae4c1546d31234e87e3c3f51a62b91dd6bfa57df").unchecked_into(),
+				),
+				(
+					array_bytes::hex_n_into_unchecked("cc056f8d99996a960227488332f015ce988a809648dc1591bb124570cd367536"),
+					array_bytes::hex2array_unchecked("cc056f8d99996a960227488332f015ce988a809648dc1591bb124570cd367536").unchecked_into(),
+					array_bytes::hex2array_unchecked("dacde7714d8551f674b8bb4b54239383c76a2b286fa436e93b2b7eb226bf4de7").unchecked_into(),
+				)
+				],*/
 				vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 				// Sudo account
+				// following should be used for PRODUCTION
+				// This is the AccountId derived from Sr25519 public key string in hex without 0x prefix
+				/*array_bytes::hex_n_into_unchecked("98ac86a111826e4176916ae81c7443075138b9a69760dd4536d06f8a16f2501f"),*/
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts
+				// include only following for PRODUCTION
+				// Each element is an AccountId derived from Sr25519 public key string in hex without 0x prefix 
+				/*vec![
+					array_bytes::hex_n_into_unchecked("98ac86a111826e4176916ae81c7443075138b9a69760dd4536d06f8a16f2501f"),
+					array_bytes::hex_n_into_unchecked("cc056f8d99996a960227488332f015ce988a809648dc1591bb124570cd367536"),
+				],*/
 				vec![
 					get_account_id_from_seed::<sr25519::Public>("Alice"),
 					get_account_id_from_seed::<sr25519::Public>("Bob"),
@@ -180,6 +207,7 @@ fn testnet_genesis(
 			// first element is the PeerID
 			// 2nd element is the accountID
 			// this defines the initial set of authorized nodes at genesis
+			// For PRODUCTION change the peerId based on custom keys used
 			nodes: vec![
 				(
 				OpaquePeerId(bs58::decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2").into_vec().unwrap()),
