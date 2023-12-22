@@ -573,7 +573,13 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources: {}
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    limits:
+      cpu: 2000m
+      memory: 10Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"

@@ -572,10 +572,10 @@ node:
   resources:
     requests:
       cpu: 1000m
-      memory: 1Gi
+      memory: 4Gi
     limits:
       cpu: 2000m
-      memory: 2Gi
+      memory: 10Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
