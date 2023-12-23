@@ -19,12 +19,12 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.extend(vec.iter().map(|&value| FieldElement::from(value)));
 	}
 
-	fn try_append_bounded_vec_u256(
+	fn try_append_bounded_vec_fixed_i128(
 		&mut self,
-		vec: &BoundedVec<U256, ConstU32<256>>,
+		vec: &BoundedVec<FixedI128, ConstU32<256>>,
 	) -> Result<(), FromByteSliceError> {
 		vec.iter().try_for_each(|value| {
-			self.try_append_u256(*value)?;
+			self.try_append_fixedi128(*value)?;
 
 			Ok(())
 		})
@@ -127,7 +127,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	) -> Result<(), FromByteSliceError> {
 		settings.iter().try_for_each(|setting| {
 			self.try_append_u256(setting.key)?;
-			self.try_append_bounded_vec_u256(&setting.values)?;
+			self.try_append_bounded_vec_fixed_i128(&setting.values)?;
 
 			Ok(())
 		})

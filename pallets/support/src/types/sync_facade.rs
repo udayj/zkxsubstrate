@@ -15,7 +15,7 @@ pub struct SyncSignature {
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct Setting {
 	pub key: U256,
-	pub values: BoundedVec<U256, ConstU32<256>>,
+	pub values: BoundedVec<FixedI128, ConstU32<256>>,
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -102,13 +102,13 @@ pub struct SettingsAdded {
 	pub block_number: u64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
 pub enum SettingsType {
 	FeeSettings(FeeSettingsType),
 	GeneralSettings,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
 pub enum FeeSettingsType {
 	MakerVols,
 	TakerVols,
