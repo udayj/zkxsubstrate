@@ -9,7 +9,7 @@ use pallet_support::{
 		market_helper::{btc_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, MultiplePrices, Order, OrderType, Position, Side},
+	types::{Direction, MultiplePrices, Order, OrderSide, OrderType, Position, Side},
 };
 use primitive_types::U256;
 
