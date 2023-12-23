@@ -23,8 +23,8 @@ pub mod pallet {
 			TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
-			ExtendedAsset, ExtendedMarket, FeeSettingsType, Setting, SettingsType, SyncSignature,
-			UniversalEvent,
+			BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide, Setting,
+			SettingsType, Side, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -107,6 +107,10 @@ pub mod pallet {
 		UserDepositError { collateral_id: u128 },
 		/// An invalid key in settings
 		SettingsKeyError { key: u128 },
+		/// Insufficient data for setting fees
+		InsufficientFeeData { asset_id: u128 },
+		/// Fee data length mismatch
+		FeeDataLengthMismatch { asset_id: u128 },
 	}
 
 	#[pallet::error]
@@ -361,32 +365,100 @@ pub mod pallet {
 			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
 		}
 
+		fn create_base_fee_vec(volumes: Vec<FixedI128>, fees: Vec<FixedI128>) -> Vec<BaseFee> {
+			volumes
+				.into_iter()
+				.zip(fees.into_iter())
+				.map(|(volume, fee)| BaseFee { volume, fee })
+				.collect()
+		}
+
 		fn set_trading_fees() {
 			let asset_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
 			for &asset_id in asset_list.iter() {
 				// get maker and taker volumes
-				let maker_volumes = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerVols);
-				let taker_volumes = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerVols);
+				let maker_volumes_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerVols);
+				let taker_volumes_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerVols);
 				// Get the fee vectors of Maker
-				let maker_open_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerOpen);
-				let maker_close_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerClose);
+				let maker_open_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerOpen);
+				let maker_close_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerClose);
 
 				// Get the fee vectors of Taker
-				let taker_open_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerOpen);
-				let taker_close_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerClose);
+				let taker_open_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerOpen);
+				let taker_close_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerClose);
 
-				if !(maker_volumes.is_some() &&
-					taker_volumes.is_some() &&
-					maker_open_fees.is_some() &&
-					maker_close_fees.is_some() &&
-					taker_open_fees.is_some() &&
-					taker_close_fees.is_some())
+				// Check if all the required data is present for this asset
+				if !(maker_volumes_query.is_some() &&
+					taker_volumes_query.is_some() &&
+					maker_open_fees_query.is_some() &&
+					maker_close_fees_query.is_some() &&
+					taker_open_fees_query.is_some() &&
+					taker_close_fees_query.is_some())
 				{
-					continue;
+					// Emit Insufficient data event
+					Self::deposit_event(Event::InsufficientFeeData { asset_id });
+					break;
 				}
-			}
 
-			// Make the call to set the fees for the current asset
+				// Unwrap maker data
+				let maker_volumes = maker_volumes_query.unwrap();
+				let maker_open_fees = maker_open_fees_query.unwrap();
+				let maker_close_fees = maker_close_fees_query.unwrap();
+
+				// Unwrap taker data
+				let taker_volumes = taker_volumes_query.unwrap();
+				let taker_open_fees = taker_open_fees_query.unwrap();
+				let taker_close_fees = taker_close_fees_query.unwrap();
+
+				// Maker data must be of the same length
+				if !(maker_volumes.len() == maker_open_fees.len() &&
+					maker_open_fees.len() == maker_close_fees.len()) &&
+					!(taker_volumes.len() == taker_open_fees.len() &&
+						taker_open_fees.len() == taker_close_fees.len())
+				{
+					// Emit Insufficient data event
+					Self::deposit_event(Event::FeeDataLengthMismatch { asset_id });
+					break;
+				}
+
+				// Set Maker Open fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Buy,
+					OrderSide::Maker,
+					Self::create_base_fee_vec(maker_volumes.clone(), maker_open_fees),
+				);
+
+				// Set Maker Close fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Sell,
+					OrderSide::Maker,
+					Self::create_base_fee_vec(maker_volumes.clone(), maker_close_fees),
+				);
+
+				// Set Taker Open fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Buy,
+					OrderSide::Taker,
+					Self::create_base_fee_vec(taker_volumes.clone(), taker_open_fees),
+				);
+
+				// Set Taker Close fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Sell,
+					OrderSide::Taker,
+					Self::create_base_fee_vec(taker_volumes.clone(), taker_close_fees),
+				);
+			}
 
 			TempFeesMap::<T>::drain();
 			TempAssetsMap::<T>::drain();

@@ -447,7 +447,7 @@ impl_runtime_apis! {
 			remaining_markets_u256
 		}
 
-		fn get_no_of_batches_for_current_epoch() -> u128 {
+		fn get_no_of_batches_for_current_epoch() -> u64 {
 			Prices::get_no_of_batches_for_current_epoch()
 		}
 
@@ -455,7 +455,7 @@ impl_runtime_apis! {
 			Prices::get_last_abr_timestamp()
 		}
 
-		fn get_remaining_pay_abr_calls() -> u128 {
+		fn get_remaining_pay_abr_calls() -> u64 {
 			Prices::get_remaining_pay_abr_calls()
 		}
 

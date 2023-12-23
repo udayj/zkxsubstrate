@@ -47,7 +47,7 @@ pub enum FundModifyType {
 	Decrease,
 }
 
-#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum OrderSide {
 	#[default]
 	Maker,
@@ -347,9 +347,8 @@ impl Hashable for Order {
 		elements.push(account_id_low);
 		elements.push(account_id_high);
 
-		let (order_id_low, order_id_high) = convert_to_u128_pair(self.order_id).map_err(
-			|_| GeneralConversionError::U256ToFieldElementError
-		)?;
+		let (order_id_low, order_id_high) = convert_to_u128_pair(self.order_id)
+			.map_err(|_| GeneralConversionError::U256ToFieldElementError)?;
 		elements.push(order_id_low);
 		elements.push(order_id_high);
 
