@@ -114,6 +114,7 @@ impl sync_facade::Config for Test {
 	type TradingAccountPallet = TradingAccounts;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
+	type TradingFeesPallet = TradingFees;
 }
 
 impl pallet_timestamp::Config for Test {

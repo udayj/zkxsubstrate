@@ -20,7 +20,7 @@ pub mod pallet {
 		helpers::compute_hash_on_elements,
 		traits::{
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
-			TradingAccountInterface, U256Ext,
+			TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
 			ExtendedAsset, ExtendedMarket, FeeSettingsType, Setting, SettingsType, SyncSignature,
@@ -29,6 +29,7 @@ pub mod pallet {
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
+	use sp_arithmetic::fixed_point::FixedI128;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -39,6 +40,7 @@ pub mod pallet {
 		type TradingAccountPallet: TradingAccountInterface;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
+		type TradingFeesPallet: TradingFeesInterface;
 	}
 
 	#[pallet::storage]
@@ -71,7 +73,7 @@ pub mod pallet {
 		u128,
 		Twox64Concat,
 		FeeSettingsType,
-		Vec<U256>,
+		Vec<FixedI128>,
 		OptionQuery,
 	>;
 
@@ -384,6 +386,8 @@ pub mod pallet {
 				}
 			}
 
+			// Make the call to set the fees for the current asset
+
 			TempFeesMap::<T>::drain();
 			TempAssetsMap::<T>::drain();
 		}
@@ -391,7 +395,7 @@ pub mod pallet {
 		fn add_settings_to_maps(
 			asset_id: u128,
 			fee_settings_type: FeeSettingsType,
-			values: Vec<U256>,
+			values: Vec<FixedI128>,
 		) {
 			// Add the asset to the map
 			TempAssetsMap::<T>::insert(asset_id, true);
@@ -404,6 +408,7 @@ pub mod pallet {
 			for setting in settings {
 				// Parse the key of the current setting
 				let parsing_result = Self::u256_to_string(setting.key);
+
 				if parsing_result == None {
 					break;
 				}
