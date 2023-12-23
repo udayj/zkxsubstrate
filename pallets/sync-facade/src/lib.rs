@@ -10,7 +10,10 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use frame_support::{dispatch::Vec, pallet_prelude::*};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{OptionQuery, *},
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
@@ -26,7 +29,6 @@ pub mod pallet {
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
-	use std::collections::{HashMap, HashSet};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -60,6 +62,22 @@ pub mod pallet {
 	#[pallet::getter(fn get_sync_state)]
 	// v - tuple of block number and block hash
 	pub(super) type LastProcessed<T: Config> = StorageValue<_, (u64, u32, U256), ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn get_temp_fees)]
+	pub(super) type TempFeesMap<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		u128,
+		Twox64Concat,
+		FeeSettingsType,
+		Vec<U256>,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn get_temp_assets)]
+	pub(super) type TempAssetsMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, bool>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_signers_quorum)]
@@ -333,7 +351,6 @@ pub mod pallet {
 				.filter(|v| !v.is_empty())
 				.map(|v| Self::get_ascii_value(v.to_vec()))
 				.collect();
-			println!("{:?}", pieces);
 
 			if pieces.len() != 4 {
 				return None;
@@ -342,29 +359,48 @@ pub mod pallet {
 			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
 		}
 
-		fn set_trading_fees(
-			assets_set: HashSet<u128>,
-			settings_map: HashMap<(u128, FeeSettingsType), Vec<U256>>,
-		) {
-			for &asset in assets_set.iter() {
+		fn set_trading_fees() {
+			let asset_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
+			for &asset_id in asset_list.iter() {
 				// get maker and taker volumes
-				let maker_volumes = settings_map.get(&(asset, FeeSettingsType::MakerVols));
-				let taker_volumes = settings_map.get(&(asset, FeeSettingsType::TakerVols));
-
+				let maker_volumes = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerVols);
+				let taker_volumes = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerVols);
 				// Get the fee vectors of Maker
-				let maker_open_fees = settings_map.get(&(asset, FeeSettingsType::MakerOpen));
-				let maker_close_fees = settings_map.get(&(asset, FeeSettingsType::MakerClose));
+				let maker_open_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerOpen);
+				let maker_close_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerClose);
 
 				// Get the fee vectors of Taker
-				let taker_open_fees = settings_map.get(&(asset, FeeSettingsType::TakerOpen));
-				let taker_close_fees = settings_map.get(&(asset, FeeSettingsType::TakerClose));
+				let taker_open_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerOpen);
+				let taker_close_fees = TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerClose);
+
+				if !(maker_volumes.is_some() &&
+					taker_volumes.is_some() &&
+					maker_open_fees.is_some() &&
+					maker_close_fees.is_some() &&
+					taker_open_fees.is_some() &&
+					taker_close_fees.is_some())
+				{
+					continue;
+				}
 			}
+
+			TempFeesMap::<T>::drain();
+			TempAssetsMap::<T>::drain();
+		}
+
+		fn add_settings_to_maps(
+			asset_id: u128,
+			fee_settings_type: FeeSettingsType,
+			values: Vec<U256>,
+		) {
+			// Add the asset to the map
+			TempAssetsMap::<T>::insert(asset_id, true);
+
+			// Insert maker volume vector to the map
+			TempFeesMap::<T>::insert(asset_id, fee_settings_type, values);
 		}
 
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
-			let mut settings_map: HashMap<(u128, FeeSettingsType), Vec<U256>> = HashMap::new();
-			let mut assets_set: HashSet<u128> = HashSet::new();
-
 			for setting in settings {
 				// Parse the key of the current setting
 				let parsing_result = Self::u256_to_string(setting.key);
@@ -385,62 +421,44 @@ pub mod pallet {
 				match setting_type.unwrap() {
 					SettingsType::FeeSettings(fee_settings_type) => match fee_settings_type {
 						FeeSettingsType::MakerVols => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert maker volume vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::MakerVols),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerVols,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerVols => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert taker volume vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::TakerVols),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerVols,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::MakerOpen => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert maker open fee vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::MakerOpen),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerOpen,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::MakerClose => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert maker close fee vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::MakerClose),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerClose,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerOpen => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert taker open fee vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::TakerOpen),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerOpen,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerClose => {
-							// Add the asset to the Set
-							assets_set.insert(param1);
-
-							// Insert taker close fee vector to hashmap
-							settings_map.insert(
-								(param1, FeeSettingsType::TakerClose),
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerClose,
 								setting.values.to_vec(),
 							);
 						},
@@ -449,8 +467,8 @@ pub mod pallet {
 				}
 			}
 
-			// Set the trading Fees
-			Self::set_trading_fees(assets_set, settings_map);
+			// Set the trading Fees and remove the temporary storage items
+			Self::set_trading_fees();
 		}
 
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
