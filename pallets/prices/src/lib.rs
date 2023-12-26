@@ -880,6 +880,30 @@ pub mod pallet {
 				BalanceChangeReason::ABR,
 			);
 		}
+
+		pub fn get_epoch_of_timestamp(start_timestamp: u64) -> u64 {
+			let mut high_epoch = AbrEpoch::<T>::get();
+			let mut low_epoch = 1;
+			let mut mid_epoch;
+			let abr_interval = AbrInterval::<T>::get();
+			while low_epoch <= high_epoch {
+				mid_epoch = ((high_epoch - low_epoch) / 2) + low_epoch;
+				let epoch_timestamp = EpochToTimestampMap::<T>::get(mid_epoch);
+				let difference: i128 = epoch_timestamp as i128 - start_timestamp as i128;
+				if difference <= abr_interval as i128 && difference >= 0 {
+					return mid_epoch
+				}
+				if start_timestamp > epoch_timestamp {
+					low_epoch = mid_epoch + 1;
+					continue
+				}
+				if start_timestamp < epoch_timestamp {
+					high_epoch = mid_epoch - 1;
+					continue
+				}
+			}
+			return 0
+		}
 	}
 
 	impl<T: Config> PricesInterface for Pallet<T> {
@@ -985,26 +1009,26 @@ pub mod pallet {
 		}
 
 		fn get_previous_abr_values(
-			starting_epoch: u64,
 			market_id: u128,
-			n: u64,
+			start_timestamp: u64,
+			end_timestamp: u64,
 		) -> Vec<ABRDetails> {
 			let mut abr_details = Vec::<ABRDetails>::new();
-			let current_epoch = AbrEpoch::<T>::get();
-			if (n == 0) || (current_epoch <= 1) {
+			let start_epoch = Self::get_epoch_of_timestamp(start_timestamp);
+			let end_epoch = AbrEpoch::<T>::get();
+			if start_epoch == 0 {
 				return abr_details
 			}
 
-			let mut epoch_iterator = starting_epoch;
-			for _ in 0..n {
-				if current_epoch <= epoch_iterator {
+			for epoch in start_epoch..end_epoch + 1 {
+				let epoch_timestamp = EpochToTimestampMap::<T>::get(epoch);
+				if epoch_timestamp > end_timestamp {
 					return abr_details
 				}
 
-				let abr_value = EpochMarketToAbrValueMap::<T>::get(epoch_iterator, market_id);
-				let abr_timestamp = EpochToTimestampMap::<T>::get(epoch_iterator);
+				let abr_value = EpochMarketToAbrValueMap::<T>::get(epoch, market_id);
+				let abr_timestamp = EpochToTimestampMap::<T>::get(epoch);
 				abr_details.push(ABRDetails { abr_value, abr_timestamp });
-				epoch_iterator += 1;
 			}
 			abr_details
 		}

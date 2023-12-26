@@ -32,9 +32,9 @@ pub trait PricesApi<BlockHash> {
 	#[method(name = "abr_get_previous_values")]
 	fn get_previous_abr_values(
 		&self,
-		starting_epoch: u64,
 		market_id: U256,
-		n: u64,
+		start_timestamp: u64,
+		end_timestamp: u64,
 		at: Option<BlockHash>,
 	) -> RpcResult<Vec<ABRDetails>>;
 }
@@ -100,15 +100,15 @@ where
 
 	fn get_previous_abr_values(
 		&self,
-		starting_epoch: u64,
 		market_id: U256,
-		n: u64,
+		start_timestamp: u64,
+		end_timestamp: u64,
 		at: Option<<Block as BlockT>::Hash>,
 	) -> RpcResult<Vec<ABRDetails>> {
 		let api = self.client.runtime_api();
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-		api.get_previous_abr_values(at, starting_epoch, market_id, n)
+		api.get_previous_abr_values(at, market_id, start_timestamp, end_timestamp)
 			.map_err(runtime_error_into_rpc_err)
 	}
 }
