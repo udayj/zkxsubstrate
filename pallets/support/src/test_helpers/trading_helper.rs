@@ -7,7 +7,7 @@ use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_crypto::{sign, FieldElement};
 
-pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>) {
+pub fn setup_fee() -> (Vec<BaseFee>, Vec<BaseFee>) {
 	// TODO(merkle-groot): Using manual pushing because vec! has some issues in support pallet
 	// fee tiers
 	let mut fee_tiers = Vec::<u8>::new();
@@ -16,31 +16,27 @@ pub fn setup_fee() -> (Vec<u8>, Vec<BaseFee>) {
 	fee_tiers.push(3_u8);
 
 	// fee details
-	let mut fee_details = Vec::<BaseFee>::new();
-	let base_fee1 = BaseFee {
-		volume: 0.into(),
-		maker_fee: FixedI128::from_inner(20000000000000000),
-		taker_fee: FixedI128::from_inner(50000000000000000),
-	};
-	fee_details.push(base_fee1);
-	let base_fee2 = BaseFee {
-		volume: 1000.into(),
-		maker_fee: FixedI128::from_inner(15000000000000000),
-		taker_fee: FixedI128::from_inner(40000000000000000),
-	};
-	fee_details.push(base_fee2);
-	let base_fee3 = BaseFee {
-		volume: 5000.into(),
-		maker_fee: FixedI128::from_inner(10000000000000000),
-		taker_fee: FixedI128::from_inner(35000000000000000),
-	};
-	fee_details.push(base_fee3);
+	let mut fee_details_maker = Vec::<BaseFee>::new();
+	let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(20000000000000000) };
+	fee_details_maker.push(base_fee1);
+	let base_fee2 = BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(15000000000000000) };
+	fee_details_maker.push(base_fee2);
+	let base_fee3 = BaseFee { volume: 5000.into(), fee: FixedI128::from_inner(10000000000000000) };
+	fee_details_maker.push(base_fee3);
 
-	(fee_tiers, fee_details)
+	let mut fee_details_taker: Vec<BaseFee> = Vec::new();
+	let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(50000000000000000) };
+	let base_fee2 = BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(40000000000000000) };
+	let base_fee3 = BaseFee { volume: 5000.into(), fee: FixedI128::from_inner(35000000000000000) };
+	fee_details_taker.push(base_fee1);
+	fee_details_taker.push(base_fee2);
+	fee_details_taker.push(base_fee3);
+
+	(fee_details_maker, fee_details_taker)
 }
 
 impl Order {
-	pub fn new(order_id: u128, account_id: U256) -> Order {
+	pub fn new(order_id: U256, account_id: U256) -> Order {
 		Order {
 			account_id,
 			order_id,
@@ -68,7 +64,7 @@ impl Order {
 		Order { account_id, ..self }
 	}
 
-	pub fn set_order_id(self: Order, order_id: u128) -> Order {
+	pub fn set_order_id(self: Order, order_id: U256) -> Order {
 		Order { order_id, ..self }
 	}
 

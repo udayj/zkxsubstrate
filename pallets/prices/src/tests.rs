@@ -432,8 +432,8 @@ fn test_abr_flow_for_btc_orders() {
 
 		// Create orders
 		let alice_order =
-			Order::new(201_u128, alice_id).sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(202_u128, bob_id)
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
