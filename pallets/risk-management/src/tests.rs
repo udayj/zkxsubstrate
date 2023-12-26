@@ -36,9 +36,10 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(
-			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
-		);
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![btc_usdc(), link_usdc()]
+		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
@@ -189,13 +190,13 @@ fn test_liquidation_w_fees() {
 		));
 
 		// Create orders
-		let alice_order = Order::new(201.into(), alice_id)
+		let alice_order = Order::new(U256::from(201), alice_id)
 			.set_size(5.into())
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(alice().pub_key));
 
-		let bob_order = Order::new(202.into(), bob_id)
+		let bob_order = Order::new(U256::from(202), bob_id)
 			.set_size(5.into())
 			.set_order_type(OrderType::Market)
 			.set_direction(Direction::Short)
@@ -226,14 +227,14 @@ fn test_liquidation_w_fees() {
 		index_prices.push(index_price1);
 		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
 
-		// Place Forced order for liquidation
-		let charlie_order = Order::new(204.into(), charlie_id)
+		// Place Forced order for deleveraging
+		let charlie_order = Order::new(U256::from(204), charlie_id)
 			.set_size(5.into())
 			.set_price(5000.into())
 			.set_leverage(5.into())
 			.sign_order(get_private_key(charlie().pub_key));
 
-		let alice_forced_order = Order::new(203.into(), alice_id)
+		let alice_forced_order = Order::new(U256::from(203), alice_id)
 			.set_size(5.into())
 			.set_price(5000.into())
 			.set_order_type(OrderType::Forced)

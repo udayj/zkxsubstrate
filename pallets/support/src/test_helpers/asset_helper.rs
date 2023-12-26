@@ -43,7 +43,7 @@ pub fn eth() -> ExtendedAsset {
 	let mut metadata_url = BoundedVec::new();
 	for &byte in b"https://x.com/zkxprotocol" {
 		if let Err(_) = metadata_url.try_push(byte) {
-			break; // If we reach the bound, stop adding elements.
+			break // If we reach the bound, stop adding elements.
 		}
 	}
 
