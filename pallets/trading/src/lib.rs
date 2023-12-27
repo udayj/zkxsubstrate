@@ -157,6 +157,10 @@ pub mod pallet {
 	pub(super) type LiquidationFeeMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn matching_time_limit)]
+	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -232,7 +236,7 @@ pub mod pallet {
 		TradeBatchError543,
 		/// Order is older than 4 weeks
 		TradeBatchError544,
-		/// Batch is older than 4 weeks
+		/// Batch is older than expected
 		TradeBatchError545,
 		/// When a zero signer is being added
 		ZeroSigner,
@@ -313,12 +317,15 @@ pub mod pallet {
 
 			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
 
-			// Check whether the batch is older than 4 weeks
+			// Get current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			// Get matching timelimit
+			let matching_time_limit = MatchingTimeLimit::<T>::get();
 			// Converting timestamp in milliseconds to seconds
 			let batch_timestamp = batch_timestamp / 1000;
-			ensure!(batch_timestamp >= timestamp_limit, Error::<T>::TradeBatchError545);
+			let timestamp_limit = current_timestamp - batch_timestamp;
+			// Check whether the batch is older than expected time
+			ensure!(timestamp_limit <= matching_time_limit, Error::<T>::TradeBatchError545);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -1015,6 +1022,14 @@ pub mod pallet {
 			}
 			StartTimestamp::<T>::put(current_timestamp);
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_matching_time_limit(origin: OriginFor<T>, time_limit: u64) -> DispatchResult {
+			// Make sure the caller is a sudo user
+			ensure_root(origin)?;
+			MatchingTimeLimit::<T>::put(time_limit);
 			Ok(())
 		}
 	}
@@ -1731,6 +1746,9 @@ pub mod pallet {
 				Error::<T>::TradeBatchError540 => 540,
 				Error::<T>::TradeBatchError541 => 541,
 				Error::<T>::TradeBatchError542 => 542,
+				Error::<T>::TradeBatchError543 => 543,
+				Error::<T>::TradeBatchError544 => 544,
+				Error::<T>::TradeBatchError545 => 545,
 				_ => 500,
 			}
 		}
