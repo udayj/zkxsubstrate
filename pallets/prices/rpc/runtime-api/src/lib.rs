@@ -12,6 +12,6 @@ sp_api::decl_runtime_apis! {
 		fn get_last_abr_timestamp() -> u64;
 		fn get_remaining_pay_abr_calls() -> u64;
 		fn get_next_abr_timestamp() -> u64;
-		fn get_previous_abr_values(starting_epoch: u64, market_id: U256, n: u64) -> Vec<ABRDetails>;
+		fn get_previous_abr_values(market_id: U256, start_timestamp: u64, end_timestamp: u64) -> Vec<ABRDetails>;
 	}
 }
