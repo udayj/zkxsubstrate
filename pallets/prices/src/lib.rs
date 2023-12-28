@@ -236,7 +236,7 @@ pub mod pallet {
 			timestamp: u64,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			let timestamp = Self::convert_to_seconds(timestamp);
 
@@ -250,7 +250,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_abr_interval(origin: OriginFor<T>, new_abr_interval: u64) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			//  ABR interval must be >= one hour
 			ensure!(new_abr_interval >= ABR_INTERVAL_MIN, Error::<T>::InvalidAbrInterval);
@@ -263,7 +263,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_base_abr(origin: OriginFor<T>, new_base_abr: FixedI128) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			//  Base ABR must be >= BASE_ABR_MIN and <= BASE_ABR_MAX
 			ensure!(
@@ -282,7 +282,7 @@ pub mod pallet {
 			new_bollinger_width: FixedI128,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			let is_valid: bool;
 			if (new_bollinger_width == BOLLINGER_WIDTH_15) ||
