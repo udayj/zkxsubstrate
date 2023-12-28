@@ -161,6 +161,21 @@ pub mod pallet {
 	#[pallet::getter(fn matching_time_limit)]
 	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub matching_time_limit: u64,
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			MatchingTimeLimit::<T>::put(&self.matching_time_limit);
+		}
+	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
