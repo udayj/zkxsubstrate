@@ -47,6 +47,12 @@ fn setup() -> sp_io::TestExternalities {
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
+		// Set matching_time_limit
+		assert_ok!(Trading::set_matching_time_limit(
+			RuntimeOrigin::root(),
+			2419200 //4 weeks
+		));
+
 		// Add liquidator
 		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), eduard().pub_key)
 			.expect("error while adding signer");

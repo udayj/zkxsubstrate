@@ -1,6 +1,6 @@
 use node_template_runtime::{
-	AccountId, AuraConfig, BalancesConfig, RuntimeGenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, WASM_BINARY,
+	AccountId, AuraConfig, BalancesConfig, GrandpaConfig, RuntimeGenesisConfig, Signature,
+	SudoConfig, SystemConfig, TradingConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -148,6 +148,10 @@ fn testnet_genesis(
 		sudo: SudoConfig {
 			// Assign network admin rights.
 			key: Some(root_key),
+		},
+		trading: TradingConfig {
+			matching_time_limit: 2419200, // 4 weeks in seconds
+			_config: Default::default(),
 		},
 		transaction_payment: Default::default(),
 	}
