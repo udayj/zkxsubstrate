@@ -59,21 +59,6 @@ fn setup_trading() -> sp_io::TestExternalities {
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
-		// Set ABR interval as 8 hours
-		assert_ok!(PricesModule::set_abr_interval(RuntimeOrigin::signed(1), 28800));
-
-		// Set Base ABR as 0.000025
-		assert_ok!(PricesModule::set_base_abr(
-			RuntimeOrigin::signed(1),
-			FixedI128::from_inner(25000000000000)
-		));
-
-		// Set Bollinger width as 1.5
-		assert_ok!(PricesModule::set_bollinger_width(
-			RuntimeOrigin::signed(1),
-			FixedI128::from_inner(1500000000000000000)
-		));
-
 		// Set no.of users per batch
 		assert_ok!(PricesModule::set_no_of_users_per_batch(RuntimeOrigin::signed(1), 10));
 	});
@@ -426,7 +411,7 @@ fn test_abr_flow_for_btc_orders() {
 		let market_id = btc_usdc().market.id;
 
 		assert_ok!(PricesModule::set_initialisation_timestamp(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			1699940278000
 		));
 
