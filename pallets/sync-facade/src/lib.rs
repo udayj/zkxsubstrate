@@ -111,6 +111,8 @@ pub mod pallet {
 		InsufficientFeeData { asset_id: u128 },
 		/// Fee data length mismatch
 		FeeDataLengthMismatch { asset_id: u128 },
+		/// Token parsing error
+		TokenParsingError { key: U256 },
 	}
 
 	#[pallet::error]
@@ -288,7 +290,6 @@ pub mod pallet {
 
 		fn resolve_setting(
 			settings_type: u128,
-			param1: u128,
 			param2: u128,
 			param3: u128,
 		) -> Option<SettingsType> {
@@ -324,11 +325,11 @@ pub mod pallet {
 					},
 				},
 				GENERAL_SETTINGS => {
-					Self::deposit_event(Event::SettingsKeyError { key: param1 });
+					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
 					return None;
 				},
 				_ => {
-					Self::deposit_event(Event::SettingsKeyError { key: param1 });
+					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
 					return None;
 				},
 			}
@@ -343,7 +344,7 @@ pub mod pallet {
 			return result;
 		}
 
-		fn u256_to_string(input: U256) -> Option<(u128, u128, u128, u128)> {
+		fn u256_to_tokens(input: U256) -> Option<(u128, u128, u128, u128)> {
 			// Create a vector to store the bytes
 			let mut bytes: Vec<u8> =
 				(0..32).map(|i| input.byte(i)).take_while(|&byte| byte != 0).collect();
@@ -418,7 +419,7 @@ pub mod pallet {
 
 				// Maker data must be of the same length
 				if !(maker_volumes.len() == maker_open_fees.len() &&
-					maker_open_fees.len() == maker_close_fees.len()) &&
+					maker_open_fees.len() == maker_close_fees.len()) ||
 					!(taker_volumes.len() == taker_open_fees.len() &&
 						taker_open_fees.len() == taker_close_fees.len())
 				{
@@ -479,9 +480,11 @@ pub mod pallet {
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
 			for setting in settings {
 				// Parse the key of the current setting
-				let parsing_result = Self::u256_to_string(setting.key);
+				let parsing_result = Self::u256_to_tokens(setting.key);
 
 				if parsing_result == None {
+					// exit from the loop
+					Self::deposit_event(Event::TokenParsingError { key: setting.key });
 					break;
 				}
 
@@ -489,7 +492,7 @@ pub mod pallet {
 				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
 
 				// Resolve the type of setting
-				let setting_type = Self::resolve_setting(setting_type, param1, param2, param3);
+				let setting_type = Self::resolve_setting(setting_type, param2, param3);
 				if setting_type == None {
 					break;
 				}
