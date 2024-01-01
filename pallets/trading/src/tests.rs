@@ -47,6 +47,12 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![alice(), bob(), charlie(), dave()]
 		));
+
+		// Set matching_time_limit
+		assert_ok!(Trading::set_matching_time_limit(
+			RuntimeOrigin::root(),
+			2419200 //4 weeks
+		));
 	});
 
 	env

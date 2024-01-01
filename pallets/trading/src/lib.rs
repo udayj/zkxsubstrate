@@ -145,6 +145,37 @@ pub mod pallet {
 	// The beginning timestamp for which batch_id and order_id info are stored
 	pub(super) type StartTimestamp<T: Config> = StorageValue<_, u64, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn trading_fee)]
+	// k1 - collateral id, v - trading fee
+	pub(super) type TradingFeeMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn liquidation_fee)]
+	// k1 - collateral id, v - liquidation fee
+	pub(super) type LiquidationFeeMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn matching_time_limit)]
+	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub matching_time_limit: u64,
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			MatchingTimeLimit::<T>::put(&self.matching_time_limit);
+		}
+	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
@@ -220,7 +251,7 @@ pub mod pallet {
 		TradeBatchError543,
 		/// Order is older than 4 weeks
 		TradeBatchError544,
-		/// Batch is older than 4 weeks
+		/// Batch is older than expected
 		TradeBatchError545,
 		/// When a zero signer is being added
 		ZeroSigner,
@@ -301,12 +332,15 @@ pub mod pallet {
 
 			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
 
-			// Check whether the batch is older than 4 weeks
+			// Get current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			// Get matching timelimit
+			let matching_time_limit = MatchingTimeLimit::<T>::get();
 			// Converting timestamp in milliseconds to seconds
 			let batch_timestamp = batch_timestamp / 1000;
-			ensure!(batch_timestamp >= timestamp_limit, Error::<T>::TradeBatchError545);
+			let timestamp_limit = current_timestamp - batch_timestamp;
+			// Check whether the batch is older than expected time
+			ensure!(timestamp_limit <= matching_time_limit, Error::<T>::TradeBatchError545);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -853,6 +887,10 @@ pub mod pallet {
 					}
 				}
 
+				// Store the trading fee
+				let current_trading_fee = TradingFeeMap::<T>::get(collateral_id);
+				TradingFeeMap::<T>::insert(collateral_id, current_trading_fee + fee);
+
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
 					order_id: element.order_id,
@@ -999,6 +1037,14 @@ pub mod pallet {
 			}
 			StartTimestamp::<T>::put(current_timestamp);
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_matching_time_limit(origin: OriginFor<T>, time_limit: u64) -> DispatchResult {
+			// Make sure the caller is a sudo user
+			ensure_root(origin)?;
+			MatchingTimeLimit::<T>::put(time_limit);
 			Ok(())
 		}
 	}
@@ -1435,6 +1481,9 @@ pub mod pallet {
 			let unused_balance =
 				T::TradingAccountPallet::get_unused_balance(order.account_id, collateral_id);
 
+			// Get the Liquidation fee
+			let current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
+
 			// Check if user is under water, ie,
 			// user has lost some borrowed funds
 			if margin_plus_pnl.is_negative() {
@@ -1454,6 +1503,11 @@ pub mod pallet {
 							modify_type: FundModifyType::Decrease,
 							block_number,
 						});
+
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - amount_to_transfer_from,
+						);
 					} else {
 						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
@@ -1463,6 +1517,11 @@ pub mod pallet {
 							modify_type: FundModifyType::Decrease,
 							block_number,
 						});
+
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - (amount_to_transfer_from - unused_balance),
+						);
 					}
 				}
 
@@ -1492,6 +1551,11 @@ pub mod pallet {
 									modify_type: FundModifyType::Decrease,
 									block_number,
 								});
+
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee - pnl.saturating_abs(),
+								);
 							} else {
 								// User has some balance to cover losses, remaining
 								// should be taken from insurance fund
@@ -1501,6 +1565,11 @@ pub mod pallet {
 									modify_type: FundModifyType::Decrease,
 									block_number,
 								});
+
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee - (pnl.saturating_abs() - balance),
+								);
 							}
 						}
 
@@ -1524,6 +1593,7 @@ pub mod pallet {
 				} else {
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+
 					// If order type is Forced, force closure flag will always be
 					// one of Deleverage or Liquidate
 					match force_closure_flag.unwrap() {
@@ -1538,6 +1608,10 @@ pub mod pallet {
 									modify_type: FundModifyType::Increase,
 									block_number,
 								});
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee + margin_plus_pnl,
+								);
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
@@ -1547,6 +1621,11 @@ pub mod pallet {
 										modify_type: FundModifyType::Decrease,
 										block_number,
 									});
+
+									LiquidationFeeMap::<T>::insert(
+										collateral_id,
+										current_liquidation_fee - margin_amount_to_reduce,
+									);
 								} else {
 									// if user has some balance
 									let pnl_abs = pnl.saturating_abs();
@@ -1558,6 +1637,11 @@ pub mod pallet {
 											modify_type: FundModifyType::Decrease,
 											block_number,
 										});
+
+										LiquidationFeeMap::<T>::insert(
+											collateral_id,
+											current_liquidation_fee - (pnl_abs - balance),
+										);
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
 										Self::deposit_event(Event::InsuranceFundChange {
@@ -1566,6 +1650,11 @@ pub mod pallet {
 											modify_type: FundModifyType::Increase,
 											block_number,
 										});
+
+										LiquidationFeeMap::<T>::insert(
+											collateral_id,
+											current_liquidation_fee + (balance - pnl_abs),
+										);
 									}
 								}
 							}
@@ -1672,6 +1761,9 @@ pub mod pallet {
 				Error::<T>::TradeBatchError540 => 540,
 				Error::<T>::TradeBatchError541 => 541,
 				Error::<T>::TradeBatchError542 => 542,
+				Error::<T>::TradeBatchError543 => 543,
+				Error::<T>::TradeBatchError544 => 544,
+				Error::<T>::TradeBatchError545 => 545,
 				_ => 500,
 			}
 		}

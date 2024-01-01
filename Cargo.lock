@@ -4619,6 +4619,7 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus-aura",
@@ -4987,6 +4988,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
 ]
 
 [[package]]
@@ -5159,6 +5161,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
  "starknet-crypto",
 ]
 

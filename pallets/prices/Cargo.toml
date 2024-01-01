@@ -13,13 +13,14 @@ pallet-timestamp = {default-features = false, version = "4.0.0-dev", git = "http
 primitive-types = { version = "0.12.1", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-arithmetic = { version = "16.0.0", default-features = false }
+sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
+sp-std = { version = "8.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 
 pallet-support= { path="../support"}
 
 [dev-dependencies]
 sp-core = { version = "21.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-io = { version = "23.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
-sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-asset = { default-features = false, path = "../asset" }
 pallet-market = { default-features = false, path = "../market" }
 pallet-prices = { default-features = false, path = "../prices" }

@@ -1,8 +1,9 @@
 use node_template_runtime::{
-	AccountId, AuraConfig, BalancesConfig, RuntimeGenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, WASM_BINARY,
+	AccountId, AuraConfig, BalancesConfig, GrandpaConfig, PricesConfig, RuntimeGenesisConfig,
+	Signature, SudoConfig, SystemConfig, TradingConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519, Pair, Public};
@@ -145,9 +146,19 @@ fn testnet_genesis(
 			authorities: initial_authorities.iter().map(|x| (x.1.clone(), 1)).collect(),
 			..Default::default()
 		},
+		prices: PricesConfig {
+			abr_interval: 28800_u64,                         // 8 hours in seconds
+			base_abr: FixedI128::from_inner(25000000000000), // 0.00025
+			bollinger_width: FixedI128::from_inner(1500000000000000000), // 1.5
+			_config: Default::default(),
+		},
 		sudo: SudoConfig {
 			// Assign network admin rights.
 			key: Some(root_key),
+		},
+		trading: TradingConfig {
+			matching_time_limit: 2419200, // 4 weeks in seconds
+			_config: Default::default(),
 		},
 		transaction_payment: Default::default(),
 	}
