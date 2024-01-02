@@ -13,6 +13,12 @@ pub struct SyncSignature {
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct Setting {
+	pub key: U256,
+	pub values: BoundedVec<FixedI128, ConstU32<256>>,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UniversalEvent {
 	MarketUpdated(MarketUpdated),
 	AssetUpdated(AssetUpdated),
@@ -22,6 +28,7 @@ pub enum UniversalEvent {
 	SignerAdded(SignerAdded),
 	SignerRemoved(SignerRemoved),
 	QuorumSet(QuorumSet),
+	SettingsAdded(SettingsAdded),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -86,4 +93,27 @@ pub struct QuorumSet {
 	pub event_index: u32,
 	pub quorum: u8,
 	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SettingsAdded {
+	pub event_index: u32,
+	pub settings: BoundedVec<Setting, ConstU32<256>>,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
+pub enum SettingsType {
+	FeeSettings(FeeSettingsType),
+	GeneralSettings,
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
+pub enum FeeSettingsType {
+	MakerVols,
+	TakerVols,
+	MakerOpen,
+	MakerClose,
+	TakerOpen,
+	TakerClose,
 }

@@ -325,6 +325,7 @@ impl pallet_sync_facade::Config for Runtime {
 	type TradingAccountPallet = TradingAccount;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
+	type TradingFeesPallet = TradingFees;
 }
 
 impl pallet_trading::Config for Runtime {

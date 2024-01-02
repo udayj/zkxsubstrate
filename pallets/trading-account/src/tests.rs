@@ -32,9 +32,10 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc(), usdt()]
 		));
-		assert_ok!(
-			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
-		);
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![btc_usdc(), link_usdc()]
+		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccountModule::add_accounts(
@@ -285,14 +286,16 @@ fn test_withdraw_duplicate() {
 		.unwrap();
 
 		// Send the withdrawal request
-		assert_ok!(
-			TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request.clone())
-		);
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(1),
+			withdrawal_request.clone()
+		));
 
 		// Send the withdrawal request again
-		assert_ok!(
-			TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request.clone())
-		);
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(1),
+			withdrawal_request.clone()
+		));
 	});
 }
 
@@ -402,7 +405,7 @@ fn test_volume_update_two_trades() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(1_u8),
+			1.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -450,7 +453,7 @@ fn test_volume_update_two_trades() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(2_u8),
+			2.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -527,7 +530,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(1_u8),
+			1.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -584,7 +587,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(2_u8),
+			2.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -642,7 +645,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(3_u8),
+			3.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -716,7 +719,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(4_u8),
+			4.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -799,7 +802,7 @@ fn test_volume_update_30_days_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(1_u8),
+			1.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -824,7 +827,7 @@ fn test_volume_update_30_days_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(2_u8),
+			2.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -900,7 +903,7 @@ fn test_volume_update_31_days_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(1_u8),
+			1.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
@@ -948,7 +951,7 @@ fn test_volume_update_31_days_diff() {
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
 			// batch_id
-			U256::from(2_u8),
+			2.into(),
 			// quantity_locked
 			1.into(),
 			// market_id
