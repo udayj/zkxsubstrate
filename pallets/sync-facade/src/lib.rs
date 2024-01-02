@@ -138,6 +138,7 @@ pub mod pallet {
 	}
 
 	// Constants
+	const DELIMITER: u8 = 95;
 	const FEE_SETTINGS: u128 = 70;
 	const GENERAL_SETTINGS: u128 = 71;
 	const MAKER_ENCODING: u128 = 77;
@@ -354,7 +355,7 @@ pub mod pallet {
 
 			// Split the vec according to the delimiter
 			let pieces: Vec<u128> = bytes
-				.split(|&e| e == 95)
+				.split(|&e| e == DELIMITER)
 				.filter(|v| !v.is_empty())
 				.map(|v| Self::get_ascii_value(v.to_vec()))
 				.collect();
