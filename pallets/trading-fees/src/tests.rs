@@ -47,7 +47,7 @@ fn test_update_fees() {
 			fee_details_maker.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
 		let base_fee0 =
 			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, side, OrderSide::Maker));
 		assert_eq!(base_fee0, fee_details_maker[0]);
@@ -145,7 +145,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 			order_side.clone(),
 			fee_details_maker.clone(),
 		));
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
 
 		let fee_details: Vec<BaseFee> = Vec::new();
 
@@ -158,7 +158,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 			fee_details.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 0);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 0);
 	});
 }
 
@@ -180,7 +180,7 @@ fn test_update_fees_with_multiple_calls() {
 			order_side.clone(),
 			fee_details_maker.clone(),
 		));
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
 
 		let mut fee_details: Vec<BaseFee> = Vec::new();
 		let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(200000000000000) };
@@ -201,7 +201,7 @@ fn test_update_fees_with_multiple_calls() {
 			fee_details.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, side), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
 	});
 }
 
@@ -233,8 +233,8 @@ fn test_update_fees_both_sides() {
 		fee_details_sell.push(base_fee1);
 		fee_details_sell.push(base_fee2);
 
-		let side: Side = Side::Sell;
-		let order_side: OrderSide = OrderSide::Maker;
+		let side: Side = Side::Buy;
+		let order_side: OrderSide = OrderSide::Taker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::signed(1),
@@ -244,7 +244,7 @@ fn test_update_fees_both_sides() {
 			fee_details_sell.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, Side::Buy), 3);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, OrderSide::Maker), 3);
 		let base_fee0 =
 			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy, OrderSide::Maker));
 		assert_eq!(base_fee0, fee_details_maker[0]);
@@ -255,12 +255,12 @@ fn test_update_fees_both_sides() {
 			TradingFeesModule::base_fee_tier(usdc().asset.id, (3, Side::Buy, OrderSide::Maker));
 		assert_eq!(base_fee2, fee_details_maker[2]);
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, Side::Sell), 2);
+		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, OrderSide::Taker), 2);
 		let base_fee0 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Sell, OrderSide::Maker));
+			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy, OrderSide::Taker));
 		assert_eq!(base_fee0, fee_details_sell[0]);
 		let base_fee1 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Sell, OrderSide::Maker));
+			TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Buy, OrderSide::Taker));
 		assert_eq!(base_fee1, fee_details_sell[1]);
 	});
 }

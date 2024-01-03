@@ -35,7 +35,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		u128, // collateral_id
 		Blake2_128Concat,
-		Side, // buy or sell
+		OrderSide, // maker or taker
 		u8,
 		ValueQuery,
 	>;
@@ -108,11 +108,11 @@ pub mod pallet {
 			}
 
 			// Delete the fee details corresponding to the current side
-			let max_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, side);
+			let max_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, order_side);
 			for i in 1..max_fee_tier + 1 {
 				BaseFeeTierMap::<T>::remove(collateral_id, (i, side, &order_side));
 			}
-			MaxBaseFeeTier::<T>::remove(collateral_id, side);
+			MaxBaseFeeTier::<T>::remove(collateral_id, order_side);
 
 			let fee_details_length = fee_details.len();
 			ensure!(fee_details_length >= 1, Error::<T>::ZeroFeeTiers);
@@ -139,7 +139,7 @@ pub mod pallet {
 			volume: FixedI128,
 		) -> (FixedI128, u8) {
 			// Get the max base fee tier
-			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, side);
+			let current_max_base_fee_tier = MaxBaseFeeTier::<T>::get(collateral_id, order_side);
 			// Calculate base fee of the maker, taker and base fee tier
 			let (base_fee, base_fee_tier) = Self::find_user_base_fee(
 				collateral_id,
@@ -154,7 +154,8 @@ pub mod pallet {
 
 		fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates {
 			// Get the max base fee tier
-			let current_max_base_fee_tier_buy = MaxBaseFeeTier::<T>::get(collateral_id, Side::Buy);
+			let current_max_base_fee_tier_buy =
+				MaxBaseFeeTier::<T>::get(collateral_id, OrderSide::Maker);
 			// Calculate base fee of the maker, taker and base fee tier
 			let (maker_buy, _) = Self::find_user_base_fee(
 				collateral_id,
@@ -165,17 +166,17 @@ pub mod pallet {
 			);
 			let (taker_buy, _) = Self::find_user_base_fee(
 				collateral_id,
-				Side::Buy,
-				OrderSide::Taker,
+				Side::Sell,
+				OrderSide::Maker,
 				volume,
 				current_max_base_fee_tier_buy,
 			);
 			let current_max_base_fee_tier_sell =
-				MaxBaseFeeTier::<T>::get(collateral_id, Side::Sell);
+				MaxBaseFeeTier::<T>::get(collateral_id, OrderSide::Taker);
 			let (maker_sell, _) = Self::find_user_base_fee(
 				collateral_id,
-				Side::Sell,
-				OrderSide::Maker,
+				Side::Buy,
+				OrderSide::Taker,
 				volume,
 				current_max_base_fee_tier_sell,
 			);
@@ -242,7 +243,7 @@ pub mod pallet {
 				);
 			}
 			let max_tier = fee_details.len() as u8;
-			MaxBaseFeeTier::<T>::insert(collateral_id, side, max_tier);
+			MaxBaseFeeTier::<T>::insert(collateral_id, order_side, max_tier);
 
 			Ok(())
 		}
