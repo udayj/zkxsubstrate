@@ -3,7 +3,7 @@ use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
 		asset_helper::{btc, eth, usdc, usdt},
-		market_helper::eth_usdc,
+		market_helper::{btc_usdc, eth_usdc},
 	},
 	traits::FieldElementExt,
 	types::{
@@ -345,6 +345,93 @@ fn sync_update_asset_event_add_asset() {
 }
 
 #[test]
+fn sync_update_asset_event_multiple_add_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
+		1,
+		btc().asset.id,
+		btc().asset,
+		btc().asset_addresses,
+		btc().metadata_url,
+		1337,
+	);
+
+	let update_asset_event_2 = <AssetUpdated as AssetUpdatedTrait>::new(
+		2,
+		eth().asset.id,
+		eth().asset,
+		eth().asset_addresses,
+		eth().metadata_url,
+		1337,
+	);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_asset_updated_event(update_asset_event_1);
+	events_batch.add_asset_updated_event(update_asset_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating asset");
+
+		assert_eq!(Assets::assets_count(), 4);
+		assert_eq!(Assets::assets(usdt().asset.id).unwrap(), usdt());
+		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
+		assert_eq!(Assets::assets(btc().asset.id).unwrap(), btc());
+		assert_eq!(Assets::assets(eth().asset.id).unwrap(), eth());
+	});
+}
+
+#[test]
+fn sync_asset_event_add_asset_remove_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
+		1,
+		btc().asset.id,
+		btc().asset,
+		btc().asset_addresses,
+		BoundedVec::<u8, ConstU32<256>>::new(),
+		1337,
+	);
+
+	let remove_asset_event_1 = <AssetRemoved as AssetRemovedTrait>::new(2, btc().asset.id, 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_asset_updated_event(update_asset_event_1);
+	events_batch.add_asset_removed_event(remove_asset_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating asset");
+
+		assert_eq!(Assets::assets_count(), 2);
+	});
+}
+
+#[test]
 fn sync_update_market_event_add_market() {
 	// Get a test environment
 	let mut env = setup();
@@ -376,6 +463,51 @@ fn sync_update_market_event_add_market() {
 
 		assert_eq!(Markets::markets_count(), 1);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+	});
+}
+
+#[test]
+fn sync_update_market_event_multiple_add_market() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
+		1,
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
+		1337,
+	);
+
+	let update_market_event_2 = <MarketUpdated as MarketUpdatedTrait>::new(
+		2,
+		btc_usdc().market.id,
+		btc_usdc().market,
+		btc_usdc().metadata_url.clone(),
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_updated_event(update_market_event_1);
+	events_batch.add_market_updated_event(update_market_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating market");
+
+		assert_eq!(Markets::markets_count(), 2);
+		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+		assert_eq!(Markets::markets(btc_usdc().market.id).unwrap(), btc_usdc());
 	});
 }
 
