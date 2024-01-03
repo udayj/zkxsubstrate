@@ -241,6 +241,74 @@ fn sync_add_signer_events() {
 }
 
 #[test]
+fn sync_add_multiple_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(1, get_signers()[1], 1337);
+	let add_signer_event_2 = <SignerAdded as SignerAddedTrait>::new(2, get_signers()[2], 1337);
+	let add_signer_event_3 = <SignerAdded as SignerAddedTrait>::new(2, get_signers()[3], 1337);
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+	events_batch.add_signer_added_event(add_signer_event_2);
+	events_batch.add_signer_added_event(add_signer_event_3);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 4);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..4]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[2]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[3]), true);
+	});
+}
+
+#[test]
+fn sync_add_duplicate_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(1, get_signers()[0], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..1]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+
+		System::assert_has_event(Event::SignerAddedError { pub_key: get_signers()[0] }.into());
+	});
+}
+
+#[test]
 fn sync_update_asset_event_add_asset() {
 	// Get a test environment
 	let mut env = setup();
@@ -717,12 +785,93 @@ fn sync_remove_signer_events() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while removing signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
+	});
+}
+
+#[test]
+fn sync_remove_signer_insufficient_quorum_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let remove_signer_event_1 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[0], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_removed_event(remove_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while removing signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+
+		System::assert_has_event(Event::SignerRemovedQuorumError { quorum: 1 }.into());
+	});
+}
+
+#[test]
+fn sync_remove_multiple_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Add a signer that can be removed using sync events
+	env.execute_with(|| {
+		// Add a signer
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[2]).expect("Error in code");
+	});
+
+	let remove_signer_event_1 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[0], 1337);
+	let remove_signer_event_2 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[1], 1337);
+	let remove_signer_event_3 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[2], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_removed_event(remove_signer_event_1);
+	events_batch.add_signer_removed_event(remove_signer_event_2);
+	events_batch.add_signer_removed_event(remove_signer_event_3);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while removing signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), vec![get_signers()[2]]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), false);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[2]), true);
+
+		System::assert_has_event(Event::SignerRemovedQuorumError { quorum: 1 }.into());
 	});
 }
 
