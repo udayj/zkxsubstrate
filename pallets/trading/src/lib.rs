@@ -1327,7 +1327,7 @@ pub mod pallet {
 			side: Side,
 		) -> Result<(), Error<T>> {
 			ensure!(
-				slippage > FixedI128::zero() &&
+				slippage >= FixedI128::zero() &&
 					slippage <= FixedI128::from_inner(150000000000000000),
 				Error::<T>::TradeBatchError521
 			);
@@ -1681,7 +1681,7 @@ pub mod pallet {
 					order.market_id,
 					order_size * execution_price,
 				)
-				.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
 				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
