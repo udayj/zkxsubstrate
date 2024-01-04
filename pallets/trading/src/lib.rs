@@ -253,6 +253,8 @@ pub mod pallet {
 		TradeBatchError544,
 		/// Batch is older than expected
 		TradeBatchError545,
+		/// Trade Volume Calculation Error
+		TradeBatchError546,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -263,8 +265,6 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
-		/// Trade Volume Calculation Error
-		TradeVolumeCalculationError,
 	}
 
 	#[pallet::event]
@@ -414,13 +414,14 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response = Self::perform_validations(
-					element,
-					oracle_price,
-					&market,
-					collateral_id,
-					current_timestamp,
-				);
+				let validation_response =
+					Self::perform_validations(
+						element,
+						oracle_price,
+						&market,
+						collateral_id,
+						current_timestamp,
+					);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -640,18 +641,19 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position = Position {
-						market_id,
-						direction: element.direction,
-						avg_execution_price,
-						size: new_position_size,
-						margin_amount,
-						borrowed_amount,
-						leverage: new_leverage,
-						created_timestamp,
-						modified_timestamp: current_timestamp,
-						realized_pnl: new_realized_pnl,
-					};
+					updated_position =
+						Position {
+							market_id,
+							direction: element.direction,
+							avg_execution_price,
+							size: new_position_size,
+							margin_amount,
+							borrowed_amount,
+							leverage: new_leverage,
+							created_timestamp,
+							modified_timestamp: current_timestamp,
+							realized_pnl: new_realized_pnl,
+						};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -1325,7 +1327,7 @@ pub mod pallet {
 			side: Side,
 		) -> Result<(), Error<T>> {
 			ensure!(
-				slippage > FixedI128::zero() &&
+				slippage >= FixedI128::zero() &&
 					slippage <= FixedI128::from_inner(150000000000000000),
 				Error::<T>::TradeBatchError521
 			);
@@ -1398,7 +1400,7 @@ pub mod pallet {
 				order.market_id,
 				order_size * execution_price,
 			)
-			.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
@@ -1679,7 +1681,7 @@ pub mod pallet {
 					order.market_id,
 					order_size * execution_price,
 				)
-				.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
 				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
@@ -1740,13 +1742,19 @@ pub mod pallet {
 				Error::<T>::TradeBatchError506 => 506,
 				Error::<T>::TradeBatchError507 => 507,
 				Error::<T>::TradeBatchError508 => 508,
+				Error::<T>::TradeBatchError509 => 509,
 				Error::<T>::TradeBatchError510 => 510,
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
+				Error::<T>::TradeBatchError513 => 513,
 				Error::<T>::TradeBatchError515 => 515,
+				Error::<T>::TradeBatchError516 => 516,
 				Error::<T>::TradeBatchError518 => 518,
+				Error::<T>::TradeBatchError521 => 521,
+				Error::<T>::TradeBatchError522 => 522,
 				Error::<T>::TradeBatchError523 => 523,
 				Error::<T>::TradeBatchError524 => 524,
+				Error::<T>::TradeBatchError525 => 525,
 				Error::<T>::TradeBatchError526 => 526,
 				Error::<T>::TradeBatchError527 => 527,
 				Error::<T>::TradeBatchError531 => 531,
@@ -1764,6 +1772,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError543 => 543,
 				Error::<T>::TradeBatchError544 => 544,
 				Error::<T>::TradeBatchError545 => 545,
+				Error::<T>::TradeBatchError546 => 546,
 				_ => 500,
 			}
 		}
@@ -1890,12 +1899,13 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+			) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			MarginInfo {
 				is_liquidation,
