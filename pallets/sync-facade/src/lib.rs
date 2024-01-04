@@ -99,8 +99,12 @@ pub mod pallet {
 		MarketRemovedError { id: u128 },
 		/// An invalid request to remove non-existent asset
 		AssetRemovedError { id: u128 },
+		/// An invalid request to add a duplicate signer
+		SignerAddedError { pub_key: U256 },
 		/// An invalid request to remove non-existent signer
 		SignerRemovedError { pub_key: U256 },
+		/// An invalid request to remove signer; leads to insufficient signers
+		SignerRemovedQuorumError { quorum: u8 },
 		/// An invalid request to set a signer
 		QuorumSetError { quorum: u8 },
 		/// An invalid request for user deposit
@@ -646,14 +650,36 @@ pub mod pallet {
 						}
 					},
 					UniversalEvent::SignerAdded(signer_added) => {
-						Self::add_signer_internal(signer_added.signer);
+						// Check if the signer exists
+						match IsSignerWhitelisted::<T>::get(signer_added.signer) {
+							true => {
+								// If yes, emit an error
+								// Duplicate signer
+								Self::deposit_event(Event::SignerAddedError {
+									pub_key: signer_added.signer,
+								});
+							},
+							// If not, whitelist the key
+							false => {
+								Self::add_signer_internal(signer_added.signer);
+							},
+						};
 					},
 					UniversalEvent::SignerRemoved(signer_removed) => {
 						// Check if the signer exists
 						match IsSignerWhitelisted::<T>::get(signer_removed.signer) {
-							// If yes, remove it
+							// If yes, check if removing the signer leaves us with sufficient
+							// signers
 							true => {
-								Self::remove_signer_internal(signer_removed.signer);
+								let signer_quorum = SignersQuorum::<T>::get();
+								match signer_quorum < Signers::<T>::get().len() as u8 {
+									// If yes, remove the signer
+									true => Self::remove_signer_internal(signer_removed.signer),
+									// If not, emit an error
+									false => Self::deposit_event(Event::SignerRemovedQuorumError {
+										quorum: signer_quorum,
+									}),
+								};
 							},
 							// If not, emit an error
 							false => {
@@ -672,7 +698,7 @@ pub mod pallet {
 							false => Self::deposit_event(Event::QuorumSetError {
 								quorum: quorum_set.quorum,
 							}),
-						}
+						};
 					},
 					UniversalEvent::SettingsAdded(settings_added) => {
 						Self::handle_settings(&settings_added.settings);
