@@ -253,6 +253,8 @@ pub mod pallet {
 		TradeBatchError544,
 		/// Batch is older than expected
 		TradeBatchError545,
+		/// Trade Volume Calculation Error
+		TradeBatchError546,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -263,8 +265,6 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
-		/// Trade Volume Calculation Error
-		TradeVolumeCalculationError,
 	}
 
 	#[pallet::event]
@@ -1400,7 +1400,7 @@ pub mod pallet {
 				order.market_id,
 				order_size * execution_price,
 			)
-			.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
@@ -1742,6 +1742,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError506 => 506,
 				Error::<T>::TradeBatchError507 => 507,
 				Error::<T>::TradeBatchError508 => 508,
+				Error::<T>::TradeBatchError509 => 509,
 				Error::<T>::TradeBatchError510 => 510,
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
@@ -1753,6 +1754,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError522 => 522,
 				Error::<T>::TradeBatchError523 => 523,
 				Error::<T>::TradeBatchError524 => 524,
+				Error::<T>::TradeBatchError525 => 525,
 				Error::<T>::TradeBatchError526 => 526,
 				Error::<T>::TradeBatchError527 => 527,
 				Error::<T>::TradeBatchError531 => 531,
@@ -1770,6 +1772,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError543 => 543,
 				Error::<T>::TradeBatchError544 => 544,
 				Error::<T>::TradeBatchError545 => 545,
+				Error::<T>::TradeBatchError546 => 546,
 				_ => 500,
 			}
 		}
