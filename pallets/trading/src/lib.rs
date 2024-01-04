@@ -414,13 +414,14 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response = Self::perform_validations(
-					element,
-					oracle_price,
-					&market,
-					collateral_id,
-					current_timestamp,
-				);
+				let validation_response =
+					Self::perform_validations(
+						element,
+						oracle_price,
+						&market,
+						collateral_id,
+						current_timestamp,
+					);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -640,18 +641,19 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position = Position {
-						market_id,
-						direction: element.direction,
-						avg_execution_price,
-						size: new_position_size,
-						margin_amount,
-						borrowed_amount,
-						leverage: new_leverage,
-						created_timestamp,
-						modified_timestamp: current_timestamp,
-						realized_pnl: new_realized_pnl,
-					};
+					updated_position =
+						Position {
+							market_id,
+							direction: element.direction,
+							avg_execution_price,
+							size: new_position_size,
+							margin_amount,
+							borrowed_amount,
+							leverage: new_leverage,
+							created_timestamp,
+							modified_timestamp: current_timestamp,
+							realized_pnl: new_realized_pnl,
+						};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -1743,8 +1745,12 @@ pub mod pallet {
 				Error::<T>::TradeBatchError510 => 510,
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
+				Error::<T>::TradeBatchError513 => 513,
 				Error::<T>::TradeBatchError515 => 515,
+				Error::<T>::TradeBatchError516 => 516,
 				Error::<T>::TradeBatchError518 => 518,
+				Error::<T>::TradeBatchError521 => 521,
+				Error::<T>::TradeBatchError522 => 522,
 				Error::<T>::TradeBatchError523 => 523,
 				Error::<T>::TradeBatchError524 => 524,
 				Error::<T>::TradeBatchError526 => 526,
@@ -1890,12 +1896,13 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+			) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			MarginInfo {
 				is_liquidation,
