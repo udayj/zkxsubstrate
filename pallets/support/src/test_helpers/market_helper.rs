@@ -82,7 +82,7 @@ pub fn eth_usdc() -> ExtendedMarket {
 
 	ExtendedMarket {
 		market: Market {
-			id: 2,
+			id: 3,
 			version: 1,
 			asset: 4543560,
 			asset_collateral: 1431520323,
@@ -118,7 +118,7 @@ pub fn link_usdc() -> ExtendedMarket {
 
 	ExtendedMarket {
 		market: Market {
-			id: 3,
+			id: 2,
 			version: 1,
 			asset: 1279872587,
 			asset_collateral: 1431520323,
