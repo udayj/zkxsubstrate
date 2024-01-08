@@ -526,32 +526,6 @@ pub mod pallet {
 					// Calculate execution price for taker
 					execution_price = total_order_volume / quantity_to_execute;
 
-					// Validate execution price of taker
-					if element.order_type == OrderType::Limit {
-						let limit_validation = Self::validate_limit_price(
-							element.price,
-							execution_price,
-							element.direction,
-							element.side,
-						);
-						match limit_validation {
-							Ok(()) => (),
-							Err(e) => return Err(e.into()),
-						}
-					} else {
-						let slippage_validation = Self::validate_within_slippage(
-							element.slippage,
-							oracle_price,
-							execution_price,
-							element.direction,
-							element.side,
-						);
-						match slippage_validation {
-							Ok(()) => (),
-							Err(e) => return Err(e.into()),
-						}
-					}
-
 					order_side = OrderSide::Taker;
 
 					taker_execution_price = execution_price;

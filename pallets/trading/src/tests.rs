@@ -2533,3 +2533,43 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 		);
 	});
 }
+
+#[test]
+// Taker short buy limit order has 0 slippage - which shouldn't make any difference
+fn it_works_when_taker_limit_order_has_0_slippage() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_price(101.into())
+			.set_direction(Direction::Short)
+			.set_slippage(FixedI128::zero())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			102.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
