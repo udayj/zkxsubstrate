@@ -112,8 +112,8 @@ pub trait PricesInterface {
 	fn convert_to_seconds(time_in_milli: u64) -> u64;
 	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_mark_price(market_id: u128) -> FixedI128;
-	fn get_last_traded_price(market_id: u128) -> FixedI128;
-	fn update_last_traded_price(market_id: u128, price: FixedI128);
+	fn get_last_oracle_price(market_id: u128) -> FixedI128;
+	fn update_last_oracle_price(market_id: u128, price: FixedI128);
 	fn get_remaining_markets() -> Vec<u128>;
 	fn get_no_of_batches_for_current_epoch() -> u64;
 	fn get_last_abr_timestamp() -> u64;

@@ -255,6 +255,8 @@ pub mod pallet {
 		TradeBatchError545,
 		/// Trade Volume Calculation Error
 		TradeBatchError546,
+		/// Insufficient num of orders in the batch
+		TradeBatchError547,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -357,22 +359,22 @@ pub mod pallet {
 			ensure!(oracle_price > FixedI128::zero(), Error::<T>::TradeBatchError513);
 
 			//Update last traded price
-			let last_traded_price = T::PricesPallet::get_last_traded_price(market_id);
+			let last_traded_price = T::PricesPallet::get_last_oracle_price(market_id);
 			if last_traded_price == FixedI128::zero() {
-				T::PricesPallet::update_last_traded_price(market_id, oracle_price);
+				T::PricesPallet::update_last_oracle_price(market_id, oracle_price);
 			}
 
 			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
-			ensure!(
-				quantity_locked > FixedI128::checked_from_integer(0).unwrap(),
-				Error::<T>::TradeBatchError522
-			);
+			ensure!(quantity_locked > FixedI128::zero(), Error::<T>::TradeBatchError522);
+
+			ensure!(orders.len() > 1, Error::<T>::TradeBatchError547);
 
 			// Calculate quantity that can be executed for the taker, before starting with the maker
 			// orders
-			let taker_order = &orders[orders.len() - 1];
+			// the unwrap won't fail as we are checking it in the previous line
+			let taker_order = &orders.last().unwrap();
 			let initial_taker_locked_response = Self::calculate_initial_taker_locked_size(
 				taker_order,
 				quantity_locked,
@@ -426,7 +428,7 @@ pub mod pallet {
 					Ok(()) => (),
 					Err(e) => {
 						// if maker order, emit event and process next order
-						if element.order_id != orders[orders.len() - 1].order_id {
+						if element.order_id != taker_order.order_id {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
 								error_code: Self::get_error_code(e),
@@ -446,7 +448,7 @@ pub mod pallet {
 					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
 				// Maker Order
-				if element.order_id != orders[orders.len() - 1].order_id {
+				if element.order_id != taker_order.order_id {
 					let validation_response = Self::validate_maker(
 						orders[0].direction,
 						orders[0].side,
@@ -455,7 +457,7 @@ pub mod pallet {
 						element.order_type,
 						element.price,
 						oracle_price,
-						&orders[orders.len() - 1],
+						&taker_order,
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -587,7 +589,7 @@ pub mod pallet {
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
-							if element.order_id != orders[orders.len() - 1].order_id {
+							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
@@ -708,7 +710,7 @@ pub mod pallet {
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
-							if element.order_id != orders[orders.len() - 1].order_id {
+							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
 									error_code: Self::get_error_code(e),
@@ -905,7 +907,7 @@ pub mod pallet {
 					pnl,
 					fee,
 					is_final,
-					is_maker: element.order_id != orders[orders.len() - 1].order_id,
+					is_maker: element.order_id != taker_order.order_id,
 				});
 			}
 
@@ -948,8 +950,8 @@ pub mod pallet {
 				market_id,
 				size: taker_quantity,
 				execution_price: taker_execution_price,
-				direction: orders[orders.len() - 1].direction.into(),
-				side: orders[orders.len() - 1].side.into(),
+				direction: taker_order.direction.into(),
+				side: taker_order.side.into(),
 			});
 
 			Ok(())
@@ -1773,6 +1775,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError544 => 544,
 				Error::<T>::TradeBatchError545 => 545,
 				Error::<T>::TradeBatchError546 => 546,
+				Error::<T>::TradeBatchError547 => 547,
 				_ => 500,
 			}
 		}
