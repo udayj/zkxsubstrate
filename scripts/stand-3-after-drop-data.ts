@@ -34,4 +34,8 @@ process.nextTick(async () => {
   const setMatchingTimeLimitResultAsHex = setMatchingTimeLimit.toHex();
   console.log('setMatchingTimeLimitResultAsHex', setMatchingTimeLimitResultAsHex);
   console.log('...');
+
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+  
+  process.exit(0);
 });
