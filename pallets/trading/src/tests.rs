@@ -1686,7 +1686,6 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError508")]
 // Taker long buy limit order execution price is invalid
 fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1722,11 +1721,14 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 508 }.into(),
+		);
 	});
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError507")]
 // Taker short buy limit order execution price is invalid
 fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1762,6 +1764,10 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 507 }.into(),
+		);
 	});
 }
 
@@ -2525,5 +2531,45 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 		System::assert_has_event(
 			Event::OrderError { order_id: U256::from(201), error_code: 506 }.into(),
 		);
+	});
+}
+
+#[test]
+// Taker short buy limit order has 0 slippage - which shouldn't make any difference
+fn it_works_when_taker_limit_order_has_0_slippage() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_price(101.into())
+			.set_direction(Direction::Short)
+			.set_slippage(FixedI128::zero())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			102.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
 	});
 }
