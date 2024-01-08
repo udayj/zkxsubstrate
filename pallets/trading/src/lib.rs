@@ -1266,14 +1266,24 @@ pub mod pallet {
 
 			ensure!(order_type == OrderType::Limit, Error::<T>::TradeBatchError518);
 
-			// Check whether the maker price is valid with respect to taker slippage
-			Self::validate_within_slippage(
-				taker_order.slippage,
-				oracle_price,
-				maker_price,
-				taker_order.direction,
-				taker_order.side,
-			)?;
+			if taker_order.order_type == OrderType::Limit {
+				// Check whether the maker price is valid with respect to taker limit price
+				Self::validate_limit_price(
+					taker_order.price,
+					maker_price,
+					taker_order.direction,
+					taker_order.side,
+				)?;
+			} else {
+				// Check whether the maker price is valid with respect to taker slippage
+				Self::validate_within_slippage(
+					taker_order.slippage,
+					oracle_price,
+					maker_price,
+					taker_order.direction,
+					taker_order.side,
+				)?;
+			}
 
 			Ok(())
 		}

@@ -1686,7 +1686,6 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError508")]
 // Taker long buy limit order execution price is invalid
 fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1722,11 +1721,14 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 508 }.into(),
+		);
 	});
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError507")]
 // Taker short buy limit order execution price is invalid
 fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1762,6 +1764,10 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 507 }.into(),
+		);
 	});
 }
 
