@@ -14,11 +14,9 @@ process.nextTick(async () => {
   await cryptoWaitReady();
 
   const keyring = new Keyring({ type: 'sr25519' });
-
   const nodeAccountKeyring = keyring.addFromUri(NODE_ACCOUNT);
-
   const wsProvider = new WsProvider('wss://l3.stand-4.k8s.ntwrkx.com:443');
-  // const wsProvider = new WsProvider('ws://zkxl3-main-node.zkxl3-stand-2.svc.cluster.local:9944');
+  
   const api = await ApiPromise.create({
     provider: wsProvider,
   });
@@ -26,14 +24,14 @@ process.nextTick(async () => {
   await new Promise((resolve) => setTimeout(resolve, 4000));
 
   const nonce = await api.rpc.system.accountNextIndex(nodeAccountKeyring.address);
-  const current_timestamp = Date.now() / 1000;
-  const setInitialisationTimestamp = await api.tx.sudo
-    .sudo(api.tx.prices.setInitialisationTimestamp(current_timestamp))
+  
+  const setMatchingTimeLimit = await api.tx.sudo
+    .sudo(api.tx.trading.setMatchingTimeLimit(2419200))
     .signAndSend(nodeAccountKeyring, {
       nonce,
     });
 
-  const setInitialisationTimestampResultAsHex = setInitialisationTimestamp.toHex();
-  console.log('setInitialisationTimestampResultAsHex', setInitialisationTimestampResultAsHex);
+  const setMatchingTimeLimitResultAsHex = setMatchingTimeLimit.toHex();
+  console.log('setMatchingTimeLimitResultAsHex', setMatchingTimeLimitResultAsHex);
   console.log('...');
 });

@@ -2,7 +2,7 @@ FROM node:18-bullseye
 ARG SCRIPT_NAME=test
 WORKDIR /app
 COPY scripts/* /app/
-RUN npm i @polkadot/api@10.9.1 && npm i @polkadot/keyring@12.3.2
 RUN mv $SCRIPT_NAME after-drop-data.ts
-CMD ["node","after-drop-data.ts"]
+RUN npm i
+CMD ["npm","start"]
 
