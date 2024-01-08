@@ -209,6 +209,8 @@ pub mod pallet {
 		InvalidInitialisationTimestamp,
 		/// Set ABR value called before the abr interval is met
 		EarlyAbrCall,
+		/// When prices are empty
+		EmptyPriceArray,
 	}
 
 	#[pallet::event]
@@ -347,6 +349,10 @@ pub mod pallet {
 
 			// Fetch index and mark prices
 			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
+			ensure!(
+				(index_prices.len() != 0 && index_prices.len() != 0),
+				Error::<T>::EmptyPriceArray
+			);
 
 			// Fetch base ABR and bollinger width
 			let base_abr = BaseAbr::<T>::get();
@@ -706,6 +712,7 @@ pub mod pallet {
 
 			// Get no of users in a batch
 			let users_per_batch = UsersPerBatch::<T>::get();
+			ensure!(users_per_batch != 0, Error::<T>::InvalidUsersPerBatch);
 
 			// Get the no of batches
 			let no_of_batches: u64 =

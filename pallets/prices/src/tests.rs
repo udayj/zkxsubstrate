@@ -6,10 +6,10 @@ use pallet_support::{
 		asset_helper::{btc, eth, link, usdc},
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 	},
-	types::{Direction, MultiplePrices, Order, OrderType},
+	types::{ABRState, Direction, MultiplePrices, Order, OrderType},
 };
 use primitive_types::U256;
-use sp_arithmetic::fixed_point::FixedI128;
+use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 
 // declare test_helper module
 pub mod test_helper;
@@ -50,13 +50,28 @@ fn setup_trading() -> sp_io::TestExternalities {
 		));
 		assert_ok!(MarketModule::replace_all_markets(
 			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
+			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
 			RuntimeOrigin::signed(1),
 			vec![alice(), bob(), charlie(), dave()]
+		));
+
+		// Set ABR interval as 8 hours
+		assert_ok!(PricesModule::set_abr_interval(RuntimeOrigin::root(), 28800));
+
+		// Set Base ABR as 0.000025
+		assert_ok!(PricesModule::set_base_abr(
+			RuntimeOrigin::root(),
+			FixedI128::from_inner(25000000000000)
+		));
+
+		// Set Bollinger width as 1.5
+		assert_ok!(PricesModule::set_bollinger_width(
+			RuntimeOrigin::root(),
+			FixedI128::from_inner(1500000000000000000)
 		));
 
 		// Set no.of users per batch
@@ -399,6 +414,175 @@ fn test_abr_different_length() {
 }
 
 #[test]
+#[should_panic(expected = "Error while setting ABR interval: BadOrigin")]
+fn test_unauthorized_set_abr_interval() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_abr_interval(RuntimeOrigin::signed(1), 100)
+			.expect("Error while setting ABR interval");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidAbrInterval")]
+fn test_invalid_abr_interval() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_abr_interval(RuntimeOrigin::root(), 100)
+			.expect("Error while setting ABR interval");
+	});
+}
+
+#[test]
+#[should_panic(expected = "Error while setting base ABR: BadOrigin")]
+fn test_unauthorized_set_base_abr() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_base_abr(RuntimeOrigin::signed(1), FixedI128::from_inner(12000000000000))
+			.expect("Error while setting base ABR");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidBaseAbr")]
+fn test_invalid_base_abr() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_base_abr(RuntimeOrigin::root(), FixedI128::from_inner(12000000000000))
+			.expect("Error while setting base ABR");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidUsersPerBatch")]
+fn test_invalid_no_of_users() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_no_of_users_per_batch(RuntimeOrigin::signed(1), 0)
+			.expect("Error while setting No.of users per batch");
+	});
+}
+
+#[test]
+#[should_panic(expected = "MarketNotTradable")]
+fn test_set_abr_untradable_market() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// market id
+		let link_market_id = link_usdc().market.id;
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699979078000);
+
+		// link_usdc is not tradable
+		PricesModule::set_abr_value(RuntimeOrigin::signed(1), link_market_id)
+			.expect("Error while setting abr value");
+	});
+}
+
+#[test]
+#[should_panic(expected = "AbrValueAlreadySet")]
+fn test_set_abr_value_for_already_set_market() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// market id
+		let btc_market_id = btc_usdc().market.id;
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699979078000);
+
+		// Set mark and index prices
+		set_prices(btc_market_id);
+
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		// setting abr value for already set market
+		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
+			.expect("Error while setting abr value");
+	});
+}
+
+#[test]
+#[should_panic(expected = "EmptyPriceArray")]
+fn test_set_abr_value_when_prices_array_is_empty() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// market id
+		let btc_market_id = btc_usdc().market.id;
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699979078000);
+
+		// setting abr value when prices array is empty
+		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
+			.expect("Error while setting abr value");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidState")]
+fn test_set_abr_value_with_invalid_state() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// market id
+		let btc_market_id = btc_usdc().market.id;
+		let eth_market_id = eth_usdc().market.id;
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699979078000);
+
+		// Set mark and index prices
+		set_prices(btc_market_id);
+		set_prices(eth_market_id);
+
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		// calling set_abr_value again with state changed to 2
+		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
+			.expect("Error while setting abr value");
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidState")]
+fn test_pay_abr_with_invalid_state() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::make_abr_payments(RuntimeOrigin::signed(1))
+			.expect("Error while making abr payments");
+	});
+}
+
+#[test]
 fn test_abr_flow_for_btc_orders() {
 	let mut env = setup_trading();
 
@@ -409,6 +593,9 @@ fn test_abr_flow_for_btc_orders() {
 
 		// market id
 		let market_id = btc_usdc().market.id;
+
+		let abr_interval = PricesModule::abr_interval();
+		assert_eq!(abr_interval, 28800); // should be 8 hours
 
 		assert_ok!(PricesModule::set_initialisation_timestamp(
 			RuntimeOrigin::root(),
@@ -443,22 +630,166 @@ fn test_abr_flow_for_btc_orders() {
 		Timestamp::set_timestamp(1699969078000);
 
 		let abr_state = PricesModule::abr_state();
-		println!("abr_state {:?}", abr_state);
+		assert_eq!(abr_state, ABRState::State0);
 
 		let epoch_to_timestamp = PricesModule::epoch_to_timestamp(1);
-		println!("epoch_to_timestamp {:?}", epoch_to_timestamp);
+		assert_eq!(epoch_to_timestamp, 0);
 
 		// Set mark and index prices
 		set_prices(market_id);
+		set_prices(eth_usdc().market.id);
 
 		// Compute ABR value
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), market_id));
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_usdc().market.id));
+		let abr_state = PricesModule::abr_state();
+		assert_eq!(abr_state, ABRState::State2);
+
+		let epoch_to_timestamp = PricesModule::epoch_to_timestamp(1);
+		assert_eq!(epoch_to_timestamp, 1699940278 + 28800);
 
 		let epoch_to_abr_value = PricesModule::epoch_market_to_abr_value(1, market_id);
-		println!("epoch_to_abr_value: {:?}", epoch_to_abr_value);
 
 		let epoch_market_to_last_price = PricesModule::epoch_market_to_last_price(1, market_id);
-		println!("epoch_market_to_last_price: {:?}", epoch_market_to_last_price);
+
+		let alice_before_balance =
+			TradingAccounts::balances(alice_id, btc_usdc().market.asset_collateral);
+		let bob_before_balance =
+			TradingAccounts::balances(bob_id, btc_usdc().market.asset_collateral);
+
+		// Pay ABR
+		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
+
+		let alice_after_balance =
+			TradingAccounts::balances(alice_id, btc_usdc().market.asset_collateral);
+
+		let bob_after_balance =
+			TradingAccounts::balances(bob_id, btc_usdc().market.asset_collateral);
+
+		let abr_payment = epoch_to_abr_value * epoch_market_to_last_price * FixedI128::one();
+		compare_with_threshold(
+			alice_after_balance,
+			alice_before_balance - abr_payment,
+			convert_to_fixed(1e-6),
+		); // abr is +ve, long pays short
+
+		compare_with_threshold(
+			bob_after_balance,
+			bob_before_balance + abr_payment,
+			convert_to_fixed(1e-6),
+		); // abr is +ve, short receives from long
+
+		let event_record = System::events();
+		println!("Events: {:?}", event_record);
+	});
+}
+
+#[test]
+fn test_abr_flow_for_btc_and_eth_orders() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let btc_market_id = btc_usdc().market.id;
+		let eth_market_id = eth_usdc().market.id;
+
+		let abr_interval = PricesModule::abr_interval();
+		assert_eq!(abr_interval, 28800); // should be 8 hours
+
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// Create btc orders
+		let alice_order =
+			Order::new(U256::from(101), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(102), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000
+		));
+
+		// Create eth orders
+		let alice_order = Order::new(U256::from(201), alice_id)
+			.set_direction(Direction::Short)
+			.set_market_id(3)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
+			.set_market_id(3)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000
+		));
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699969078000);
+
+		let abr_state = PricesModule::abr_state();
+		assert_eq!(abr_state, ABRState::State0);
+
+		let epoch_to_timestamp = PricesModule::epoch_to_timestamp(1);
+		assert_eq!(epoch_to_timestamp, 0);
+
+		// Set mark and index prices
+		set_prices(btc_market_id);
+		set_prices(eth_market_id);
+
+		// Compute ABR value
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		let abr_state = PricesModule::abr_state();
+		assert_eq!(abr_state, ABRState::State1);
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		let abr_state = PricesModule::abr_state();
+		assert_eq!(abr_state, ABRState::State2);
+
+		let epoch_to_timestamp = PricesModule::epoch_to_timestamp(1);
+		assert_eq!(epoch_to_timestamp, 1699940278 + 28800);
+
+		let epoch_to_abr_value = PricesModule::epoch_market_to_abr_value(1, btc_market_id);
+		println!("btc epoch_to_abr_value: {:?}", epoch_to_abr_value);
+
+		let epoch_market_to_last_price = PricesModule::epoch_market_to_last_price(1, btc_market_id);
+		println!("btc epoch_market_to_last_price: {:?}", epoch_market_to_last_price);
+
+		let epoch_to_abr_value = PricesModule::epoch_market_to_abr_value(1, eth_market_id);
+		println!("eth epoch_to_abr_value: {:?}", epoch_to_abr_value);
+
+		let epoch_market_to_last_price = PricesModule::epoch_market_to_last_price(1, eth_market_id);
+		println!("eth epoch_market_to_last_price: {:?}", epoch_market_to_last_price);
 
 		// Pay ABR
 		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
