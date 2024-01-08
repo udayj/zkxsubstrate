@@ -1007,7 +1007,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError546")]
+#[should_panic(expected = "TradeBatchError547")]
 // trade batch with insuffient orders
 fn it_reverts_for_trade_with_insufficient_orders_1_order() {
 	let mut env = setup();
@@ -1020,7 +1020,7 @@ fn it_reverts_for_trade_with_insufficient_orders_1_order() {
 		let market_id = btc_usdc().market.id;
 
 		// Create orders
-		let alice_open_order_1 = Order::new(201_u128, alice_id)
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_leverage(5.into())
 			.sign_order(get_private_key(alice().pub_key));
 
@@ -1043,7 +1043,7 @@ fn it_reverts_for_trade_with_insufficient_orders_1_order() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError546")]
+#[should_panic(expected = "TradeBatchError547")]
 // trade batch with insuffient orders
 fn it_reverts_for_trade_with_insufficient_orders_0_orders() {
 	let mut env = setup();
