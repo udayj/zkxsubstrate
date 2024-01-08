@@ -21,21 +21,34 @@ process.nextTick(async () => {
     provider: wsProvider,
   });
 
+  const timestampCodec = await api.query.prices.initialisationTimestamp();
+  const timestampBefore = timestampCodec.toPrimitive();
+  console.log({ timestampBefore });
+
   await new Promise((resolve) => setTimeout(resolve, 4000));
 
   const nonce = await api.rpc.system.accountNextIndex(nodeAccountKeyring.address);
   
-  const setMatchingTimeLimit = await api.tx.sudo
-    .sudo(api.tx.trading.setMatchingTimeLimit(2419200))
+  const currentTimestamp = Date.now();
+  console.log({ currentTimestamp });
+
+  const setInitialisationTimestamp = await api.tx.sudo
+    .sudo(api.tx.prices.setInitialisationTimestamp(currentTimestamp))
     .signAndSend(nodeAccountKeyring, {
       nonce,
     });
 
-  const setMatchingTimeLimitResultAsHex = setMatchingTimeLimit.toHex();
-  console.log('setMatchingTimeLimitResultAsHex', setMatchingTimeLimitResultAsHex);
-  console.log('...');
-
   await new Promise((resolve) => setTimeout(resolve, 4000));
+
+  const setInitialisationTimestampResultAsHex = setInitialisationTimestamp.toHex();
+  console.log('setInitialisationTimestampResultAsHex', setInitialisationTimestampResultAsHex);
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  const timestampAfterCodec = await api.query.prices.initialisationTimestamp();
+  const timestampAfter = timestampAfterCodec.toPrimitive();
+  console.log({ timestampAfter });
+  console.log('...');
   
   process.exit(0);
 });
