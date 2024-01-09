@@ -231,8 +231,6 @@ pub mod pallet {
 		TradeBatchError535,
 		/// ECDSA Signature could not be verified
 		TradeBatchError536,
-		/// Public Key not found for account id
-		TradeBatchError537,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
@@ -1741,7 +1739,6 @@ pub mod pallet {
 				Error::<T>::TradeBatchError534 => 534,
 				Error::<T>::TradeBatchError535 => 535,
 				Error::<T>::TradeBatchError536 => 536,
-				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
 				Error::<T>::TradeBatchError540 => 540,
