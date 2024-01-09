@@ -347,8 +347,14 @@ pub mod pallet {
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 			ensure!(market_status == false, Error::<T>::AbrValueAlreadySet);
 
+			// Compute epoch start and end timestamps
+			let epoch_end_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
+			let abr_interval = AbrInterval::<T>::get();
+			let epoch_start_timestamp = epoch_end_timestamp - abr_interval;
+
 			// Fetch index and mark prices
-			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
+			let (index_prices, mark_prices) =
+				Self::get_prices_for_abr(market_id, epoch_start_timestamp, epoch_end_timestamp);
 			ensure!(
 				(index_prices.len() != 0 && mark_prices.len() != 0),
 				Error::<T>::EmptyPriceArray
@@ -483,7 +489,7 @@ pub mod pallet {
 			let current_epoch = AbrEpoch::<T>::get();
 
 			if current_state == ABRState::State0 {
-				if current_epoch == 0 {
+				if current_epoch == 0 || current_epoch == 1 {
 					return InitialisationTimestamp::<T>::get()
 				} else {
 					return EpochToTimestampMap::<T>::get(current_epoch - 1)
@@ -829,16 +835,15 @@ pub mod pallet {
 			}
 		}
 
-		pub fn get_prices_for_abr(market_id: u128) -> (Vec<FixedI128>, Vec<FixedI128>) {
+		pub fn get_prices_for_abr(
+			market_id: u128,
+			epoch_start_timestamp: u64,
+			epoch_end_timestamp: u64,
+		) -> (Vec<FixedI128>, Vec<FixedI128>) {
 			let mut index_prices = Vec::<FixedI128>::new();
 			let mut mark_prices = Vec::<FixedI128>::new();
 
-			let current_epoch = AbrEpoch::<T>::get();
-			let epoch_end_timestamp = EpochToTimestampMap::<T>::get(current_epoch);
-			let abr_interval = AbrInterval::<T>::get();
-			let epoch_start_timestamp = epoch_end_timestamp - abr_interval;
 			let mut timestamp = epoch_start_timestamp;
-
 			while timestamp <= epoch_end_timestamp {
 				let price = HistoricalPricesMap::<T>::get(timestamp, market_id);
 				if price.index_price != FixedI128::zero() && price.mark_price != FixedI128::zero() {
@@ -1004,7 +1009,7 @@ pub mod pallet {
 
 			match AbrState::<T>::get() {
 				ABRState::State0 =>
-					if current_epoch == 0 {
+					if current_epoch == 0 || current_epoch == 1 {
 						InitialisationTimestamp::<T>::get()
 					} else {
 						EpochToTimestampMap::<T>::get(current_epoch - 1)
@@ -1072,15 +1077,29 @@ pub mod pallet {
 				return FixedI128::zero()
 			}
 
-			// Check if the market's abr is already set
 			let current_epoch = AbrEpoch::<T>::get();
+			if current_epoch == 0 {
+				return FixedI128::zero()
+			}
+
+			// Check if the market's abr is already set
 			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
 			if market_status == true {
 				return EpochMarketToAbrValueMap::<T>::get(current_epoch, market_id)
 			}
 
+			// Compute start and end timestamp
+			let epoch_end_timestamp = T::TimeProvider::now().as_secs();
+			let epoch_start_timestamp;
+			if current_epoch == 1 {
+				epoch_start_timestamp = InitialisationTimestamp::<T>::get();
+			} else {
+				epoch_start_timestamp = EpochToTimestampMap::<T>::get(current_epoch - 1);
+			}
+
 			// Fetch index and mark prices for the market
-			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
+			let (index_prices, mark_prices) =
+				Self::get_prices_for_abr(market_id, epoch_start_timestamp, epoch_end_timestamp);
 			if index_prices.len() == 0 || mark_prices.len() == 0 {
 				return FixedI128::zero()
 			}
