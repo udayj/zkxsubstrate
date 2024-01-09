@@ -54,7 +54,7 @@ fn setup() -> sp_io::TestExternalities {
 		));
 
 		// Add liquidator
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), eduard().pub_key)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), eduard().pub_key)
 			.expect("error while adding signer");
 	});
 

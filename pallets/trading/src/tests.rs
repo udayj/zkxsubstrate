@@ -38,9 +38,10 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(
-			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
-		);
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![btc_usdc(), link_usdc()]
+		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
@@ -66,7 +67,7 @@ fn add_liquidator_signer_authorized() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer]);
 		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer), true);
@@ -82,9 +83,9 @@ fn add_multiple_liquidator_signer_authorized() {
 		let liquidator_signer_1 = U256::from(12345);
 		let liquidator_signer_2 = U256::from(12346);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_1)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer_1)
 			.expect("error while adding signer");
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_2)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer_2)
 			.expect("error while adding signer");
 
 		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer_1, liquidator_signer_2]);
@@ -101,7 +102,7 @@ fn add_signer_authorized_0_pub_key() {
 
 	env.execute_with(|| {
 		// Add signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), U256::from(0))
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), U256::from(0))
 			.expect("Error in code");
 	});
 }
@@ -115,9 +116,9 @@ fn add_signer_authorized_duplicate_pub_key() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 	});
 }
@@ -131,7 +132,7 @@ fn remove_signer_authorized_invalid_signer() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Remove signer; error
-		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::remove_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("Error in code");
 	});
 }
@@ -144,11 +145,11 @@ fn remove_signer_authorized() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 
 		// Remove signer
-		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::remove_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("Error in code");
 
 		assert_eq!(Trading::liquidator_signers(), vec![]);
