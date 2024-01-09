@@ -350,7 +350,7 @@ pub mod pallet {
 			// Fetch index and mark prices
 			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
 			ensure!(
-				(index_prices.len() != 0 && index_prices.len() != 0),
+				(index_prices.len() != 0 && mark_prices.len() != 0),
 				Error::<T>::EmptyPriceArray
 			);
 
@@ -1057,6 +1057,43 @@ pub mod pallet {
 				abr_details.push(ABRDetails { abr_value, abr_timestamp });
 			}
 			abr_details
+		}
+
+		fn get_intermediary_abr_value(market_id: u128) -> FixedI128 {
+			// Check whether market exists
+			let market = T::MarketPallet::get_market(market_id);
+			if market.is_some() == false {
+				return FixedI128::zero()
+			}
+
+			// Check whether market is tradable
+			let market = market.unwrap();
+			if market.is_tradable == false {
+				return FixedI128::zero()
+			}
+
+			// Check if the market's abr is already set
+			let current_epoch = AbrEpoch::<T>::get();
+			let market_status = AbrMarketStatusMap::<T>::get(current_epoch, market_id);
+			if market_status == true {
+				return EpochMarketToAbrValueMap::<T>::get(current_epoch, market_id)
+			}
+
+			// Fetch index and mark prices for the market
+			let (index_prices, mark_prices) = Self::get_prices_for_abr(market_id);
+			if index_prices.len() == 0 || mark_prices.len() == 0 {
+				return FixedI128::zero()
+			}
+
+			// Fetch base ABR and bollinger width
+			let base_abr = BaseAbr::<T>::get();
+			let bollinger_width = BollingerWidth::<T>::get();
+
+			// Calculate ABR
+			let (abr_value, _) =
+				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
+
+			return abr_value
 		}
 	}
 }

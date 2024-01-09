@@ -10,6 +10,7 @@ use frame_support::dispatch::Vec;
 use pallet_grandpa::AuthorityId as GrandpaId;
 use primitive_types::U256;
 use sp_api::impl_runtime_apis;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
@@ -469,6 +470,14 @@ impl_runtime_apis! {
 			// call to as_u128() will panic if value is > 2^128
 			Prices::get_previous_abr_values(market_id.as_u128(), start_timestamp, end_timestamp)
 		}
+
+		fn get_intermediary_abr_value(market_id: U256,) -> FixedI128 {
+
+			// market_id is internally a u128 value hence conversion is required from U256 to u128
+			// call to as_u128() will panic if value is > 2^128
+			Prices::get_intermediary_abr_value(market_id.as_u128())
+		}
+
 	}
 
 	impl sp_api::Core<Block> for Runtime {

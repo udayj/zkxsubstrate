@@ -8,6 +8,7 @@ pub use pallet_prices_runtime_api::PricesApi as PricesRuntimeApi;
 use pallet_support::types::ABRDetails;
 use primitive_types::U256;
 use sp_api::ProvideRuntimeApi;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
@@ -37,6 +38,13 @@ pub trait PricesApi<BlockHash> {
 		end_timestamp: u64,
 		at: Option<BlockHash>,
 	) -> RpcResult<Vec<ABRDetails>>;
+
+	#[method(name = "abr_get_intermediary_value")]
+	fn get_intermediary_abr_value(
+		&self,
+		market_id: U256,
+		at: Option<BlockHash>,
+	) -> RpcResult<FixedI128>;
 }
 
 /// A struct that implements the `PricesApi`.
@@ -109,6 +117,18 @@ where
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
 		api.get_previous_abr_values(at, market_id, start_timestamp, end_timestamp)
+			.map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_intermediary_abr_value(
+		&self,
+		market_id: U256,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<FixedI128> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_intermediary_abr_value(at, market_id)
 			.map_err(runtime_error_into_rpc_err)
 	}
 }
