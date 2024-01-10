@@ -166,6 +166,7 @@ pub mod pallet {
 		pub abr_interval: u64,
 		pub base_abr: FixedI128,
 		pub bollinger_width: FixedI128,
+		pub users_per_batch: u64,
 		#[serde(skip)]
 		pub _config: sp_std::marker::PhantomData<T>,
 	}
@@ -175,7 +176,8 @@ pub mod pallet {
 		fn build(&self) {
 			AbrInterval::<T>::put(&self.abr_interval);
 			BaseAbr::<T>::put(&self.base_abr);
-			BollingerWidth::<T>::put(&self.bollinger_width)
+			BollingerWidth::<T>::put(&self.bollinger_width);
+			UsersPerBatch::<T>::put(&self.users_per_batch)
 		}
 	}
 
@@ -308,7 +310,7 @@ pub mod pallet {
 			new_no_of_users_per_batch: u64,
 		) -> DispatchResult {
 			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			// No of users in a batch must be > 0
 			ensure!(new_no_of_users_per_batch > 0, Error::<T>::InvalidUsersPerBatch);
@@ -439,11 +441,12 @@ pub mod pallet {
 				let current_price = CurrentPricesMap::<T>::get(curr_market.market_id);
 				if timestamp > current_price.timestamp {
 					// Create a struct object for the current price
-					let new_price: CurrentPrice = CurrentPrice {
-						timestamp,
-						index_price: curr_market.index_price,
-						mark_price: curr_market.mark_price,
-					};
+					let new_price: CurrentPrice =
+						CurrentPrice {
+							timestamp,
+							index_price: curr_market.index_price,
+							mark_price: curr_market.mark_price,
+						};
 
 					CurrentPricesMap::<T>::insert(curr_market.market_id, new_price);
 				}
@@ -728,16 +731,14 @@ pub mod pallet {
 			NoOfBatchesForEpochMap::<T>::insert(new_epoch, no_of_batches);
 
 			// Emit ABR timestamp set event
-			Self::deposit_event(Event::AbrTimestampSet {
-				epoch: new_epoch,
-				timestamp: next_abr_timestamp,
-			});
+			Self::deposit_event(
+				Event::AbrTimestampSet { epoch: new_epoch, timestamp: next_abr_timestamp }
+			);
 
 			// Emit ABR state changed event
-			Self::deposit_event(Event::AbrStateChanged {
-				epoch: new_epoch,
-				state: ABRState::State1,
-			});
+			Self::deposit_event(
+				Event::AbrStateChanged { epoch: new_epoch, state: ABRState::State1 }
+			);
 
 			Ok(new_epoch)
 		}
@@ -764,20 +765,18 @@ pub mod pallet {
 			}
 
 			// Emit ABR Payment made event
-			Self::deposit_event(Event::AbrPaymentMade {
-				epoch: current_epoch,
-				batch_id: batches_fetched,
-			});
+			Self::deposit_event(
+				Event::AbrPaymentMade { epoch: current_epoch, batch_id: batches_fetched }
+			);
 
 			// If all batches are fetched, increment state and epoch
 			if no_of_batches == 0 || no_of_batches == new_batches_fetched {
 				AbrState::<T>::put(ABRState::State0);
 				AbrEpoch::<T>::put(current_epoch + 1);
 				// Emit ABR state changed event
-				Self::deposit_event(Event::AbrStateChanged {
-					epoch: current_epoch + 1,
-					state: ABRState::State0,
-				});
+				Self::deposit_event(
+					Event::AbrStateChanged { epoch: current_epoch + 1, state: ABRState::State0 }
+				);
 			}
 			account_list
 		}
@@ -792,9 +791,9 @@ pub mod pallet {
 					let mut positions: Vec<PositionExtended> =
 						T::TradingPallet::get_positions(user, collateral);
 					// Sort the positions which are within the timestamp
-					positions.retain(|position: &PositionExtended| {
-						position.created_timestamp <= timestamp
-					});
+					positions.retain(
+						|position: &PositionExtended| position.created_timestamp <= timestamp
+					);
 
 					// Iterate through all open positions
 					for position in positions {
@@ -966,10 +965,9 @@ pub mod pallet {
 			LastOraclePricesMap::<T>::insert(market_id, new_last_oracle_price);
 
 			// Emits event
-			Self::deposit_event(Event::LastOraclePriceUpdated {
-				market_id,
-				price: new_last_oracle_price,
-			});
+			Self::deposit_event(
+				Event::LastOraclePriceUpdated { market_id, price: new_last_oracle_price }
+			);
 		}
 
 		fn get_remaining_markets() -> Vec<u128> {

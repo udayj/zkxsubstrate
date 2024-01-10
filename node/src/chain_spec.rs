@@ -150,6 +150,7 @@ fn testnet_genesis(
 			abr_interval: 28800_u64,                         // 8 hours in seconds
 			base_abr: FixedI128::from_inner(25000000000000), // 0.00025
 			bollinger_width: FixedI128::from_inner(1500000000000000000), // 1.5
+			users_per_batch: 500_u64,                        // 500
 			_config: Default::default(),
 		},
 		sudo: SudoConfig {
