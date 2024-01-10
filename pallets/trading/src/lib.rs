@@ -926,7 +926,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To add origin restriction in production
 		#[pallet::weight(0)]
 		pub fn add_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			// The pub key cannot be 0
 			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
@@ -944,7 +944,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To add origin restriction in production
 		#[pallet::weight(0)]
 		pub fn remove_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			// Check if the signer exists
 			ensure!(
