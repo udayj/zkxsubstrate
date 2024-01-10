@@ -218,10 +218,6 @@ pub mod pallet {
 		TradeBatchError524,
 		/// Batch id already used
 		TradeBatchError525,
-		/// Position marked to be deleveraged, but liquidation order passed
-		TradeBatchError526,
-		/// Position marked to be liquidated, but deleveraging order passed
-		TradeBatchError527,
 		/// Position cannot be opened becuase of passive risk management
 		TradeBatchError531,
 		/// Not enough margin to cover losses - short limit sell or long limit sell
@@ -235,8 +231,6 @@ pub mod pallet {
 		TradeBatchError535,
 		/// ECDSA Signature could not be verified
 		TradeBatchError536,
-		/// Public Key not found for account id
-		TradeBatchError537,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
@@ -416,14 +410,13 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(
-						element,
-						oracle_price,
-						&market,
-						collateral_id,
-						current_timestamp,
-					);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -617,19 +610,18 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position =
-						Position {
-							market_id,
-							direction: element.direction,
-							avg_execution_price,
-							size: new_position_size,
-							margin_amount,
-							borrowed_amount,
-							leverage: new_leverage,
-							created_timestamp,
-							modified_timestamp: current_timestamp,
-							realized_pnl: new_realized_pnl,
-						};
+					updated_position = Position {
+						market_id,
+						direction: element.direction,
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
+						realized_pnl: new_realized_pnl,
+					};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -1741,15 +1733,12 @@ pub mod pallet {
 				Error::<T>::TradeBatchError523 => 523,
 				Error::<T>::TradeBatchError524 => 524,
 				Error::<T>::TradeBatchError525 => 525,
-				Error::<T>::TradeBatchError526 => 526,
-				Error::<T>::TradeBatchError527 => 527,
 				Error::<T>::TradeBatchError531 => 531,
 				Error::<T>::TradeBatchError532 => 532,
 				Error::<T>::TradeBatchError533 => 533,
 				Error::<T>::TradeBatchError534 => 534,
 				Error::<T>::TradeBatchError535 => 535,
 				Error::<T>::TradeBatchError536 => 536,
-				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
 				Error::<T>::TradeBatchError540 => 540,
@@ -1886,13 +1875,12 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			MarginInfo {
 				is_liquidation,

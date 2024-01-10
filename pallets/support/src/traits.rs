@@ -124,6 +124,7 @@ pub trait PricesInterface {
 		end_timestamp: u64,
 	) -> Vec<ABRDetails>;
 	fn get_remaining_pay_abr_calls() -> u64;
+	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
 }
 
 pub trait FixedI128Ext {
