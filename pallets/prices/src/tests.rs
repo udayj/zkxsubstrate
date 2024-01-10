@@ -75,7 +75,7 @@ fn setup_trading() -> sp_io::TestExternalities {
 		));
 
 		// Set no.of users per batch
-		assert_ok!(PricesModule::set_no_of_users_per_batch(RuntimeOrigin::signed(1), 10));
+		assert_ok!(PricesModule::set_no_of_users_per_batch(RuntimeOrigin::root(), 10));
 	});
 	env
 }
@@ -463,7 +463,7 @@ fn test_invalid_no_of_users() {
 	let mut env = setup_trading();
 
 	env.execute_with(|| {
-		PricesModule::set_no_of_users_per_batch(RuntimeOrigin::signed(1), 0)
+		PricesModule::set_no_of_users_per_batch(RuntimeOrigin::root(), 0)
 			.expect("Error while setting No.of users per batch");
 	});
 }

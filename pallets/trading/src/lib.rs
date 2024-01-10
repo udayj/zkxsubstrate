@@ -452,6 +452,7 @@ pub mod pallet {
 						element.price,
 						oracle_price,
 						&taker_order,
+						tick_precision,
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -1222,6 +1223,7 @@ pub mod pallet {
 			maker_price: FixedI128,
 			oracle_price: FixedI128,
 			taker_order: &Order,
+			tick_precision: u8,
 		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
@@ -1254,6 +1256,7 @@ pub mod pallet {
 					maker_price,
 					taker_order.direction,
 					taker_order.side,
+					tick_precision,
 				)?;
 			}
 
@@ -1319,8 +1322,10 @@ pub mod pallet {
 			execution_price: FixedI128,
 			direction: Direction,
 			side: Side,
+			tick_precision: u8,
 		) -> Result<(), Error<T>> {
-			let threshold = slippage * oracle_price;
+			let mut threshold = slippage * oracle_price;
+			threshold = threshold.round_to_precision(tick_precision.into());
 
 			if (direction == Direction::Long && side == Side::Buy) ||
 				(direction == Direction::Short && side == Side::Sell)
