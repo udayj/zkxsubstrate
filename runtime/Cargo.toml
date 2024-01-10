@@ -134,3 +134,4 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 ]
+dev = ["pallet-asset/dev"]
