@@ -202,6 +202,8 @@ pub mod pallet {
 		TradeBatchError512,
 		/// Invalid oracle price,
 		TradeBatchError513,
+		/// Taker order could not be executed since all makers do not satisfy slippage limit
+		TradeBatchError514,
 		/// Taker order is post only
 		TradeBatchError515,
 		/// FoK Orders should be filled completely
@@ -391,6 +393,7 @@ pub mod pallet {
 			let mut initial_margin_locked_short: FixedI128 =
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 			let mut min_timestamp: u64 = batch_timestamp;
+			let mut maker_error_codes = Vec::<u16>::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128;
@@ -425,8 +428,9 @@ pub mod pallet {
 						if element.order_id != taker_order.order_id {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						} else {
 							// if taker order, revert with error
@@ -459,8 +463,9 @@ pub mod pallet {
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -480,8 +485,9 @@ pub mod pallet {
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -509,6 +515,16 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == FixedI128::zero() {
+						// If all makers failed due to slippage error, it means that
+						// no orders can be currently matched with taker from OB
+						// So emit error for the taker
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							Self::deposit_event(
+								Event::OrderError { order_id: element.order_id, error_code: 514 }
+							);
+						}
 						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 						return Ok(())
 					}
@@ -531,7 +547,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
-				let is_final: bool;
+				let mut is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -563,8 +579,9 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -652,6 +669,17 @@ pub mod pallet {
 							is_final = false;
 						}
 					}
+
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
+						}
+					}
 				} else {
 					// SELL order
 					let response = Self::process_close_orders(
@@ -684,8 +712,9 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -815,6 +844,17 @@ pub mod pallet {
 							} else {
 								is_final = false;
 							}
+						}
+					}
+
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
 						}
 					}
 
@@ -1727,8 +1767,8 @@ pub mod pallet {
 			(maintenance_requirement, mark_price)
 		}
 
-		fn get_error_code(error: Error<T>) -> u16 {
-			match error {
+		fn get_error_code(error: &Error<T>) -> u16 {
+			match &error {
 				Error::<T>::TradeBatchError501 => 501,
 				Error::<T>::TradeBatchError502 => 502,
 				Error::<T>::TradeBatchError504 => 504,
@@ -1741,6 +1781,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
 				Error::<T>::TradeBatchError513 => 513,
+				Error::<T>::TradeBatchError514 => 514,
 				Error::<T>::TradeBatchError515 => 515,
 				Error::<T>::TradeBatchError516 => 516,
 				Error::<T>::TradeBatchError518 => 518,
@@ -1793,6 +1834,7 @@ pub mod pallet {
 			// Emit the SignerRemoved event
 			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
 		}
+
 		fn order_hash_check(order_id: U256, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
@@ -1807,6 +1849,19 @@ pub mod pallet {
 					false
 				}
 			}
+		}
+
+		fn are_all_errors_same(error_codes: &Vec<u16>, error_code: u16) -> bool {
+			if error_codes.len() > 0 {
+				for &code in error_codes {
+					if code != error_code {
+						return false
+					}
+				}
+			} else {
+				return false
+			}
+			true
 		}
 	}
 
