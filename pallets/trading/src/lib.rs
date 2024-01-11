@@ -517,13 +517,11 @@ pub mod pallet {
 					if quantity_to_execute == FixedI128::zero() {
 						// If all makers failed due to slippage error, it means that
 						// no orders can be currently matched with taker from OB
-						// So emit error for the taker
+						// So revert with 514
 						let are_all_slippage_errors =
 							Self::are_all_errors_same(&maker_error_codes, 506);
 						if are_all_slippage_errors {
-							Self::deposit_event(
-								Event::OrderError { order_id: element.order_id, error_code: 514 }
-							);
+							ensure!(false, Error::<T>::TradeBatchError514);
 						}
 						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 						return Ok(())

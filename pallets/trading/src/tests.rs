@@ -1772,6 +1772,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError514")]
 // Taker long buy slippage check
 fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 	let mut env = setup();
@@ -1809,10 +1810,6 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			// batch_timestamp
 			1699940367000,
 		));
-
-		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 506 }.into(),
-		);
 	});
 }
 
@@ -2575,6 +2572,7 @@ fn it_works_when_taker_limit_order_has_0_slippage() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError514")]
 // Only one maker and maker fails due to slippage error
 // Taker also should emit OrderError event
 fn it_emits_error_for_taker_for_slippage_validation() {
@@ -2612,10 +2610,6 @@ fn it_emits_error_for_taker_for_slippage_validation() {
 			// batch_timestamp
 			1699940367000,
 		));
-
-		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(202), error_code: 514 }.into(),
-		);
 	});
 }
 
