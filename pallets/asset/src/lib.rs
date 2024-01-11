@@ -27,7 +27,6 @@ pub mod pallet {
 	#[cfg(feature="dev")]
 	pub const IS_DEV_ENABLED:bool = true;
 	
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 

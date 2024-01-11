@@ -24,6 +24,12 @@ pub mod pallet {
 
 	static DELETION_LIMIT: u32 = 100;
 
+	#[cfg(not(feature = "dev"))]
+	pub const IS_DEV_ENABLED:bool = false;
+	
+	#[cfg(feature="dev")]
+	pub const IS_DEV_ENABLED:bool = true;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -60,6 +66,8 @@ pub mod pallet {
 		InvalidLeverage,
 		/// Unauthorized attempt to update markets
 		NotAdmin,
+		/// Invalid Call to dev mode only function
+		DevOnlyCall
 	}
 
 	#[pallet::event]
@@ -83,6 +91,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			markets: Vec<ExtendedMarket>,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Clear market map
@@ -130,6 +143,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_market(origin: OriginFor<T>, extended_market: ExtendedMarket) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
@@ -153,6 +171,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			extended_market: ExtendedMarket,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map
@@ -173,6 +196,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_market(origin: OriginFor<T>, id: u128) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the market exists in the storage map

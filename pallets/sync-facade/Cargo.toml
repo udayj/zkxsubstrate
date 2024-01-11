@@ -38,3 +38,4 @@ std = [
     "sp-arithmetic/std",
     "sp-runtime/std"
 ]
+dev = []

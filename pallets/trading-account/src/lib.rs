@@ -30,6 +30,12 @@ pub mod pallet {
 	use sp_arithmetic::{traits::Zero, FixedI128};
 	use sp_io::hashing::blake2_256;
 
+	#[cfg(not(feature = "dev"))]
+	pub const IS_DEV_ENABLED:bool = false;
+	
+	#[cfg(feature="dev")]
+	pub const IS_DEV_ENABLED:bool = true;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -151,6 +157,8 @@ pub mod pallet {
 		ForceClosureFlagSet,
 		/// Market does not exist
 		MarketDoesNotExist,
+		/// Invalid Call to dev mode only function
+		DevOnlyCall
 	}
 
 	#[pallet::event]
@@ -203,6 +211,11 @@ pub mod pallet {
 			collateral_id: u128,
 			amount: FixedI128,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Call the internal function to facililate the deposit
@@ -217,6 +230,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			accounts: Vec<TradingAccountMinimal>,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			let _ = ensure_signed(origin)?;
 
 			let length: u128 = u128::try_from(accounts.len()).unwrap();
@@ -268,6 +286,11 @@ pub mod pallet {
 			account_id: U256,
 			balances: Vec<BalanceUpdate>,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			let _ = ensure_signed(origin)?;
 
 			// Check if the account already exists
