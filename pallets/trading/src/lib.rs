@@ -182,6 +182,8 @@ pub mod pallet {
 		TradeBatchError501,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		TradeBatchError502,
+		// The resulting position size is larger than the max size allowed in the market
+		TradeBatchError503,
 		/// Market matched and order market are different
 		TradeBatchError504,
 		/// Order size less than min quantity
@@ -410,14 +412,13 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(
-						element,
-						oracle_price,
-						&market,
-						collateral_id,
-						current_timestamp,
-					);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -614,19 +615,18 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position =
-						Position {
-							market_id,
-							direction: element.direction,
-							avg_execution_price,
-							size: new_position_size,
-							margin_amount,
-							borrowed_amount,
-							leverage: new_leverage,
-							created_timestamp,
-							modified_timestamp: current_timestamp,
-							realized_pnl: new_realized_pnl,
-						};
+					updated_position = Position {
+						market_id,
+						direction: element.direction,
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
+						realized_pnl: new_realized_pnl,
+					};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -1372,6 +1372,13 @@ pub mod pallet {
 				average_execution_price = cumulative_order_value / cumulative_order_size;
 			}
 
+			// Get the market details
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			ensure!(
+				position_details.size + order_size <= market.maximum_position_size,
+				Error::<T>::TradeBatchError503
+			);
+
 			let leveraged_order_value = order_size * execution_price;
 			let margin_order_value = leveraged_order_value / order.leverage;
 			let amount_to_be_borrowed = leveraged_order_value - margin_order_value;
@@ -1731,6 +1738,7 @@ pub mod pallet {
 			match error {
 				Error::<T>::TradeBatchError501 => 501,
 				Error::<T>::TradeBatchError502 => 502,
+				Error::<T>::TradeBatchError503 => 503,
 				Error::<T>::TradeBatchError504 => 504,
 				Error::<T>::TradeBatchError505 => 505,
 				Error::<T>::TradeBatchError506 => 506,
@@ -1891,13 +1899,12 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			MarginInfo {
 				is_liquidation,

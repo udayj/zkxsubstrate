@@ -70,6 +70,16 @@ impl ExtendedMarket {
 
 		extended_market
 	}
+
+	pub fn set_maximum_position_size(
+		self: ExtendedMarket,
+		maximum_position_size: FixedI128,
+	) -> ExtendedMarket {
+		let mut extended_market = self;
+		extended_market.market.maximum_position_size = maximum_position_size;
+
+		extended_market
+	}
 }
 
 pub fn eth_usdc() -> ExtendedMarket {

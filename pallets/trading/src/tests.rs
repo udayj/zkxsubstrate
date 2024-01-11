@@ -273,6 +273,54 @@ fn it_works_for_open_trade_simple() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError503")]
+// should open when trying to open more than the maximum limit of position size
+fn it_reverts_for_more_than_max_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let modified_btc_usdc = btc_usdc().set_maximum_position_size(9.into());
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![modified_btc_usdc, link_usdc()]
+		));
+
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(U256::from(201), alice_id)
+			.set_size(10.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
+			.set_size(10.into())
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			10.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
 // basic open trade with leverage
 fn it_works_for_open_trade_with_leverage() {
 	let mut env = setup();
