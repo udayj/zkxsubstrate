@@ -38,10 +38,9 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
-		));
+		assert_ok!(
+			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
+		);
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
@@ -1773,6 +1772,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError514")]
 // Taker long buy slippage check
 fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 	let mut env = setup();
@@ -1810,10 +1810,6 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			// batch_timestamp
 			1699940367000,
 		));
-
-		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 506 }.into(),
-		);
 	});
 }
 
@@ -2572,5 +2568,194 @@ fn it_works_when_taker_limit_order_has_0_slippage() {
 			// batch_timestamp
 			1699940367000,
 		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError514")]
+// Only one maker and maker fails due to slippage error
+// Taker also should emit OrderError event
+fn it_emits_error_for_taker_for_slippage_validation() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+// When there are 3 makers and one maker fails with 506 and another maker fails with some other
+// error and 3rd maker executes, taker's is_final flag should be made false
+fn it_makes_taker_is_final_as_false() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(dave().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_size(3.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![
+				alice_open_order_1.clone(),
+				charlie_open_order_1,
+				dave_open_order_1,
+				bob_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		assert_has_events(vec![Event::OrderExecuted {
+			account_id: bob_id,
+			order_id: bob_open_order_1.order_id,
+			market_id,
+			size: 1.into(),
+			direction: bob_open_order_1.direction.into(),
+			side: bob_open_order_1.side.into(),
+			order_type: bob_open_order_1.order_type.into(),
+			execution_price: 102.into(),
+			pnl: 0.into(),
+			fee: 0.into(),
+			is_final: false,
+			is_maker: false,
+		}
+		.into()]);
+	});
+}
+
+#[test]
+// When there are 3 makers and one maker fails with 506
+// and other makers execute, taker's is_final flag should be made true
+fn it_makes_taker_is_final_as_true() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.sign_order(get_private_key(dave().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_size(3.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![
+				alice_open_order_1.clone(),
+				charlie_open_order_1,
+				dave_open_order_1,
+				bob_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		assert_has_events(vec![Event::OrderExecuted {
+			account_id: bob_id,
+			order_id: bob_open_order_1.order_id,
+			market_id,
+			size: 2.into(),
+			direction: bob_open_order_1.direction.into(),
+			side: bob_open_order_1.side.into(),
+			order_type: bob_open_order_1.order_type.into(),
+			execution_price: 101.into(),
+			pnl: 0.into(),
+			fee: 0.into(),
+			is_final: true,
+			is_maker: false,
+		}
+		.into()]);
 	});
 }
