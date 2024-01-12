@@ -24,8 +24,8 @@ pub mod pallet {
 			TradingAccountInterface, TradingInterface,
 		},
 		types::{
-			ABRDetails, ABRState, BalanceChangeReason, CurrentPrice, Direction, HistoricalPrice,
-			LastOraclePrice, MultiplePrices, PositionExtended,
+			ABRDetails, ABRState, BalanceChangeReason, CurrentPrice, Direction, FundModifyType,
+			HistoricalPrice, LastOraclePrice, MultiplePrices, PositionExtended,
 		},
 	};
 	use primitive_types::U256;
@@ -228,6 +228,17 @@ pub mod pallet {
 		AbrValueSet { epoch: u64, market_id: u128, abr_value: FixedI128, abr_last_price: FixedI128 },
 		/// ABR payment made successfully
 		AbrPaymentMade { epoch: u64, batch_id: u64 },
+		/// ABR payment for a user made successfully
+		UserAbrPayment {
+			account_id: U256,
+			market_id: u128,
+			collateral_id: u128,
+			abr_value: FixedI128,
+			abr_timestamp: u64,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			position_size: FixedI128,
+		},
 	}
 
 	// Pallet callable functions
@@ -808,6 +819,9 @@ pub mod pallet {
 						// Get the abr last price
 						let abr_last_price = EpochMarketToLastPriceMap::<T>::get(epoch, market_id);
 
+						// Get the abr timestamp
+						let abr_timestamp = EpochToTimestampMap::<T>::get(epoch);
+
 						// Find if the abr_rate is +ve or -ve
 						let mut payment_amount = abr_value * abr_last_price * position.size;
 						if payment_amount < FixedI128::zero() {
@@ -818,15 +832,47 @@ pub mod pallet {
 						// If the abr is negative
 						if abr_value <= FixedI128::zero() {
 							if position.direction == Direction::Short {
-								Self::user_pays(user, collateral, payment_amount);
+								Self::user_pays(
+									user,
+									collateral,
+									payment_amount,
+									abr_value,
+									abr_timestamp,
+									market_id,
+									position.size,
+								);
 							} else {
-								Self::user_receives(user, collateral, payment_amount);
+								Self::user_receives(
+									user,
+									collateral,
+									payment_amount,
+									abr_value,
+									abr_timestamp,
+									market_id,
+									position.size,
+								);
 							}
 						} else {
 							if position.direction == Direction::Short {
-								Self::user_receives(user, collateral, payment_amount);
+								Self::user_receives(
+									user,
+									collateral,
+									payment_amount,
+									abr_value,
+									abr_timestamp,
+									market_id,
+									position.size,
+								);
 							} else {
-								Self::user_pays(user, collateral, payment_amount);
+								Self::user_pays(
+									user,
+									collateral,
+									payment_amount,
+									abr_value,
+									abr_timestamp,
+									market_id,
+									position.size,
+								);
 							}
 						}
 					}
@@ -893,22 +939,60 @@ pub mod pallet {
 			return (abr_value, abr_last_price)
 		}
 
-		pub fn user_pays(user: U256, collateral: u128, payment_amount: FixedI128) {
+		pub fn user_pays(
+			user: U256,
+			collateral: u128,
+			payment_amount: FixedI128,
+			abr_value: FixedI128,
+			abr_timestamp: u64,
+			market_id: u128,
+			position_size: FixedI128,
+		) {
 			T::TradingAccountPallet::transfer_from(
 				user,
 				collateral,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
+
+			Self::deposit_event(Event::UserAbrPayment {
+				account_id: user,
+				market_id,
+				collateral_id: collateral,
+				abr_value,
+				abr_timestamp,
+				amount: payment_amount,
+				modify_type: FundModifyType::Decrease,
+				position_size,
+			});
 		}
 
-		pub fn user_receives(user: U256, collateral: u128, payment_amount: FixedI128) {
+		pub fn user_receives(
+			user: U256,
+			collateral: u128,
+			payment_amount: FixedI128,
+			abr_value: FixedI128,
+			abr_timestamp: u64,
+			market_id: u128,
+			position_size: FixedI128,
+		) {
 			T::TradingAccountPallet::transfer(
 				user,
 				collateral,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
+
+			Self::deposit_event(Event::UserAbrPayment {
+				account_id: user,
+				market_id,
+				collateral_id: collateral,
+				abr_value,
+				abr_timestamp,
+				amount: payment_amount,
+				modify_type: FundModifyType::Increase,
+				position_size,
+			});
 		}
 
 		pub fn get_epoch_of_timestamp(start_timestamp: u64) -> u64 {
