@@ -390,6 +390,28 @@ fn test_abr_calculation_btc_usdt_2() {
 }
 
 #[test]
+fn test_abr_calculation_btc_usdc_debug() {
+	// Get a test environment
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdc_debug();
+		let result = PricesModule::calculate_abr(
+			mark_prices,
+			index_prices,
+			convert_to_fixed(0.000025_f64),
+			convert_to_fixed(1.5),
+			8_usize,
+		);
+		compare_with_threshold(
+			result.0,
+			convert_to_fixed(2.5124864797511748e-05),
+			convert_to_fixed(1e-10),
+		);
+	});
+}
+
+#[test]
 fn test_abr_different_length() {
 	// Get a test environment
 	let mut env = setup();
