@@ -38,9 +38,10 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::signed(1),
 			vec![eth(), usdc(), link(), btc()]
 		));
-		assert_ok!(
-			Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc(), link_usdc()])
-		);
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![btc_usdc(), link_usdc()]
+		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
@@ -225,6 +226,10 @@ fn it_works_for_open_trade_simple() {
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, bob_position);
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
 
 		// Check for events
 		assert_has_events(vec![
@@ -454,6 +459,10 @@ fn it_works_for_close_trade_simple() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::zero());
 
 		// Check for balances
 		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 10005.into());
@@ -740,6 +749,10 @@ fn it_works_for_close_trade_partial_close() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
 
 		let alice_close_order_2 = Order::new(U256::from(205), alice_id)
 			.set_price(98.into())

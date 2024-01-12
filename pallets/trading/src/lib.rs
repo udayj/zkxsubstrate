@@ -413,14 +413,13 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(
-						element,
-						oracle_price,
-						&market,
-						collateral_id,
-						current_timestamp,
-					);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
@@ -629,19 +628,18 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position =
-						Position {
-							market_id,
-							direction: element.direction,
-							avg_execution_price,
-							size: new_position_size,
-							margin_amount,
-							borrowed_amount,
-							leverage: new_leverage,
-							created_timestamp,
-							modified_timestamp: current_timestamp,
-							realized_pnl: new_realized_pnl,
-						};
+					updated_position = Position {
+						market_id,
+						direction: element.direction,
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
+						realized_pnl: new_realized_pnl,
+					};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -921,7 +919,7 @@ pub mod pallet {
 			}
 
 			// Update open interest
-			let actual_open_interest = open_interest / 2.into();
+			let actual_open_interest = open_interest;
 			let current_open_interest = OpenInterestMap::<T>::get(market_id);
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
@@ -1944,13 +1942,12 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			MarginInfo {
 				is_liquidation,
