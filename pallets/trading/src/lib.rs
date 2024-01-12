@@ -182,6 +182,8 @@ pub mod pallet {
 		TradeBatchError501,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		TradeBatchError502,
+		/// Invalid quantity locked w.r.t step size
+		TradeBatchError503,
 		/// Market matched and order market are different
 		TradeBatchError504,
 		/// Order size less than min quantity
@@ -208,11 +210,13 @@ pub mod pallet {
 		TradeBatchError515,
 		/// FoK Orders should be filled completely
 		TradeBatchError516,
+		/// Order size is invalid w.r.t to step size
+		TradeBatchError517,
 		/// Maker order can only be limit order
 		TradeBatchError518,
 		/// Slippage must be between 0 and 15
 		TradeBatchError521,
-		/// Invalid quantity locked
+		/// Invalid quantity locked w.r.t minimum order size of market
 		TradeBatchError522,
 		/// Maker order skipped since quantity_executed = quantity_locked for the batch
 		TradeBatchError523,
@@ -363,7 +367,11 @@ pub mod pallet {
 			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
-			ensure!(quantity_locked > FixedI128::zero(), Error::<T>::TradeBatchError522);
+			ensure!(quantity_locked >= market.minimum_order_size, Error::<T>::TradeBatchError522);
+			ensure!(
+				quantity_locked.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError503
+			);
 
 			ensure!(orders.len() > 1, Error::<T>::TradeBatchError547);
 
@@ -1186,6 +1194,12 @@ pub mod pallet {
 				ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
 			}
 
+			// Validate the size of an order is multiple of step size
+			ensure!(
+				order.size.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError517
+			);
+
 			// Validate that market matched and market in order are same
 			ensure!(market.id == order.market_id, Error::<T>::TradeBatchError504);
 
@@ -1767,6 +1781,7 @@ pub mod pallet {
 			match &error {
 				Error::<T>::TradeBatchError501 => 501,
 				Error::<T>::TradeBatchError502 => 502,
+				Error::<T>::TradeBatchError503 => 503,
 				Error::<T>::TradeBatchError504 => 504,
 				Error::<T>::TradeBatchError505 => 505,
 				Error::<T>::TradeBatchError506 => 506,
@@ -1780,6 +1795,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError514 => 514,
 				Error::<T>::TradeBatchError515 => 515,
 				Error::<T>::TradeBatchError516 => 516,
+				Error::<T>::TradeBatchError517 => 517,
 				Error::<T>::TradeBatchError518 => 518,
 				Error::<T>::TradeBatchError521 => 521,
 				Error::<T>::TradeBatchError522 => 522,

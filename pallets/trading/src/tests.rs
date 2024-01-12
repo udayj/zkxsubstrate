@@ -1127,6 +1127,141 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError503")]
+// trade batch with quantity_locked is not multiple of step size
+fn it_reverts_for_trade_with_quantity_locked_is_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(2.into())
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			FixedI128::from_inner(1500000000000000000),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError517")]
+// trade batch with taker order size is not multiple of step size
+fn it_reverts_for_trade_with_taker_order_size_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(FixedI128::from_inner(1500000000000000000))
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+// trade batch with maker order size is not multiple of step size
+fn it_emits_event_for_trade_with_maker_order_size_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.set_size(FixedI128::from_inner(1500000000000000000))
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 517 }.into(),
+		);
+	});
+}
+
+#[test]
 #[should_panic(expected = "TradeBatchError524")]
 // Taker tries to close a position which is already completely closed
 fn it_reverts_when_taker_tries_to_close_already_closed_position() {
