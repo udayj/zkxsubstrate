@@ -15,7 +15,7 @@ process.nextTick(async () => {
 
   const keyring = new Keyring({ type: 'sr25519' });
   const nodeAccountKeyring = keyring.addFromUri(NODE_ACCOUNT);
-  const wsProvider = new WsProvider('wss://l3.sandbox.k8s.ntwrkx.com:443');
+  const wsProvider = new WsProvider('wss://l3.sandbox.zkx.fi:443');
   
   const api = await ApiPromise.create({
     provider: wsProvider,
