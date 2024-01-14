@@ -1298,7 +1298,7 @@ pub mod pallet {
 					taker_order.direction,
 					taker_order.side,
 				)?;
-			} else {
+			} else if taker_order.order_type == OrderType::Market {
 				// Check whether the maker price is valid with respect to taker slippage
 				Self::validate_within_slippage(
 					taker_order.slippage,
