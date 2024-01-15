@@ -151,6 +151,7 @@ fn testnet_genesis(
 			base_abr: FixedI128::from_inner(25000000000000), // 0.00025
 			bollinger_width: FixedI128::from_inner(1500000000000000000), // 1.5
 			users_per_batch: 500_u64,                        // 500
+			max_abr_default: FixedI128::from_inner(24000000000000000), // 0.024
 			_config: Default::default(),
 		},
 		sudo: SudoConfig {
