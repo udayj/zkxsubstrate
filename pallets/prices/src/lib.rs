@@ -29,7 +29,7 @@ pub mod pallet {
 		},
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 
 	// ////////////
 	// Constants //
@@ -75,6 +75,12 @@ pub mod pallet {
 	// k1 - market_id, v - CurrentPrice
 	pub(super) type CurrentPricesMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, CurrentPrice, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn max_abr)]
+	// k1 - market_id, v - Maximum ABR allowed
+	pub(super) type MaxABRPerMarket<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn historical_price)]
@@ -213,6 +219,8 @@ pub mod pallet {
 		EarlyAbrCall,
 		/// When initialisation timestamp is already set
 		InitialisationTimestampAlreadySet,
+		/// When negative max value is passed to set_max_abr
+		NegativeMaxValue,
 	}
 
 	#[pallet::event]
@@ -262,6 +270,32 @@ pub mod pallet {
 			);
 
 			InitialisationTimestamp::<T>::put(timestamp);
+			Ok(())
+		}
+
+		/// External function to be called for setting max abr per market
+		#[pallet::weight(0)]
+		pub fn set_max_abr(
+			origin: OriginFor<T>,
+			market_id: u128,
+			max_abr_value: FixedI128,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_root(origin)?;
+
+			// Check if the market exists and is tradable
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			let market = market.unwrap();
+
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
+
+			// Validate the value
+			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
+
+			// Set the given abr value
+			MaxABRPerMarket::<T>::insert(market_id, max_abr_value);
+
 			Ok(())
 		}
 
@@ -386,6 +420,12 @@ pub mod pallet {
 					Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 			}
 
+			// Validate the abr value
+			let max_abr_value = MaxABRPerMarket::<T>::get(market_id);
+
+			// If it's larger than max, use max
+			let abr_value = Self::get_adjusted_abr_value(abr_value, max_abr_value);
+
 			// Set the market's ABR status as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
 
@@ -483,6 +523,29 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn get_adjusted_abr_value(value: FixedI128, max_value: FixedI128) -> FixedI128 {
+			match max_value {
+				max if max == FixedI128::zero() => value,
+				max if Self::get_absolute_value(value) > max =>
+					if value.is_negative() {
+						-max
+					} else {
+						max
+					},
+				_ => value,
+			}
+		}
+
+		fn get_absolute_value(value: FixedI128) -> FixedI128 {
+			if value.is_negative() {
+				// If the value is negative, multiply by -1
+				-value
+			} else {
+				// If the value is positive, return it as is
+				value
+			}
+		}
+
 		pub fn get_price(market_id: u128, timestamp: u64, price: FixedI128) -> FixedI128 {
 			let market = T::MarketPallet::get_market(market_id);
 			match market {
