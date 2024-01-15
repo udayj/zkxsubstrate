@@ -13,6 +13,7 @@ use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 
 // declare test_helper module
 pub mod test_helper;
+use sp_runtime::traits::Zero;
 use test_helper::*;
 
 fn setup() -> sp_io::TestExternalities {
@@ -541,7 +542,6 @@ fn test_set_abr_value_for_already_set_market() {
 }
 
 #[test]
-#[should_panic(expected = "EmptyPriceArray")]
 fn test_set_abr_value_when_prices_array_is_empty() {
 	let mut env = setup_trading();
 
@@ -558,8 +558,13 @@ fn test_set_abr_value_when_prices_array_is_empty() {
 		Timestamp::set_timestamp(1699979078000);
 
 		// setting abr value when prices array is empty
-		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
-			.expect("Error while setting abr value");
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+
+		let epoch_to_abr_value = PricesModule::epoch_market_to_abr_value(1, btc_market_id);
+		assert_eq!(epoch_to_abr_value, FixedI128::zero());
+
+		let epoch_market_to_last_price = PricesModule::epoch_market_to_last_price(1, btc_market_id);
+		assert_eq!(epoch_market_to_last_price, FixedI128::zero());
 	});
 }
 
