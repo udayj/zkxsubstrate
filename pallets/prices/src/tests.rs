@@ -81,8 +81,7 @@ fn setup_trading() -> sp_io::TestExternalities {
 	env
 }
 
-fn set_prices(market_id: u128) {
-	let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_1();
+fn set_prices(market_id: u128, mark_prices: Vec<FixedI128>, index_prices: Vec<FixedI128>) {
 	let mut interval: u64 = 1699940278000;
 	for i in 0..mark_prices.len() {
 		let mut prices: Vec<MultiplePrices> = Vec::new();
@@ -532,7 +531,8 @@ fn test_set_abr_value_for_already_set_market() {
 		Timestamp::set_timestamp(1699979078000);
 
 		// Set mark and index prices
-		set_prices(btc_market_id);
+		let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_1();
+		set_prices(btc_market_id, mark_prices, index_prices);
 
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
 		// setting abr value for already set market
@@ -587,8 +587,10 @@ fn test_set_abr_value_with_invalid_state() {
 		Timestamp::set_timestamp(1699979078000);
 
 		// Set mark and index prices
-		set_prices(btc_market_id);
-		set_prices(eth_market_id);
+		let (mark_prices_btc, index_prices_btc) = mock_prices::get_btc_usdc_prices_1();
+		let (mark_prices_eth, index_prices_eth) = mock_prices::get_btc_usdt_prices_1();
+		set_prices(btc_market_id, mark_prices_btc, index_prices_btc);
+		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
 
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
@@ -663,8 +665,9 @@ fn test_abr_flow_for_btc_orders() {
 		assert_eq!(epoch_to_timestamp, 0);
 
 		// Set mark and index prices
-		set_prices(market_id);
-		set_prices(eth_usdc().market.id);
+		let (mark_prices_btc, index_prices_btc) = mock_prices::get_btc_usdc_prices_1();
+		set_prices(market_id, mark_prices_btc.clone(), index_prices_btc.clone());
+		set_prices(eth_usdc().market.id, mark_prices_btc, index_prices_btc);
 
 		// Compute ABR value
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), market_id));
@@ -792,8 +795,9 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 		assert_eq!(epoch_to_timestamp, 0);
 
 		// Set mark and index prices
-		set_prices(btc_market_id);
-		set_prices(eth_market_id);
+		let (mark_prices_btc, index_prices_btc) = mock_prices::get_btc_usdc_prices_1();
+		set_prices(btc_market_id, mark_prices_btc.clone(), index_prices_btc.clone());
+		set_prices(eth_market_id, mark_prices_btc, index_prices_btc);
 
 		// Compute ABR value
 		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
@@ -829,5 +833,209 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 
 		let event_record = System::events();
 		println!("Events: {:?}", event_record);
+	});
+}
+
+#[test]
+#[should_panic(expected = "Error while setting max abr: Bad Origin")]
+fn test_set_max_abr_non_admin() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_max_abr(
+			RuntimeOrigin::signed(1),
+			btc_usdc().market.id,
+			FixedI128::from_float(0.0001),
+		)
+		.expect("Error while setting max abr: Bad Origin");
+	});
+}
+
+#[test]
+#[should_panic(expected = "Error while setting max abr: Bad Origin")]
+fn test_set_max_default_abr_non_admin() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_default_max_abr(RuntimeOrigin::signed(1), FixedI128::from_float(0.0001))
+			.expect("Error while setting max abr: Bad Origin");
+	});
+}
+
+#[test]
+#[should_panic(expected = "MarketNotFound")]
+fn test_set_max_abr_invalid_market() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_max_abr(RuntimeOrigin::root(), 8213_u128, FixedI128::from_float(0.0001))
+			.expect("Error while setting max abr");
+	});
+}
+
+#[test]
+#[should_panic(expected = "MarketNotTradable")]
+fn test_set_max_abr_non_tradable_market() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			link_usdc().market.id,
+			FixedI128::from_float(0.0001),
+		)
+		.expect("Error while setting max abr");
+	});
+}
+
+#[test]
+#[should_panic(expected = "NegativeMaxValue")]
+fn test_set_default_max_abr_negative_value() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_default_max_abr(RuntimeOrigin::root(), FixedI128::from_float(-0.0001))
+			.expect("Error while setting max abr");
+	});
+}
+
+#[test]
+#[should_panic(expected = "NegativeMaxValue")]
+fn test_set_max_abr_negative_value() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			btc_usdc().market.id,
+			FixedI128::from_float(-0.0001),
+		)
+		.expect("Error while setting max abr");
+	});
+}
+
+#[test]
+fn test_set_max_abr_admin() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		assert_ok!(PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			btc_usdc().market.id,
+			FixedI128::from_float(0.0001),
+		));
+		assert_eq!(PricesModule::max_abr(btc_usdc().market.id), FixedI128::from_float(0.0001));
+	});
+}
+
+#[test]
+fn test_max_abr_flow() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		// Market_ids
+		let btc_market_id = btc_usdc().market.id;
+		let eth_market_id = eth_usdc().market.id;
+
+		// Set init time
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699969078000);
+
+		// Set max abr values
+		assert_ok!(PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			btc_market_id,
+			FixedI128::from_float(4.1e-05),
+		));
+
+		assert_ok!(PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			eth_market_id,
+			FixedI128::from_float(1.1e-04),
+		));
+
+		// Set prices
+		let (mark_prices_btc, index_prices_btc) = mock_prices::get_btc_usdc_prices_1();
+		let (mark_prices_eth, index_prices_eth) = mock_prices::get_btc_usdt_prices_1();
+		set_prices(btc_market_id, mark_prices_btc, index_prices_btc);
+		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
+
+		// Set the abr value
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+
+		// Compare the abr values
+		// Actual value is 8.83808701975073e-05
+		// It gets reduced to max value for btc market which is 4.1e-05
+		assert_eq!(
+			PricesModule::epoch_market_to_abr_value(1, btc_market_id),
+			FixedI128::from_float(4.1e-05)
+		);
+		// Actual value is -2.730150595400045e-04
+		// It gets reduced to max abs value for eth market which is -1.1e-04
+		assert_eq!(
+			PricesModule::epoch_market_to_abr_value(1, eth_market_id),
+			FixedI128::from_float(-1.1e-04)
+		);
+	});
+}
+
+#[test]
+fn test_default_max_abr_flow() {
+	let mut env = setup_trading();
+
+	env.execute_with(|| {
+		// Market_ids
+		let btc_market_id = btc_usdc().market.id;
+		let eth_market_id = eth_usdc().market.id;
+
+		// Set init time
+		assert_ok!(PricesModule::set_initialisation_timestamp(
+			RuntimeOrigin::root(),
+			1699940278000
+		));
+
+		// Change block timestamp
+		Timestamp::set_timestamp(1699969078000);
+
+		// Set max abr values
+		assert_ok!(PricesModule::set_default_max_abr(
+			RuntimeOrigin::root(),
+			FixedI128::from_float(2.5e-05),
+		));
+		assert_ok!(PricesModule::set_max_abr(
+			RuntimeOrigin::root(),
+			eth_market_id,
+			FixedI128::from_float(1.1e-04),
+		));
+
+		// Set prices
+		let (mark_prices_btc, index_prices_btc) = mock_prices::get_btc_usdc_prices_1();
+		let (mark_prices_eth, index_prices_eth) = mock_prices::get_btc_usdt_prices_1();
+		set_prices(btc_market_id, mark_prices_btc, index_prices_btc);
+		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
+
+		// Set the abr value
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+
+		// Compare the abr values
+		// Actual value is 8.83808701975073e-05
+		// It gets reduced to max value for btc market which is 4.1e-05
+		assert_eq!(
+			PricesModule::epoch_market_to_abr_value(1, btc_market_id),
+			FixedI128::from_float(2.5e-05)
+		);
+		// Actual value is -2.730150595400045e-04
+		// It gets reduced to max abs value for eth market which is -1.1e-04
+		assert_eq!(
+			PricesModule::epoch_market_to_abr_value(1, eth_market_id),
+			FixedI128::from_float(-1.1e-04)
+		);
 	});
 }
