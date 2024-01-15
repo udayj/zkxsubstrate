@@ -83,6 +83,11 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn default_max)]
+	// v - Default maximum ABR allowed
+	pub(super) type MaxABRDefault<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn historical_price)]
 	// k1 - timestamp, k2 - market_id, v - HistoricalPrice
 	pub(super) type HistoricalPricesMap<T: Config> = StorageDoubleMap<
@@ -273,6 +278,24 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// External function to be called for setting the default max abr
+		#[pallet::weight(0)]
+		pub fn set_default_max_abr(
+			origin: OriginFor<T>,
+			max_abr_value: FixedI128,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_root(origin)?;
+
+			// Validate the value
+			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
+
+			// Set the given abr value
+			MaxABRDefault::<T>::set(max_abr_value);
+
+			Ok(())
+		}
+
 		/// External function to be called for setting max abr per market
 		#[pallet::weight(0)]
 		pub fn set_max_abr(
@@ -420,11 +443,8 @@ pub mod pallet {
 					Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 			}
 
-			// Validate the abr value
-			let max_abr_value = MaxABRPerMarket::<T>::get(market_id);
-
 			// If it's larger than max, use max
-			let abr_value = Self::get_adjusted_abr_value(abr_value, max_abr_value);
+			let abr_value = Self::get_adjusted_abr_value(market_id, abr_value);
 
 			// Set the market's ABR status as true
 			AbrMarketStatusMap::<T>::insert(current_epoch, market_id, true);
@@ -523,16 +543,22 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		pub fn get_adjusted_abr_value(value: FixedI128, max_value: FixedI128) -> FixedI128 {
-			match max_value {
-				max if max == FixedI128::zero() => value,
-				max if Self::get_absolute_value(value) > max =>
-					if value.is_negative() {
-						-max
-					} else {
-						max
-					},
-				_ => value,
+		fn get_adjusted_abr_value(market_id: u128, value: FixedI128) -> FixedI128 {
+			let max_abr_value = MaxABRPerMarket::<T>::get(market_id);
+			let max = if max_abr_value == FixedI128::zero() {
+				MaxABRDefault::<T>::get()
+			} else {
+				max_abr_value
+			};
+
+			if Self::get_absolute_value(value) > max {
+				if value.is_negative() {
+					-max
+				} else {
+					max
+				}
+			} else {
+				value
 			}
 		}
 
