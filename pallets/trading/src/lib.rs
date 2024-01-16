@@ -204,15 +204,19 @@ pub mod pallet {
 		TradeBatchError512,
 		/// Invalid oracle price,
 		TradeBatchError513,
+		/// Taker order could not be executed since all makers do not satisfy slippage limit
+		TradeBatchError514,
 		/// Taker order is post only
 		TradeBatchError515,
 		/// FoK Orders should be filled completely
 		TradeBatchError516,
+		/// Order size is invalid w.r.t to step size
+		TradeBatchError517,
 		/// Maker order can only be limit order
 		TradeBatchError518,
 		/// Slippage must be between 0 and 15
 		TradeBatchError521,
-		/// Invalid quantity locked
+		/// Invalid quantity locked w.r.t minimum order size of market
 		TradeBatchError522,
 		/// Maker order skipped since quantity_executed = quantity_locked for the batch
 		TradeBatchError523,
@@ -363,7 +367,11 @@ pub mod pallet {
 			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
-			ensure!(quantity_locked > FixedI128::zero(), Error::<T>::TradeBatchError522);
+			ensure!(quantity_locked >= market.minimum_order_size, Error::<T>::TradeBatchError522);
+			ensure!(
+				quantity_locked.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError503
+			);
 
 			ensure!(orders.len() > 1, Error::<T>::TradeBatchError547);
 
@@ -393,6 +401,7 @@ pub mod pallet {
 			let mut initial_margin_locked_short: FixedI128 =
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 			let mut min_timestamp: u64 = batch_timestamp;
+			let mut maker_error_codes = Vec::<u16>::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128;
@@ -426,8 +435,9 @@ pub mod pallet {
 						if element.order_id != taker_order.order_id {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						} else {
 							// if taker order, revert with error
@@ -460,8 +470,9 @@ pub mod pallet {
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -481,8 +492,9 @@ pub mod pallet {
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -510,6 +522,14 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == FixedI128::zero() {
+						// If all makers failed due to slippage error, it means that
+						// no orders can be currently matched with taker from OB
+						// So revert with 514
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							ensure!(false, Error::<T>::TradeBatchError514);
+						}
 						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 						return Ok(())
 					}
@@ -532,7 +552,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
-				let is_final: bool;
+				let mut is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -564,8 +584,9 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -652,6 +673,17 @@ pub mod pallet {
 							is_final = false;
 						}
 					}
+
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
+						}
+					}
 				} else {
 					// SELL order
 					let response = Self::process_close_orders(
@@ -684,8 +716,9 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -818,6 +851,17 @@ pub mod pallet {
 						}
 					}
 
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
+						}
+					}
+
 					open_interest = open_interest - quantity_to_execute;
 
 					// Update initial margin locked amount map
@@ -883,7 +927,7 @@ pub mod pallet {
 			}
 
 			// Update open interest
-			let actual_open_interest = open_interest / 2.into();
+			let actual_open_interest = open_interest;
 			let current_open_interest = OpenInterestMap::<T>::get(market_id);
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
@@ -1150,6 +1194,12 @@ pub mod pallet {
 				ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
 			}
 
+			// Validate the size of an order is multiple of step size
+			ensure!(
+				order.size.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError517
+			);
+
 			// Validate that market matched and market in order are same
 			ensure!(market.id == order.market_id, Error::<T>::TradeBatchError504);
 
@@ -1248,7 +1298,7 @@ pub mod pallet {
 					taker_order.direction,
 					taker_order.side,
 				)?;
-			} else {
+			} else if taker_order.order_type == OrderType::Market {
 				// Check whether the maker price is valid with respect to taker slippage
 				Self::validate_within_slippage(
 					taker_order.slippage,
@@ -1734,8 +1784,8 @@ pub mod pallet {
 			(maintenance_requirement, mark_price)
 		}
 
-		fn get_error_code(error: Error<T>) -> u16 {
-			match error {
+		fn get_error_code(error: &Error<T>) -> u16 {
+			match &error {
 				Error::<T>::TradeBatchError501 => 501,
 				Error::<T>::TradeBatchError502 => 502,
 				Error::<T>::TradeBatchError503 => 503,
@@ -1749,8 +1799,10 @@ pub mod pallet {
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
 				Error::<T>::TradeBatchError513 => 513,
+				Error::<T>::TradeBatchError514 => 514,
 				Error::<T>::TradeBatchError515 => 515,
 				Error::<T>::TradeBatchError516 => 516,
+				Error::<T>::TradeBatchError517 => 517,
 				Error::<T>::TradeBatchError518 => 518,
 				Error::<T>::TradeBatchError521 => 521,
 				Error::<T>::TradeBatchError522 => 522,
@@ -1801,6 +1853,7 @@ pub mod pallet {
 			// Emit the SignerRemoved event
 			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
 		}
+
 		fn order_hash_check(order_id: U256, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
@@ -1815,6 +1868,19 @@ pub mod pallet {
 					false
 				}
 			}
+		}
+
+		fn are_all_errors_same(error_codes: &Vec<u16>, error_code: u16) -> bool {
+			if error_codes.len() > 0 {
+				for &code in error_codes {
+					if code != error_code {
+						return false
+					}
+				}
+			} else {
+				return false
+			}
+			true
 		}
 	}
 

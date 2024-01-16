@@ -908,7 +908,7 @@ pub mod pallet {
 					collateral_id,
 					amount: deferred_balance,
 					modify_type: FundModifyType::Increase.into(),
-					reason: BalanceChangeReason::DeferredDeposit.into(),
+					reason: BalanceChangeReason::Deposit.into(),
 					previous_balance,
 					new_balance,
 					block_number: <frame_system::Pallet<T>>::block_number(),

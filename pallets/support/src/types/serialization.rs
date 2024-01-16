@@ -238,6 +238,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	) -> Result<(), FromByteSliceError> {
 		// enum prefix
 		self.push(FieldElement::from(8_u8));
+		self.push(FieldElement::from(settings_added.event_index));
 		self.try_append_settings(&settings_added.settings)?;
 		self.push(FieldElement::from(settings_added.block_number));
 
