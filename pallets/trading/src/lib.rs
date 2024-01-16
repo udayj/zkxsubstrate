@@ -182,7 +182,7 @@ pub mod pallet {
 		TradeBatchError501,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		TradeBatchError502,
-		// The resulting position size is larger than the max size allowed in the market
+		/// Invalid quantity locked w.r.t step size
 		TradeBatchError503,
 		/// Market matched and order market are different
 		TradeBatchError504,
@@ -257,6 +257,8 @@ pub mod pallet {
 		TradeBatchError546,
 		/// Insufficient num of orders in the batch
 		TradeBatchError547,
+		// The resulting position size is larger than the max size allowed in the market
+		TradeBatchError548,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -1426,7 +1428,7 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 			ensure!(
 				position_details.size + order_size <= market.maximum_position_size,
-				Error::<T>::TradeBatchError503
+				Error::<T>::TradeBatchError548
 			);
 
 			let leveraged_order_value = order_size * execution_price;
@@ -1825,6 +1827,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError545 => 545,
 				Error::<T>::TradeBatchError546 => 546,
 				Error::<T>::TradeBatchError547 => 547,
+				Error::<T>::TradeBatchError548 => 548,
 				_ => 500,
 			}
 		}

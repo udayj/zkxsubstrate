@@ -322,7 +322,7 @@ fn it_reverts_for_more_than_max_size() {
 		));
 
 		assert_has_events(vec![
-			Event::OrderError { order_id: U256::from(201), error_code: 503 }.into()
+			Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()
 		]);
 	});
 }
