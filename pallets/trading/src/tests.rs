@@ -273,13 +273,12 @@ fn it_works_for_open_trade_simple() {
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError503")]
-// should open when trying to open more than the maximum limit of position size
+// should emit an error when trying to open more than the maximum limit of position size
 fn it_reverts_for_more_than_max_size() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		let modified_btc_usdc = btc_usdc().set_maximum_position_size(9.into());
+		let modified_btc_usdc = btc_usdc().set_maximum_position_size(2.into());
 		assert_ok!(Markets::replace_all_markets(
 			RuntimeOrigin::signed(1),
 			vec![modified_btc_usdc, link_usdc()]
@@ -294,10 +293,10 @@ fn it_reverts_for_more_than_max_size() {
 
 		// Create orders
 		let alice_order = Order::new(U256::from(201), alice_id)
-			.set_size(10.into())
+			.set_size(3.into())
 			.sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(U256::from(202), bob_id)
-			.set_size(10.into())
+			.set_size(3.into())
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -307,7 +306,7 @@ fn it_reverts_for_more_than_max_size() {
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
-			10.into(),
+			3.into(),
 			// market_id
 			market_id,
 			// oracle_price
@@ -317,6 +316,10 @@ fn it_reverts_for_more_than_max_size() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		assert_has_events(vec![
+			Event::OrderError { order_id: U256::from(201), error_code: 503 }.into()
+		]);
 	});
 }
 
