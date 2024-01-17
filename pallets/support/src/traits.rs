@@ -43,7 +43,7 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		new_position_maintanence_requirement: FixedI128,
 		new_position_margin: FixedI128,
-	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128);
+	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 	fn get_accounts_count() -> u128;
