@@ -621,11 +621,6 @@ pub mod pallet {
 			if liq_result == true {
 				return FixedI128::zero()
 			} else {
-				// let safe_amount = total_account_value - total_maintenance_requirement;
-				// if current_balance < safe_amount {
-				// 	return current_balance
-				// }
-				// safe_withdrawal_amount = safe_amount;
 				return current_balance - max(total_maintenance_requirement, margin_locked) +
 					negative_unrealized_pnl_sum
 			}
