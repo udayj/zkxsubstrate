@@ -257,6 +257,8 @@ pub mod pallet {
 		TradeBatchError546,
 		/// Insufficient num of orders in the batch
 		TradeBatchError547,
+		// The resulting position size is larger than the max size allowed in the market
+		TradeBatchError548,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -1422,6 +1424,13 @@ pub mod pallet {
 				average_execution_price = cumulative_order_value / cumulative_order_size;
 			}
 
+			// Get the market details
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			ensure!(
+				position_details.size + order_size <= market.maximum_position_size,
+				Error::<T>::TradeBatchError548
+			);
+
 			let leveraged_order_value = order_size * execution_price;
 			let margin_order_value = leveraged_order_value / order.leverage;
 			let amount_to_be_borrowed = leveraged_order_value - margin_order_value;
@@ -1818,6 +1827,7 @@ pub mod pallet {
 				Error::<T>::TradeBatchError545 => 545,
 				Error::<T>::TradeBatchError546 => 546,
 				Error::<T>::TradeBatchError547 => 547,
+				Error::<T>::TradeBatchError548 => 548,
 				_ => 500,
 			}
 		}
