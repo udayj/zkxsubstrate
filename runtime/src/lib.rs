@@ -433,6 +433,10 @@ impl_runtime_apis! {
 			// call to as_u128() will panic if value is > 2^128
 			Trading::get_fee(account_id, market_id.as_u128())
 		}
+
+		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
+			Trading::get_withdrawable_amount(account_id, collateral_id)
+		}
 	}
 
 	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {

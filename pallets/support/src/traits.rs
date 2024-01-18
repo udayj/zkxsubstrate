@@ -43,11 +43,12 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		new_position_maintanence_requirement: FixedI128,
 		new_position_margin: FixedI128,
-	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128);
+	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 	fn get_accounts_count() -> u128;
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
+	fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn update_and_get_cumulative_volume(
 		account_id: U256,
 		market_id: u128,
@@ -72,6 +73,7 @@ pub trait TradingInterface {
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
+	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 }
 
 pub trait AssetInterface {

@@ -5221,6 +5221,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-blockchain",
  "sp-runtime",
 ]
@@ -5233,6 +5234,7 @@ dependencies = [
  "pallet-support",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

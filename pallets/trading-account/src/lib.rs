@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{get_day_diff, shift_and_recompute, sig_u256_to_sig_felt},
+		helpers::{get_day_diff, max, shift_and_recompute, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
 			TradingAccountInterface, TradingInterface, U256Ext,
@@ -27,7 +27,7 @@ pub mod pallet {
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{traits::Zero, FixedI128};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 	use sp_io::hashing::blake2_256;
 
 	#[pallet::pallet]
@@ -475,8 +475,9 @@ pub mod pallet {
 			account_id: U256,
 			new_position_maintanence_requirement: FixedI128,
 			markets: Vec<u128>,
-		) -> (FixedI128, FixedI128) {
-			let mut unrealized_pnl_sum: FixedI128 = 0.into();
+		) -> (FixedI128, FixedI128, FixedI128) {
+			let mut unrealized_pnl_sum: FixedI128 = FixedI128::zero();
+			let mut negative_unrealized_pnl_sum = FixedI128::zero();
 			let mut maintenance_margin_requirement: FixedI128 =
 				new_position_maintanence_requirement;
 			for curr_market_id in markets {
@@ -492,7 +493,7 @@ pub mod pallet {
 				let mark_price = T::PricesPallet::get_mark_price(curr_market_id);
 
 				if mark_price == FixedI128::zero() {
-					return (0.into(), 0.into())
+					return (0.into(), 0.into(), 0.into())
 				}
 
 				let long_maintanence_requirement;
@@ -529,11 +530,19 @@ pub mod pallet {
 
 				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
 
+				if short_pnl < FixedI128::zero() {
+					negative_unrealized_pnl_sum = negative_unrealized_pnl_sum + short_pnl;
+				}
+
+				if long_pnl < FixedI128::zero() {
+					negative_unrealized_pnl_sum = negative_unrealized_pnl_sum + long_pnl;
+				}
+
 				maintenance_margin_requirement = maintenance_margin_requirement +
 					short_maintanence_requirement +
 					long_maintanence_requirement;
 			}
-			return (unrealized_pnl_sum, maintenance_margin_requirement)
+			return (unrealized_pnl_sum, maintenance_margin_requirement, negative_unrealized_pnl_sum)
 		}
 
 		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
@@ -581,17 +590,20 @@ pub mod pallet {
 		fn calculate_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128 {
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+			let margin_locked: FixedI128 = LockedMarginMap::<T>::get(account_id, collateral_id);
+
 			if current_balance <= FixedI128::zero() {
 				return FixedI128::zero()
 			}
 
-			let (liq_result, total_account_value, _, _, total_maintenance_requirement) =
-				Self::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			let (
+				liq_result,
+				total_account_value,
+				_,
+				_,
+				total_maintenance_requirement,
+				negative_unrealized_pnl_sum,
+			) = Self::get_margin_info(account_id, collateral_id, FixedI128::zero(), FixedI128::zero());
 
 			// if TMR == 0, it means that market price is not within TTL, so user should be possible
 			// to withdraw whole balance
@@ -605,19 +617,13 @@ pub mod pallet {
 				return FixedI128::zero()
 			}
 
-			let safe_withdrawal_amount;
 			// Returns 0, if the position is to be deleveraged or liquiditable
 			if liq_result == true {
-				safe_withdrawal_amount = FixedI128::zero();
+				return FixedI128::zero()
 			} else {
-				let safe_amount = total_account_value - total_maintenance_requirement;
-				if current_balance < safe_amount {
-					return current_balance
-				}
-				safe_withdrawal_amount = safe_amount;
+				return current_balance - max(total_maintenance_requirement, margin_locked) +
+					negative_unrealized_pnl_sum
 			}
-
-			safe_withdrawal_amount
 		}
 	}
 
@@ -739,7 +745,7 @@ pub mod pallet {
 			collateral_id: u128,
 			new_position_maintanence_requirement: FixedI128,
 			new_position_margin: FixedI128,
-		) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128) {
+		) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128) {
 			// Get markets corresponding of the collateral
 			let markets: Vec<u128> =
 				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
@@ -758,14 +764,16 @@ pub mod pallet {
 					available_margin,   // available_margin
 					0.into(),           // unrealized_pnl_sum
 					0.into(),           // maintenance_margin_requirement
+					0.into(),           // negative_unrealized_pnl_sum
 				)
 			}
 
-			let (unrealized_pnl_sum, maintenance_margin_requirement) = Self::calculate_margin_info(
-				account_id,
-				new_position_maintanence_requirement,
-				markets,
-			);
+			let (unrealized_pnl_sum, maintenance_margin_requirement, negative_unrealized_pnl_sum) =
+				Self::calculate_margin_info(
+					account_id,
+					new_position_maintanence_requirement,
+					markets,
+				);
 
 			// Add the new position's margin
 			let total_initial_margin_sum = initial_margin_sum + new_position_margin;
@@ -789,6 +797,7 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
+				negative_unrealized_pnl_sum,
 			)
 		}
 
@@ -924,6 +933,10 @@ pub mod pallet {
 
 		fn get_collaterals_of_user(account_id: U256) -> Vec<u128> {
 			AccountCollateralsMap::<T>::get(account_id)
+		}
+
+		fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128 {
+			Self::calculate_amount_to_withdraw(account_id, collateral_id)
 		}
 
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days'

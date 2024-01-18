@@ -7,6 +7,7 @@ use pallet_support::types::{AccountInfo, FeeRates, MarginInfo, PositionExtended}
 pub use pallet_trading_runtime_api::TradingApi as TradingRuntimeApi;
 use primitive_types::U256;
 use sp_api::ProvideRuntimeApi;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
@@ -52,6 +53,14 @@ pub trait TradingApi<BlockHash> {
 		market_id: U256,
 		at: Option<BlockHash>,
 	) -> RpcResult<(FeeRates, u64)>;
+
+	#[method(name = "trading_get_withdrawable_amount")]
+	fn get_withdrawable_amount(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<BlockHash>,
+	) -> RpcResult<FixedI128>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -136,6 +145,19 @@ where
 		let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
 		api.get_fee(at, account_id, market_id).map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_withdrawable_amount(
+		&self,
+		account_id: U256,
+		collateral_id: u128,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<FixedI128> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_withdrawable_amount(at, account_id, collateral_id)
+			.map_err(runtime_error_into_rpc_err)
 	}
 }
 

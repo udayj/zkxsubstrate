@@ -195,12 +195,13 @@ pub mod pallet {
 			let leveraged_position_value = execution_price * size;
 			let maintenance_requirement = req_margin_fraction * leveraged_position_value;
 
-			let (liq_result, _, available_margin, _, _) = T::TradingAccountPallet::get_margin_info(
-				order.account_id,
-				market.asset_collateral,
-				maintenance_requirement,
-				margin_amount,
-			);
+			let (liq_result, _, available_margin, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					order.account_id,
+					market.asset_collateral,
+					maintenance_requirement,
+					margin_amount,
+				);
 
 			let mut is_error: bool = false;
 			if liq_result == true {
@@ -226,12 +227,13 @@ pub mod pallet {
 			_market_id: u128,
 			_direction: Direction,
 		) {
-			let (liq_result, _, _, _, _) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+			let (liq_result, _, _, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			if liq_result == true {
 				// DELEVERAGE REMOVED
