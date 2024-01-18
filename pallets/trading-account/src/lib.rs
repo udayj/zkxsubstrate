@@ -935,6 +935,10 @@ pub mod pallet {
 			AccountCollateralsMap::<T>::get(account_id)
 		}
 
+		fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128 {
+			Self::calculate_amount_to_withdraw(account_id, collateral_id)
+		}
+
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days'
 		// volume) and returns the current last 30 days volume not including the present day volume
 		// This function is meant to be called only during trade execution and hence volume vector

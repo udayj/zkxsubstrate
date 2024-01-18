@@ -2064,5 +2064,9 @@ pub mod pallet {
 
 			(fee_rates, expires_at)
 		}
+
+		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
+			T::TradingAccountPallet::get_amount_to_withdraw(account_id, collateral_id)
+		}
 	}
 }
