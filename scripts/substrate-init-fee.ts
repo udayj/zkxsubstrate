@@ -11,122 +11,6 @@ enum OrderSide {
   Maker,
   Taker,
 }
-const substrateTypes = {
-  Side: {
-    _enum: ["BUY", "SELL"],
-  },
-  Direction: {
-    _enum: ["LONG", "SHORT"],
-  },
-  ForceClosureFlag: {
-    _enum: ["DELEVERAGE", "LIQUIDATE"],
-  },
-  Position: {
-    market_id: "u256",
-    direction: "Direction",
-    side: "Side",
-    avg_execution_price: "FixedI128",
-    size: "FixedI128",
-    margin_amount: "FixedI128",
-    borrowed_amount: "FixedI128",
-    leverage: "FixedI128",
-    realized_pnl: "FixedI128",
-  },
-  PositionExtended: {
-    market_id: "u256",
-    direction: "Direction",
-    side: "Side",
-    avg_execution_price: "FixedI128",
-    size: "FixedI128",
-    margin_amount: "FixedI128",
-    borrowed_amount: "FixedI128",
-    leverage: "FixedI128",
-    realized_pnl: "FixedI128",
-    maintenance_margin: "FixedI128",
-    market_price: "FixedI128",
-  },
-  DeleveragablePosition: {
-    market_id: "u256",
-    direction: "Direction",
-    amount_to_be_sold: "FixedI128",
-  },
-  AccountInfo: {
-    available_margin: "FixedI128",
-    total_margin: "FixedI128",
-    collateral_balance: "FixedI128",
-    force_closure_flag: "Option<ForceClosureFlag>",
-    positions: "Vec<PositionExtended>",
-    deleveragable_position: "Option<DeleveragablePosition>",
-  },
-  FeeRates: {
-    maker_buy: "FixedI128",
-    maker_sell: "FixedI128",
-    taker_buy: "FixedI128",
-    taker_sell: "FixedI128",
-  },
-};
-const substrateRpcFunctions = {
-  trading: {
-    get_positions: {
-      description: "Get positions rpc method",
-      type: "Vec<Position>",
-      params: [
-        {
-          name: "account_id",
-          type: "u256",
-        },
-        {
-          name: "collateral_id",
-          type: "u128",
-        },
-        {
-          name: "at",
-          type: "Hash",
-          isOptional: true,
-        },
-      ],
-    },
-    get_account_info: {
-      description: "Get account info",
-      type: "AccountInfo",
-      params: [
-        {
-          name: "account_id",
-          type: "u256",
-        },
-        {
-          name: "collateral_id",
-          type: "u128",
-        },
-        {
-          name: "at",
-          type: "Hash",
-          isOptional: true,
-        },
-      ],
-    },
-    get_fee: {
-      description: "Get fee",
-      type: "(FeeRates, u64)",
-      params: [
-        {
-          name: "account_id",
-          type: "u256",
-        },
-        {
-          name: "market_id",
-          type: "u256",
-        },
-        {
-          name: "at",
-          type: "Hash",
-          isOptional: true,
-        },
-      ],
-    },
-  },
-};
-
 (async () => {
   await cryptoWaitReady();
   const NODE_ACCOUNT = "//Alice";
@@ -142,8 +26,6 @@ const substrateRpcFunctions = {
 
   const api = await ApiPromise.create({
     provider: wsProvider,
-    types: substrateTypes,
-    rpc: substrateRpcFunctions,
   });
 
   await updateBaseFees({
