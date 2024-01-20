@@ -793,11 +793,9 @@ pub mod pallet {
 						if opposite_position.size == FixedI128::zero() {
 							let mut markets =
 								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
-							for index in 0..markets.len() {
-								if markets[index] == market_id {
-									markets.remove(index);
-								}
-							}
+
+							markets.retain(|&market| market != market_id);
+
 							CollateralToMarketMap::<T>::insert(
 								&element.account_id,
 								collateral_id,
