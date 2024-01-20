@@ -4,7 +4,7 @@ use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, bob, charlie, dave, get_private_key, get_trading_account_id},
 		asset_helper::{btc, eth, link, usdc},
-		market_helper::{btc_usdc, link_usdc},
+		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
 	types::{Direction, Order, OrderSide, OrderType, Position, Side},
@@ -40,7 +40,7 @@ fn setup() -> sp_io::TestExternalities {
 		));
 		assert_ok!(Markets::replace_all_markets(
 			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
+			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
@@ -321,9 +321,9 @@ fn it_reverts_for_more_than_max_size() {
 			1699940367000,
 		));
 
-		assert_has_events(vec![
-			Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()
-		]);
+		assert_has_events(
+			vec![Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()]
+		);
 	});
 }
 
@@ -2956,5 +2956,110 @@ fn it_makes_taker_is_final_as_true() {
 			is_maker: false,
 		}
 		.into()]);
+	});
+}
+
+#[test]
+// open positions in 2 markets and close position in one market
+fn it_works_for_multiple_open_and_single_close_trade() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// Open order for BTC-USDC
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Open order for ETH-USDC
+		let market_id = eth_usdc().market.id;
+
+		let alice_open_order = Order::new(U256::from(205), alice_id)
+			.set_price(10.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let charlie_open_order = Order::new(U256::from(206), charlie_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_price(10.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(3_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			10.into(),
+			// orders
+			vec![alice_open_order.clone(), charlie_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Close orders
+		let market_id = btc_usdc().market.id;
+
+		let alice_close_order = Order::new(U256::from(203), alice_id)
+			.set_side(Side::Sell)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order = Order::new(U256::from(204), bob_id)
+			.set_side(Side::Sell)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			105.into(),
+			// orders
+			vec![alice_close_order.clone(), bob_close_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		let markets = Trading::collateral_to_market(alice_id, usdc().asset.id);
+		assert_eq!(markets, vec![eth_usdc().market.id]);
 	});
 }
