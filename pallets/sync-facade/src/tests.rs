@@ -3,13 +3,13 @@ use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
 		asset_helper::{btc, eth, usdc, usdt},
-		market_helper::eth_usdc,
+		market_helper::{btc_usdc, eth_usdc},
 	},
 	traits::FieldElementExt,
 	types::{
-		Asset, AssetRemoved, AssetUpdated, ExtendedAsset, MarketRemoved, MarketUpdated, QuorumSet,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, MarketRemoved, MarketUpdated,
+		OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
+		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -47,6 +47,20 @@ fn get_signers() -> Vec<U256> {
 		U256::from("0xa81ba5d1b269c7de0a41e84ef33ad200b961dccb98903d6590146af52ac440"),
 		U256::from("0x45ccf172479eb092964e292477217b9efbb4f393706948b55ab8801eeef5752"),
 	]
+}
+
+fn compare_base_fees(
+	asset_id: u128,
+	side: Side,
+	order_side: OrderSide,
+	expected_values: Vec<BaseFee>,
+) {
+	for (iterator, expected_fee) in (1..=expected_values.len() as u8).zip(expected_values) {
+		assert!(
+			TradingFees::base_fee_tier(asset_id, (iterator, side, order_side)) == expected_fee,
+			"Mismatch fees"
+		);
+	}
 }
 
 fn setup() -> sp_io::TestExternalities {
@@ -227,6 +241,74 @@ fn sync_add_signer_events() {
 }
 
 #[test]
+fn sync_add_multiple_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(1, get_signers()[1], 1337);
+	let add_signer_event_2 = <SignerAdded as SignerAddedTrait>::new(2, get_signers()[2], 1337);
+	let add_signer_event_3 = <SignerAdded as SignerAddedTrait>::new(2, get_signers()[3], 1337);
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+	events_batch.add_signer_added_event(add_signer_event_2);
+	events_batch.add_signer_added_event(add_signer_event_3);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 4);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..4]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[2]), true);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[3]), true);
+	});
+}
+
+#[test]
+fn sync_add_duplicate_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let add_signer_event_1 = <SignerAdded as SignerAddedTrait>::new(1, get_signers()[0], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_added_event(add_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), get_signers()[0..1]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+
+		System::assert_has_event(Event::SignerAddedError { pub_key: get_signers()[0] }.into());
+	});
+}
+
+#[test]
 fn sync_update_asset_event_add_asset() {
 	// Get a test environment
 	let mut env = setup();
@@ -235,6 +317,7 @@ fn sync_update_asset_event_add_asset() {
 		1,
 		btc().asset.id,
 		btc().asset,
+		btc().asset_addresses,
 		BoundedVec::<u8, ConstU32<256>>::new(),
 		1337,
 	);
@@ -258,6 +341,93 @@ fn sync_update_asset_event_add_asset() {
 
 		assert_eq!(Assets::assets_count(), 3);
 		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
+	});
+}
+
+#[test]
+fn sync_update_asset_event_multiple_add_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
+		1,
+		btc().asset.id,
+		btc().asset,
+		btc().asset_addresses,
+		btc().metadata_url,
+		1337,
+	);
+
+	let update_asset_event_2 = <AssetUpdated as AssetUpdatedTrait>::new(
+		2,
+		eth().asset.id,
+		eth().asset,
+		eth().asset_addresses,
+		eth().metadata_url,
+		1337,
+	);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_asset_updated_event(update_asset_event_1);
+	events_batch.add_asset_updated_event(update_asset_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating asset");
+
+		assert_eq!(Assets::assets_count(), 4);
+		assert_eq!(Assets::assets(usdt().asset.id).unwrap(), usdt());
+		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
+		assert_eq!(Assets::assets(btc().asset.id).unwrap(), btc());
+		assert_eq!(Assets::assets(eth().asset.id).unwrap(), eth());
+	});
+}
+
+#[test]
+fn sync_asset_event_add_asset_remove_asset() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_asset_event_1 = <AssetUpdated as AssetUpdatedTrait>::new(
+		1,
+		btc().asset.id,
+		btc().asset,
+		btc().asset_addresses,
+		BoundedVec::<u8, ConstU32<256>>::new(),
+		1337,
+	);
+
+	let remove_asset_event_1 = <AssetRemoved as AssetRemovedTrait>::new(2, btc().asset.id, 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_asset_updated_event(update_asset_event_1);
+	events_batch.add_asset_removed_event(remove_asset_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating asset");
+
+		assert_eq!(Assets::assets_count(), 2);
 	});
 }
 
@@ -293,6 +463,51 @@ fn sync_update_market_event_add_market() {
 
 		assert_eq!(Markets::markets_count(), 1);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+	});
+}
+
+#[test]
+fn sync_update_market_event_multiple_add_market() {
+	// Get a test environment
+	let mut env = setup();
+
+	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
+		1,
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
+		1337,
+	);
+
+	let update_market_event_2 = <MarketUpdated as MarketUpdatedTrait>::new(
+		2,
+		btc_usdc().market.id,
+		btc_usdc().market,
+		btc_usdc().metadata_url.clone(),
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_updated_event(update_market_event_1);
+	events_batch.add_market_updated_event(update_market_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while updating market");
+
+		assert_eq!(Markets::markets_count(), 2);
+		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+		assert_eq!(Markets::markets(btc_usdc().market.id).unwrap(), btc_usdc());
 	});
 }
 
@@ -476,6 +691,7 @@ fn sync_update_asset_event_bump_asset() {
 	let usdc_asset = usdc();
 	let modified_usdc_asset = ExtendedAsset {
 		asset: Asset { is_collateral: false, version: 2, ..usdc_asset.asset },
+		asset_addresses: usdc_asset.asset_addresses.clone(),
 		metadata_url: usdc_asset.metadata_url.clone(),
 	};
 
@@ -483,6 +699,7 @@ fn sync_update_asset_event_bump_asset() {
 		1,
 		modified_usdc_asset.asset.id,
 		modified_usdc_asset.asset.clone(),
+		usdc_asset.asset_addresses.clone(),
 		usdc_asset.metadata_url.clone(),
 		1337,
 	);
@@ -700,12 +917,93 @@ fn sync_remove_signer_events() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while removing signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
+	});
+}
+
+#[test]
+fn sync_remove_signer_insufficient_quorum_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	let remove_signer_event_1 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[0], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_removed_event(remove_signer_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while removing signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
+
+		System::assert_has_event(Event::SignerRemovedQuorumError { quorum: 1 }.into());
+	});
+}
+
+#[test]
+fn sync_remove_multiple_signer_events() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Add a signer that can be removed using sync events
+	env.execute_with(|| {
+		// Add a signer
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
+		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[2]).expect("Error in code");
+	});
+
+	let remove_signer_event_1 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[0], 1337);
+	let remove_signer_event_2 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[1], 1337);
+	let remove_signer_event_3 =
+		<SignerRemoved as SignerRemovedTrait>::new(1, get_signers()[2], 1337);
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_signer_removed_event(remove_signer_event_1);
+	events_batch.add_signer_removed_event(remove_signer_event_2);
+	events_batch.add_signer_removed_event(remove_signer_event_3);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while removing signer");
+
+		assert_eq!(SyncFacade::signers().len(), 1);
+		assert_eq!(SyncFacade::signers(), vec![get_signers()[2]]);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), false);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
+		assert_eq!(SyncFacade::is_signer_valid(get_signers()[2]), true);
+
+		System::assert_has_event(Event::SignerRemovedQuorumError { quorum: 1 }.into());
 	});
 }
 
@@ -809,6 +1107,376 @@ fn sync_deposit_events() {
 		assert_eq!(alice_balance, deposit_event_1.amount);
 		assert_eq!(bob_balance, deposit_event_2.amount);
 		assert_eq!(SyncFacade::get_sync_state(), (1337, 2, events_batch_hash.to_u256()));
+	});
+}
+
+#[test]
+fn sync_settings_event_usdc() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		// Check if the fees were set successfully
+		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
+		compare_base_fees(
+			usdc().asset.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_usdc_maker_close_fees(),
+		);
+		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
+		compare_base_fees(
+			usdc().asset.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_usdc_taker_close_fees(),
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		// Check if the fees were set successfully
+		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
+		compare_base_fees(
+			usdt().asset.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_usdt_maker_close_fees(),
+		);
+		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
+		compare_base_fees(
+			usdt().asset.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_usdt_taker_close_fees(),
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_multiple_collaterals() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	let usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
+
+	for setting in usdt_fees.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		// Check if the fees were set successfully
+		// USDT
+		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
+		compare_base_fees(
+			usdt().asset.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_usdt_maker_close_fees(),
+		);
+		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
+		compare_base_fees(
+			usdt().asset.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_usdt_taker_close_fees(),
+		);
+
+		// USDT
+		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
+		compare_base_fees(
+			usdc().asset.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_usdc_maker_close_fees(),
+		);
+		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
+		compare_base_fees(
+			usdc().asset.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_usdc_taker_close_fees(),
+		);
+	});
+}
+
+#[test]
+fn sync_settings_invalid_key_general_settings_type() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	usdc_fees.settings[0].key = U256::from(337046609303792675741519_i128);
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::SettingsKeyError { key: 71 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_invalid_key_unknown_settings_type() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	usdc_fees.settings[0].key = U256::from(379547907649619482664783_i128);
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::SettingsKeyError { key: 80 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_invalid_key_order_side_key() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	usdc_fees.settings[0].key = U256::from(332324242820850015559503_i128);
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::SettingsKeyError { key: 76 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_invalid_key_maker_side_key() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	usdc_fees.settings[0].key = U256::from(332324242820850015625050_i128);
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::SettingsKeyError { key: 90 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_invalid_key_taker_side_key() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
+	usdc_fees.settings[0].key = U256::from(332324242820850016083794_i128);
+	events_batch.add_settings_event(usdc_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::SettingsKeyError { key: 82 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_event_insuffient_data_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut modified_usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
+	modified_usdt_fees.settings.pop();
+	events_batch.add_settings_event(modified_usdt_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+		System::assert_has_event(Event::InsufficientFeeData { asset_id: usdt().asset.id }.into());
+	});
+}
+
+#[test]
+fn sync_settings_event_invalid_key_pattern() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut modified_usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
+	modified_usdt_fees.settings[0].key = U256::from(5070865521559494477_i128);
+	events_batch.add_settings_event(modified_usdt_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+		System::assert_has_event(
+			Event::TokenParsingError { key: U256::from(5070865521559494477_i128) }.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_invalid_length_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut modified_usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
+	modified_usdt_fees.settings[0].values.pop();
+	modified_usdt_fees.settings[0].values.pop();
+	events_batch.add_settings_event(modified_usdt_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding signer");
+
+		System::assert_has_event(Event::FeeDataLengthMismatch { asset_id: usdt().asset.id }.into());
 	});
 }
 

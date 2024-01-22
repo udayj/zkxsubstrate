@@ -4621,6 +4621,7 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus-aura",
@@ -4671,6 +4672,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-block-builder",
  "sp-consensus-aura",
  "sp-consensus-grandpa",
@@ -5008,6 +5010,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
 ]
 
 [[package]]
@@ -5021,6 +5024,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-blockchain",
  "sp-runtime",
 ]
@@ -5033,6 +5037,7 @@ dependencies = [
  "pallet-support",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5180,6 +5185,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v1.0.0)",
  "starknet-crypto",
 ]
 
@@ -5236,6 +5242,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-blockchain",
  "sp-runtime",
 ]
@@ -5248,6 +5255,7 @@ dependencies = [
  "pallet-support",
  "primitive-types",
  "sp-api",
+ "sp-arithmetic 16.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

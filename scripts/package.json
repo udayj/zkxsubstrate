@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@polkadot/api": "^10.9.1",
+    "@polkadot/keyring": "^12.3.2",
+    "@polkadot/util-crypto": "^12.3.2",
+    "bignumber.js": "^9.1.1"
+  },
+  "scripts": {
+    "start": "ts-node after-drop-data.ts"
+  },
+  "devDependencies": {
+    "dotenv": "^16.3.1",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0"
+  }
+}

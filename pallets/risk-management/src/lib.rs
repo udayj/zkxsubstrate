@@ -21,8 +21,8 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{traits::Zero, FixedI128};
 
-	static TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
-	static TWO_POINT_FIVE_FI128: FixedI128 = FixedI128::from_inner(2500000000000000000);
+	static _TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
+	static _TWO_POINT_FIVE_FI128: FixedI128 = FixedI128::from_inner(2500000000000000000);
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -36,7 +36,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		fn is_account_deleveragable(
+		fn _is_account_deleveragable(
 			account_id: U256,
 			collateral_id: u128,
 			market_id: u128,
@@ -58,7 +58,7 @@ pub mod pallet {
 					T::TradingPallet::get_position(account_id, market, Direction::Short);
 
 				if long_position.size != FixedI128::zero() {
-					Self::calculate_tav_and_tmr(
+					Self::_calculate_tav_and_tmr(
 						&mut total_account_value,
 						&mut total_maintenance_margin,
 						long_position,
@@ -66,7 +66,7 @@ pub mod pallet {
 					)
 				}
 				if short_position.size != FixedI128::zero() {
-					Self::calculate_tav_and_tmr(
+					Self::_calculate_tav_and_tmr(
 						&mut total_account_value,
 						&mut total_maintenance_margin,
 						short_position,
@@ -95,7 +95,7 @@ pub mod pallet {
 					position.avg_execution_price - mark_price
 				};
 
-				if (price_diff >= FixedI128::zero()) || position.leverage <= TWO_FI128 {
+				if (price_diff >= FixedI128::zero()) || position.leverage <= _TWO_FI128 {
 					return (true, FixedI128::zero())
 				}
 
@@ -114,7 +114,7 @@ pub mod pallet {
 				let leverage_after_deleveraging = remaining_position_value / position.margin_amount;
 
 				if leverage_after_deleveraging <= 2.into() {
-					let new_size = (TWO_FI128 * position.margin_amount) / mark_price;
+					let new_size = (_TWO_FI128 * position.margin_amount) / mark_price;
 					let amount_to_be_sold = position.size - new_size;
 					let amount_to_be_sold =
 						amount_to_be_sold.round_to_precision(market.step_precision.into());
@@ -127,19 +127,19 @@ pub mod pallet {
 			}
 		}
 
-		fn calculate_tav_and_tmr(
+		fn _calculate_tav_and_tmr(
 			total_account_value: &mut FixedI128,
 			total_maintenance_margin: &mut FixedI128,
 			position: Position,
 			price: FixedI128,
 		) {
 			let (position_value, maintenance_margin) =
-				Self::is_position_deleveragable(position, price);
+				Self::_is_position_deleveragable(position, price);
 			*total_account_value = *total_account_value + position_value;
 			*total_maintenance_margin = *total_maintenance_margin + maintenance_margin;
 		}
 
-		fn is_position_deleveragable(
+		fn _is_position_deleveragable(
 			position: Position,
 			price: FixedI128,
 		) -> (FixedI128, FixedI128) {
@@ -161,7 +161,7 @@ pub mod pallet {
 			// Sell the position such that resulting leverage is 2.5
 			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
 			if pnl < FixedI128::zero() {
-				let new_size = (TWO_POINT_FIVE_FI128 * position.margin_amount) / price;
+				let new_size = (_TWO_POINT_FIVE_FI128 * position.margin_amount) / price;
 				let new_size = new_size.round_to_precision(market.step_precision.into());
 				let value_to_sell = (position.size - new_size) * price;
 				// Calculate the new borrowed amount if the total position size is
@@ -195,12 +195,13 @@ pub mod pallet {
 			let leveraged_position_value = execution_price * size;
 			let maintenance_requirement = req_margin_fraction * leveraged_position_value;
 
-			let (liq_result, _, available_margin, _, _) = T::TradingAccountPallet::get_margin_info(
-				order.account_id,
-				market.asset_collateral,
-				maintenance_requirement,
-				margin_amount,
-			);
+			let (liq_result, _, available_margin, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					order.account_id,
+					market.asset_collateral,
+					maintenance_requirement,
+					margin_amount,
+				);
 
 			let mut is_error: bool = false;
 			if liq_result == true {
@@ -223,37 +224,27 @@ pub mod pallet {
 		fn check_for_force_closure(
 			account_id: U256,
 			collateral_id: u128,
-			market_id: u128,
-			direction: Direction,
+			_market_id: u128,
+			_direction: Direction,
 		) {
-			let (liq_result, _, _, _, _) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+			let (liq_result, _, _, _, _, _) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			if liq_result == true {
-				let (is_deleveragable, amount_to_be_sold) =
-					Self::is_account_deleveragable(account_id, collateral_id, market_id, direction);
-				if is_deleveragable {
-					if amount_to_be_sold == FixedI128::zero() {
-						return
-					}
-					T::TradingPallet::set_flags_for_force_orders(
-						account_id,
-						collateral_id,
-						ForceClosureFlag::Deleverage,
-						amount_to_be_sold,
-					);
-				} else {
-					T::TradingPallet::set_flags_for_force_orders(
-						account_id,
-						collateral_id,
-						ForceClosureFlag::Liquidate,
-						FixedI128::zero(),
-					);
-				}
+				// DELEVERAGE REMOVED
+				// Removed call to is_account_deleveragable
+				// Removed if condition of the previous call to set deleveragable flag
+				T::TradingPallet::set_flags_for_force_orders(
+					account_id,
+					collateral_id,
+					ForceClosureFlag::Liquidate,
+					FixedI128::zero(),
+				);
 			}
 		}
 	}

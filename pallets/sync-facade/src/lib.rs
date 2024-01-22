@@ -10,19 +10,26 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use frame_support::{dispatch::Vec, pallet_prelude::*};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{OptionQuery, *},
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
 		helpers::compute_hash_on_elements,
 		traits::{
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
-			TradingAccountInterface, U256Ext,
+			TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
-		types::{ExtendedAsset, ExtendedMarket, SyncSignature, UniversalEvent},
+		types::{
+			BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide, Setting,
+			SettingsType, Side, SyncSignature, UniversalEvent,
+		},
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
+	use sp_arithmetic::fixed_point::FixedI128;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -33,6 +40,7 @@ pub mod pallet {
 		type TradingAccountPallet: TradingAccountInterface;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
+		type TradingFeesPallet: TradingFeesInterface;
 	}
 
 	#[pallet::storage]
@@ -58,6 +66,22 @@ pub mod pallet {
 	pub(super) type LastProcessed<T: Config> = StorageValue<_, (u64, u32, U256), ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn get_temp_fees)]
+	pub(super) type TempFeesMap<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		u128,
+		Twox64Concat,
+		FeeSettingsType,
+		Vec<FixedI128>,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn get_temp_assets)]
+	pub(super) type TempAssetsMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, bool>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn get_signers_quorum)]
 	// v - No of signers required for quorum
 	pub(super) type SignersQuorum<T: Config> = StorageValue<_, u8, ValueQuery>;
@@ -75,12 +99,24 @@ pub mod pallet {
 		MarketRemovedError { id: u128 },
 		/// An invalid request to remove non-existent asset
 		AssetRemovedError { id: u128 },
+		/// An invalid request to add a duplicate signer
+		SignerAddedError { pub_key: U256 },
 		/// An invalid request to remove non-existent signer
 		SignerRemovedError { pub_key: U256 },
+		/// An invalid request to remove signer; leads to insufficient signers
+		SignerRemovedQuorumError { quorum: u8 },
 		/// An invalid request to set a signer
 		QuorumSetError { quorum: u8 },
 		/// An invalid request for user deposit
 		UserDepositError { collateral_id: u128 },
+		/// An invalid key in settings
+		SettingsKeyError { key: u128 },
+		/// Insufficient data for setting fees
+		InsufficientFeeData { asset_id: u128 },
+		/// Fee data length mismatch
+		FeeDataLengthMismatch { asset_id: u128 },
+		/// Token parsing error
+		TokenParsingError { key: U256 },
 	}
 
 	#[pallet::error]
@@ -104,6 +140,16 @@ pub mod pallet {
 		/// Invalid FieldElement value
 		ConversionError,
 	}
+
+	// Constants
+	const DELIMITER: u8 = 95;
+	const FEE_SETTINGS: u128 = 70;
+	const GENERAL_SETTINGS: u128 = 71;
+	const MAKER_ENCODING: u128 = 77;
+	const TAKER_ENCODING: u128 = 84;
+	const OPEN_ENCODING: u128 = 79;
+	const CLOSE_ENCODING: u128 = 67;
+	const OMISSION_ENCODING: u128 = 45;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -247,6 +293,269 @@ pub mod pallet {
 			Self::deposit_event(Event::SignerRemoved { signer: pub_key });
 		}
 
+		fn resolve_setting(
+			settings_type: u128,
+			param2: u128,
+			param3: u128,
+		) -> Option<SettingsType> {
+			match settings_type {
+				FEE_SETTINGS => match param2 {
+					MAKER_ENCODING => match param3 {
+						OPEN_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerOpen)),
+						CLOSE_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerClose)),
+						OMISSION_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::MakerVols)),
+						_ => {
+							Self::deposit_event(Event::SettingsKeyError { key: param3 });
+							return None;
+						},
+					},
+					TAKER_ENCODING => match param3 {
+						OPEN_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerOpen)),
+						CLOSE_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerClose)),
+						OMISSION_ENCODING =>
+							return Some(SettingsType::FeeSettings(FeeSettingsType::TakerVols)),
+						_ => {
+							Self::deposit_event(Event::SettingsKeyError { key: param3 });
+							return None;
+						},
+					},
+					_ => {
+						Self::deposit_event(Event::SettingsKeyError { key: param2 });
+						return None;
+					},
+				},
+				GENERAL_SETTINGS => {
+					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
+					return None;
+				},
+				_ => {
+					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
+					return None;
+				},
+			}
+		}
+
+		fn get_ascii_value(vec: Vec<u8>) -> u128 {
+			let mut result: u128 = 0;
+			for num in vec {
+				result = (result * 256) + num as u128;
+			}
+
+			return result;
+		}
+
+		fn u256_to_tokens(input: U256) -> Option<(u128, u128, u128, u128)> {
+			// Create a vector to store the bytes
+			let mut bytes: Vec<u8> =
+				(0..32).map(|i| input.byte(i)).take_while(|&byte| byte != 0).collect();
+
+			// Reverse the vec
+			bytes.reverse();
+
+			// Split the vec according to the delimiter
+			let pieces: Vec<u128> = bytes
+				.split(|&e| e == DELIMITER)
+				.filter(|v| !v.is_empty())
+				.map(|v| Self::get_ascii_value(v.to_vec()))
+				.collect();
+
+			if pieces.len() != 4 {
+				return None;
+			}
+
+			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
+		}
+
+		fn create_base_fee_vec(volumes: Vec<FixedI128>, fees: Vec<FixedI128>) -> Vec<BaseFee> {
+			volumes
+				.into_iter()
+				.zip(fees.into_iter())
+				.map(|(volume, fee)| BaseFee { volume, fee })
+				.collect()
+		}
+
+		fn set_trading_fees() {
+			let asset_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
+			for &asset_id in asset_list.iter() {
+				// get maker and taker volumes
+				let maker_volumes_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerVols);
+				let taker_volumes_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerVols);
+				// Get the fee vectors of Maker
+				let maker_open_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerOpen);
+				let maker_close_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerClose);
+
+				// Get the fee vectors of Taker
+				let taker_open_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerOpen);
+				let taker_close_fees_query =
+					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerClose);
+
+				// Check if all the required data is present for this asset
+				if !(maker_volumes_query.is_some() &&
+					taker_volumes_query.is_some() &&
+					maker_open_fees_query.is_some() &&
+					maker_close_fees_query.is_some() &&
+					taker_open_fees_query.is_some() &&
+					taker_close_fees_query.is_some())
+				{
+					// Emit Insufficient data event
+					Self::deposit_event(Event::InsufficientFeeData { asset_id });
+					break;
+				}
+
+				// Unwrap maker data
+				let maker_volumes = maker_volumes_query.unwrap();
+				let maker_open_fees = maker_open_fees_query.unwrap();
+				let maker_close_fees = maker_close_fees_query.unwrap();
+
+				// Unwrap taker data
+				let taker_volumes = taker_volumes_query.unwrap();
+				let taker_open_fees = taker_open_fees_query.unwrap();
+				let taker_close_fees = taker_close_fees_query.unwrap();
+
+				// Maker data must be of the same length
+				if !(maker_volumes.len() == maker_open_fees.len() &&
+					maker_open_fees.len() == maker_close_fees.len()) ||
+					!(taker_volumes.len() == taker_open_fees.len() &&
+						taker_open_fees.len() == taker_close_fees.len())
+				{
+					// Emit Insufficient data event
+					Self::deposit_event(Event::FeeDataLengthMismatch { asset_id });
+					break;
+				}
+
+				// Set Maker Open fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Buy,
+					OrderSide::Maker,
+					Self::create_base_fee_vec(maker_volumes.clone(), maker_open_fees),
+				);
+
+				// Set Maker Close fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Sell,
+					OrderSide::Maker,
+					Self::create_base_fee_vec(maker_volumes.clone(), maker_close_fees),
+				);
+
+				// Set Taker Open fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Buy,
+					OrderSide::Taker,
+					Self::create_base_fee_vec(taker_volumes.clone(), taker_open_fees),
+				);
+
+				// Set Taker Close fees
+				let _ = T::TradingFeesPallet::update_base_fees_internal(
+					asset_id,
+					Side::Sell,
+					OrderSide::Taker,
+					Self::create_base_fee_vec(taker_volumes.clone(), taker_close_fees),
+				);
+			}
+
+			TempFeesMap::<T>::drain();
+			TempAssetsMap::<T>::drain();
+		}
+
+		fn add_settings_to_maps(
+			asset_id: u128,
+			fee_settings_type: FeeSettingsType,
+			values: Vec<FixedI128>,
+		) {
+			// Add the asset to the map
+			TempAssetsMap::<T>::insert(asset_id, true);
+
+			// Insert maker volume vector to the map
+			TempFeesMap::<T>::insert(asset_id, fee_settings_type, values);
+		}
+
+		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
+			for setting in settings {
+				// Parse the key of the current setting
+				let parsing_result = Self::u256_to_tokens(setting.key);
+
+				if parsing_result == None {
+					// exit from the loop
+					Self::deposit_event(Event::TokenParsingError { key: setting.key });
+					break;
+				}
+
+				// Get the constituents of the key
+				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
+
+				// Resolve the type of setting
+				let setting_type = Self::resolve_setting(setting_type, param2, param3);
+				if setting_type == None {
+					break;
+				}
+
+				// Handle the setting
+				match setting_type.unwrap() {
+					SettingsType::FeeSettings(fee_settings_type) => match fee_settings_type {
+						FeeSettingsType::MakerVols => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerVols,
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerVols => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerVols,
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::MakerOpen => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerOpen,
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::MakerClose => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::MakerClose,
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerOpen => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerOpen,
+								setting.values.to_vec(),
+							);
+						},
+						FeeSettingsType::TakerClose => {
+							Self::add_settings_to_maps(
+								param1,
+								FeeSettingsType::TakerClose,
+								setting.values.to_vec(),
+							);
+						},
+					},
+					SettingsType::GeneralSettings => {},
+				}
+			}
+
+			// Set the trading Fees and remove the temporary storage items
+			Self::set_trading_fees();
+		}
+
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
 			for event in events_batch.iter() {
 				match event {
@@ -276,6 +585,7 @@ pub mod pallet {
 							Some(_) => {
 								T::AssetPallet::update_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
+									asset_addresses: asset_updated.asset_addresses.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
 								});
 							},
@@ -283,6 +593,7 @@ pub mod pallet {
 							None => {
 								T::AssetPallet::add_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
+									asset_addresses: asset_updated.asset_addresses.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
 								});
 							},
@@ -339,14 +650,36 @@ pub mod pallet {
 						}
 					},
 					UniversalEvent::SignerAdded(signer_added) => {
-						Self::add_signer_internal(signer_added.signer);
+						// Check if the signer exists
+						match IsSignerWhitelisted::<T>::get(signer_added.signer) {
+							true => {
+								// If yes, emit an error
+								// Duplicate signer
+								Self::deposit_event(Event::SignerAddedError {
+									pub_key: signer_added.signer,
+								});
+							},
+							// If not, whitelist the key
+							false => {
+								Self::add_signer_internal(signer_added.signer);
+							},
+						};
 					},
 					UniversalEvent::SignerRemoved(signer_removed) => {
 						// Check if the signer exists
 						match IsSignerWhitelisted::<T>::get(signer_removed.signer) {
-							// If yes, remove it
+							// If yes, check if removing the signer leaves us with sufficient
+							// signers
 							true => {
-								Self::remove_signer_internal(signer_removed.signer);
+								let signer_quorum = SignersQuorum::<T>::get();
+								match signer_quorum < Signers::<T>::get().len() as u8 {
+									// If yes, remove the signer
+									true => Self::remove_signer_internal(signer_removed.signer),
+									// If not, emit an error
+									false => Self::deposit_event(Event::SignerRemovedQuorumError {
+										quorum: signer_quorum,
+									}),
+								};
 							},
 							// If not, emit an error
 							false => {
@@ -365,7 +698,10 @@ pub mod pallet {
 							false => Self::deposit_event(Event::QuorumSetError {
 								quorum: quorum_set.quorum,
 							}),
-						}
+						};
+					},
+					UniversalEvent::SettingsAdded(settings_added) => {
+						Self::handle_settings(&settings_added.settings);
 					},
 				}
 			}
@@ -445,6 +781,8 @@ pub mod pallet {
 					(signer_removed.block_number, signer_removed.event_index),
 				UniversalEvent::QuorumSet(quorum_set) =>
 					(quorum_set.block_number, quorum_set.event_index),
+				UniversalEvent::SettingsAdded(settings_added) =>
+					(settings_added.block_number, settings_added.event_index),
 			}
 		}
 	}

@@ -23,7 +23,7 @@ pub mod helpers {
 	use crate::traits::U256Ext;
 	use core::f64;
 	use frame_support::dispatch::Vec;
-	use libm::log10;
+	use libm::log;
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::One};
 	pub use starknet_core::crypto::compute_hash_on_elements;
@@ -73,11 +73,19 @@ pub mod helpers {
 
 	pub fn ln(x: FixedI128) -> FixedI128 {
 		let val = x.into_inner();
-		let f_val: f64 = val as f64;
-		let log10_div = 18 as f64; // DIV for FixedI128 is 10^18, hence log10(DIV) = 18
-		let log10_val = log10(f_val) - log10_div as f64;
-		let ln_val = log10_val * f64::consts::LN_10;
-		FixedI128::from((ln_val * 10_u128.pow(18) as f64) as i128)
+		// Convert the fixed-point representation to a floating-point number
+		let f_val: f64 = val as f64 / 10_u128.pow(18) as f64;
+
+		// Ensure the input is positive
+		if f_val <= 0.0 {
+			panic!("ln(x) is undefined for x <= 0");
+		}
+
+		// Use libm's log function for natural logarithm
+		let ln_val = log(f_val);
+
+		// Convert back to FixedI128, scaling appropriately
+		FixedI128::from_inner((ln_val * 10_u128.pow(18) as f64) as i128)
 	}
 
 	// Function to recompute volume vector based on the difference in days between current trade and

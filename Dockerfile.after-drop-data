@@ -1,0 +1,8 @@
+FROM node:18-bullseye
+ARG SCRIPT_NAME=test
+WORKDIR /app
+COPY scripts/* /app/
+RUN mv $SCRIPT_NAME after-drop-data.ts
+RUN npm i
+CMD ["npm","start"]
+

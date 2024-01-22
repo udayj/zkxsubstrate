@@ -11,6 +11,7 @@ use frame_system::EnsureRoot;
 use pallet_grandpa::AuthorityId as GrandpaId;
 use primitive_types::U256;
 use sp_api::impl_runtime_apis;
+use sp_arithmetic::fixed_point::FixedI128;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
@@ -117,7 +118,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 101,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -337,6 +338,7 @@ impl pallet_sync_facade::Config for Runtime {
 	type TradingAccountPallet = TradingAccount;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
+	type TradingFeesPallet = TradingFees;
 }
 
 impl pallet_trading::Config for Runtime {
@@ -476,6 +478,10 @@ impl_runtime_apis! {
 			// call to as_u128() will panic if value is > 2^128
 			Trading::get_fee(account_id, market_id.as_u128())
 		}
+
+		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
+			Trading::get_withdrawable_amount(account_id, collateral_id)
+		}
 	}
 
 	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
@@ -491,7 +497,7 @@ impl_runtime_apis! {
 			remaining_markets_u256
 		}
 
-		fn get_no_of_batches_for_current_epoch() -> u128 {
+		fn get_no_of_batches_for_current_epoch() -> u64 {
 			Prices::get_no_of_batches_for_current_epoch()
 		}
 
@@ -499,7 +505,7 @@ impl_runtime_apis! {
 			Prices::get_last_abr_timestamp()
 		}
 
-		fn get_remaining_pay_abr_calls() -> u128 {
+		fn get_remaining_pay_abr_calls() -> u64 {
 			Prices::get_remaining_pay_abr_calls()
 		}
 
@@ -507,12 +513,20 @@ impl_runtime_apis! {
 			Prices::get_next_abr_timestamp()
 		}
 
-		fn get_previous_abr_values(starting_epoch: u64, market_id: U256, n: u64) -> Vec<ABRDetails> {
+		fn get_previous_abr_values(market_id: U256, start_timestamp: u64, end_timestamp: u64,) -> Vec<ABRDetails> {
 
 			// market_id is internally a u128 value hence conversion is required from U256 to u128
 			// call to as_u128() will panic if value is > 2^128
-			Prices::get_previous_abr_values(starting_epoch, market_id.as_u128(), n)
+			Prices::get_previous_abr_values(market_id.as_u128(), start_timestamp, end_timestamp)
 		}
+
+		fn get_intermediary_abr_value(market_id: U256,) -> FixedI128 {
+
+			// market_id is internally a u128 value hence conversion is required from U256 to u128
+			// call to as_u128() will panic if value is > 2^128
+			Prices::get_intermediary_abr_value(market_id.as_u128())
+		}
+
 	}
 
 	impl sp_api::Core<Block> for Runtime {

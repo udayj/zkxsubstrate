@@ -4,15 +4,15 @@ use pallet_support::{
 	helpers::compute_hash_on_elements,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved, MarketUpdated, QuorumSet,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, Market, MarketRemoved,
+		MarketUpdated, QuorumSet, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::{traits::ConstU32, BoundedVec};
+use sp_runtime::{bounded_vec, traits::ConstU32, BoundedVec};
 
 pub trait MarketUpdatedTrait {
 	fn new(
@@ -29,6 +29,7 @@ pub trait AssetUpdatedTrait {
 		event_index: u32,
 		id: u128,
 		asset: Asset,
+		asset_address: BoundedVec<AssetAddress, ConstU32<256>>,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated;
@@ -65,6 +66,17 @@ pub trait QuorumSetTrait {
 	fn new(event_index: u32, quorum: u8, block_number: u64) -> QuorumSet;
 }
 
+pub trait SettingsAddedTrait {
+	fn new(
+		event_index: u32,
+		settings: BoundedVec<Setting, ConstU32<256>>,
+		block_number: u64,
+	) -> SettingsAdded;
+
+	fn get_usdc_fees_settings() -> SettingsAdded;
+	fn get_usdt_fees_settings() -> SettingsAdded;
+}
+
 impl MarketUpdatedTrait for MarketUpdated {
 	fn new(
 		event_index: u32,
@@ -82,10 +94,11 @@ impl AssetUpdatedTrait for AssetUpdated {
 		event_index: u32,
 		id: u128,
 		asset: Asset,
+		asset_addresses: BoundedVec<AssetAddress, ConstU32<256>>,
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> AssetUpdated {
-		AssetUpdated { event_index, id, asset, metadata_url, block_number }
+		AssetUpdated { event_index, id, asset, asset_addresses, metadata_url, block_number }
 	}
 }
 
@@ -110,6 +123,159 @@ impl SignerAddedTrait for SignerAdded {
 impl SignerRemovedTrait for SignerRemoved {
 	fn new(event_index: u32, signer: U256, block_number: u64) -> SignerRemoved {
 		SignerRemoved { event_index, signer, block_number }
+	}
+}
+
+impl SettingsAddedTrait for SettingsAdded {
+	fn new(
+		event_index: u32,
+		settings: BoundedVec<Setting, ConstU32<256>>,
+		block_number: u64,
+	) -> SettingsAdded {
+		SettingsAdded { event_index, settings, block_number }
+	}
+
+	fn get_usdt_fees_settings() -> SettingsAdded {
+		let settings = bounded_vec![
+			Setting {
+				// F_USDT_M_-
+				key: U256::from(332324242820923030069037_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(1000000),
+					FixedI128::from_u32(5000000),
+				]
+			},
+			Setting {
+				// F_USDT_T_-
+				key: U256::from(332324242820923030527789_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(1000000),
+					FixedI128::from_u32(5000000),
+					FixedI128::from_u32(10000000),
+					FixedI128::from_u32(50000000),
+				]
+			},
+			Setting {
+				// F_USDT_M_O
+				key: U256::from(332324242820923030069071_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.020),
+					FixedI128::from_float(0.015),
+					FixedI128::from_float(0.0),
+				]
+			},
+			Setting {
+				// F_USDT_M_C
+				key: U256::from(332324242820923030069059_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.020),
+					FixedI128::from_float(0.015),
+					FixedI128::from_float(0.0),
+				]
+			},
+			Setting {
+				// F_USDT_T_O
+				key: U256::from(332324242820923030527823_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.050),
+					FixedI128::from_float(0.040),
+					FixedI128::from_float(0.035),
+					FixedI128::from_float(0.030),
+					FixedI128::from_float(0.025),
+				]
+			},
+			Setting {
+				// F_USDT_T_C
+				key: U256::from(332324242820923030527811_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.050),
+					FixedI128::from_float(0.040),
+					FixedI128::from_float(0.035),
+					FixedI128::from_float(0.030),
+					FixedI128::from_float(0.025),
+				]
+			}
+		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_usdc_fees_settings() -> SettingsAdded {
+		let settings = bounded_vec![
+			Setting {
+				// F_USDC_M_-
+				key: U256::from(332324242820850015625005_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(1000000),
+					FixedI128::from_u32(5000000),
+					FixedI128::from_u32(10000000),
+					FixedI128::from_u32(50000000),
+				]
+			},
+			Setting {
+				// F_USDC_T_-
+				key: U256::from(332324242820850016083757_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(1000000),
+					FixedI128::from_u32(5000000),
+					FixedI128::from_u32(10000000),
+					FixedI128::from_u32(50000000),
+					FixedI128::from_u32(200000000),
+				]
+			},
+			Setting {
+				// F_USDC_M_O
+				key: U256::from(332324242820850015625039_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.020),
+					FixedI128::from_float(0.015),
+					FixedI128::from_float(0.010),
+					FixedI128::from_float(0.005),
+					FixedI128::from_float(0.0),
+				]
+			},
+			Setting {
+				// F_USDC_M_C
+				key: U256::from(332324242820850015625027_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.020),
+					FixedI128::from_float(0.015),
+					FixedI128::from_float(0.010),
+					FixedI128::from_float(0.005),
+					FixedI128::from_float(0.0),
+				]
+			},
+			Setting {
+				// F_USDC_T_O
+				key: U256::from(332324242820850016083791_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.050),
+					FixedI128::from_float(0.040),
+					FixedI128::from_float(0.035),
+					FixedI128::from_float(0.030),
+					FixedI128::from_float(0.025),
+					FixedI128::from_float(0.020),
+				]
+			},
+			Setting {
+				// F_USDC_T_C
+				key: U256::from(332324242820850016083779_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.050),
+					FixedI128::from_float(0.040),
+					FixedI128::from_float(0.035),
+					FixedI128::from_float(0.030),
+					FixedI128::from_float(0.025),
+					FixedI128::from_float(0.020),
+				]
+			}
+		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
 	}
 }
 
@@ -142,6 +308,7 @@ pub trait UniversalEventArray {
 	fn add_signer_added_event(&mut self, signer_added_event: SignerAdded);
 	fn add_signer_removed_event(&mut self, signer_removed_event: SignerRemoved);
 	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet);
+	fn add_settings_event(&mut self, settings_added_event: SettingsAdded);
 	fn compute_hash(&self) -> FieldElement;
 }
 
@@ -212,6 +379,10 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		self.push(UniversalEvent::QuorumSet(quorum_set_event));
 	}
 
+	fn add_settings_event(&mut self, settings_added_event: SettingsAdded) {
+		self.push(UniversalEvent::SettingsAdded(settings_added_event));
+	}
+
 	fn compute_hash(&self) -> FieldElement {
 		let mut flattened_array: Vec<FieldElement> = Vec::new();
 		flattened_array.try_append_universal_event_array(&self).unwrap();
@@ -219,4 +390,82 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		// Compute hash of the array and return
 		compute_hash_on_elements(&flattened_array)
 	}
+}
+
+pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.010) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.005) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.0) },
+	]
+}
+
+pub fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.0) },
+	]
+}
+
+pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.010) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.005) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.0) },
+	]
+}
+
+pub fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.0) },
+	]
+}
+
+pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.035) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.030) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.025) },
+		BaseFee { volume: FixedI128::from_u32(200000000), fee: FixedI128::from_float(0.020) },
+	]
+}
+
+pub fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.035) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.030) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.025) },
+	]
+}
+
+pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.035) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.030) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.025) },
+		BaseFee { volume: FixedI128::from_u32(200000000), fee: FixedI128::from_float(0.020) },
+	]
+}
+
+pub fn get_usdt_taker_close_fees() -> Vec<BaseFee> {
+	vec![
+		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
+		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.035) },
+		BaseFee { volume: FixedI128::from_u32(10000000), fee: FixedI128::from_float(0.030) },
+		BaseFee { volume: FixedI128::from_u32(50000000), fee: FixedI128::from_float(0.025) },
+	]
 }

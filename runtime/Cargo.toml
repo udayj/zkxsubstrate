@@ -42,8 +42,7 @@ sp-version = { version = "22.0.0", default-features = false, git = "https://gith
 pallet-node-authorization = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 substrate-validator-set = { default-features = false, git = "https://github.com/gautamdhameja/substrate-validator-set.git", rev = "3d4052d"}
 pallet-session = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0"}
-
-
+sp-arithmetic = { version = "16.0.0", default-features = false }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }

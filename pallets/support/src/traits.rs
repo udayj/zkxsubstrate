@@ -1,8 +1,9 @@
 use crate::types::{
-	ABRDetails, AccountInfo, Asset, AssetRemoved, AssetUpdated, BalanceChangeReason, Direction,
-	ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType, MarginInfo, Market,
-	MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, Side,
-	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
+	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType,
+	MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended,
+	QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
+	TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -42,11 +43,12 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		new_position_maintanence_requirement: FixedI128,
 		new_position_margin: FixedI128,
-	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128);
+	) -> (bool, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128);
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn add_deferred_balance(account_id: U256, collateral_id: u128) -> DispatchResult;
 	fn get_accounts_count() -> u128;
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
+	fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn update_and_get_cumulative_volume(
 		account_id: U256,
 		market_id: u128,
@@ -71,6 +73,7 @@ pub trait TradingInterface {
 	fn get_account_list(start_index: u128, end_index: u128) -> Vec<U256>;
 	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
+	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 }
 
 pub trait AssetInterface {
@@ -111,14 +114,19 @@ pub trait PricesInterface {
 	fn convert_to_seconds(time_in_milli: u64) -> u64;
 	fn get_index_price(market_id: u128) -> FixedI128;
 	fn get_mark_price(market_id: u128) -> FixedI128;
-	fn get_last_traded_price(market_id: u128) -> FixedI128;
-	fn update_last_traded_price(market_id: u128, price: FixedI128);
+	fn get_last_oracle_price(market_id: u128) -> FixedI128;
+	fn update_last_oracle_price(market_id: u128, price: FixedI128);
 	fn get_remaining_markets() -> Vec<u128>;
-	fn get_no_of_batches_for_current_epoch() -> u128;
+	fn get_no_of_batches_for_current_epoch() -> u64;
 	fn get_last_abr_timestamp() -> u64;
 	fn get_next_abr_timestamp() -> u64;
-	fn get_previous_abr_values(starting_epoch: u64, market_id: u128, n: u64) -> Vec<ABRDetails>;
-	fn get_remaining_pay_abr_calls() -> u128;
+	fn get_previous_abr_values(
+		market_id: u128,
+		start_timestamp: u64,
+		end_timestamp: u64,
+	) -> Vec<ABRDetails>;
+	fn get_remaining_pay_abr_calls() -> u64;
+	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
 }
 
 pub trait FixedI128Ext {
@@ -139,6 +147,12 @@ pub trait FieldElementExt {
 }
 
 pub trait TradingFeesInterface {
+	fn update_base_fees_internal(
+		collateral_id: u128,
+		side: Side,
+		order_side: OrderSide,
+		fee_details: Vec<BaseFee>,
+	) -> DispatchResult;
 	fn get_fee_rate(
 		collateral_id: u128,
 		side: Side,
@@ -156,9 +170,17 @@ pub trait Hashable {
 }
 
 pub trait FeltSerializedArrayExt {
-	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
+	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>);
 	fn append_bool(&mut self, boolean_value: bool);
 	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet);
+	fn try_append_bounded_vec_fixed_i128(
+		&mut self,
+		vec: &BoundedVec<FixedI128, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_asset_addresses(
+		&mut self,
+		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError>;
 	fn try_append_u256(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_u256_pair(&mut self, u256_value: U256) -> Result<(), FromByteSliceError>;
 	fn try_append_fixedi128(&mut self, fixed_value: FixedI128) -> Result<(), FromByteSliceError>;
@@ -167,6 +189,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_trading_account(
 		&mut self,
 		trading_account: &TradingAccountMinimal,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_settings(
+		&mut self,
+		settings: &BoundedVec<Setting, ConstU32<256>>,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_market_updated_event(
 		&mut self,
@@ -196,8 +222,17 @@ pub trait FeltSerializedArrayExt {
 		&mut self,
 		signer_added: &SignerRemoved,
 	) -> Result<(), FromByteSliceError>;
+	fn try_append_settings_added_event(
+		&mut self,
+		settings_added: &SettingsAdded,
+	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
 	) -> Result<(), FromByteSliceError>;
+}
+
+pub trait ChainConstants {
+	fn starknet_chain() -> u128;
+	fn zkx_sync_chain() -> u128;
 }

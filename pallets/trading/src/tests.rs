@@ -4,10 +4,10 @@ use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, bob, charlie, dave, get_private_key, get_trading_account_id},
 		asset_helper::{btc, eth, link, usdc},
-		market_helper::{btc_usdc, link_usdc},
+		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, Order, OrderType, Position, Side},
+	types::{Direction, Order, OrderSide, OrderType, Position, Side},
 };
 use primitive_types::U256;
 use sp_arithmetic::{
@@ -40,13 +40,19 @@ fn setup() -> sp_io::TestExternalities {
 		));
 		assert_ok!(Markets::replace_all_markets(
 			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
+			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
 			RuntimeOrigin::signed(1),
 			vec![alice(), bob(), charlie(), dave()]
+		));
+
+		// Set matching_time_limit
+		assert_ok!(Trading::set_matching_time_limit(
+			RuntimeOrigin::root(),
+			2419200 //4 weeks
 		));
 	});
 
@@ -61,7 +67,7 @@ fn add_liquidator_signer_authorized() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer]);
 		assert_eq!(Trading::is_liquidator_signer_valid(liquidator_signer), true);
@@ -77,9 +83,9 @@ fn add_multiple_liquidator_signer_authorized() {
 		let liquidator_signer_1 = U256::from(12345);
 		let liquidator_signer_2 = U256::from(12346);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_1)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer_1)
 			.expect("error while adding signer");
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer_2)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer_2)
 			.expect("error while adding signer");
 
 		assert_eq!(Trading::liquidator_signers(), vec![liquidator_signer_1, liquidator_signer_2]);
@@ -96,7 +102,7 @@ fn add_signer_authorized_0_pub_key() {
 
 	env.execute_with(|| {
 		// Add signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), U256::from(0))
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), U256::from(0))
 			.expect("Error in code");
 	});
 }
@@ -110,9 +116,9 @@ fn add_signer_authorized_duplicate_pub_key() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 	});
 }
@@ -126,7 +132,7 @@ fn remove_signer_authorized_invalid_signer() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Remove signer; error
-		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::remove_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("Error in code");
 	});
 }
@@ -139,11 +145,11 @@ fn remove_signer_authorized() {
 	env.execute_with(|| {
 		let liquidator_signer = U256::from(12345);
 		// Add a signer
-		Trading::add_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::add_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("error while adding signer");
 
 		// Remove signer
-		Trading::remove_liquidator_signer(RuntimeOrigin::signed(1), liquidator_signer)
+		Trading::remove_liquidator_signer(RuntimeOrigin::root(), liquidator_signer)
 			.expect("Error in code");
 
 		assert_eq!(Trading::liquidator_signers(), vec![]);
@@ -221,6 +227,10 @@ fn it_works_for_open_trade_simple() {
 		};
 		assert_eq!(expected_position, bob_position);
 
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
+
 		// Check for events
 		assert_has_events(vec![
 			Event::TradeExecuted {
@@ -263,6 +273,57 @@ fn it_works_for_open_trade_simple() {
 			}
 			.into(),
 		]);
+	});
+}
+
+#[test]
+// should emit an error when trying to open more than the maximum limit of position size
+fn it_reverts_for_more_than_max_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		let modified_btc_usdc = btc_usdc().set_maximum_position_size(2.into());
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(1),
+			vec![modified_btc_usdc, link_usdc()]
+		));
+
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(U256::from(201), alice_id)
+			.set_size(3.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(U256::from(202), bob_id)
+			.set_size(3.into())
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			3.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		assert_has_events(
+			vec![Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()]
+		);
 	});
 }
 
@@ -449,6 +510,10 @@ fn it_works_for_close_trade_simple() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::zero());
 
 		// Check for balances
 		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 10005.into());
@@ -736,6 +801,10 @@ fn it_works_for_close_trade_partial_close() {
 			1699940367000,
 		));
 
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
+
 		let alice_close_order_2 = Order::new(U256::from(205), alice_id)
 			.set_price(98.into())
 			.set_side(Side::Sell)
@@ -1002,6 +1071,70 @@ fn it_reverts_for_trade_with_invalid_market() {
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError547")]
+// trade batch with insuffient orders
+fn it_reverts_for_trade_with_insufficient_orders_1_order() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError547")]
+// trade batch with insuffient orders
+fn it_reverts_for_trade_with_insufficient_orders_0_orders() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "TradeBatchError522")]
 // trade batch with quantity_locked as 0
 fn it_reverts_for_trade_with_quantity_locked_zero() {
@@ -1041,6 +1174,141 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 			// batch_timestamp
 			1699940367000,
 		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError503")]
+// trade batch with quantity_locked is not multiple of step size
+fn it_reverts_for_trade_with_quantity_locked_is_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.set_size(2.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(2.into())
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			FixedI128::from_inner(1500000000000000000),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError517")]
+// trade batch with taker order size is not multiple of step size
+fn it_reverts_for_trade_with_taker_order_size_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(FixedI128::from_inner(1500000000000000000))
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+// trade batch with maker order size is not multiple of step size
+fn it_emits_event_for_trade_with_maker_order_size_not_multiple_of_step_size() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_leverage(5.into())
+			.set_size(FixedI128::from_inner(1500000000000000000))
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(5.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 517 }.into(),
+		);
 	});
 }
 
@@ -1180,7 +1448,9 @@ fn it_produces_error_when_user_not_registered() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 510 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 510 }.into(),
+		);
 	});
 }
 
@@ -1224,7 +1494,9 @@ fn it_produces_error_when_size_too_small() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 505 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 505 }.into(),
+		);
 	});
 }
 
@@ -1266,7 +1538,9 @@ fn it_produces_error_when_market_id_is_different() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 504 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 504 }.into(),
+		);
 	});
 }
 
@@ -1308,7 +1582,9 @@ fn it_produces_error_when_leverage_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 502 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 502 }.into(),
+		);
 	});
 }
 
@@ -1349,7 +1625,9 @@ fn it_produces_error_when_signature_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 536 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 536 }.into(),
+		);
 	});
 }
 
@@ -1402,7 +1680,9 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(202), error_code: 512 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(202), error_code: 512 }.into(),
+		);
 	});
 }
 
@@ -1444,7 +1724,9 @@ fn it_produces_error_when_maker_is_market_order() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 518 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 518 }.into(),
+		);
 	});
 }
 
@@ -1542,7 +1824,9 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
 		println!("Events: {:?}", event_record);
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(205), error_code: 524 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(205), error_code: 524 }.into(),
+		);
 	});
 }
 
@@ -1594,12 +1878,13 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(203), error_code: 511 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(203), error_code: 511 }.into(),
+		);
 	});
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError508")]
 // Taker long buy limit order execution price is invalid
 fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1635,11 +1920,14 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 508 }.into(),
+		);
 	});
 }
 
 #[test]
-#[should_panic(expected = "TradeBatchError507")]
 // Taker short buy limit order execution price is invalid
 fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 	let mut env = setup();
@@ -1675,10 +1963,15 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 507 }.into(),
+		);
 	});
 }
 
 #[test]
+#[should_panic(expected = "TradeBatchError514")]
 // Taker long buy slippage check
 fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 	let mut env = setup();
@@ -1716,8 +2009,6 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			// batch_timestamp
 			1699940367000,
 		));
-
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 506 }.into());
 	});
 }
 
@@ -1775,14 +2066,21 @@ fn test_fee_while_opening_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details) = setup_fee();
+		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
 			collateral_id,
 			Side::Buy,
-			fee_tiers,
-			fee_details.clone(),
+			OrderSide::Maker,
+			fee_details_maker.clone(),
+		));
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::signed(1),
+			collateral_id,
+			Side::Buy,
+			OrderSide::Taker,
+			fee_details_taker.clone(),
 		));
 
 		// Create orders
@@ -1957,14 +2255,21 @@ fn test_fee_while_closing_order() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 
-		let (fee_tiers, fee_details) = setup_fee();
+		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::signed(1),
 			collateral_id,
 			Side::Sell,
-			fee_tiers,
-			fee_details.clone(),
+			OrderSide::Maker,
+			fee_details_maker.clone(),
+		));
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::signed(1),
+			collateral_id,
+			Side::Sell,
+			OrderSide::Taker,
+			fee_details_taker.clone(),
 		));
 
 		// Create orders
@@ -2364,7 +2669,9 @@ fn it_does_not_work_for_not_enough_balance() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(301), error_code: 501 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(301), error_code: 501 }.into(),
+		);
 		System::assert_has_event(Event::TradeExecutionFailed { batch_id: U256::from(1_u8) }.into());
 	});
 }
@@ -2417,6 +2724,342 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 			1699940367000,
 		));
 
-		System::assert_has_event(Event::OrderError { order_id: U256::from(201), error_code: 506 }.into());
+		System::assert_has_event(
+			Event::OrderError { order_id: U256::from(201), error_code: 506 }.into(),
+		);
+	});
+}
+
+#[test]
+// Taker short buy limit order has 0 slippage - which shouldn't make any difference
+fn it_works_when_taker_limit_order_has_0_slippage() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_price(101.into())
+			.set_direction(Direction::Short)
+			.set_slippage(FixedI128::zero())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			102.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError514")]
+// Only one maker and maker fails due to slippage error
+// Taker also should emit OrderError event
+fn it_emits_error_for_taker_for_slippage_validation() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			1.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+	});
+}
+
+#[test]
+// When there are 3 makers and one maker fails with 506 and another maker fails with some other
+// error and 3rd maker executes, taker's is_final flag should be made false
+fn it_makes_taker_is_final_as_false() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(dave().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_size(3.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![
+				alice_open_order_1.clone(),
+				charlie_open_order_1,
+				dave_open_order_1,
+				bob_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		assert_has_events(vec![Event::OrderExecuted {
+			account_id: bob_id,
+			order_id: bob_open_order_1.order_id,
+			market_id,
+			size: 1.into(),
+			direction: bob_open_order_1.direction.into(),
+			side: bob_open_order_1.side.into(),
+			order_type: bob_open_order_1.order_type.into(),
+			execution_price: 102.into(),
+			pnl: 0.into(),
+			fee: 0.into(),
+			is_final: false,
+			is_maker: false,
+		}
+		.into()]);
+	});
+}
+
+#[test]
+// When there are 3 makers and one maker fails with 506
+// and other makers execute, taker's is_final flag should be made true
+fn it_makes_taker_is_final_as_true() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(80.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.sign_order(get_private_key(dave().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_size(3.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// order
+			vec![
+				alice_open_order_1.clone(),
+				charlie_open_order_1,
+				dave_open_order_1,
+				bob_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		assert_has_events(vec![Event::OrderExecuted {
+			account_id: bob_id,
+			order_id: bob_open_order_1.order_id,
+			market_id,
+			size: 2.into(),
+			direction: bob_open_order_1.direction.into(),
+			side: bob_open_order_1.side.into(),
+			order_type: bob_open_order_1.order_type.into(),
+			execution_price: 101.into(),
+			pnl: 0.into(),
+			fee: 0.into(),
+			is_final: true,
+			is_maker: false,
+		}
+		.into()]);
+	});
+}
+
+#[test]
+// open positions in 2 markets and close position in one market
+fn it_works_for_multiple_open_and_single_close_trade() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// Open order for BTC-USDC
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Open order for ETH-USDC
+		let market_id = eth_usdc().market.id;
+
+		let alice_open_order = Order::new(U256::from(205), alice_id)
+			.set_price(10.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let charlie_open_order = Order::new(U256::from(206), charlie_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_price(10.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(3_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			10.into(),
+			// orders
+			vec![alice_open_order.clone(), charlie_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Close orders
+		let market_id = btc_usdc().market.id;
+
+		let alice_close_order = Order::new(U256::from(203), alice_id)
+			.set_side(Side::Sell)
+			.set_price(105.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order = Order::new(U256::from(204), bob_id)
+			.set_side(Side::Sell)
+			.set_price(100.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			105.into(),
+			// orders
+			vec![alice_close_order.clone(), bob_close_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		let markets = Trading::collateral_to_market(alice_id, usdc().asset.id);
+		assert_eq!(markets, vec![eth_usdc().market.id]);
 	});
 }

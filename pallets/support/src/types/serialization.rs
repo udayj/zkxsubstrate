@@ -2,8 +2,8 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, SignerAdded, SignerRemoved, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		MarketUpdated, Setting, SettingsAdded, SignerAdded, SignerRemoved, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 };
 use frame_support::dispatch::Vec;
@@ -12,11 +12,34 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
-use super::QuorumSet;
+use super::{AssetAddress, QuorumSet};
 
 impl FeltSerializedArrayExt for Vec<FieldElement> {
-	fn append_bounded_vec(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
+	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
 		self.extend(vec.iter().map(|&value| FieldElement::from(value)));
+	}
+
+	fn try_append_bounded_vec_fixed_i128(
+		&mut self,
+		vec: &BoundedVec<FixedI128, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError> {
+		vec.iter().try_for_each(|value| {
+			self.try_append_fixedi128(*value)?;
+
+			Ok(())
+		})
+	}
+
+	fn try_append_asset_addresses(
+		&mut self,
+		vec: &BoundedVec<AssetAddress, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError> {
+		vec.iter().try_for_each(|asset_address| {
+			self.push(FieldElement::from(asset_address.chain));
+			self.try_append_u256_pair(asset_address.address)?;
+
+			Ok(())
+		})
 	}
 
 	fn append_bool(&mut self, boolean_value: bool) {
@@ -98,6 +121,18 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		Ok(())
 	}
 
+	fn try_append_settings(
+		&mut self,
+		settings: &BoundedVec<Setting, ConstU32<256>>,
+	) -> Result<(), FromByteSliceError> {
+		settings.iter().try_for_each(|setting| {
+			self.try_append_u256(setting.key)?;
+			self.try_append_bounded_vec_fixed_i128(&setting.values)?;
+
+			Ok(())
+		})
+	}
+
 	fn try_append_market_updated_event(
 		&mut self,
 		market_updated_event: &MarketUpdated,
@@ -107,7 +142,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::from(market_updated_event.event_index));
 		self.push(FieldElement::from(market_updated_event.id));
 		self.try_append_market(&market_updated_event.market)?;
-		self.append_bounded_vec(&market_updated_event.metadata_url);
+		self.append_bounded_vec_u8(&market_updated_event.metadata_url);
 		self.push(FieldElement::from(market_updated_event.block_number));
 
 		Ok(())
@@ -121,8 +156,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::ONE);
 		self.push(FieldElement::from(asset_updated_event.event_index));
 		self.push(FieldElement::from(asset_updated_event.id));
+		self.try_append_asset_addresses(&asset_updated_event.asset_addresses)?;
 		self.try_append_asset(&asset_updated_event.asset)?;
-		self.append_bounded_vec(&asset_updated_event.metadata_url);
+		self.append_bounded_vec_u8(&asset_updated_event.metadata_url);
 		self.push(FieldElement::from(asset_updated_event.block_number));
 
 		Ok(())
@@ -196,6 +232,19 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		Ok(())
 	}
 
+	fn try_append_settings_added_event(
+		&mut self,
+		settings_added: &SettingsAdded,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(8_u8));
+		self.push(FieldElement::from(settings_added.event_index));
+		self.try_append_settings(&settings_added.settings)?;
+		self.push(FieldElement::from(settings_added.block_number));
+
+		Ok(())
+	}
+
 	fn append_quorum_set_event(&mut self, quorum_set: &QuorumSet) {
 		// enum prefix
 		self.push(FieldElement::from(7_u8));
@@ -233,6 +282,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				},
 				UniversalEvent::QuorumSet(quorum_set) => {
 					self.append_quorum_set_event(quorum_set);
+				},
+				UniversalEvent::SettingsAdded(settings_added) => {
+					self.try_append_settings_added_event(settings_added)?;
 				},
 			}
 		}

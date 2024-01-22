@@ -145,12 +145,45 @@ pub mod pallet {
 	// The beginning timestamp for which batch_id and order_id info are stored
 	pub(super) type StartTimestamp<T: Config> = StorageValue<_, u64, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn trading_fee)]
+	// k1 - collateral id, v - trading fee
+	pub(super) type TradingFeeMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn liquidation_fee)]
+	// k1 - collateral id, v - liquidation fee
+	pub(super) type LiquidationFeeMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn matching_time_limit)]
+	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub matching_time_limit: u64,
+		#[serde(skip)]
+		pub _config: sp_std::marker::PhantomData<T>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			MatchingTimeLimit::<T>::put(&self.matching_time_limit);
+		}
+	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Balance not enough to open the position
 		TradeBatchError501,
 		/// Invalid value for leverage (less than min or greater than currently allowed leverage)
 		TradeBatchError502,
+		/// Invalid quantity locked w.r.t step size
+		TradeBatchError503,
 		/// Market matched and order market are different
 		TradeBatchError504,
 		/// Order size less than min quantity
@@ -171,15 +204,19 @@ pub mod pallet {
 		TradeBatchError512,
 		/// Invalid oracle price,
 		TradeBatchError513,
+		/// Taker order could not be executed since all makers do not satisfy slippage limit
+		TradeBatchError514,
 		/// Taker order is post only
 		TradeBatchError515,
 		/// FoK Orders should be filled completely
 		TradeBatchError516,
+		/// Order size is invalid w.r.t to step size
+		TradeBatchError517,
 		/// Maker order can only be limit order
 		TradeBatchError518,
 		/// Slippage must be between 0 and 15
 		TradeBatchError521,
-		/// Invalid quantity locked
+		/// Invalid quantity locked w.r.t minimum order size of market
 		TradeBatchError522,
 		/// Maker order skipped since quantity_executed = quantity_locked for the batch
 		TradeBatchError523,
@@ -187,10 +224,6 @@ pub mod pallet {
 		TradeBatchError524,
 		/// Batch id already used
 		TradeBatchError525,
-		/// Position marked to be deleveraged, but liquidation order passed
-		TradeBatchError526,
-		/// Position marked to be liquidated, but deleveraging order passed
-		TradeBatchError527,
 		/// Position cannot be opened becuase of passive risk management
 		TradeBatchError531,
 		/// Not enough margin to cover losses - short limit sell or long limit sell
@@ -204,8 +237,6 @@ pub mod pallet {
 		TradeBatchError535,
 		/// ECDSA Signature could not be verified
 		TradeBatchError536,
-		/// Public Key not found for account id
-		TradeBatchError537,
 		/// Invalid public key - publickey u256 could not be converted to Field Element
 		TradeBatchError538,
 		/// When force closure flag is Liquidate or Deleverage, order type can only be Forced
@@ -220,8 +251,14 @@ pub mod pallet {
 		TradeBatchError543,
 		/// Order is older than 4 weeks
 		TradeBatchError544,
-		/// Batch is older than 4 weeks
+		/// Batch is older than expected
 		TradeBatchError545,
+		/// Trade Volume Calculation Error
+		TradeBatchError546,
+		/// Insufficient num of orders in the batch
+		TradeBatchError547,
+		// The resulting position size is larger than the max size allowed in the market
+		TradeBatchError548,
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -232,8 +269,6 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
-		/// Trade Volume Calculation Error
-		TradeVolumeCalculationError,
 	}
 
 	#[pallet::event]
@@ -301,12 +336,15 @@ pub mod pallet {
 
 			ensure!(!BatchStatusMap::<T>::contains_key(batch_id), Error::<T>::TradeBatchError525);
 
-			// Check whether the batch is older than 4 weeks
+			// Get current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			// Get matching timelimit
+			let matching_time_limit = MatchingTimeLimit::<T>::get();
 			// Converting timestamp in milliseconds to seconds
 			let batch_timestamp = batch_timestamp / 1000;
-			ensure!(batch_timestamp >= timestamp_limit, Error::<T>::TradeBatchError545);
+			let timestamp_limit = current_timestamp - batch_timestamp;
+			// Check whether the batch is older than expected time
+			ensure!(timestamp_limit <= matching_time_limit, Error::<T>::TradeBatchError545);
 
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
@@ -323,22 +361,26 @@ pub mod pallet {
 			ensure!(oracle_price > FixedI128::zero(), Error::<T>::TradeBatchError513);
 
 			//Update last traded price
-			let last_traded_price = T::PricesPallet::get_last_traded_price(market_id);
+			let last_traded_price = T::PricesPallet::get_last_oracle_price(market_id);
 			if last_traded_price == FixedI128::zero() {
-				T::PricesPallet::update_last_traded_price(market_id, oracle_price);
+				T::PricesPallet::update_last_oracle_price(market_id, oracle_price);
 			}
 
 			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
+			ensure!(quantity_locked >= market.minimum_order_size, Error::<T>::TradeBatchError522);
 			ensure!(
-				quantity_locked > FixedI128::checked_from_integer(0).unwrap(),
-				Error::<T>::TradeBatchError522
+				quantity_locked.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError503
 			);
+
+			ensure!(orders.len() > 1, Error::<T>::TradeBatchError547);
 
 			// Calculate quantity that can be executed for the taker, before starting with the maker
 			// orders
-			let taker_order = &orders[orders.len() - 1];
+			// the unwrap won't fail as we are checking it in the previous line
+			let taker_order = &orders.last().unwrap();
 			let initial_taker_locked_response = Self::calculate_initial_taker_locked_size(
 				taker_order,
 				quantity_locked,
@@ -361,6 +403,7 @@ pub mod pallet {
 			let mut initial_margin_locked_short: FixedI128 =
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 			let mut min_timestamp: u64 = batch_timestamp;
+			let mut maker_error_codes = Vec::<u16>::new();
 
 			for element in &orders {
 				let mut margin_amount: FixedI128;
@@ -380,22 +423,24 @@ pub mod pallet {
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response = Self::perform_validations(
-					element,
-					oracle_price,
-					&market,
-					collateral_id,
-					current_timestamp,
-				);
+				let validation_response =
+					Self::perform_validations(
+						element,
+						oracle_price,
+						&market,
+						collateral_id,
+						current_timestamp,
+					);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
 						// if maker order, emit event and process next order
-						if element.order_id != orders[orders.len() - 1].order_id {
+						if element.order_id != taker_order.order_id {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						} else {
 							// if taker order, revert with error
@@ -411,7 +456,7 @@ pub mod pallet {
 					T::TradingAccountPallet::get_locked_margin(element.account_id, collateral_id);
 
 				// Maker Order
-				if element.order_id != orders[orders.len() - 1].order_id {
+				if element.order_id != taker_order.order_id {
 					let validation_response = Self::validate_maker(
 						orders[0].direction,
 						orders[0].side,
@@ -420,15 +465,17 @@ pub mod pallet {
 						element.order_type,
 						element.price,
 						oracle_price,
-						&orders[orders.len() - 1],
+						&taker_order,
+						tick_precision,
 					);
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -448,8 +495,9 @@ pub mod pallet {
 						Err(e) => {
 							Self::deposit_event(Event::OrderError {
 								order_id: element.order_id,
-								error_code: Self::get_error_code(e),
+								error_code: Self::get_error_code(&e),
 							});
+							maker_error_codes.push(Self::get_error_code(&e));
 							continue
 						},
 					}
@@ -466,6 +514,8 @@ pub mod pallet {
 						element.direction,
 						element.side,
 						element.post_only,
+						element.order_type,
+						element.slippage,
 					);
 					match validation_response {
 						Ok(()) => (),
@@ -475,6 +525,14 @@ pub mod pallet {
 					// Taker quantity to be executed will be sum of maker quantities executed
 					quantity_to_execute = quantity_executed;
 					if quantity_to_execute == FixedI128::zero() {
+						// If all makers failed due to slippage error, it means that
+						// no orders can be currently matched with taker from OB
+						// So revert with 514
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							ensure!(false, Error::<T>::TradeBatchError514);
+						}
 						Self::deposit_event(Event::TradeExecutionFailed { batch_id });
 						return Ok(())
 					}
@@ -489,32 +547,6 @@ pub mod pallet {
 					// Calculate execution price for taker
 					execution_price = total_order_volume / quantity_to_execute;
 
-					// Validate execution price of taker
-					if element.order_type == OrderType::Limit {
-						let limit_validation = Self::validate_limit_price(
-							element.price,
-							execution_price,
-							element.direction,
-							element.side,
-						);
-						match limit_validation {
-							Ok(()) => (),
-							Err(e) => return Err(e.into()),
-						}
-					} else {
-						let slippage_validation = Self::validate_within_slippage(
-							element.slippage,
-							oracle_price,
-							execution_price,
-							element.direction,
-							element.side,
-						);
-						match slippage_validation {
-							Ok(()) => (),
-							Err(e) => return Err(e.into()),
-						}
-					}
-
 					order_side = OrderSide::Taker;
 
 					taker_execution_price = execution_price;
@@ -523,7 +555,7 @@ pub mod pallet {
 
 				new_portion_executed = order_portion_executed + quantity_to_execute;
 
-				let is_final: bool;
+				let mut is_final: bool;
 				// BUY order
 				if element.side == Side::Buy {
 					let response = Self::process_open_orders(
@@ -552,11 +584,12 @@ pub mod pallet {
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
-							if element.order_id != orders[orders.len() - 1].order_id {
+							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -606,18 +639,19 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position = Position {
-						market_id,
-						direction: element.direction,
-						avg_execution_price,
-						size: new_position_size,
-						margin_amount,
-						borrowed_amount,
-						leverage: new_leverage,
-						created_timestamp,
-						modified_timestamp: current_timestamp,
-						realized_pnl: new_realized_pnl,
-					};
+					updated_position =
+						Position {
+							market_id,
+							direction: element.direction,
+							avg_execution_price,
+							size: new_position_size,
+							margin_amount,
+							borrowed_amount,
+							leverage: new_leverage,
+							created_timestamp,
+							modified_timestamp: current_timestamp,
+							realized_pnl: new_realized_pnl,
+						};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -641,6 +675,17 @@ pub mod pallet {
 							is_final = true;
 						} else {
 							is_final = false;
+						}
+					}
+
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
 						}
 					}
 				} else {
@@ -672,11 +717,12 @@ pub mod pallet {
 						},
 						Err(e) => {
 							// if maker order, emit event and process next order
-							if element.order_id != orders[orders.len() - 1].order_id {
+							if element.order_id != taker_order.order_id {
 								Self::deposit_event(Event::OrderError {
 									order_id: element.order_id,
-									error_code: Self::get_error_code(e),
+									error_code: Self::get_error_code(&e),
 								});
+								maker_error_codes.push(Self::get_error_code(&e));
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -747,11 +793,9 @@ pub mod pallet {
 						if opposite_position.size == FixedI128::zero() {
 							let mut markets =
 								CollateralToMarketMap::<T>::get(&element.account_id, collateral_id);
-							for index in 0..markets.len() {
-								if markets[index] == market_id {
-									markets.remove(index);
-								}
-							}
+
+							markets.retain(|&market| market != market_id);
+
 							CollateralToMarketMap::<T>::insert(
 								&element.account_id,
 								collateral_id,
@@ -809,6 +853,17 @@ pub mod pallet {
 						}
 					}
 
+					// For taker order, is_final should be true if not all the makers failed
+					// but whatever makers failed, the reason is slippage
+					// If all makers failed with slippage error, flow will not reach here
+					if element.order_id == taker_order.order_id {
+						let are_all_slippage_errors =
+							Self::are_all_errors_same(&maker_error_codes, 506);
+						if are_all_slippage_errors {
+							is_final = true;
+						}
+					}
+
 					open_interest = open_interest - quantity_to_execute;
 
 					// Update initial margin locked amount map
@@ -853,6 +908,10 @@ pub mod pallet {
 					}
 				}
 
+				// Store the trading fee
+				let current_trading_fee = TradingFeeMap::<T>::get(collateral_id);
+				TradingFeeMap::<T>::insert(collateral_id, current_trading_fee + fee);
+
 				Self::deposit_event(Event::OrderExecuted {
 					account_id: element.account_id,
 					order_id: element.order_id,
@@ -865,12 +924,12 @@ pub mod pallet {
 					pnl,
 					fee,
 					is_final,
-					is_maker: element.order_id != orders[orders.len() - 1].order_id,
+					is_maker: element.order_id != taker_order.order_id,
 				});
 			}
 
 			// Update open interest
-			let actual_open_interest = open_interest / 2.into();
+			let actual_open_interest = open_interest;
 			let current_open_interest = OpenInterestMap::<T>::get(market_id);
 			OpenInterestMap::<T>::insert(market_id, current_open_interest + actual_open_interest);
 
@@ -908,8 +967,8 @@ pub mod pallet {
 				market_id,
 				size: taker_quantity,
 				execution_price: taker_execution_price,
-				direction: orders[orders.len() - 1].direction.into(),
-				side: orders[orders.len() - 1].side.into(),
+				direction: taker_order.direction.into(),
+				side: taker_order.side.into(),
 			});
 
 			Ok(())
@@ -918,7 +977,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To add origin restriction in production
 		#[pallet::weight(0)]
 		pub fn add_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			// The pub key cannot be 0
 			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
@@ -936,7 +995,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To add origin restriction in production
 		#[pallet::weight(0)]
 		pub fn remove_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			// Check if the signer exists
 			ensure!(
@@ -999,6 +1058,14 @@ pub mod pallet {
 			}
 			StartTimestamp::<T>::put(current_timestamp);
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_matching_time_limit(origin: OriginFor<T>, time_limit: u64) -> DispatchResult {
+			// Make sure the caller is a sudo user
+			ensure_root(origin)?;
+			MatchingTimeLimit::<T>::put(time_limit);
 			Ok(())
 		}
 	}
@@ -1124,8 +1191,16 @@ pub mod pallet {
 				ensure!(force_closure_flag.is_none(), Error::<T>::TradeBatchError539);
 			}
 
-			// Validate that size of order is >= min quantity for market
-			ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
+			// Validate that size of BUY order is >= min quantity for market
+			if order.side == Side::Buy {
+				ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
+			}
+
+			// Validate the size of an order is multiple of step size
+			ensure!(
+				order.size.into_inner() % market.step_size.into_inner() == 0_i128,
+				Error::<T>::TradeBatchError517
+			);
 
 			// Validate that market matched and market in order are same
 			ensure!(market.id == order.market_id, Error::<T>::TradeBatchError504);
@@ -1200,6 +1275,7 @@ pub mod pallet {
 			maker_price: FixedI128,
 			oracle_price: FixedI128,
 			taker_order: &Order,
+			tick_precision: u8,
 		) -> Result<(), Error<T>> {
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
@@ -1216,14 +1292,25 @@ pub mod pallet {
 
 			ensure!(order_type == OrderType::Limit, Error::<T>::TradeBatchError518);
 
-			// Check whether the maker price is valid with respect to taker slippage
-			Self::validate_within_slippage(
-				taker_order.slippage,
-				oracle_price,
-				maker_price,
-				taker_order.direction,
-				taker_order.side,
-			)?;
+			if taker_order.order_type == OrderType::Limit {
+				// Check whether the maker price is valid with respect to taker limit price
+				Self::validate_limit_price(
+					taker_order.price,
+					maker_price,
+					taker_order.direction,
+					taker_order.side,
+				)?;
+			} else if taker_order.order_type == OrderType::Market {
+				// Check whether the maker price is valid with respect to taker slippage
+				Self::validate_within_slippage(
+					taker_order.slippage,
+					oracle_price,
+					maker_price,
+					taker_order.direction,
+					taker_order.side,
+					tick_precision,
+				)?;
+			}
 
 			Ok(())
 		}
@@ -1234,7 +1321,17 @@ pub mod pallet {
 			current_direction: Direction,
 			current_side: Side,
 			post_only: bool,
+			order_type: OrderType,
+			slippage: FixedI128,
 		) -> Result<(), Error<T>> {
+			if order_type == OrderType::Market {
+				ensure!(
+					slippage >= FixedI128::zero() &&
+						slippage <= FixedI128::from_inner(150000000000000000),
+					Error::<T>::TradeBatchError521
+				);
+			}
+
 			let opposite_direction = if maker1_direction == Direction::Long {
 				Direction::Short
 			} else {
@@ -1277,13 +1374,10 @@ pub mod pallet {
 			execution_price: FixedI128,
 			direction: Direction,
 			side: Side,
+			tick_precision: u8,
 		) -> Result<(), Error<T>> {
-			ensure!(
-				slippage > FixedI128::zero() &&
-					slippage <= FixedI128::from_inner(150000000000000000),
-				Error::<T>::TradeBatchError521
-			);
-			let threshold = slippage * oracle_price;
+			let mut threshold = slippage * oracle_price;
+			threshold = threshold.round_to_precision(tick_precision.into());
 
 			if (direction == Direction::Long && side == Side::Buy) ||
 				(direction == Direction::Short && side == Side::Sell)
@@ -1330,6 +1424,13 @@ pub mod pallet {
 				average_execution_price = cumulative_order_value / cumulative_order_size;
 			}
 
+			// Get the market details
+			let market = T::MarketPallet::get_market(market_id).unwrap();
+			ensure!(
+				position_details.size + order_size <= market.maximum_position_size,
+				Error::<T>::TradeBatchError548
+			);
+
 			let leveraged_order_value = order_size * execution_price;
 			let margin_order_value = leveraged_order_value / order.leverage;
 			let amount_to_be_borrowed = leveraged_order_value - margin_order_value;
@@ -1352,7 +1453,7 @@ pub mod pallet {
 				order.market_id,
 				order_size * execution_price,
 			)
-			.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
+			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
@@ -1435,6 +1536,9 @@ pub mod pallet {
 			let unused_balance =
 				T::TradingAccountPallet::get_unused_balance(order.account_id, collateral_id);
 
+			// Get the Liquidation fee
+			let current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
+
 			// Check if user is under water, ie,
 			// user has lost some borrowed funds
 			if margin_plus_pnl.is_negative() {
@@ -1454,6 +1558,11 @@ pub mod pallet {
 							modify_type: FundModifyType::Decrease,
 							block_number,
 						});
+
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - amount_to_transfer_from,
+						);
 					} else {
 						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
@@ -1463,6 +1572,11 @@ pub mod pallet {
 							modify_type: FundModifyType::Decrease,
 							block_number,
 						});
+
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - (amount_to_transfer_from - unused_balance),
+						);
 					}
 				}
 
@@ -1492,6 +1606,11 @@ pub mod pallet {
 									modify_type: FundModifyType::Decrease,
 									block_number,
 								});
+
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee - pnl.saturating_abs(),
+								);
 							} else {
 								// User has some balance to cover losses, remaining
 								// should be taken from insurance fund
@@ -1501,6 +1620,11 @@ pub mod pallet {
 									modify_type: FundModifyType::Decrease,
 									block_number,
 								});
+
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee - (pnl.saturating_abs() - balance),
+								);
 							}
 						}
 
@@ -1524,6 +1648,7 @@ pub mod pallet {
 				} else {
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
+
 					// If order type is Forced, force closure flag will always be
 					// one of Deleverage or Liquidate
 					match force_closure_flag.unwrap() {
@@ -1538,6 +1663,10 @@ pub mod pallet {
 									modify_type: FundModifyType::Increase,
 									block_number,
 								});
+								LiquidationFeeMap::<T>::insert(
+									collateral_id,
+									current_liquidation_fee + margin_plus_pnl,
+								);
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
@@ -1547,6 +1676,11 @@ pub mod pallet {
 										modify_type: FundModifyType::Decrease,
 										block_number,
 									});
+
+									LiquidationFeeMap::<T>::insert(
+										collateral_id,
+										current_liquidation_fee - margin_amount_to_reduce,
+									);
 								} else {
 									// if user has some balance
 									let pnl_abs = pnl.saturating_abs();
@@ -1558,6 +1692,11 @@ pub mod pallet {
 											modify_type: FundModifyType::Decrease,
 											block_number,
 										});
+
+										LiquidationFeeMap::<T>::insert(
+											collateral_id,
+											current_liquidation_fee - (pnl_abs - balance),
+										);
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
 										Self::deposit_event(Event::InsuranceFundChange {
@@ -1566,6 +1705,11 @@ pub mod pallet {
 											modify_type: FundModifyType::Increase,
 											block_number,
 										});
+
+										LiquidationFeeMap::<T>::insert(
+											collateral_id,
+											current_liquidation_fee + (balance - pnl_abs),
+										);
 									}
 								}
 							}
@@ -1584,36 +1728,36 @@ pub mod pallet {
 				}
 			}
 
-			// if it is not a forced order
-			// then update volume with present trade
-			let total_30day_volume: FixedI128;
-			if order.order_type == OrderType::Forced {
-				total_30day_volume = FixedI128::from_inner(0);
-			} else {
-				total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let total_30day_volume: FixedI128 =
+				T::TradingAccountPallet::update_and_get_cumulative_volume(
 					order.account_id,
 					order.market_id,
 					order_size * execution_price,
 				)
-				.or_else(|_| Err(Error::<T>::TradeVolumeCalculationError))?;
-			}
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-				collateral_id,
-				Side::Sell,
-				order_side,
-				total_30day_volume,
-			);
+			let fee = if order.order_type != OrderType::Forced {
+				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
+					collateral_id,
+					Side::Sell,
+					order_side,
+					total_30day_volume,
+				);
 
-			let fee = fee_rate * leveraged_order_value;
+				let fee = fee_rate * leveraged_order_value;
 
-			// Deduct fee while closing a position
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				fee,
-				BalanceChangeReason::Fee,
-			);
+				// Deduct fee while closing a position
+				T::TradingAccountPallet::transfer_from(
+					order.account_id,
+					collateral_id,
+					fee,
+					BalanceChangeReason::Fee,
+				);
+
+				fee
+			} else {
+				FixedI128::zero()
+			};
 
 			Ok((
 				margin_amount,
@@ -1642,36 +1786,48 @@ pub mod pallet {
 			(maintenance_requirement, mark_price)
 		}
 
-		fn get_error_code(error: Error<T>) -> u16 {
-			match error {
+		fn get_error_code(error: &Error<T>) -> u16 {
+			match &error {
 				Error::<T>::TradeBatchError501 => 501,
 				Error::<T>::TradeBatchError502 => 502,
+				Error::<T>::TradeBatchError503 => 503,
 				Error::<T>::TradeBatchError504 => 504,
 				Error::<T>::TradeBatchError505 => 505,
 				Error::<T>::TradeBatchError506 => 506,
 				Error::<T>::TradeBatchError507 => 507,
 				Error::<T>::TradeBatchError508 => 508,
+				Error::<T>::TradeBatchError509 => 509,
 				Error::<T>::TradeBatchError510 => 510,
 				Error::<T>::TradeBatchError511 => 511,
 				Error::<T>::TradeBatchError512 => 512,
+				Error::<T>::TradeBatchError513 => 513,
+				Error::<T>::TradeBatchError514 => 514,
 				Error::<T>::TradeBatchError515 => 515,
+				Error::<T>::TradeBatchError516 => 516,
+				Error::<T>::TradeBatchError517 => 517,
 				Error::<T>::TradeBatchError518 => 518,
+				Error::<T>::TradeBatchError521 => 521,
+				Error::<T>::TradeBatchError522 => 522,
 				Error::<T>::TradeBatchError523 => 523,
 				Error::<T>::TradeBatchError524 => 524,
-				Error::<T>::TradeBatchError526 => 526,
-				Error::<T>::TradeBatchError527 => 527,
+				Error::<T>::TradeBatchError525 => 525,
 				Error::<T>::TradeBatchError531 => 531,
 				Error::<T>::TradeBatchError532 => 532,
 				Error::<T>::TradeBatchError533 => 533,
 				Error::<T>::TradeBatchError534 => 534,
 				Error::<T>::TradeBatchError535 => 535,
 				Error::<T>::TradeBatchError536 => 536,
-				Error::<T>::TradeBatchError537 => 537,
 				Error::<T>::TradeBatchError538 => 538,
 				Error::<T>::TradeBatchError539 => 539,
 				Error::<T>::TradeBatchError540 => 540,
 				Error::<T>::TradeBatchError541 => 541,
 				Error::<T>::TradeBatchError542 => 542,
+				Error::<T>::TradeBatchError543 => 543,
+				Error::<T>::TradeBatchError544 => 544,
+				Error::<T>::TradeBatchError545 => 545,
+				Error::<T>::TradeBatchError546 => 546,
+				Error::<T>::TradeBatchError547 => 547,
+				Error::<T>::TradeBatchError548 => 548,
 				_ => 500,
 			}
 		}
@@ -1700,6 +1856,7 @@ pub mod pallet {
 			// Emit the SignerRemoved event
 			Self::deposit_event(Event::LiquidatorSignerRemoved { signer: pub_key });
 		}
+
 		fn order_hash_check(order_id: U256, order_hash: U256) -> bool {
 			// Get the hash of the order associated with the order_id
 			let existing_hash = OrderHashMap::<T>::get(order_id);
@@ -1714,6 +1871,19 @@ pub mod pallet {
 					false
 				}
 			}
+		}
+
+		fn are_all_errors_same(error_codes: &Vec<u16>, error_code: u16) -> bool {
+			if error_codes.len() > 0 {
+				for &code in error_codes {
+					if code != error_code {
+						return false
+					}
+				}
+			} else {
+				return false
+			}
+			true
 		}
 	}
 
@@ -1798,12 +1968,14 @@ pub mod pallet {
 				available_margin,
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
-			) = T::TradingAccountPallet::get_margin_info(
-				account_id,
-				collateral_id,
-				FixedI128::zero(),
-				FixedI128::zero(),
-			);
+				_,
+			) =
+				T::TradingAccountPallet::get_margin_info(
+					account_id,
+					collateral_id,
+					FixedI128::zero(),
+					FixedI128::zero(),
+				);
 
 			MarginInfo {
 				is_liquidation,
@@ -1815,7 +1987,7 @@ pub mod pallet {
 		}
 
 		fn get_account_info(account_id: U256, collateral_id: u128) -> AccountInfo {
-			let (_, total_margin, available_margin, _, _) =
+			let (_, total_margin, available_margin, _, _, _) =
 				T::TradingAccountPallet::get_margin_info(
 					account_id,
 					collateral_id,
@@ -1899,6 +2071,10 @@ pub mod pallet {
 			let expires_at = current_timestamp + seconds_to_expiry;
 
 			(fee_rates, expires_at)
+		}
+
+		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
+			T::TradingAccountPallet::get_amount_to_withdraw(account_id, collateral_id)
 		}
 	}
 }
