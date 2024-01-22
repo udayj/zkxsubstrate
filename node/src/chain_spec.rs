@@ -5,7 +5,7 @@ use node_template_runtime::{
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{sr25519, Pair, Public, OpaquePeerId, crypto::UncheckedInto};
+use sp_core::{sr25519, Pair, Public, OpaquePeerId};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
 // The URL for the telemetry server.

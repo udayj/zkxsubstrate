@@ -166,7 +166,7 @@ parameter_types! {
  	pub const MaxPeerIdLength: u32 = 128;
 
 	// Following type is specific to session and validator management
-	pub const MinAuthorities: u32 = 2;
+	pub const MinAuthorities: u32 = 1;
 
 	// period defines roughly how long a session is
 	// validator changes get into effect after 2 sessions
