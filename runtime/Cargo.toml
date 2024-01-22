@@ -141,3 +141,10 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 ]
+dev = [
+	"pallet-asset/dev", 
+	"pallet-market/dev", 
+	"pallet-trading-account/dev", 
+	"pallet-sync-facade/dev",
+	"pallet-trading-fees/dev"
+]

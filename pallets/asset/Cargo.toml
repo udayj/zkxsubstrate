@@ -27,3 +27,4 @@ std = [
     "codec/std",
     "scale-info/std",
 ]
+dev = []

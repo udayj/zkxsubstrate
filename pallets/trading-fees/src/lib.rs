@@ -19,6 +19,12 @@ pub mod pallet {
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
+	#[cfg(not(feature = "dev"))]
+	pub const IS_DEV_ENABLED:bool = false;
+	
+	#[cfg(feature="dev")]
+	pub const IS_DEV_ENABLED:bool = true;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -64,6 +70,8 @@ pub mod pallet {
 		AssetNotFound,
 		/// Asset is not a collateral
 		AssetNotCollateral,
+		/// Invalid Call to dev mode only function
+		DevOnlyCall
 	}
 
 	#[pallet::event]
@@ -85,6 +93,11 @@ pub mod pallet {
 			order_side: OrderSide,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			// Make sure the caller is from a signed origin
 			let _ = ensure_signed(origin)?;
 

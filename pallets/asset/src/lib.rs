@@ -20,7 +20,13 @@ pub mod pallet {
 
 	static DELETION_LIMIT: u32 = 100;
 	static DEFAULT_ASSET: u128 = 1431520323;
-
+	
+	#[cfg(not(feature = "dev"))]
+	pub const IS_DEV_ENABLED:bool = false;
+	
+	#[cfg(feature="dev")]
+	pub const IS_DEV_ENABLED:bool = true;
+	
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -52,6 +58,8 @@ pub mod pallet {
 		BoundsOverflow,
 		/// Invalid value for id or token decimal
 		InvalidAsset,
+		/// Invalid Call to dev mode only function
+		DevOnlyCall
 	}
 
 	#[pallet::event]
@@ -78,6 +86,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			assets: Vec<ExtendedAsset>,
 		) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Clear asset map
@@ -105,6 +118,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_asset(origin: OriginFor<T>, id: u128) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the asset exists
@@ -120,6 +138,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn update_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the asset exists
@@ -138,6 +161,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the asset exists

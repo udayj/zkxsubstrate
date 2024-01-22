@@ -29,3 +29,4 @@ std = [
     "scale-info/std",
     "sp-arithmetic/std",
 ]
+dev = []

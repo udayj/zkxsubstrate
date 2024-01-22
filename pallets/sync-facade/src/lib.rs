@@ -31,6 +31,12 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::fixed_point::FixedI128;
 
+	#[cfg(not(feature = "dev"))]
+	pub const IS_DEV_ENABLED:bool = false;
+	
+	#[cfg(feature="dev")]
+	pub const IS_DEV_ENABLED:bool = true;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -139,6 +145,8 @@ pub mod pallet {
 		InsufficientSignatures,
 		/// Invalid FieldElement value
 		ConversionError,
+		/// Invalid Call to dev mode only function
+		DevOnlyCall
 	}
 
 	// Constants
@@ -157,6 +165,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// The pub key cannot be 0
@@ -175,6 +188,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn set_signers_quorum(origin: OriginFor<T>, new_quorum: u8) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// It cannot be more than existing number of signers
@@ -190,6 +208,11 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
+
+			if !IS_DEV_ENABLED {
+
+				return Err(Error::<T>::DevOnlyCall.into());
+			}
 			ensure_signed(origin)?;
 
 			// Check if the signer exists
