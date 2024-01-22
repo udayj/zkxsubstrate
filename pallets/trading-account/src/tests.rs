@@ -385,7 +385,8 @@ fn test_volume_update_two_trades() {
 		let collateral_id = usdc().asset.id;
 		// Create orders
 		let alice_order =
-			Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+
+		Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(202.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -443,12 +444,12 @@ fn test_volume_update_two_trades() {
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
 
 		// new trade on same day
-		let alice_order =
-			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order = Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
+
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(1),
@@ -513,9 +514,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 		// Create orders
-		let alice_order =
-			Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order = Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(202.into(), bob_id)
+
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
@@ -557,12 +558,12 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
 
-		let alice_order =
-			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
 			.sign_order(get_private_key(bob().pub_key));
+
 		// next trade on next day i.e. day 2
 		Timestamp::set_timestamp((init_timestamp + one_day) * 1000);
 
@@ -635,8 +636,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		// next trade on same 2nd day
 		Timestamp::set_timestamp((init_timestamp + one_day + (one_day / 2)) * 1000);
 
-		let alice_order =
-			Order::new(205.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(205.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(206.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -709,8 +709,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-5");
 		assert_eq!(bob_30day_volume, 300.into(), "Error in 30 day volume bob-5");
 
-		let alice_order =
-			Order::new(207.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(207.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(208.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -785,8 +784,7 @@ fn test_volume_update_30_days_diff() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 		// Create orders
-		let alice_order =
-			Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order = Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(202.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -815,8 +813,7 @@ fn test_volume_update_30_days_diff() {
 			1699940367000,
 		));
 
-		let alice_order =
-			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -887,8 +884,7 @@ fn test_volume_update_31_days_diff() {
 		let market_id = btc_usdc().market.id;
 		let collateral_id = usdc().asset.id;
 		// Create orders
-		let alice_order =
-			Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(201.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(202.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
@@ -930,8 +926,7 @@ fn test_volume_update_31_days_diff() {
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
 
-		let alice_order =
-			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
+		let alice_order =	Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
 		let bob_order = Order::new(204.into(), bob_id)
 			.set_direction(Direction::Short)
 			.set_order_type(OrderType::Market)
