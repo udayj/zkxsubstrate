@@ -8,7 +8,7 @@ const fs = require("fs");
 
 async function main() {
   // Initialise the provider to connect to the local node
-  const provider = new WsProvider("wss://l3-node-1.sandbox-2.zkx.fi");
+  const provider = new WsProvider("wss://l3.sandbox-2.zkx.fi");
 
   // Create the API and wait until ready (optional provider passed through)
   const api = await ApiPromise.create({ provider });
