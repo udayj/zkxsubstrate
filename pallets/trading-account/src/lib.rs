@@ -31,10 +31,10 @@ pub mod pallet {
 	use sp_io::hashing::blake2_256;
 
 	#[cfg(not(feature = "dev"))]
-	pub const IS_DEV_ENABLED:bool = false;
-	
-	#[cfg(feature="dev")]
-	pub const IS_DEV_ENABLED:bool = true;
+	pub const IS_DEV_ENABLED: bool = false;
+
+	#[cfg(feature = "dev")]
+	pub const IS_DEV_ENABLED: bool = true;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -158,7 +158,7 @@ pub mod pallet {
 		/// Market does not exist
 		MarketDoesNotExist,
 		/// Invalid Call to dev mode only function
-		DevOnlyCall
+		DevOnlyCall,
 	}
 
 	#[pallet::event]
@@ -211,10 +211,8 @@ pub mod pallet {
 			collateral_id: u128,
 			amount: FixedI128,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
-				return Err(Error::<T>::DevOnlyCall.into());
+				return Err(Error::<T>::DevOnlyCall.into())
 			}
 			ensure_signed(origin)?;
 
@@ -230,10 +228,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			accounts: Vec<TradingAccountMinimal>,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
-				return Err(Error::<T>::DevOnlyCall.into());
+				return Err(Error::<T>::DevOnlyCall.into())
 			}
 			let _ = ensure_signed(origin)?;
 
@@ -286,10 +282,8 @@ pub mod pallet {
 			account_id: U256,
 			balances: Vec<BalanceUpdate>,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
-				return Err(Error::<T>::DevOnlyCall.into());
+				return Err(Error::<T>::DevOnlyCall.into())
 			}
 			let _ = ensure_signed(origin)?;
 
@@ -395,18 +389,20 @@ pub mod pallet {
 				new_balance,
 			);
 
-			// BalanceUpdated event is emitted for reducing the withdrawal fee
-			Self::deposit_event(Event::BalanceUpdated {
-				account_id: withdrawal_request.account_id,
-				account: account.clone(),
-				collateral_id: withdrawal_request.collateral_id,
-				amount: withdrawal_request.amount,
-				modify_type: FundModifyType::Decrease.into(),
-				reason: BalanceChangeReason::WithdrawalFee.into(),
-				previous_balance: current_balance,
-				new_balance,
-				block_number,
-			});
+			if withdrawal_fee != FixedI128::zero() {
+				// BalanceUpdated event is emitted for reducing the withdrawal fee
+				Self::deposit_event(Event::BalanceUpdated {
+					account_id: withdrawal_request.account_id,
+					account: account.clone(),
+					collateral_id: withdrawal_request.collateral_id,
+					amount: withdrawal_request.amount,
+					modify_type: FundModifyType::Decrease.into(),
+					reason: BalanceChangeReason::WithdrawalFee.into(),
+					previous_balance: current_balance,
+					new_balance,
+					block_number,
+				});
+			}
 
 			// Get withdrawal amount before withdrawal leads to the position to be liquidatable or
 			// deleveraged
