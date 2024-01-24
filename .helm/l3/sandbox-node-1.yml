@@ -138,7 +138,7 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3-node-1.sandbox.zkx.fi
+  - host: l3.sandbox.zkx.fi
     http:
       paths:
       - path: "/"
@@ -152,7 +152,7 @@ ingress:
   tls:
   - secretName: l3-tls-node-1
     hosts:
-      - l3-node-1.sandbox.zkx.fi
+      - l3.sandbox.zkx.fi
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
