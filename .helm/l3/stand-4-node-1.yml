@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: stage-node
+  tag: stand-4-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,21 +138,21 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod
   # -- Ingress rules configuration
   rules:
-  - host: l3.stage.k8s.ntwrkx.com
+  - host: l3.stand-2.k8s.ntwrkx.com
     http:
       paths:
       - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: zkxl3-main-node
+            name: zkxl3-node-1-0
             port:
               number: 9944
   # -- Ingress TLS configuration
   tls:
   - secretName: l3-tls
     hosts:
-      - l3.stage.k8s.ntwrkx.com
+      - l3.stand-2.k8s.ntwrkx.com
 
 
 # -- Deploy a substrate node.
@@ -412,7 +412,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0000000000000000000000000000000000000000000000000000000000000001"
+  customNodeKey: "0xc12b6d18942f5ee8528c8e2baf4e147b5c5c18710926ea492d09cbd9f6c9f82a"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -579,7 +579,7 @@ node:
       cpu: 1000m
       memory: 4Gi
     limits:
-      cpu: 2000m
+      cpu: 4000m
       memory: 10Gi
 
   # -- Define the WASM runtime overrides directory path

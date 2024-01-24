@@ -131,28 +131,23 @@ podDisruptionBudget:
 # -- Creates an ingress resource
 ingress:
   # -- Enable creation of Ingress
-  enabled: true
-  ingressClassName: nginx
+  enabled: false
   # -- Annotations to add to the Ingress
-  annotations:
-   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  #  kubernetes.io/ingress.class: nginx
+  #  kubernetes.io/tls-acme: "true"
   # -- Ingress rules configuration
-  rules:
-  - host: l3.stand-4.k8s.ntwrkx.com
-    http:
-      paths:
-      - path: "/"
-        pathType: Prefix
-        backend:
-          service:
-            name: zkxl3-main-node
-            port:
-              number: 9944
+  rules: []
+  #  - host: chart-example.local
+  #    paths:
+  #      - serviceName: node
+  #        servicePort: 9944
   # -- Ingress TLS configuration
-  tls:
-  - secretName: l3-tls
-    hosts:
-      - l3.stand-4.k8s.ntwrkx.com
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -344,8 +339,9 @@ node:
     # -- Flags to add to the Polkadot binary
     flags: []
 
+
   # -- Flags to add to the Polkadot binary
-  flags: ["--alice"]
+  flags: ["--bob --bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -411,7 +407,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0000000000000000000000000000000000000000000000000000000000000001"
+  customNodeKey: "0x6ce3be907dbcabf20a9a5a60a712b4256a54196000a8ed4050d352bc113f8c58"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -578,7 +574,7 @@ node:
       cpu: 1000m
       memory: 4Gi
     limits:
-      cpu: 2000m
+      cpu: 4000m
       memory: 10Gi
 
   # -- Define the WASM runtime overrides directory path
