@@ -20,13 +20,13 @@ pub mod pallet {
 
 	static DELETION_LIMIT: u32 = 100;
 	static DEFAULT_ASSET: u128 = 1431520323;
-	
+
 	#[cfg(not(feature = "dev"))]
-	pub const IS_DEV_ENABLED:bool = false;
-	
-	#[cfg(feature="dev")]
-	pub const IS_DEV_ENABLED:bool = true;
-	
+	pub const IS_DEV_ENABLED: bool = false;
+
+	#[cfg(feature = "dev")]
+	pub const IS_DEV_ENABLED: bool = true;
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
@@ -59,7 +59,7 @@ pub mod pallet {
 		/// Invalid value for id or token decimal
 		InvalidAsset,
 		/// Invalid Call to dev mode only function
-		DevOnlyCall
+		DevOnlyCall,
 	}
 
 	#[pallet::event]
@@ -86,9 +86,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			assets: Vec<ExtendedAsset>,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -118,9 +116,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_asset(origin: OriginFor<T>, id: u128) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -138,9 +134,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn update_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -150,40 +144,34 @@ pub mod pallet {
 				return Err(Error::<T>::InvalidAsset.into())
 			}
 
-			// Validate asset
-			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
-
 			// Update the asset
-			Self::update_asset_internal(extended_asset);
+			Self::update_asset_internal(extended_asset)?;
 			Ok(())
 		}
 
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_asset(origin: OriginFor<T>, extended_asset: ExtendedAsset) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
 
-			// Check if the asset exists
-			if let Some(_) = Self::get_asset(extended_asset.asset.id) {
-				return Err(Error::<T>::DuplicateAsset.into())
-			}
-
-			// Validate asset
-			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
-
 			// Add the asset
-			Self::add_asset_internal(extended_asset);
+			Self::add_asset_internal(extended_asset)?;
 			Ok(())
 		}
 	}
 
 	impl<T: Config> AssetInterface for Pallet<T> {
-		fn add_asset_internal(extended_asset: ExtendedAsset) {
+		fn add_asset_internal(extended_asset: ExtendedAsset) -> DispatchResult {
+			// Check if the asset exists
+			let asset = Self::get_asset(extended_asset.asset.id);
+			ensure!(asset.is_none(), Error::<T>::DuplicateAsset);
+
+			// Validate asset
+			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
+
 			// Add asset to the asset map
 			AssetMap::<T>::insert(extended_asset.asset.id, extended_asset.clone());
 
@@ -194,14 +182,21 @@ pub mod pallet {
 
 			// Emit the asset created event
 			Self::deposit_event(Event::AssetCreated { asset: extended_asset });
+
+			Ok(())
 		}
 
-		fn update_asset_internal(extended_asset: ExtendedAsset) {
+		fn update_asset_internal(extended_asset: ExtendedAsset) -> DispatchResult {
+			// Validate asset
+			ensure!((0..19).contains(&extended_asset.asset.decimals), Error::<T>::InvalidAsset);
+
 			// Replace the asset in the asset map
 			AssetMap::<T>::insert(extended_asset.asset.id, extended_asset.clone());
 
 			// Emit the asset updated event
 			Self::deposit_event(Event::AssetUpdated { asset: extended_asset });
+
+			Ok(())
 		}
 
 		fn remove_asset_internal(id: u128) {

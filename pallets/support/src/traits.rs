@@ -77,8 +77,8 @@ pub trait TradingInterface {
 }
 
 pub trait AssetInterface {
-	fn update_asset_internal(asset: ExtendedAsset);
-	fn add_asset_internal(asset: ExtendedAsset);
+	fn update_asset_internal(asset: ExtendedAsset) -> DispatchResult;
+	fn add_asset_internal(asset: ExtendedAsset) -> DispatchResult;
 	fn remove_asset_internal(id: u128);
 	fn get_default_collateral() -> u128;
 	fn get_asset(id: u128) -> Option<Asset>;
@@ -102,8 +102,8 @@ pub trait RiskManagementInterface {
 
 pub trait MarketInterface {
 	fn get_market(id: u128) -> Option<Market>;
-	fn add_market_internal(extended_market: ExtendedMarket);
-	fn update_market_internal(extended_market: ExtendedMarket);
+	fn add_market_internal(extended_market: ExtendedMarket) -> DispatchResult;
+	fn update_market_internal(extended_market: ExtendedMarket) -> DispatchResult;
 	fn remove_market_internal(id: u128);
 	fn validate_market_details(market: &Market) -> DispatchResult;
 	fn get_all_markets() -> Vec<u128>;
