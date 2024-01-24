@@ -5,7 +5,13 @@ metadata:
   name: l3-front
   namespace: {{ $.Release.Namespace }}
   annotations:
+    {{ if eq .Values.env "sandbox" }}
     cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
+    {{ else if eq .Values.env "sandbox-2" }}
+    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
+    {{ else }}
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    {{ end }}
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
