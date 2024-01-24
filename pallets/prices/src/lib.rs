@@ -228,6 +228,8 @@ pub mod pallet {
 		InitialisationTimestampAlreadySet,
 		/// When negative max value is passed to set_max_abr
 		NegativeMaxValue,
+		/// When timestamp provided is not yet met
+		FutureTimestampPriceUpdate,
 	}
 
 	#[pallet::event]
@@ -541,8 +543,13 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
+			// Get the current timestamp
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+
 			// Get the current timestamp and last timestamp for which prices were updated
 			let timestamp = Self::convert_to_seconds(timestamp);
+
+			ensure!(timestamp <= current_timestamp + 10, Error::<T>::FutureTimestampPriceUpdate);
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
