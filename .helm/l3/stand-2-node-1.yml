@@ -131,22 +131,28 @@ podDisruptionBudget:
 # -- Creates an ingress resource
 ingress:
   # -- Enable creation of Ingress
-  enabled: false
+  enabled: true
+  ingressClassName: nginx
   # -- Annotations to add to the Ingress
-  annotations: {}
-  #  kubernetes.io/ingress.class: nginx
-  #  kubernetes.io/tls-acme: "true"
+  annotations:
+   cert-manager.io/cluster-issuer: letsencrypt-prod
   # -- Ingress rules configuration
-  rules: []
-  #  - host: chart-example.local
-  #    paths:
-  #      - serviceName: node
-  #        servicePort: 9944
+  rules:
+  - host: l3.stand-2.k8s.ntwrkx.com
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: zkxl3-node-1-0
+            port:
+              number: 9944
   # -- Ingress TLS configuration
-  tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+  tls:
+  - secretName: l3-tls
+    hosts:
+      - l3.stand-2.k8s.ntwrkx.com
 
 
 # -- Deploy a substrate node.
@@ -339,9 +345,8 @@ node:
     # -- Flags to add to the Polkadot binary
     flags: []
 
-
   # -- Flags to add to the Polkadot binary
-  flags: ["--bob --bootnodes '/dns4/zkxl3-main-node-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'"]
+  flags: ["--alice"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -407,7 +412,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: 
+  customNodeKey: "0xc12b6d18942f5ee8528c8e2baf4e147b5c5c18710926ea492d09cbd9f6c9f82a"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
