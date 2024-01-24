@@ -6,7 +6,7 @@ use pallet_support::{
 			alice, bob, charlie, dave, eduard, get_private_key, get_trading_account_id,
 		},
 		asset_helper::{btc, eth, link, usdc},
-		market_helper::{btc_usdc, link_usdc},
+		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
 	types::{Direction, MultiplePrices, Order, OrderSide, OrderType, Position, Side},
@@ -38,7 +38,7 @@ fn setup() -> sp_io::TestExternalities {
 		));
 		assert_ok!(Markets::replace_all_markets(
 			RuntimeOrigin::signed(1),
-			vec![btc_usdc(), link_usdc()]
+			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
@@ -467,5 +467,199 @@ fn test_invalid_liquidator() {
 			// batch_timestamp
 			1699940278000,
 		));
+	});
+}
+
+#[test]
+// When user has 2 positions and liquidation is triggered and complete liquidations
+fn test_liquidation_multiple_positions() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// Open BTCUSDC position
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_size(9.into())
+			.set_leverage(8.into())
+			.set_price(8500.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_size(9.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_price(8500.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(1_u8),
+			// size
+			9.into(),
+			// market
+			market_id,
+			// price
+			8500.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		// Open ETHUSDC position
+		let market_id = eth_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_size(32.into())
+			.set_leverage(8.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_size(32.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(3_u8),
+			// size
+			32.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		Timestamp::set_timestamp(1699949278000);
+
+		// Decrease the price of BTCUSDC
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 = MultiplePrices {
+			market_id: btc_usdc().market.id,
+			index_price: 8000.into(),
+			mark_price: 8000.into(),
+		};
+		index_prices.push(index_price1);
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699949278000));
+
+		// Decrease the price of ETHUSDC
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 95.into(), mark_price: 95.into() };
+		index_prices.push(index_price1);
+		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699949278000));
+
+		// Liquidation order for btc
+		let market_id = btc_usdc().market.id;
+
+		let charlie_order = Order::new(204.into(), charlie_id)
+			.set_size(9.into())
+			.set_price(8000.into())
+			.set_leverage(8.into())
+			.set_timestamp(1699949278000)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let alice_forced_order = Order::new(203.into(), alice_id)
+			.set_size(9.into())
+			.set_price(8000.into())
+			.set_order_type(OrderType::Forced)
+			.set_direction(Direction::Long)
+			.set_side(Side::Sell)
+			.set_timestamp(1699949278000)
+			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(2_u8),
+			// size
+			9.into(),
+			// market
+			market_id,
+			// price
+			8000.into(),
+			// orders
+			vec![charlie_order, alice_forced_order],
+			// batch_timestamp
+			1699949278000,
+		));
+
+		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
+
+		let expected_position: Position = Position {
+			market_id: 0,
+			avg_execution_price: 0.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_some(), true);
+
+		// Liquidation order for eth
+		let market_id = eth_usdc().market.id;
+
+		let charlie_order = Order::new(208.into(), charlie_id)
+			.set_size(32.into())
+			.set_price(95.into())
+			.set_leverage(8.into())
+			.set_timestamp(1699949278000)
+			.set_market_id(market_id)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let alice_forced_order = Order::new(207.into(), alice_id)
+			.set_size(32.into())
+			.set_price(95.into())
+			.set_order_type(OrderType::Forced)
+			.set_direction(Direction::Long)
+			.set_side(Side::Sell)
+			.set_timestamp(1699949278000)
+			.set_market_id(market_id)
+			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(4_u8),
+			// size
+			32.into(),
+			// market
+			market_id,
+			// price
+			95.into(),
+			// orders
+			vec![charlie_order, alice_forced_order],
+			// batch_timestamp
+			1699949278000,
+		));
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_none(), true);
 	});
 }
