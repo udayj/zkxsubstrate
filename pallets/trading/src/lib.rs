@@ -216,7 +216,7 @@ pub mod pallet {
 		TradeBatchError518,
 		/// Slippage must be between 0 and 15
 		TradeBatchError521,
-		/// Invalid quantity locked w.r.t minimum order size of market
+		/// Quantity locked must be > 0
 		TradeBatchError522,
 		/// Maker order skipped since quantity_executed = quantity_locked for the batch
 		TradeBatchError523,
@@ -369,7 +369,7 @@ pub mod pallet {
 			let collateral_id: u128 = market.asset_collateral;
 			let initial_taker_locked_quantity: FixedI128;
 
-			ensure!(quantity_locked >= market.minimum_order_size, Error::<T>::TradeBatchError522);
+			ensure!(quantity_locked > FixedI128::zero(), Error::<T>::TradeBatchError522);
 			ensure!(
 				quantity_locked.into_inner() % market.step_size.into_inner() == 0_i128,
 				Error::<T>::TradeBatchError503
@@ -417,30 +417,25 @@ pub mod pallet {
 				let new_margin_locked: FixedI128;
 				let mut new_portion_executed: FixedI128;
 				let realized_pnl: FixedI128;
-				let pnl: FixedI128;
+				let order_pnl: FixedI128;
 				let new_realized_pnl: FixedI128;
 				let fee: FixedI128;
 				let order_side: OrderSide;
 				let mut created_timestamp: u64 = current_timestamp;
 
-				let validation_response =
-					Self::perform_validations(
-						element,
-						oracle_price,
-						&market,
-						collateral_id,
-						current_timestamp,
-					);
+				let validation_response = Self::perform_validations(
+					element,
+					oracle_price,
+					&market,
+					collateral_id,
+					current_timestamp,
+				);
 				match validation_response {
 					Ok(()) => (),
 					Err(e) => {
 						// if maker order, emit event and process next order
 						if element.order_id != taker_order.order_id {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(&e),
-							});
-							maker_error_codes.push(Self::get_error_code(&e));
+							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
 							continue
 						} else {
 							// if taker order, revert with error
@@ -471,11 +466,7 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(&e),
-							});
-							maker_error_codes.push(Self::get_error_code(&e));
+							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
 							continue
 						},
 					}
@@ -493,11 +484,7 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							Self::deposit_event(Event::OrderError {
-								order_id: element.order_id,
-								error_code: Self::get_error_code(&e),
-							});
-							maker_error_codes.push(Self::get_error_code(&e));
+							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
 							continue
 						},
 					}
@@ -539,9 +526,10 @@ pub mod pallet {
 
 					// Handle FoK order
 					if element.time_in_force == TimeInForce::FOK {
-						if quantity_to_execute != element.size {
-							return Err((Error::<T>::TradeBatchError516).into())
-						}
+						ensure!(
+							quantity_to_execute == element.size,
+							Error::<T>::TradeBatchError516
+						);
 					}
 
 					// Calculate execution price for taker
@@ -566,6 +554,7 @@ pub mod pallet {
 						oracle_price,
 						market_id,
 						collateral_id,
+						&position_details,
 					);
 					match response {
 						Ok((
@@ -585,11 +574,11 @@ pub mod pallet {
 						Err(e) => {
 							// if maker order, emit event and process next order
 							if element.order_id != taker_order.order_id {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(&e),
-								});
-								maker_error_codes.push(Self::get_error_code(&e));
+								Self::handle_maker_error(
+									element.order_id,
+									e,
+									&mut maker_error_codes,
+								);
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -611,16 +600,12 @@ pub mod pallet {
 					new_leverage = new_leverage.round_to_precision(2);
 					new_margin_locked = current_margin_locked + margin_lock_amount;
 					new_realized_pnl = position_details.realized_pnl - fee;
-					pnl = FixedI128::zero() - fee;
+					order_pnl = FixedI128::zero() - fee;
 
 					// If the user previously does not have any position in this market
 					// then add the market to CollateralToMarketMap
 					if position_details.size == FixedI128::zero() {
-						let opposite_direction = if element.direction == Direction::Long {
-							Direction::Short
-						} else {
-							Direction::Long
-						};
+						let opposite_direction = Self::get_opposite_direction(element.direction);
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
 							(market_id, opposite_direction),
@@ -639,19 +624,18 @@ pub mod pallet {
 						created_timestamp = position_details.created_timestamp;
 					}
 
-					updated_position =
-						Position {
-							market_id,
-							direction: element.direction,
-							avg_execution_price,
-							size: new_position_size,
-							margin_amount,
-							borrowed_amount,
-							leverage: new_leverage,
-							created_timestamp,
-							modified_timestamp: current_timestamp,
-							realized_pnl: new_realized_pnl,
-						};
+					updated_position = Position {
+						market_id,
+						direction: element.direction,
+						avg_execution_price,
+						size: new_position_size,
+						margin_amount,
+						borrowed_amount,
+						leverage: new_leverage,
+						created_timestamp,
+						modified_timestamp: current_timestamp,
+						realized_pnl: new_realized_pnl,
+					};
 					PositionsMap::<T>::set(
 						&element.account_id,
 						(market_id, element.direction),
@@ -695,8 +679,8 @@ pub mod pallet {
 						quantity_to_execute,
 						order_side,
 						execution_price,
-						market_id,
 						collateral_id,
+						&position_details,
 					);
 					match response {
 						Ok((
@@ -718,11 +702,11 @@ pub mod pallet {
 						Err(e) => {
 							// if maker order, emit event and process next order
 							if element.order_id != taker_order.order_id {
-								Self::deposit_event(Event::OrderError {
-									order_id: element.order_id,
-									error_code: Self::get_error_code(&e),
-								});
-								maker_error_codes.push(Self::get_error_code(&e));
+								Self::handle_maker_error(
+									element.order_id,
+									e,
+									&mut maker_error_codes,
+								);
 								continue
 							} else {
 								// if taker order, revert with error code
@@ -776,16 +760,12 @@ pub mod pallet {
 					}
 
 					new_realized_pnl = position_details.realized_pnl + realized_pnl;
-					pnl = realized_pnl - fee;
+					order_pnl = realized_pnl - fee;
 
 					// If the user does not have any position in this market
 					// then remove the market from CollateralToMarketMap
 					if new_position_size == FixedI128::zero() {
-						let opposite_direction = if element.direction == Direction::Long {
-							Direction::Short
-						} else {
-							Direction::Long
-						};
+						let opposite_direction = Self::get_opposite_direction(element.direction);
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
 							(market_id, opposite_direction),
@@ -921,7 +901,7 @@ pub mod pallet {
 					side: element.side.into(),
 					order_type: element.order_type.into(),
 					execution_price,
-					pnl,
+					pnl: order_pnl,
 					fee,
 					is_final,
 					is_maker: element.order_id != taker_order.order_id,
@@ -1192,8 +1172,11 @@ pub mod pallet {
 			}
 
 			// Validate that size of BUY order is >= min quantity for market
+			// And If the order is SELL order size should be > 0
 			if order.side == Side::Buy {
 				ensure!(order.size >= market.minimum_order_size, Error::<T>::TradeBatchError505);
+			} else {
+				ensure!(order.size > FixedI128::zero(), Error::<T>::TradeBatchError505);
 			}
 
 			// Validate the size of an order is multiple of step size
@@ -1277,12 +1260,8 @@ pub mod pallet {
 			taker_order: &Order,
 			tick_precision: u8,
 		) -> Result<(), Error<T>> {
-			let opposite_direction = if maker1_direction == Direction::Long {
-				Direction::Short
-			} else {
-				Direction::Long
-			};
-			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
+			let opposite_direction = Self::get_opposite_direction(maker1_direction);
+			let opposite_side = Self::get_opposite_side(maker1_side);
 
 			ensure!(
 				(current_direction == maker1_direction && current_side == maker1_side) ||
@@ -1332,12 +1311,8 @@ pub mod pallet {
 				);
 			}
 
-			let opposite_direction = if maker1_direction == Direction::Long {
-				Direction::Short
-			} else {
-				Direction::Long
-			};
-			let opposite_side = if maker1_side == Side::Buy { Side::Sell } else { Side::Buy };
+			let opposite_direction = Self::get_opposite_direction(maker1_direction);
+			let opposite_side = Self::get_opposite_side(maker1_side);
 
 			ensure!(
 				(current_direction == maker1_direction && current_side == opposite_side) ||
@@ -1404,14 +1379,12 @@ pub mod pallet {
 			oracle_price: FixedI128,
 			market_id: u128,
 			collateral_id: u128,
+			position_details: &Position,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
 			let average_execution_price: FixedI128;
 			let _block_number = <frame_system::Pallet<T>>::block_number();
-
-			let position_details =
-				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
 
 			// Calculate average execution price
 			if position_details.size == FixedI128::zero() {
@@ -1486,8 +1459,8 @@ pub mod pallet {
 			order_size: FixedI128,
 			order_side: OrderSide,
 			execution_price: FixedI128,
-			market_id: u128,
 			collateral_id: u128,
+			position_details: &Position,
 		) -> Result<
 			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
 			Error<T>,
@@ -1495,9 +1468,6 @@ pub mod pallet {
 			let actual_execution_price: FixedI128;
 			let price_diff: FixedI128;
 			let block_number = <frame_system::Pallet<T>>::block_number();
-
-			let position_details =
-				PositionsMap::<T>::get(&order.account_id, (market_id, order.direction));
 
 			if order.direction == Direction::Long {
 				actual_execution_price = execution_price;
@@ -1885,6 +1855,30 @@ pub mod pallet {
 			}
 			true
 		}
+
+		fn get_opposite_direction(direction: Direction) -> Direction {
+			if direction == Direction::Long {
+				Direction::Short
+			} else {
+				Direction::Long
+			}
+		}
+
+		fn get_opposite_side(side: Side) -> Side {
+			if side == Side::Buy {
+				Side::Sell
+			} else {
+				Side::Buy
+			}
+		}
+
+		fn handle_maker_error(order_id: U256, e: Error<T>, maker_error_codes: &mut Vec<u16>) {
+			Self::deposit_event(Event::OrderError {
+				order_id,
+				error_code: Self::get_error_code(&e),
+			});
+			maker_error_codes.push(Self::get_error_code(&e));
+		}
 	}
 
 	impl<T: Config> TradingInterface for Pallet<T> {
@@ -1969,13 +1963,12 @@ pub mod pallet {
 				unrealized_pnl_sum,
 				maintenance_margin_requirement,
 				_,
-			) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			MarginInfo {
 				is_liquidation,

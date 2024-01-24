@@ -268,6 +268,8 @@ pub mod pallet {
 		BaseAbrUpdated { base_abr: FixedI128 },
 		/// Bollinger width updated successfully
 		BollingerWidthUpdated { bollinger_width: FixedI128 },
+		/// Index/mark prices updated successfully
+		PricesUpdated { timestamp: u64, prices: Vec<MultiplePrices> },
 	}
 
 	// Pallet callable functions
@@ -576,6 +578,9 @@ pub mod pallet {
 					historical_price,
 				);
 			}
+
+			// Emit index/mark prices updated event
+			Self::deposit_event(Event::PricesUpdated { timestamp, prices });
 
 			Ok(())
 		}

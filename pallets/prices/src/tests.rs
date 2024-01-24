@@ -1,4 +1,4 @@
-use crate::mock::*;
+use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use pallet_support::{
 	test_helpers::{
@@ -132,6 +132,8 @@ fn test_update_prices() {
 		let price = PricesModule::current_price(market2.market.id);
 		assert_eq!(FixedI128::from_u32(200), price.mark_price);
 		assert_eq!(FixedI128::from_u32(199), price.index_price);
+
+		System::assert_has_event(Event::PricesUpdated { timestamp: 1699940367, prices }.into());
 	});
 }
 
