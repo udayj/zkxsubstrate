@@ -9,7 +9,9 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, MultiplePrices, Order, OrderSide, OrderType, Position, Side},
+	types::{
+		BalanceUpdate, Direction, MultiplePrices, Order, OrderSide, OrderType, Position, Side,
+	},
 };
 use primitive_types::U256;
 
@@ -661,5 +663,71 @@ fn test_liquidation_multiple_positions() {
 
 		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
 		assert_eq!(flag.is_none(), true);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccounts::set_balances(
+			RuntimeOrigin::signed(1),
+			alice_id,
+			vec![BalanceUpdate {
+				asset_id: btc_usdc().market.asset_collateral,
+				balance_value: 10000.into()
+			}]
+		));
+		assert_ok!(TradingAccounts::set_balances(
+			RuntimeOrigin::signed(1),
+			bob_id,
+			vec![BalanceUpdate {
+				asset_id: btc_usdc().market.asset_collateral,
+				balance_value: 10000.into()
+			}]
+		));
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(209.into(), alice_id)
+			.set_size(1.into())
+			.set_leverage(8.into())
+			.set_price(1000.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(210.into(), bob_id)
+			.set_size(1.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_price(1000.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch id
+			U256::from(5_u8),
+			// size
+			1.into(),
+			// market
+			market_id,
+			// price
+			1000.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
+		let expected_position: Position = Position {
+			market_id: btc_usdc().market.id,
+			avg_execution_price: 1000.into(),
+			size: 1.into(),
+			direction: Direction::Long,
+			margin_amount: 125.into(),
+			borrowed_amount: 875.into(),
+			leverage: 8.into(),
+			created_timestamp: 1699949278,
+			modified_timestamp: 1699949278,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(alice_position, expected_position);
 	});
 }
