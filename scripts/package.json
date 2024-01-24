@@ -3,10 +3,12 @@
     "@polkadot/api": "^10.9.1",
     "@polkadot/keyring": "^12.3.2",
     "@polkadot/util-crypto": "^12.3.2",
-    "bignumber.js": "^9.1.1"
+    "bignumber.js": "^9.1.1",
+    "decimal.js": "^10.4.3"
   },
   "scripts": {
-    "start": "ts-node after-drop-data.ts"
+    "start": "ts-node after-drop-data.ts",
+    "init-fee": "ts-node substrate-init-fee.ts"
   },
   "devDependencies": {
     "dotenv": "^16.3.1",
