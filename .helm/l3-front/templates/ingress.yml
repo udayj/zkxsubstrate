@@ -5,7 +5,7 @@ metadata:
   name: l3-front
   namespace: {{ $.Release.Namespace }}
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
@@ -15,6 +15,8 @@ spec:
   - hosts:
     {{ if eq .Values.env "sandbox" }}
     - "l3-front.sandbox.zkx.fi"
+    {{ else if eq .Values.env "sandbox-2" }}
+    - "l3-front.sandbox-2.zkx.fi"
     {{ else }}
     - "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
     {{ end }}
@@ -22,6 +24,8 @@ spec:
   rules:
   {{ if eq .Values.env "sandbox" }}
   - host: "l3-front.sandbox.zkx.fi"
+  {{ else if eq .Values.env "sandbox-2" }}
+  - host: "l3-front.sandbox-2.zkx.fi"
   {{ else }}
   - host: "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
   {{ end }}

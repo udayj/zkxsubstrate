@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: sandbox-2-node
+  tag: production-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -131,23 +131,28 @@ podDisruptionBudget:
 # -- Creates an ingress resource
 ingress:
   # -- Enable creation of Ingress
-  enabled: false
+  enabled: true
+  ingressClassName: nginx
   # -- Annotations to add to the Ingress
-  annotations: {}
-  #  kubernetes.io/ingress.class: nginx
-  #  kubernetes.io/tls-acme: "true"
+  annotations:
+   cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
-  rules: []
-  #  - host: chart-example.local
-  #    paths:
-  #      - serviceName: node
-  #        servicePort: 9944
+  rules:
+  - host: l3-node-1.sandbox.zkx.fi
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: zkxl3-node-1-0
+            port:
+              number: 9944
   # -- Ingress TLS configuration
-  tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
-
+  tls:
+  - secretName: l3-tls-node-1
+    hosts:
+      - l3-node-1.sandbox.zkx.fi
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -173,11 +178,11 @@ node:
   # -- Node may require custom name for chainspec file.
   # ref:  moonbeam https://github.com/PureStake/moonbeam/issues/1104#issuecomment-996787548
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
-  customChainspecPath: "/chain-data/chainspec.json"
+  customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl:
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox_customSpecRaw.json"
   # -- Replace chain spec if it already exists
-  forceDownloadChainspec: false
+  forceDownloadChainspec: true
 
   chainData:
     # -- Database backend engine to use
@@ -337,18 +342,20 @@ node:
       port: 9625
 
     # -- Flags to add to the Polkadot binary
-    flags: []
-
+    flags: ["--bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--bob --bootnodes '/dns4/zkxl3-main-node-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'"]
+  flags: []
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
-  keys: {}
-  # - type: "gran"
-  #   scheme: "ed25519"
-  #   seed: "//Alice//gran"
+  keys:
+  - type: "aura"
+    scheme: "Sr25519"
+    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
+  - type: "gran"
+    scheme: "Ed25519"
+    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
   # - type: "babe"
   #   scheme: "sr25519"
   #   seed: "//Alice"
@@ -407,7 +414,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: 
+  customNodeKey: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -569,13 +576,7 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources:
-    requests:
-      cpu: 1000m
-      memory: 4Gi
-    limits:
-      cpu: 2000m
-      memory: 10Gi
+  resources: {}
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
