@@ -32,10 +32,10 @@ pub mod pallet {
 	use sp_arithmetic::fixed_point::FixedI128;
 
 	#[cfg(not(feature = "dev"))]
-	pub const IS_DEV_ENABLED:bool = false;
-	
-	#[cfg(feature="dev")]
-	pub const IS_DEV_ENABLED:bool = true;
+	pub const IS_DEV_ENABLED: bool = false;
+
+	#[cfg(feature = "dev")]
+	pub const IS_DEV_ENABLED: bool = true;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -123,6 +123,14 @@ pub mod pallet {
 		FeeDataLengthMismatch { asset_id: u128 },
 		/// Token parsing error
 		TokenParsingError { key: U256 },
+		/// An invalid request to add an asset
+		AddAssetError { id: u128 },
+		/// An invalid request to update an asset
+		UpdateAssetError { id: u128 },
+		/// An invalid requet to add a market
+		AddMarketError { id: u128 },
+		/// An invalid request to update a market
+		UpdateMarketError { id: u128 },
 	}
 
 	#[pallet::error]
@@ -146,7 +154,7 @@ pub mod pallet {
 		/// Invalid FieldElement value
 		ConversionError,
 		/// Invalid Call to dev mode only function
-		DevOnlyCall
+		DevOnlyCall,
 	}
 
 	// Constants
@@ -165,9 +173,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -188,9 +194,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn set_signers_quorum(origin: OriginFor<T>, new_quorum: u8) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -208,9 +212,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -587,17 +589,27 @@ pub mod pallet {
 						match T::MarketPallet::get_market(market_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::MarketPallet::update_market_internal(ExtendedMarket {
+								match T::MarketPallet::update_market_internal(ExtendedMarket {
 									market: market_updated.market.clone(),
 									metadata_url: market_updated.metadata_url.clone(),
-								});
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::UpdateMarketError {
+										id: market_updated.id,
+									}),
+								}
 							},
 							// If not, add a new market
 							None => {
-								T::MarketPallet::add_market_internal(ExtendedMarket {
+								match T::MarketPallet::add_market_internal(ExtendedMarket {
 									market: market_updated.market.clone(),
 									metadata_url: market_updated.metadata_url.clone(),
-								});
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::AddMarketError {
+										id: market_updated.id,
+									}),
+								}
 							},
 						}
 					},
@@ -606,19 +618,29 @@ pub mod pallet {
 						match T::AssetPallet::get_asset(asset_updated.id) {
 							// If yes, update it
 							Some(_) => {
-								T::AssetPallet::update_asset_internal(ExtendedAsset {
+								match T::AssetPallet::update_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
 									asset_addresses: asset_updated.asset_addresses.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
-								});
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::UpdateAssetError {
+										id: asset_updated.id,
+									}),
+								}
 							},
 							// If not, add a new asset
 							None => {
-								T::AssetPallet::add_asset_internal(ExtendedAsset {
+								match T::AssetPallet::add_asset_internal(ExtendedAsset {
 									asset: asset_updated.asset.clone(),
 									asset_addresses: asset_updated.asset_addresses.clone(),
 									metadata_url: asset_updated.metadata_url.clone(),
-								});
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::AddAssetError {
+										id: asset_updated.id,
+									}),
+								}
 							},
 						}
 					},
@@ -678,9 +700,9 @@ pub mod pallet {
 							true => {
 								// If yes, emit an error
 								// Duplicate signer
-								Self::deposit_event(Event::SignerAddedError {
-									pub_key: signer_added.signer,
-								});
+								Self::deposit_event(
+									Event::SignerAddedError { pub_key: signer_added.signer }
+								);
 							},
 							// If not, whitelist the key
 							false => {
@@ -699,16 +721,17 @@ pub mod pallet {
 									// If yes, remove the signer
 									true => Self::remove_signer_internal(signer_removed.signer),
 									// If not, emit an error
-									false => Self::deposit_event(Event::SignerRemovedQuorumError {
-										quorum: signer_quorum,
-									}),
+									false =>
+										Self::deposit_event(Event::SignerRemovedQuorumError {
+											quorum: signer_quorum,
+										}),
 								};
 							},
 							// If not, emit an error
 							false => {
-								Self::deposit_event(Event::SignerRemovedError {
-									pub_key: signer_removed.signer,
-								});
+								Self::deposit_event(
+									Event::SignerRemovedError { pub_key: signer_removed.signer }
+								);
 							},
 						};
 					},
@@ -735,29 +758,36 @@ pub mod pallet {
 			let quorum = SignersQuorum::<T>::get() as usize;
 
 			// Find the number of valid sigs
-			let valid_sigs = signatures
-				.iter()
-				.filter(|&curr_signature| {
-					// Convert the data to felt252
-					let pub_key_result = curr_signature.signer_pub_key.try_to_felt();
-					let r_value_result = curr_signature.r.try_to_felt();
-					let s_value_result = curr_signature.s.try_to_felt();
+			let valid_sigs =
+				signatures
+					.iter()
+					.filter(|&curr_signature| {
+						// Convert the data to felt252
+						let pub_key_result = curr_signature.signer_pub_key.try_to_felt();
+						let r_value_result = curr_signature.r.try_to_felt();
+						let s_value_result = curr_signature.s.try_to_felt();
 
-					match pub_key_result.is_ok() & r_value_result.is_ok() & s_value_result.is_ok() {
-						true => {
-							let signature_felt252 = Signature {
-								r: r_value_result.unwrap(),
-								s: s_value_result.unwrap(),
-							};
+						match pub_key_result.is_ok() &
+							r_value_result.is_ok() & s_value_result.is_ok()
+						{
+							true => {
+								let signature_felt252 = Signature {
+									r: r_value_result.unwrap(),
+									s: s_value_result.unwrap(),
+								};
 
-							// Check if the sig is valid
-							Self::verify_signature(pub_key_result.unwrap(), hash, signature_felt252)
-						},
-						false => false,
-					}
-				})
-				.take(quorum)
-				.count();
+								// Check if the sig is valid
+								Self::verify_signature(
+									pub_key_result.unwrap(),
+									hash,
+									signature_felt252,
+								)
+							},
+							false => false,
+						}
+					})
+					.take(quorum)
+					.count();
 
 			valid_sigs == quorum
 		}

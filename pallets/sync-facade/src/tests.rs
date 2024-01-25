@@ -457,6 +457,9 @@ fn sync_update_market_event_add_market() {
 	);
 
 	env.execute_with(|| {
+		// add assets
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating market");
@@ -501,6 +504,8 @@ fn sync_update_market_event_multiple_add_market() {
 	);
 
 	env.execute_with(|| {
+		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth(), btc()]));
+
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating market");
@@ -1492,14 +1497,15 @@ fn sync_deposit_event_non_existent_asset() {
 	};
 	let alice_account_id = get_trading_account_id(alice_account);
 
-	let deposit_event_1 = <UserDeposit as UserDepositTrait>::new(
-		1,
-		alice_account,
-		12345_u128,
-		U256::from(1),
-		FixedI128::from(123),
-		1337,
-	);
+	let deposit_event_1 =
+		<UserDeposit as UserDepositTrait>::new(
+			1,
+			alice_account,
+			12345_u128,
+			U256::from(1),
+			FixedI128::from(123),
+			1337,
+		);
 
 	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
 	events_batch.add_user_deposit_event(deposit_event_1);
