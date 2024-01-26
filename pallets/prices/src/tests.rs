@@ -448,13 +448,13 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		assert_ok!(PricesModule::update_prices(
 			RuntimeOrigin::signed(1),
 			prices.clone(),
-			1702359620000
+			1702359600000
 		));
 
 		// Timestamp should be updated to this current timestamp,
 		// as start_timestamp is None at the moment
 		let start_timestamp = PricesModule::prices_start_timestamp().unwrap();
-		assert_eq!(start_timestamp, 1702359620);
+		assert_eq!(start_timestamp, 1702359600);
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -472,13 +472,13 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		assert_ok!(PricesModule::update_prices(
 			RuntimeOrigin::signed(1),
 			prices.clone(),
-			1702359600000
+			1702359500000
 		));
 
 		// Timestamp should be updated to this current timestamp,
 		// as it is less than previous timestamp
 		let start_timestamp = PricesModule::prices_start_timestamp().unwrap();
-		assert_eq!(start_timestamp, 1702359600);
+		assert_eq!(start_timestamp, 1702359500);
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -496,13 +496,13 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		assert_ok!(PricesModule::update_prices(
 			RuntimeOrigin::signed(1),
 			prices.clone(),
-			1702359661000
+			1702359601000
 		));
 
 		// Timestamp shouldn't be updated to this current timestamp,
 		// as it is more than previous timestamp
 		let start_timestamp = PricesModule::prices_start_timestamp().unwrap();
-		assert_eq!(start_timestamp, 1702359600);
+		assert_eq!(start_timestamp, 1702359500);
 
 		// Increment the blocktimestamp by 2 weeks
 		Timestamp::set_timestamp(1703569200000);
@@ -511,27 +511,27 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		assert_ok!(PricesModule::perform_prices_cleanup(RuntimeOrigin::signed(1)));
 
 		// Prices remian intact becuase we called cleanup before the timelimit
-		let historical_price = PricesModule::historical_price(1702359661, market1.market.id);
+		let historical_price = PricesModule::historical_price(1702359601, market1.market.id);
 		assert_eq!(FixedI128::from_u32(501), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(500), historical_price.index_price);
 
-		let historical_price = PricesModule::historical_price(1702359661, market2.market.id);
+		let historical_price = PricesModule::historical_price(1702359601, market2.market.id);
 		assert_eq!(FixedI128::from_u32(601), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(600), historical_price.index_price);
 
-		let historical_price = PricesModule::historical_price(1702359620, market1.market.id);
+		let historical_price = PricesModule::historical_price(1702359600, market1.market.id);
 		assert_eq!(FixedI128::from_u32(301), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(300), historical_price.index_price);
 
-		let historical_price = PricesModule::historical_price(1702359620, market2.market.id);
+		let historical_price = PricesModule::historical_price(1702359600, market2.market.id);
 		assert_eq!(FixedI128::from_u32(401), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(400), historical_price.index_price);
 
-		let historical_price = PricesModule::historical_price(1702359600, market1.market.id);
+		let historical_price = PricesModule::historical_price(1702359500, market1.market.id);
 		assert_eq!(FixedI128::from_u32(101), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(100), historical_price.index_price);
 
-		let historical_price = PricesModule::historical_price(1702359600, market2.market.id);
+		let historical_price = PricesModule::historical_price(1702359500, market2.market.id);
 		assert_eq!(FixedI128::from_u32(201), historical_price.mark_price);
 		assert_eq!(FixedI128::from_u32(200), historical_price.index_price);
 	});
