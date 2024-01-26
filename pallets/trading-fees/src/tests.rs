@@ -40,7 +40,7 @@ fn test_update_fees() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -85,7 +85,7 @@ fn test_update_fees_with_invalid_volume() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -117,7 +117,7 @@ fn test_update_fees_with_invalid_fee() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -139,7 +139,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side.clone(),
@@ -151,7 +151,7 @@ fn test_update_fees_with_zero_fee_tiers() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -174,7 +174,7 @@ fn test_update_fees_with_multiple_calls() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side.clone(),
@@ -194,7 +194,7 @@ fn test_update_fees_with_multiple_calls() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -216,7 +216,7 @@ fn test_update_fees_both_sides() {
 		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
@@ -237,7 +237,7 @@ fn test_update_fees_both_sides() {
 		let order_side: OrderSide = OrderSide::Taker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			usdc().asset.id,
 			side,
 			order_side,
