@@ -1036,7 +1036,9 @@ pub mod pallet {
 					OrdersMap::<T>::remove(timestamp);
 				}
 			}
-			StartTimestamp::<T>::put(current_timestamp);
+			if start_timestamp < timestamp_limit {
+				StartTimestamp::<T>::put(current_timestamp);
+			}
 
 			Ok(())
 		}

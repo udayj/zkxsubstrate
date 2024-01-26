@@ -50,6 +50,10 @@ pub mod pallet {
 	const ABR_PRICE_INTERVAL: u64 = 60;
 	// To convert milliseconds to seconds
 	const MILLIS_PER_SECOND: u64 = 1000;
+	// Duration for which price data is available
+	static FOUR_WEEKS: u64 = 2419200;
+	// Clear limit for the historical prices map
+	static CLEAR_LIMIT: u32 = 1000;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -88,6 +92,11 @@ pub mod pallet {
 		HistoricalPrice,
 		ValueQuery,
 	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn prices_start_timestamp)]
+	// The beginning timestamp for which prices data is stored
+	pub(super) type PricesStartTimestamp<T: Config> = StorageValue<_, u64, OptionQuery>;
 
 	/// Stores the timestamp at which substrate was initialised
 	#[pallet::storage]
@@ -228,6 +237,10 @@ pub mod pallet {
 		InitialisationTimestampAlreadySet,
 		/// When negative max value is passed to set_max_abr
 		NegativeMaxValue,
+		/// When timestamp provided is not yet met
+		FutureTimestampPriceUpdate,
+		/// Prices Start timestamp is not set
+		PricesStartTimestampEmpty,
 	}
 
 	#[pallet::event]
@@ -541,8 +554,20 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
 
+			// Get the current timestamp
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+
 			// Get the current timestamp and last timestamp for which prices were updated
 			let timestamp = Self::convert_to_seconds(timestamp);
+
+			ensure!(timestamp <= current_timestamp + 10, Error::<T>::FutureTimestampPriceUpdate);
+			// Modify start timestamp
+			let start_timestamp = PricesStartTimestamp::<T>::get();
+			if (start_timestamp.is_some() && timestamp < start_timestamp.unwrap()) ||
+				start_timestamp.is_none()
+			{
+				PricesStartTimestamp::<T>::put(timestamp);
+			}
 
 			// Iterate through the vector of markets and add to prices map
 			for curr_market in &prices {
@@ -581,6 +606,28 @@ pub mod pallet {
 
 			// Emit index/mark prices updated event
 			Self::deposit_event(Event::PricesUpdated { timestamp, prices });
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn perform_prices_cleanup(origin: OriginFor<T>) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let start_timestamp =
+				PricesStartTimestamp::<T>::get().ok_or(Error::<T>::PricesStartTimestampEmpty)?;
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+
+			for timestamp in start_timestamp..timestamp_limit {
+				// we are passing None as 3rd argument as no.of prices stored for a particular
+				// timestamp is limited and it doesn't need another call to remove
+				let _ = HistoricalPricesMap::<T>::clear_prefix(timestamp, CLEAR_LIMIT, None);
+			}
+			if start_timestamp < timestamp_limit {
+				PricesStartTimestamp::<T>::put(current_timestamp);
+			}
 
 			Ok(())
 		}

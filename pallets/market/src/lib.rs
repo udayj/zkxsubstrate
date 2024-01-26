@@ -25,10 +25,10 @@ pub mod pallet {
 	static DELETION_LIMIT: u32 = 100;
 
 	#[cfg(not(feature = "dev"))]
-	pub const IS_DEV_ENABLED:bool = false;
-	
-	#[cfg(feature="dev")]
-	pub const IS_DEV_ENABLED:bool = true;
+	pub const IS_DEV_ENABLED: bool = false;
+
+	#[cfg(feature = "dev")]
+	pub const IS_DEV_ENABLED: bool = true;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -67,7 +67,7 @@ pub mod pallet {
 		/// Unauthorized attempt to update markets
 		NotAdmin,
 		/// Invalid Call to dev mode only function
-		DevOnlyCall
+		DevOnlyCall,
 	}
 
 	#[pallet::event]
@@ -91,9 +91,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			markets: Vec<ExtendedMarket>,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -143,24 +141,13 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn add_market(origin: OriginFor<T>, extended_market: ExtendedMarket) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
 
-			// Check if the market exists in the storage map
-			ensure!(
-				!MarketMap::<T>::contains_key(extended_market.market.id),
-				Error::<T>::DuplicateMarket
-			);
-
-			// Validate the market details
-			Self::validate_market_details(&extended_market.market)?;
-
 			// Add the market
-			Self::add_market_internal(extended_market);
+			Self::add_market_internal(extended_market)?;
 
 			Ok(())
 		}
@@ -171,9 +158,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			extended_market: ExtendedMarket,
 		) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -184,11 +169,8 @@ pub mod pallet {
 				Error::<T>::InvalidMarket
 			);
 
-			// Validate the market details
-			Self::validate_market_details(&extended_market.market)?;
-
 			// Add the market
-			Self::update_market_internal(extended_market);
+			Self::update_market_internal(extended_market)?;
 
 			Ok(())
 		}
@@ -196,9 +178,7 @@ pub mod pallet {
 		// TODO(merkle-groot): To be removed in production
 		#[pallet::weight(0)]
 		pub fn remove_market(origin: OriginFor<T>, id: u128) -> DispatchResult {
-
 			if !IS_DEV_ENABLED {
-
 				return Err(Error::<T>::DevOnlyCall.into());
 			}
 			ensure_signed(origin)?;
@@ -213,7 +193,16 @@ pub mod pallet {
 	}
 
 	impl<T: Config> MarketInterface for Pallet<T> {
-		fn add_market_internal(extended_market: ExtendedMarket) {
+		fn add_market_internal(extended_market: ExtendedMarket) -> DispatchResult {
+			// Check if the market exists in the storage map
+			ensure!(
+				!MarketMap::<T>::contains_key(extended_market.market.id),
+				Error::<T>::DuplicateMarket
+			);
+
+			// Validate the market details
+			Self::validate_market_details(&extended_market.market)?;
+
 			// Add market to the market map
 			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
 
@@ -224,14 +213,21 @@ pub mod pallet {
 
 			// Emit the market created event
 			Self::deposit_event(Event::MarketCreated { market: extended_market });
+
+			Ok(())
 		}
 
-		fn update_market_internal(extended_market: ExtendedMarket) {
+		fn update_market_internal(extended_market: ExtendedMarket) -> DispatchResult {
+			// Validate the market details
+			Self::validate_market_details(&extended_market.market)?;
+
 			// Replace the market in the market map
 			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
 
 			// Emit the market updated event
 			Self::deposit_event(Event::MarketUpdated { market: extended_market });
+
+			Ok(())
 		}
 
 		fn remove_market_internal(id: u128) {
