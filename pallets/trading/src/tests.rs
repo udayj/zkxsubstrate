@@ -2069,14 +2069,14 @@ fn test_fee_while_opening_order() {
 		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			collateral_id,
 			Side::Buy,
 			OrderSide::Maker,
 			fee_details_maker.clone(),
 		));
 		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			collateral_id,
 			Side::Buy,
 			OrderSide::Taker,
@@ -2258,14 +2258,14 @@ fn test_fee_while_closing_order() {
 		let (fee_details_maker, fee_details_taker) = setup_fee();
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			collateral_id,
 			Side::Sell,
 			OrderSide::Maker,
 			fee_details_maker.clone(),
 		));
 		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::root(),
 			collateral_id,
 			Side::Sell,
 			OrderSide::Taker,
