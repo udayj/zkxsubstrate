@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: production-node
+  tag: sandbox-2-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
