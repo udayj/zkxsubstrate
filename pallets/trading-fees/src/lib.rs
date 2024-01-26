@@ -64,8 +64,6 @@ pub mod pallet {
 		AssetNotFound,
 		/// Asset is not a collateral
 		AssetNotCollateral,
-		/// Invalid Call to dev mode only function
-		DevOnlyCall,
 	}
 
 	#[pallet::event]
