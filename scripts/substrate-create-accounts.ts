@@ -15,6 +15,7 @@ import { Keyring } from "@polkadot/keyring";
     SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi/",
     NUMBER_OF_ACCOUNTS = "10",
+    // should not be less than 500000000
     AMOUNT_OF_MONEY = "5000000000000",
   } = process.env;
 
