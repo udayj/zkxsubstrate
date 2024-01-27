@@ -12,7 +12,7 @@ import { Keyring } from "@polkadot/keyring";
     // SUBSTRATE_URL = "wss://l3.stand-1.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.stand-2.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi/",
-    NUMBER_OF_ACCOUNTS = "3",
+    NUMBER_OF_ACCOUNTS = "10",
     AMOUNT_OF_MONEY = "5000000000000",
   } = process.env;
 
