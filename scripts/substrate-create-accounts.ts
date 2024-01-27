@@ -1,3 +1,4 @@
+import { setTimeout } from 'timers/promises'
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import { cryptoWaitReady, randomAsHex } from "@polkadot/util-crypto";
 import { Keyring } from "@polkadot/keyring";
@@ -11,23 +12,12 @@ import { Keyring } from "@polkadot/keyring";
     // SUBSTRATE_URL = "wss://l3.stand-1.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.stand-2.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi/",
-    NUMBER_OF_ACCOUNTS = "10",
-    AMOUNT_OF_MONEY = "1000",
-    SEED_PHRASES_OF_EXISTING_ACCOUNTS = "",
+    NUMBER_OF_ACCOUNTS = "3",
+    AMOUNT_OF_MONEY = "5000000000000",
   } = process.env;
 
   const numberOfAccounts = parseInt(NUMBER_OF_ACCOUNTS, 10);
   const amountOfMoney = parseInt(AMOUNT_OF_MONEY, 10);
-  const seedPhrasesOfExistingAccounts = SEED_PHRASES_OF_EXISTING_ACCOUNTS.split(
-    ",",
-  ).flatMap((seedPhrase) => {
-    const trimSeedPhrase = seedPhrase.trim();
-    if (trimSeedPhrase === "") {
-      return [];
-    }
-
-    return [trimSeedPhrase];
-  });
 
   const keyring = new Keyring({ type: "sr25519" });
 
@@ -42,24 +32,15 @@ import { Keyring } from "@polkadot/keyring";
 
   const results = [];
 
-  if (seedPhrasesOfExistingAccounts.length) {
-    for (const seedPhrase of seedPhrasesOfExistingAccounts) {
-      try {
-        await createAccount({ seedPhrase });
-        results.push(seedPhrase);
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  } else {
-    for (let i = 0; i < numberOfAccounts; i++) {
-      try {
-        const seedPhrase = randomAsHex(32);
-        await createAccount({ seedPhrase });
-        results.push(seedPhrase);
-      } catch (error) {
-        console.error(error);
-      }
+  for (let i = 0; i < numberOfAccounts; i++) {
+    try {
+      // const seedPhrase = randomAsHex(32);
+      const seedPhrase = NODE_ACCOUNT + i;
+      await createAccount({ seedPhrase });
+      await setTimeout(3000);
+      results.push(seedPhrase);
+    } catch (error) {
+      console.error(error);
     }
   }
 
