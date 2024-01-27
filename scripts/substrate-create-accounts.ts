@@ -34,7 +34,7 @@ import { Keyring } from "@polkadot/keyring";
 
   for (let i = 0; i < numberOfAccounts; i++) {
     try {
-      const seedPhrase = NODE_ACCOUNT + i;
+      const seedPhrase = `${NODE_ACCOUNT}${i}`;
       await createAccount({ seedPhrase });
       await setTimeout(3000);
       results.push(seedPhrase);
