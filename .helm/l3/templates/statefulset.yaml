@@ -539,7 +539,7 @@ spec:
                 --collator \
                 {{- end }}
                 {{- if eq .Values.node.role "light" }}
-                --light \
+                \
                 {{- end }}
                 {{- if .Values.node.prometheus.enabled }}
                 --prometheus-external \

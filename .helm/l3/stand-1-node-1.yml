@@ -346,7 +346,7 @@ node:
     flags: []
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--alice"]
+  flags: ["--alice -l debug"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys

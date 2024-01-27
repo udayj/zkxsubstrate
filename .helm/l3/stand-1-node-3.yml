@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: stand-4-node
+  tag: stand-1-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,21 +138,21 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod
   # -- Ingress rules configuration
   rules:
-  - host: l3.stand-4.k8s.ntwrkx.com
+  - host: l3-node-3.stand-1.k8s.ntwrkx.com
     http:
       paths:
       - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: zkxl3-node-1-0
+            name: zkxl3-node-3-0
             port:
               number: 9944
   # -- Ingress TLS configuration
   tls:
-  - secretName: l3-tls
+  - secretName: l3-tls-node-3
     hosts:
-      - l3.stand-4.k8s.ntwrkx.com
+      - l3-node-3.stand-1.k8s.ntwrkx.com
 
 
 # -- Deploy a substrate node.
@@ -165,7 +165,7 @@ node:
   # -- Number of replicas to deploy
   replicas: 1
   # -- Type of the node. One of: full, authority, validator, collator, light
-  role: validator
+  role: light
   # -- How node updates should be applied.
   updateStrategy:
     # -- Enable custom updateStrategy
@@ -189,7 +189,7 @@ node:
     # -- Database backend engine to use
     database: paritydb
     # -- Set the amount of blocks to retain. If set to 0 archive node will be run
-    pruning: 0
+    pruning: 50000
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it to store chain data
     kubernetesVolumeSnapshot:
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it to store chain data
@@ -345,8 +345,9 @@ node:
     # -- Flags to add to the Polkadot binary
     flags: []
 
+
   # -- Flags to add to the Polkadot binary
-  flags: ["--alice -l debug"]
+  flags: ["--charlie  --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust' --bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2' -l debug"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -412,7 +413,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0xc12b6d18942f5ee8528c8e2baf4e147b5c5c18710926ea492d09cbd9f6c9f82a"
+  customNodeKey: "0x3a9d5b35b9fb4c42aafadeca046f6bf56107bd2579687f069b42646684b94d9e"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
