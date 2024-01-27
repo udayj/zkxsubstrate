@@ -7,10 +7,12 @@ import { Keyring } from "@polkadot/keyring";
   await cryptoWaitReady();
 
   const {
-    NODE_ACCOUNT = "//Alice",
-    SUBSTRATE_URL = "ws://127.0.0.1:9944",
+    NODE_ACCOUNT = "//sync",
+    ZKX_NODE_ACCOUNT = '//zkxnode',
+    // SUBSTRATE_URL = "ws://127.0.0.1:9944",
     // SUBSTRATE_URL = "wss://l3.stand-1.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.stand-2.k8s.ntwrkx.com:443",
+    SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi/",
     NUMBER_OF_ACCOUNTS = "10",
     AMOUNT_OF_MONEY = "5000000000000",
@@ -34,7 +36,7 @@ import { Keyring } from "@polkadot/keyring";
 
   for (let i = 0; i < numberOfAccounts; i++) {
     try {
-      const seedPhrase = `${NODE_ACCOUNT}${i}`;
+      const seedPhrase = `${ZKX_NODE_ACCOUNT}${i}`;
       await createAccount({ seedPhrase });
       await setTimeout(3000);
       results.push(seedPhrase);
@@ -63,16 +65,13 @@ import { Keyring } from "@polkadot/keyring";
     const accountKeyring = keyring.addFromUri(seedPhrase);
 
     return new Promise<void>(async (resolve, reject) => {
-      const nonce = await api.rpc.system.accountNextIndex(
-        nodeAccountKeyring.address,
-      );
       try {
         await api.tx.balances
           .transfer(accountKeyring.address, amountOfMoney)
           .signAndSend(
             nodeAccountKeyring,
             {
-              nonce,
+              nonce: -1,
             },
             (result) => {
               const { dispatchError, isInBlock } = result;
