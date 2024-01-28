@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { setTimeout } from 'timers/promises'
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import { cryptoWaitReady, randomAsHex } from "@polkadot/util-crypto";
@@ -7,14 +8,15 @@ import { Keyring } from "@polkadot/keyring";
   await cryptoWaitReady();
 
   const {
-    NODE_ACCOUNT = "//sync",
-    ZKX_NODE_ACCOUNT = '//zkxnode',
+    NODE_ACCOUNT = "upon spice cloth armed bitter fiction despair tide rate spice ten spend",
+    ZKX_NODE_ACCOUNT = 'upon spice cloth armed bitter fiction despair tide rate spice ten spend',
     // SUBSTRATE_URL = "ws://127.0.0.1:9944",
     // SUBSTRATE_URL = "wss://l3.stand-1.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.stand-2.k8s.ntwrkx.com:443",
-    SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
-    // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi/",
-    NUMBER_OF_ACCOUNTS = "10",
+    // SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
+    // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi",
+    SUBSTRATE_URL = "wss://l3.sandbox-2.zkx.fi",
+    NUMBER_OF_ACCOUNTS = "100",
     // should not be less than 500000000
     AMOUNT_OF_MONEY = "5000000000000",
   } = process.env;
@@ -23,11 +25,9 @@ import { Keyring } from "@polkadot/keyring";
   const amountOfMoney = parseInt(AMOUNT_OF_MONEY, 10);
 
   const keyring = new Keyring({ type: "sr25519" });
-
   const nodeAccountKeyring = keyring.addFromUri(NODE_ACCOUNT);
 
   const wsProvider = new WsProvider(SUBSTRATE_URL);
-
   const api = await ApiPromise.create({
     provider: wsProvider,
     noInitWarn: true,
@@ -35,12 +35,14 @@ import { Keyring } from "@polkadot/keyring";
 
   const results = [];
 
-  for (let i = 0; i < numberOfAccounts; i++) {
+  for (let i = 10; i < numberOfAccounts; i++) {
     try {
-      const seedPhrase = `${ZKX_NODE_ACCOUNT}${i}`;
+      const seedPhraseHash = createHash('sha256').update(`${ZKX_NODE_ACCOUNT}${i}`).digest('hex');
+      const seedPhrase = `0x${seedPhraseHash}`;
       await createAccount({ seedPhrase });
-      await setTimeout(3000);
+      await setTimeout(2500);
       results.push(seedPhrase);
+      console.log(seedPhrase);
     } catch (error) {
       console.error(error);
     }
