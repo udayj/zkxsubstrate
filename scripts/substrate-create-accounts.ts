@@ -8,14 +8,14 @@ import { Keyring } from "@polkadot/keyring";
   await cryptoWaitReady();
 
   const {
-    NODE_ACCOUNT = "upon spice cloth armed bitter fiction despair tide rate spice ten spend",
-    ZKX_NODE_ACCOUNT = 'upon spice cloth armed bitter fiction despair tide rate spice ten spend',
+    NODE_ACCOUNT = "//sync",
+    ZKX_NODE_ACCOUNT = '//zkxnode',
     // SUBSTRATE_URL = "ws://127.0.0.1:9944",
     // SUBSTRATE_URL = "wss://l3.stand-1.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.stand-2.k8s.ntwrkx.com:443",
-    // SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
+    SUBSTRATE_URL = "wss://l3.stand-4.k8s.ntwrkx.com:443",
     // SUBSTRATE_URL = "wss://l3.sandbox.zkx.fi",
-    SUBSTRATE_URL = "wss://l3.sandbox-2.zkx.fi",
+    // SUBSTRATE_URL = "wss://l3.sandbox-2.zkx.fi",
     NUMBER_OF_ACCOUNTS = "100",
     // should not be less than 500000000
     AMOUNT_OF_MONEY = "5000000000000",
@@ -35,7 +35,7 @@ import { Keyring } from "@polkadot/keyring";
 
   const results = [];
 
-  for (let i = 10; i < numberOfAccounts; i++) {
+  for (let i = 0; i < numberOfAccounts; i++) {
     try {
       const seedPhraseHash = createHash('sha256').update(`${ZKX_NODE_ACCOUNT}${i}`).digest('hex');
       const seedPhrase = `0x${seedPhraseHash}`;
