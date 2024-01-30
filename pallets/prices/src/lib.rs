@@ -1013,7 +1013,7 @@ pub mod pallet {
 						// Find if the abr_rate is +ve or -ve
 						let mut payment_amount = abr_value * abr_last_price * position.size;
 						if payment_amount < FixedI128::zero() {
-							payment_amount.neg();
+							payment_amount = payment_amount.saturating_abs();
 						};
 						payment_amount =
 							payment_amount.round_to_precision(collateral_token_decimal.into());
