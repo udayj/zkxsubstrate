@@ -19,7 +19,7 @@ pub mod pallet {
 		types::{Direction, ForceClosureFlag, Order, OrderType, Position, Side},
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{traits::Zero, FixedI128};
+	use sp_arithmetic::{traits::Zero, FixedI128, FixedPointNumber};
 
 	static _TWO_FI128: FixedI128 = FixedI128::from_inner(2000000000000000000);
 	static _TWO_POINT_FIVE_FI128: FixedI128 = FixedI128::from_inner(2500000000000000000);
@@ -160,7 +160,7 @@ pub mod pallet {
 			// If pnl is negative, it means that position can be deleveraged
 			// Sell the position such that resulting leverage is 2.5
 			// amount_to_sell = initial_size - ((2.5 * margin_amount)/current_asset_price)
-			if pnl < FixedI128::zero() {
+			if pnl.is_negative() {
 				let new_size = (_TWO_POINT_FIVE_FI128 * position.margin_amount) / price;
 				let new_size = new_size.round_to_precision(market.step_precision.into());
 				let value_to_sell = (position.size - new_size) * price;
@@ -227,13 +227,12 @@ pub mod pallet {
 			_market_id: u128,
 			_direction: Direction,
 		) {
-			let (liq_result, _, _, _, _, _) =
-				T::TradingAccountPallet::get_margin_info(
-					account_id,
-					collateral_id,
-					FixedI128::zero(),
-					FixedI128::zero(),
-				);
+			let (liq_result, _, _, _, _, _) = T::TradingAccountPallet::get_margin_info(
+				account_id,
+				collateral_id,
+				FixedI128::zero(),
+				FixedI128::zero(),
+			);
 
 			if liq_result == true {
 				// DELEVERAGE REMOVED
