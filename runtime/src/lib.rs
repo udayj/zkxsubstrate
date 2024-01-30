@@ -17,7 +17,8 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify,OpaqueKeys
+		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, OpaqueKeys,
+		Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature,
@@ -118,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 101,
+	spec_version: 102,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -164,7 +165,7 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 42;
 	// Following types are specific to node_authorization
 	pub const MaxWellKnownNodes: u32 = 8;
- 	pub const MaxPeerIdLength: u32 = 128;
+	 pub const MaxPeerIdLength: u32 = 128;
 
 	// Following type is specific to session and validator management
 	pub const MinAuthorities: u32 = 1;

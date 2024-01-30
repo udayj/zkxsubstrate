@@ -27,7 +27,7 @@ pub mod pallet {
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	use sp_io::hashing::blake2_256;
 
 	#[cfg(not(feature = "dev"))]
@@ -198,6 +198,8 @@ pub mod pallet {
 		},
 		/// Account created
 		AccountCreated { account_id: U256, account_address: U256, index: u8 },
+		/// Amount passed to transfer/transfer_from functions is negative
+		AmountIsNegative { account_id: U256, collateral_id: u128, amount: FixedI128, reason: u8 },
 	}
 
 	#[pallet::call]
@@ -549,11 +551,11 @@ pub mod pallet {
 
 				unrealized_pnl_sum = unrealized_pnl_sum + short_pnl + long_pnl;
 
-				if short_pnl < FixedI128::zero() {
+				if short_pnl.is_negative() {
 					negative_unrealized_pnl_sum = negative_unrealized_pnl_sum + short_pnl;
 				}
 
-				if long_pnl < FixedI128::zero() {
+				if long_pnl.is_negative() {
 					negative_unrealized_pnl_sum = negative_unrealized_pnl_sum + long_pnl;
 				}
 
@@ -673,6 +675,15 @@ pub mod pallet {
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
+			if amount.is_negative() {
+				Self::deposit_event(Event::AmountIsNegative {
+					account_id,
+					collateral_id,
+					amount,
+					reason: reason.into(),
+				});
+				return
+			}
 			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
 			let current_balance = BalancesMap::<T>::get(&account_id, collateral_id);
 			let new_balance = current_balance.add(amount);
@@ -708,6 +719,15 @@ pub mod pallet {
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
+			if amount.is_negative() {
+				Self::deposit_event(Event::AmountIsNegative {
+					account_id,
+					collateral_id,
+					amount,
+					reason: reason.into(),
+				});
+				return
+			}
 			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
 			let current_balance = BalancesMap::<T>::get(&account_id, collateral_id);
 			let new_balance = current_balance.sub(amount);
