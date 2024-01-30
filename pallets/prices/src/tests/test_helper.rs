@@ -1,10 +1,10 @@
-use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+use sp_arithmetic::{fixed_point::FixedI128, FixedPointNumber};
 
 pub fn compare_with_threshold(value1: FixedI128, value2: FixedI128, threshold: FixedI128) {
 	// Calculate the absolute difference between the two values
 	let mut absolute_difference = value1 - value2;
 
-	if absolute_difference < FixedI128::zero() {
+	if absolute_difference.is_negative() {
 		absolute_difference =
 			absolute_difference * FixedI128::from_inner(-1 * 10_u128.pow(18) as i128);
 	}
