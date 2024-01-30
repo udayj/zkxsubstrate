@@ -27,7 +27,7 @@ async function main() {
       ? api.tx.system.setCode(`0x${code}`) // For newer versions of Substrate
       : api.tx.consensus.setCode(`0x${code}`); // For previous versions
 
-  console.log(`Upgrading from ${adminId}, ${code.length / 2} bytes`);
+  console.log(`Upgrading from ${adminPair}, ${code.length / 2} bytes`);
 
   // Perform the actual chain upgrade via the sudo module
   const sudo = api.tx.sudo.sudoUncheckedWeight(proposal, { weight: 0 });
