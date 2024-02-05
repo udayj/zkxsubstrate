@@ -554,6 +554,7 @@ pub mod pallet {
 						oracle_price,
 						market_id,
 						collateral_id,
+						collateral_token_decimal,
 						&position_details,
 					);
 					match response {
@@ -680,6 +681,7 @@ pub mod pallet {
 						order_side,
 						execution_price,
 						collateral_id,
+						collateral_token_decimal,
 						&position_details,
 					);
 					match response {
@@ -1381,6 +1383,7 @@ pub mod pallet {
 			oracle_price: FixedI128,
 			market_id: u128,
 			collateral_id: u128,
+			collateral_token_decimal: u8,
 			position_details: &Position,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
@@ -1436,7 +1439,8 @@ pub mod pallet {
 				order_side,
 				total_30day_volume,
 			);
-			let fee = fee_rate * leveraged_order_value;
+			let mut fee = fee_rate * leveraged_order_value;
+			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			T::TradingAccountPallet::transfer_from(
@@ -1462,6 +1466,7 @@ pub mod pallet {
 			order_side: OrderSide,
 			execution_price: FixedI128,
 			collateral_id: u128,
+			collateral_token_decimal: u8,
 			position_details: &Position,
 		) -> Result<
 			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
@@ -1484,11 +1489,17 @@ pub mod pallet {
 
 			// Calculate amount that needs to be returned to liquidity fund
 			let ratio_of_position = order_size / position_details.size;
-			let borrowed_amount_to_return = position_details.borrowed_amount * ratio_of_position;
-			let margin_amount_to_reduce = position_details.margin_amount * ratio_of_position;
+			let mut borrowed_amount_to_return =
+				position_details.borrowed_amount * ratio_of_position;
+			borrowed_amount_to_return =
+				borrowed_amount_to_return.round_to_precision(collateral_token_decimal.into());
+			let mut margin_amount_to_reduce = position_details.margin_amount * ratio_of_position;
+			margin_amount_to_reduce =
+				margin_amount_to_reduce.round_to_precision(collateral_token_decimal.into());
 
 			// Calculate pnl
 			let mut pnl = order_size * price_diff;
+			pnl = pnl.round_to_precision(collateral_token_decimal.into());
 			let margin_plus_pnl = margin_amount_to_reduce + pnl;
 			let borrowed_amount: FixedI128;
 			let margin_amount: FixedI128;
@@ -1708,7 +1719,7 @@ pub mod pallet {
 				)
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let fee = if order.order_type != OrderType::Forced {
+			let mut fee = if order.order_type != OrderType::Forced {
 				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 					collateral_id,
 					Side::Sell,
@@ -1730,6 +1741,7 @@ pub mod pallet {
 			} else {
 				FixedI128::zero()
 			};
+			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			Ok((
 				margin_amount,
