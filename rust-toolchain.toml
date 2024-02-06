@@ -10,5 +10,6 @@ components = [
 	"rustc",
 	"rustfmt",
 ]
+version = “2024-01-30”
 targets = [ "wasm32-unknown-unknown" ]
 profile = "minimal"
