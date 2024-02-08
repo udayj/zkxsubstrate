@@ -123,6 +123,11 @@ pub mod pallet {
 	#[pallet::getter(fn users_per_batch)]
 	pub(super) type UsersPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	/// Stores the duration for which price data is available
+	#[pallet::storage]
+	#[pallet::getter(fn price_availability_duration)]
+	pub(super) type PriceAvailabilityDuration<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_to_timestamp)]
 	/// key - Epoch, value - timestamp
@@ -241,6 +246,8 @@ pub mod pallet {
 		FutureTimestampPriceUpdate,
 		/// Prices Start timestamp is not set
 		PricesStartTimestampEmpty,
+		/// When Price availability duration provided is invalid
+		InvalidPriceAvailabilityDuration,
 	}
 
 	#[pallet::event]
@@ -283,6 +290,8 @@ pub mod pallet {
 		BollingerWidthUpdated { bollinger_width: FixedI128 },
 		/// Index/mark prices updated successfully
 		PricesUpdated { timestamp: u64, prices: Vec<MultiplePrices> },
+		/// Price availability duration updated successfully
+		PriceAvailabilityDurationUpdated { price_availability_duration: u64 },
 	}
 
 	// Pallet callable functions
@@ -441,6 +450,27 @@ pub mod pallet {
 			// Emit No.of users per batch updated event
 			Self::deposit_event(Event::NoOfUsersPerBatchUpdated {
 				no_of_users_per_batch: new_no_of_users_per_batch,
+			});
+			Ok(())
+		}
+
+		/// External function to be called for setting price availability duration
+		#[pallet::weight(0)]
+		pub fn set_price_availability_duration(
+			origin: OriginFor<T>,
+			price_availability_duration: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// price availability duration > 0
+			ensure!(price_availability_duration > 0, Error::<T>::InvalidPriceAvailabilityDuration);
+
+			PriceAvailabilityDuration::<T>::put(price_availability_duration);
+
+			// Emit price availability duration updated event
+			Self::deposit_event(Event::PriceAvailabilityDurationUpdated {
+				price_availability_duration,
 			});
 			Ok(())
 		}
@@ -618,7 +648,8 @@ pub mod pallet {
 			let start_timestamp =
 				PricesStartTimestamp::<T>::get().ok_or(Error::<T>::PricesStartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			let availability: u64 = PriceAvailabilityDuration::<T>::get();
+			let timestamp_limit = current_timestamp - availability;
 
 			for timestamp in start_timestamp..timestamp_limit {
 				// we are passing None as 3rd argument as no.of prices stored for a particular

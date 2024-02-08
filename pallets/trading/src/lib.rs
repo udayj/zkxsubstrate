@@ -161,6 +161,11 @@ pub mod pallet {
 	#[pallet::getter(fn matching_time_limit)]
 	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	/// Stores the duration for which order details is available
+	#[pallet::storage]
+	#[pallet::getter(fn order_details_availability_duration)]
+	pub(super) type OrderDetailsAvailabilityDuration<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -269,6 +274,8 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
+		/// When Order details availability duration provided is invalid
+		InvalidOrderDetailsAvailabilityDuration,
 	}
 
 	#[pallet::event]
@@ -315,6 +322,8 @@ pub mod pallet {
 		LiquidatorSignerAdded { signer: U256 },
 		/// Liquidator signer removed
 		LiquidatorSignerRemoved { signer: U256 },
+		/// Order details availability duration updated successfully
+		OrderDetailsAvailabilityDurationUpdated { order_details_availability_duration: u64 },
 	}
 
 	// Pallet callable functions
@@ -1018,7 +1027,8 @@ pub mod pallet {
 			let start_timestamp =
 				StartTimestamp::<T>::get().ok_or(Error::<T>::StartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			let availability: u64 = OrderDetailsAvailabilityDuration::<T>::get();
+			let timestamp_limit = current_timestamp - availability;
 
 			for timestamp in start_timestamp..timestamp_limit {
 				let batches = BatchesMap::<T>::get(timestamp);
@@ -1042,6 +1052,30 @@ pub mod pallet {
 				StartTimestamp::<T>::put(current_timestamp);
 			}
 
+			Ok(())
+		}
+
+		/// External function to be called for setting order details availability duration
+		#[pallet::weight(0)]
+		pub fn set_order_details_availability_duration(
+			origin: OriginFor<T>,
+			order_details_availability_duration: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// order details availability duration > 0
+			ensure!(
+				order_details_availability_duration > 0,
+				Error::<T>::InvalidOrderDetailsAvailabilityDuration
+			);
+
+			OrderDetailsAvailabilityDuration::<T>::put(order_details_availability_duration);
+
+			// Emit order details availability duration updated event
+			Self::deposit_event(Event::OrderDetailsAvailabilityDurationUpdated {
+				order_details_availability_duration,
+			});
 			Ok(())
 		}
 
