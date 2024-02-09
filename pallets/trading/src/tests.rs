@@ -54,6 +54,14 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::root(),
 			2419200 //4 weeks
 		));
+
+		// Set clean up count per batch
+		assert_ok!(Trading::set_cleanup_count_per_batch(RuntimeOrigin::signed(1), 24192000));
+
+		assert_ok!(Trading::set_order_details_availability_duration(
+			RuntimeOrigin::signed(1),
+			2419200
+		));
 	});
 
 	env
@@ -321,9 +329,9 @@ fn it_reverts_for_more_than_max_size() {
 			1699940367000,
 		));
 
-		assert_has_events(
-			vec![Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()]
-		);
+		assert_has_events(vec![
+			Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()
+		]);
 	});
 }
 
@@ -2498,6 +2506,9 @@ fn it_works_for_cleanup() {
 			1702359550000,
 		));
 
+		let start_timestamp = Trading::start_timestamp();
+		println!("Timestampppppp: {:?}", start_timestamp);
+
 		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
 
 		let order1 = Trading::order_state(U256::from(201));
@@ -2524,7 +2535,7 @@ fn it_works_for_cleanup() {
 		assert_eq!(batch2, true);
 
 		let start_timestamp = Trading::start_timestamp();
-		assert_eq!(1702359600, start_timestamp.unwrap());
+		assert_eq!(1699940400, start_timestamp.unwrap());
 
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());

@@ -16,7 +16,7 @@ pub mod pallet {
 		pallet_prelude::{DispatchResult, *},
 		traits::UnixTime,
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{ensure_signed, pallet_prelude::*};
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
 		traits::{
@@ -122,6 +122,11 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn users_per_batch)]
 	pub(super) type UsersPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+	/// Stores cleanup count per batch
+	#[pallet::storage]
+	#[pallet::getter(fn cleanup_count_per_batch)]
+	pub(super) type CleanupCountPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	/// Stores the duration for which price data is available
 	#[pallet::storage]
@@ -248,6 +253,8 @@ pub mod pallet {
 		PricesStartTimestampEmpty,
 		/// When Price availability duration provided is invalid
 		InvalidPriceAvailabilityDuration,
+		/// When cleanup count per batch provided is invalid
+		InvalidCountPerBatch,
 	}
 
 	#[pallet::event]
@@ -454,6 +461,22 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// External function to be called for setting cleanup count per batch
+		#[pallet::weight(0)]
+		pub fn set_cleanup_count_per_batch(
+			origin: OriginFor<T>,
+			cleanup_count_per_batch: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// Cleanup count must be > 0
+			ensure!(cleanup_count_per_batch > 0, Error::<T>::InvalidCountPerBatch);
+
+			CleanupCountPerBatch::<T>::put(cleanup_count_per_batch);
+			Ok(())
+		}
+
 		/// External function to be called for setting price availability duration
 		#[pallet::weight(0)]
 		pub fn set_price_availability_duration(
@@ -650,14 +673,20 @@ pub mod pallet {
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let availability: u64 = PriceAvailabilityDuration::<T>::get();
 			let timestamp_limit = current_timestamp - availability;
+			let mut cleanup_count = CleanupCountPerBatch::<T>::get();
 
 			for timestamp in start_timestamp..timestamp_limit {
+				if cleanup_count == 0 {
+					PricesStartTimestamp::<T>::put(timestamp);
+					break;
+				}
 				// we are passing None as 3rd argument as no.of prices stored for a particular
 				// timestamp is limited and it doesn't need another call to remove
 				let _ = HistoricalPricesMap::<T>::clear_prefix(timestamp, CLEAR_LIMIT, None);
+				cleanup_count -= 1;
 			}
-			if start_timestamp < timestamp_limit {
-				PricesStartTimestamp::<T>::put(current_timestamp);
+			if cleanup_count != 0 && start_timestamp < timestamp_limit {
+				PricesStartTimestamp::<T>::put(timestamp_limit);
 			}
 
 			Ok(())

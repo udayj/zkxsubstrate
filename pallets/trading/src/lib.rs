@@ -166,6 +166,11 @@ pub mod pallet {
 	#[pallet::getter(fn order_details_availability_duration)]
 	pub(super) type OrderDetailsAvailabilityDuration<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	/// Stores cleanup count per batch
+	#[pallet::storage]
+	#[pallet::getter(fn cleanup_count_per_batch)]
+	pub(super) type CleanupCountPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -276,6 +281,8 @@ pub mod pallet {
 		StartTimestampEmpty,
 		/// When Order details availability duration provided is invalid
 		InvalidOrderDetailsAvailabilityDuration,
+		/// When cleanup count per batch provided is invalid
+		InvalidCountPerBatch,
 	}
 
 	#[pallet::event]
@@ -1029,8 +1036,13 @@ pub mod pallet {
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let availability: u64 = OrderDetailsAvailabilityDuration::<T>::get();
 			let timestamp_limit = current_timestamp - availability;
+			let mut cleanup_count = CleanupCountPerBatch::<T>::get();
 
 			for timestamp in start_timestamp..timestamp_limit {
+				if cleanup_count == 0 {
+					StartTimestamp::<T>::put(timestamp);
+					break;
+				}
 				let batches = BatchesMap::<T>::get(timestamp);
 				if batches.is_some() {
 					for batch in batches.unwrap() {
@@ -1047,9 +1059,10 @@ pub mod pallet {
 					}
 					OrdersMap::<T>::remove(timestamp);
 				}
+				cleanup_count -= 1;
 			}
-			if start_timestamp < timestamp_limit {
-				StartTimestamp::<T>::put(current_timestamp);
+			if cleanup_count != 0 && start_timestamp < timestamp_limit {
+				StartTimestamp::<T>::put(timestamp_limit);
 			}
 
 			Ok(())
@@ -1076,6 +1089,22 @@ pub mod pallet {
 			Self::deposit_event(Event::OrderDetailsAvailabilityDurationUpdated {
 				order_details_availability_duration,
 			});
+			Ok(())
+		}
+
+		/// External function to be called for setting cleanup count per batch
+		#[pallet::weight(0)]
+		pub fn set_cleanup_count_per_batch(
+			origin: OriginFor<T>,
+			cleanup_count_per_batch: u64,
+		) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			// Cleanup count must be > 0
+			ensure!(cleanup_count_per_batch > 0, Error::<T>::InvalidCountPerBatch);
+
+			CleanupCountPerBatch::<T>::put(cleanup_count_per_batch);
 			Ok(())
 		}
 
