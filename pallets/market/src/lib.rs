@@ -84,12 +84,6 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		// For back-end to retrieve nonce
-		#[pallet::weight(0)]
-		pub fn consume_nonce(_: OriginFor<T>) -> DispatchResult {
-			Ok(())
-		}
-
 		// TODO(merkle-groot): To be removed in production
 		/// Replace all markets
 		#[pallet::weight(0)]
