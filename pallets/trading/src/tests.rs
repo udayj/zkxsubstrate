@@ -54,14 +54,6 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::root(),
 			2419200 //4 weeks
 		));
-
-		// Set clean up count per batch
-		assert_ok!(Trading::set_cleanup_count_per_batch(RuntimeOrigin::signed(1), 24192000));
-
-		assert_ok!(Trading::set_order_details_availability_duration(
-			RuntimeOrigin::signed(1),
-			2419200
-		));
 	});
 
 	env

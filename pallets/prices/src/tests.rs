@@ -29,14 +29,6 @@ fn setup() -> sp_io::TestExternalities {
 
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
-
-		// Set clean up count per batch
-		assert_ok!(PricesModule::set_cleanup_count_per_batch(RuntimeOrigin::signed(1), 24192000));
-
-		assert_ok!(PricesModule::set_price_availability_duration(
-			RuntimeOrigin::signed(1),
-			2419200
-		));
 	});
 
 	test_env.into()
@@ -391,12 +383,6 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		// as it is more than previous timestamp
 		let start_timestamp = PricesModule::prices_start_timestamp().unwrap();
 		assert_eq!(start_timestamp, 1702359400);
-
-		let availability_duration = PricesModule::price_availability_duration();
-		assert_eq!(availability_duration, 2419200);
-
-		let cleanup_count = PricesModule::cleanup_count_per_batch();
-		assert_eq!(cleanup_count, 24192000);
 
 		// Increment the blocktimestamp by 4 weeks
 		Timestamp::set_timestamp(1704779800000);

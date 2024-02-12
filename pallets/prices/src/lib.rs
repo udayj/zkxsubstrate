@@ -123,16 +123,6 @@ pub mod pallet {
 	#[pallet::getter(fn users_per_batch)]
 	pub(super) type UsersPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
 
-	/// Stores cleanup count per batch
-	#[pallet::storage]
-	#[pallet::getter(fn cleanup_count_per_batch)]
-	pub(super) type CleanupCountPerBatch<T: Config> = StorageValue<_, u64, ValueQuery>;
-
-	/// Stores the duration for which price data is available
-	#[pallet::storage]
-	#[pallet::getter(fn price_availability_duration)]
-	pub(super) type PriceAvailabilityDuration<T: Config> = StorageValue<_, u64, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_to_timestamp)]
 	/// key - Epoch, value - timestamp
@@ -461,43 +451,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// External function to be called for setting cleanup count per batch
-		#[pallet::weight(0)]
-		pub fn set_cleanup_count_per_batch(
-			origin: OriginFor<T>,
-			cleanup_count_per_batch: u64,
-		) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			// Cleanup count must be > 0
-			ensure!(cleanup_count_per_batch > 0, Error::<T>::InvalidCountPerBatch);
-
-			CleanupCountPerBatch::<T>::put(cleanup_count_per_batch);
-			Ok(())
-		}
-
-		/// External function to be called for setting price availability duration
-		#[pallet::weight(0)]
-		pub fn set_price_availability_duration(
-			origin: OriginFor<T>,
-			price_availability_duration: u64,
-		) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			// price availability duration > 0
-			ensure!(price_availability_duration > 0, Error::<T>::InvalidPriceAvailabilityDuration);
-
-			PriceAvailabilityDuration::<T>::put(price_availability_duration);
-
-			// Emit price availability duration updated event
-			Self::deposit_event(Event::PriceAvailabilityDurationUpdated {
-				price_availability_duration,
-			});
-			Ok(())
-		}
-
 		/// External function to be called for setting ABR value
 		#[pallet::weight(0)]
 		pub fn set_abr_value(origin: OriginFor<T>, market_id: u128) -> DispatchResult {
@@ -671,9 +624,8 @@ pub mod pallet {
 			let start_timestamp =
 				PricesStartTimestamp::<T>::get().ok_or(Error::<T>::PricesStartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let availability: u64 = PriceAvailabilityDuration::<T>::get();
-			let timestamp_limit = current_timestamp - availability;
-			let mut cleanup_count = CleanupCountPerBatch::<T>::get();
+			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			let mut cleanup_count = 3600;
 
 			for timestamp in start_timestamp..timestamp_limit {
 				if cleanup_count == 0 {
@@ -1452,9 +1404,8 @@ pub mod pallet {
 			};
 
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let availability: u64 = PriceAvailabilityDuration::<T>::get();
-			let timestamp_limit: u64 = current_timestamp - availability;
-			let cleanup_count = CleanupCountPerBatch::<T>::get();
+			let timestamp_limit: u64 = current_timestamp - FOUR_WEEKS;
+			let cleanup_count = 3600;
 
 			if start_timestamp < timestamp_limit {
 				let remaining_time = timestamp_limit - start_timestamp;
