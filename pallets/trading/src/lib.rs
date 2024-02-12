@@ -269,10 +269,6 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
-		/// When Order details availability duration provided is invalid
-		InvalidOrderDetailsAvailabilityDuration,
-		/// When cleanup count per batch provided is invalid
-		InvalidCountPerBatch,
 	}
 
 	#[pallet::event]
@@ -319,8 +315,6 @@ pub mod pallet {
 		LiquidatorSignerAdded { signer: U256 },
 		/// Liquidator signer removed
 		LiquidatorSignerRemoved { signer: U256 },
-		/// Order details availability duration updated successfully
-		OrderDetailsAvailabilityDurationUpdated { order_details_availability_duration: u64 },
 	}
 
 	// Pallet callable functions

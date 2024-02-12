@@ -241,10 +241,6 @@ pub mod pallet {
 		FutureTimestampPriceUpdate,
 		/// Prices Start timestamp is not set
 		PricesStartTimestampEmpty,
-		/// When Price availability duration provided is invalid
-		InvalidPriceAvailabilityDuration,
-		/// When cleanup count per batch provided is invalid
-		InvalidCountPerBatch,
 	}
 
 	#[pallet::event]
@@ -287,8 +283,6 @@ pub mod pallet {
 		BollingerWidthUpdated { bollinger_width: FixedI128 },
 		/// Index/mark prices updated successfully
 		PricesUpdated { timestamp: u64, prices: Vec<MultiplePrices> },
-		/// Price availability duration updated successfully
-		PriceAvailabilityDurationUpdated { price_availability_duration: u64 },
 	}
 
 	// Pallet callable functions
