@@ -16,5 +16,6 @@ sp_api::decl_runtime_apis! {
 		fn get_next_abr_timestamp() -> u64;
 		fn get_previous_abr_values(market_id: U256, start_timestamp: u64, end_timestamp: u64) -> Vec<ABRDetails>;
 		fn get_intermediary_abr_value(market_id: U256) -> FixedI128;
+		fn get_remaining_prices_cleanup_calls() -> u64;
 	}
 }

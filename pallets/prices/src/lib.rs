@@ -1444,5 +1444,29 @@ pub mod pallet {
 
 			return abr_value
 		}
+
+		fn get_remaining_prices_cleanup_calls() -> u64 {
+			let start_timestamp = match PricesStartTimestamp::<T>::get() {
+				Some(timestamp) => timestamp,
+				None => return 0_u64,
+			};
+
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let availability: u64 = PriceAvailabilityDuration::<T>::get();
+			let timestamp_limit: u64 = current_timestamp - availability;
+			let cleanup_count = CleanupCountPerBatch::<T>::get();
+
+			if start_timestamp < timestamp_limit {
+				let remaining_time = timestamp_limit - start_timestamp;
+				let cleanup_calls = remaining_time / cleanup_count;
+				return if remaining_time % cleanup_count != 0 {
+					cleanup_calls + 1
+				} else {
+					cleanup_calls
+				};
+			}
+
+			0_u64
+		}
 	}
 }

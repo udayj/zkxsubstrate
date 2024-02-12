@@ -61,6 +61,9 @@ pub trait TradingApi<BlockHash> {
 		collateral_id: u128,
 		at: Option<BlockHash>,
 	) -> RpcResult<FixedI128>;
+
+	#[method(name = "trading_get_remaining_cleanup_calls")]
+	fn get_remaining_trading_cleanup_calls(&self, at: Option<BlockHash>) -> RpcResult<u64>;
 }
 
 /// A struct that implements the `TemplateApi`.
@@ -158,6 +161,16 @@ where
 
 		api.get_withdrawable_amount(at, account_id, collateral_id)
 			.map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_remaining_trading_cleanup_calls(
+		&self,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<u64> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_remaining_trading_cleanup_calls(at).map_err(runtime_error_into_rpc_err)
 	}
 }
 

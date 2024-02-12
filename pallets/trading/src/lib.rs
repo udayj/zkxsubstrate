@@ -2146,5 +2146,29 @@ pub mod pallet {
 		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
 			T::TradingAccountPallet::get_amount_to_withdraw(account_id, collateral_id)
 		}
+
+		fn get_remaining_trading_cleanup_calls() -> u64 {
+			let start_timestamp = match StartTimestamp::<T>::get() {
+				Some(timestamp) => timestamp,
+				None => return 0_u64,
+			};
+
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let availability: u64 = OrderDetailsAvailabilityDuration::<T>::get();
+			let timestamp_limit: u64 = current_timestamp - availability;
+			let cleanup_count = CleanupCountPerBatch::<T>::get();
+
+			if start_timestamp < timestamp_limit {
+				let remaining_time = timestamp_limit - start_timestamp;
+				let cleanup_calls = remaining_time / cleanup_count;
+				return if remaining_time % cleanup_count != 0 {
+					cleanup_calls + 1
+				} else {
+					cleanup_calls
+				};
+			}
+
+			0_u64
+		}
 	}
 }

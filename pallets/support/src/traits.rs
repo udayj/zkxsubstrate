@@ -74,6 +74,7 @@ pub trait TradingInterface {
 	fn get_force_closure_flags(account_id: U256, collateral_id: u128) -> Option<ForceClosureFlag>;
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
+	fn get_remaining_trading_cleanup_calls() -> u64;
 }
 
 pub trait AssetInterface {
@@ -127,6 +128,7 @@ pub trait PricesInterface {
 	) -> Vec<ABRDetails>;
 	fn get_remaining_pay_abr_calls() -> u64;
 	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
+	fn get_remaining_prices_cleanup_calls() -> u64;
 }
 
 pub trait FixedI128Ext {
