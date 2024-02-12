@@ -125,9 +125,9 @@ pub mod pallet {
 			}
 
 			// Emit event
-			Self::deposit_event(
-				Event::BaseFeesUpdated { fee_tiers: u8::try_from(fee_details_length).unwrap() }
-			);
+			Self::deposit_event(Event::BaseFeesUpdated {
+				fee_tiers: u8::try_from(fee_details_length).unwrap(),
+			});
 
 			Ok(())
 		}
@@ -154,7 +154,7 @@ pub mod pallet {
 
 		fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates {
 			// Get the max base fee tier
-			let current_max_base_fee_tier_buy =
+			let current_max_base_fee_tier_maker =
 				MaxBaseFeeTier::<T>::get(collateral_id, OrderSide::Maker);
 			// Calculate base fee of the maker, taker and base fee tier
 			let (maker_buy, _) = Self::find_user_base_fee(
@@ -162,30 +162,30 @@ pub mod pallet {
 				Side::Buy,
 				OrderSide::Maker,
 				volume,
-				current_max_base_fee_tier_buy,
+				current_max_base_fee_tier_maker,
 			);
-			let (taker_buy, _) = Self::find_user_base_fee(
+			let (maker_sell, _) = Self::find_user_base_fee(
 				collateral_id,
 				Side::Sell,
 				OrderSide::Maker,
 				volume,
-				current_max_base_fee_tier_buy,
+				current_max_base_fee_tier_maker,
 			);
-			let current_max_base_fee_tier_sell =
+			let current_max_base_fee_tier_taker =
 				MaxBaseFeeTier::<T>::get(collateral_id, OrderSide::Taker);
-			let (maker_sell, _) = Self::find_user_base_fee(
+			let (taker_buy, _) = Self::find_user_base_fee(
 				collateral_id,
 				Side::Buy,
 				OrderSide::Taker,
 				volume,
-				current_max_base_fee_tier_sell,
+				current_max_base_fee_tier_taker,
 			);
 			let (taker_sell, _) = Self::find_user_base_fee(
 				collateral_id,
 				Side::Sell,
 				OrderSide::Taker,
 				volume,
-				current_max_base_fee_tier_sell,
+				current_max_base_fee_tier_taker,
 			);
 			FeeRates { maker_buy, maker_sell, taker_buy, taker_sell }
 		}
