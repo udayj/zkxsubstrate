@@ -155,6 +155,7 @@ pub trait TradingFeesInterface {
 	) -> DispatchResult;
 	fn get_fee_rate(
 		collateral_id: u128,
+		market_id: u128,
 		side: Side,
 		order_side: OrderSide,
 		volume: FixedI128,

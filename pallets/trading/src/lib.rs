@@ -1435,6 +1435,7 @@ pub mod pallet {
 
 			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 				collateral_id,
+				market_id,
 				Side::Buy,
 				order_side,
 				total_30day_volume,
@@ -1722,6 +1723,7 @@ pub mod pallet {
 			let mut fee = if order.order_type != OrderType::Forced {
 				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 					collateral_id,
+					order.market_id,
 					Side::Sell,
 					order_side,
 					total_30day_volume,

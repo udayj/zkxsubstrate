@@ -5222,6 +5222,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-asset",
+ "pallet-market",
  "pallet-support",
  "parity-scale-codec",
  "primitive-types",
