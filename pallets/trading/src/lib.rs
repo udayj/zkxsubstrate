@@ -36,6 +36,7 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
+	static ONE_HOUR: u64 = 3600;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -1019,12 +1020,12 @@ pub mod pallet {
 				StartTimestamp::<T>::get().ok_or(Error::<T>::StartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit = current_timestamp - FOUR_WEEKS;
-			let mut cleanup_count = 3600;
+			let mut cleanup_count = ONE_HOUR;
 
 			for timestamp in start_timestamp..timestamp_limit {
 				if cleanup_count == 0 {
 					StartTimestamp::<T>::put(timestamp);
-					break;
+					return Ok(())
 				}
 				let batches = BatchesMap::<T>::get(timestamp);
 				if batches.is_some() {
@@ -1044,7 +1045,7 @@ pub mod pallet {
 				}
 				cleanup_count -= 1;
 			}
-			if cleanup_count != 0 && start_timestamp < timestamp_limit {
+			if start_timestamp < timestamp_limit {
 				StartTimestamp::<T>::put(timestamp_limit);
 			}
 
@@ -2098,7 +2099,7 @@ pub mod pallet {
 
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit: u64 = current_timestamp - FOUR_WEEKS;
-			let cleanup_count = 3600;
+			let cleanup_count = ONE_HOUR;
 
 			if start_timestamp < timestamp_limit {
 				let remaining_time = timestamp_limit - start_timestamp;

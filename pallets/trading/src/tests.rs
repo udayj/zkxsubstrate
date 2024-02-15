@@ -2498,9 +2498,6 @@ fn it_works_for_cleanup() {
 			1702359550000,
 		));
 
-		let start_timestamp = Trading::start_timestamp();
-		println!("Timestampppppp: {:?}", start_timestamp);
-
 		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
 
 		let order1 = Trading::order_state(U256::from(201));
