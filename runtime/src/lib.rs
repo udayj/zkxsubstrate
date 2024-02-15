@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 103,
+	spec_version: 106,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -483,6 +483,10 @@ impl_runtime_apis! {
 		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
 			Trading::get_withdrawable_amount(account_id, collateral_id)
 		}
+
+		fn get_remaining_trading_cleanup_calls() -> u64 {
+			Trading::get_remaining_trading_cleanup_calls()
+		}
 	}
 
 	impl pallet_prices_runtime_api::PricesApi<Block> for Runtime {
@@ -528,6 +532,9 @@ impl_runtime_apis! {
 			Prices::get_intermediary_abr_value(market_id.as_u128())
 		}
 
+		fn get_remaining_prices_cleanup_calls() -> u64 {
+			Prices::get_remaining_prices_cleanup_calls()
+		}
 	}
 
 	impl sp_api::Core<Block> for Runtime {

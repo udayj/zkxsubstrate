@@ -16,7 +16,7 @@ pub mod pallet {
 		pallet_prelude::{DispatchResult, *},
 		traits::UnixTime,
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{ensure_signed, pallet_prelude::*};
 	use pallet_support::{
 		helpers::{fixed_pow, ln, max},
 		traits::{
@@ -54,6 +54,7 @@ pub mod pallet {
 	static FOUR_WEEKS: u64 = 2419200;
 	// Clear limit for the historical prices map
 	static CLEAR_LIMIT: u32 = 1000;
+	static ONE_HOUR: u64 = 3600;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -619,14 +620,20 @@ pub mod pallet {
 				PricesStartTimestamp::<T>::get().ok_or(Error::<T>::PricesStartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			let mut cleanup_count = ONE_HOUR;
 
 			for timestamp in start_timestamp..timestamp_limit {
+				if cleanup_count == 0 {
+					PricesStartTimestamp::<T>::put(timestamp);
+					return Ok(())
+				}
 				// we are passing None as 3rd argument as no.of prices stored for a particular
 				// timestamp is limited and it doesn't need another call to remove
 				let _ = HistoricalPricesMap::<T>::clear_prefix(timestamp, CLEAR_LIMIT, None);
+				cleanup_count -= 1;
 			}
 			if start_timestamp < timestamp_limit {
-				PricesStartTimestamp::<T>::put(current_timestamp);
+				PricesStartTimestamp::<T>::put(timestamp_limit);
 			}
 
 			Ok(())
@@ -1383,6 +1390,29 @@ pub mod pallet {
 				Self::calculate_abr(mark_prices, index_prices, base_abr, bollinger_width, 8);
 
 			return abr_value
+		}
+
+		fn get_remaining_prices_cleanup_calls() -> u64 {
+			let start_timestamp = match PricesStartTimestamp::<T>::get() {
+				Some(timestamp) => timestamp,
+				None => return 0_u64,
+			};
+
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp_limit: u64 = current_timestamp - FOUR_WEEKS;
+			let cleanup_count = ONE_HOUR;
+
+			if start_timestamp < timestamp_limit {
+				let remaining_time = timestamp_limit - start_timestamp;
+				let cleanup_calls = remaining_time / cleanup_count;
+				return if remaining_time % cleanup_count != 0 {
+					cleanup_calls + 1
+				} else {
+					cleanup_calls
+				};
+			}
+
+			0_u64
 		}
 	}
 }

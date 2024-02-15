@@ -45,6 +45,9 @@ pub trait PricesApi<BlockHash> {
 		market_id: U256,
 		at: Option<BlockHash>,
 	) -> RpcResult<FixedI128>;
+
+	#[method(name = "prices_get_remaining_cleanup_calls")]
+	fn get_remaining_prices_cleanup_calls(&self, at: Option<BlockHash>) -> RpcResult<u64>;
 }
 
 /// A struct that implements the `PricesApi`.
@@ -130,6 +133,16 @@ where
 
 		api.get_intermediary_abr_value(at, market_id)
 			.map_err(runtime_error_into_rpc_err)
+	}
+
+	fn get_remaining_prices_cleanup_calls(
+		&self,
+		at: Option<<Block as BlockT>::Hash>,
+	) -> RpcResult<u64> {
+		let api = self.client.runtime_api();
+		let at = at.unwrap_or_else(|| self.client.info().best_hash);
+
+		api.get_remaining_prices_cleanup_calls(at).map_err(runtime_error_into_rpc_err)
 	}
 }
 

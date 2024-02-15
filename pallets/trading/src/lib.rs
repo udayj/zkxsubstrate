@@ -36,6 +36,7 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
+	static ONE_HOUR: u64 = 3600;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -1019,8 +1020,13 @@ pub mod pallet {
 				StartTimestamp::<T>::get().ok_or(Error::<T>::StartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit = current_timestamp - FOUR_WEEKS;
+			let mut cleanup_count = ONE_HOUR;
 
 			for timestamp in start_timestamp..timestamp_limit {
+				if cleanup_count == 0 {
+					StartTimestamp::<T>::put(timestamp);
+					return Ok(())
+				}
 				let batches = BatchesMap::<T>::get(timestamp);
 				if batches.is_some() {
 					for batch in batches.unwrap() {
@@ -1037,9 +1043,10 @@ pub mod pallet {
 					}
 					OrdersMap::<T>::remove(timestamp);
 				}
+				cleanup_count -= 1;
 			}
 			if start_timestamp < timestamp_limit {
-				StartTimestamp::<T>::put(current_timestamp);
+				StartTimestamp::<T>::put(timestamp_limit);
 			}
 
 			Ok(())
@@ -2082,6 +2089,29 @@ pub mod pallet {
 
 		fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128 {
 			T::TradingAccountPallet::get_amount_to_withdraw(account_id, collateral_id)
+		}
+
+		fn get_remaining_trading_cleanup_calls() -> u64 {
+			let start_timestamp = match StartTimestamp::<T>::get() {
+				Some(timestamp) => timestamp,
+				None => return 0_u64,
+			};
+
+			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
+			let timestamp_limit: u64 = current_timestamp - FOUR_WEEKS;
+			let cleanup_count = ONE_HOUR;
+
+			if start_timestamp < timestamp_limit {
+				let remaining_time = timestamp_limit - start_timestamp;
+				let cleanup_calls = remaining_time / cleanup_count;
+				return if remaining_time % cleanup_count != 0 {
+					cleanup_calls + 1
+				} else {
+					cleanup_calls
+				};
+			}
+
+			0_u64
 		}
 	}
 }

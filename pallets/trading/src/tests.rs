@@ -321,9 +321,9 @@ fn it_reverts_for_more_than_max_size() {
 			1699940367000,
 		));
 
-		assert_has_events(
-			vec![Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()]
-		);
+		assert_has_events(vec![
+			Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()
+		]);
 	});
 }
 
@@ -2524,7 +2524,7 @@ fn it_works_for_cleanup() {
 		assert_eq!(batch2, true);
 
 		let start_timestamp = Trading::start_timestamp();
-		assert_eq!(1702359600, start_timestamp.unwrap());
+		assert_eq!(1699940400, start_timestamp.unwrap());
 
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());
