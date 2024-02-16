@@ -98,13 +98,9 @@ pub mod pallet {
 
 	impl<T: Config> TradingFeesInterface for Pallet<T> {
 		fn remove_base_fees_internal(id: u128) {
-			// Get the orders and order_sides
-			let sides: Vec<_> = vec![Side::Buy, Side::Sell];
-			let order_sides = vec![OrderSide::Maker, OrderSide::Taker];
-
-			// Delete all combinations of tem
-			for side in &sides {
-				for order_side in &order_sides {
+			// Delete all combinations of OrderSide and Side
+			for side in &[Side::Buy, Side::Sell] {
+				for order_side in &[OrderSide::Maker, OrderSide::Taker] {
 					let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
 					for i in 1..max_fee_tier + 1 {
 						BaseFeeTierMap::<T>::remove(id, (i, side, &order_side));

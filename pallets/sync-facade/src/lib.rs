@@ -410,6 +410,27 @@ pub mod pallet {
 				.collect()
 		}
 
+		fn set_fees_internal(
+			id: u128,
+			side: Side,
+			order_side: OrderSide,
+			volumes: Vec<FixedI128>,
+			fees: Vec<FixedI128>,
+		) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_base_fees_internal(
+				id,
+				side,
+				order_side,
+				Self::create_base_fee_vec(volumes, fees),
+			) {
+				Ok(_) => Ok(()),
+				Err(_) => {
+					T::TradingFeesPallet::remove_base_fees_internal(id);
+					Err(())
+				},
+			}
+		}
+
 		fn set_trading_fees() {
 			let id_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
 			for &id in id_list.iter() {
@@ -434,7 +455,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::InsufficientFeeData { id });
-					break;
+					continue;
 				}
 
 				// Unwrap maker data
@@ -455,63 +476,47 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::FeeDataLengthMismatch { id });
-					break;
+					continue;
 				}
 
-				// Set Maker Open fees
-				match T::TradingFeesPallet::update_base_fees_internal(
+				if let Err(_) = Self::set_fees_internal(
 					id,
 					Side::Buy,
 					OrderSide::Maker,
-					Self::create_base_fee_vec(maker_volumes.clone(), maker_open_fees),
+					maker_volumes.clone(),
+					maker_open_fees,
 				) {
-					Ok(_) => (),
-					Err(_) => {
-						T::TradingFeesPallet::remove_base_fees_internal(id);
-						break;
-					},
+					continue;
 				}
 
-				// Set Maker Close fees
-				match T::TradingFeesPallet::update_base_fees_internal(
+				if let Err(_) = Self::set_fees_internal(
 					id,
 					Side::Sell,
 					OrderSide::Maker,
-					Self::create_base_fee_vec(maker_volumes.clone(), maker_close_fees),
+					maker_volumes.clone(),
+					maker_close_fees,
 				) {
-					Ok(_) => (),
-					Err(_) => {
-						T::TradingFeesPallet::remove_base_fees_internal(id);
-						break;
-					},
+					continue;
 				}
 
-				// Set Taker Open fees
-				match T::TradingFeesPallet::update_base_fees_internal(
+				if let Err(_) = Self::set_fees_internal(
 					id,
 					Side::Buy,
 					OrderSide::Taker,
-					Self::create_base_fee_vec(taker_volumes.clone(), taker_open_fees),
+					taker_volumes.clone(),
+					taker_open_fees,
 				) {
-					Ok(_) => (),
-					Err(_) => {
-						T::TradingFeesPallet::remove_base_fees_internal(id);
-						break;
-					},
+					continue;
 				}
 
-				// Set Taker Close fees
-				match T::TradingFeesPallet::update_base_fees_internal(
+				if let Err(_) = Self::set_fees_internal(
 					id,
 					Side::Sell,
 					OrderSide::Taker,
-					Self::create_base_fee_vec(taker_volumes.clone(), taker_close_fees),
+					taker_volumes.clone(),
+					taker_close_fees,
 				) {
-					Ok(_) => (),
-					Err(_) => {
-						T::TradingFeesPallet::remove_base_fees_internal(id);
-						break;
-					},
+					continue;
 				}
 			}
 
