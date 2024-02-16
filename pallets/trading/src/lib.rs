@@ -1433,10 +1433,12 @@ pub mod pallet {
 
 			ensure!(is_liquidation == false, Error::<T>::TradeBatchError531);
 
+			let current_volume =
+				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
 			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
 				order.account_id,
 				order.market_id,
-				order_size * execution_price,
+				current_volume,
 			)
 			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
@@ -1718,11 +1720,13 @@ pub mod pallet {
 				}
 			}
 
+			let current_volume =
+				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
 			let total_30day_volume: FixedI128 =
 				T::TradingAccountPallet::update_and_get_cumulative_volume(
 					order.account_id,
 					order.market_id,
-					order_size * execution_price,
+					current_volume,
 				)
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
