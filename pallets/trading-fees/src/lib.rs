@@ -97,19 +97,41 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingFeesInterface for Pallet<T> {
+		fn remove_base_fees_internal(id: u128) {
+			// Get the orders and order_sides
+			let sides: Vec<_> = vec![Side::Buy, Side::Sell];
+			let order_sides = vec![OrderSide::Maker, OrderSide::Taker];
+
+			// Delete all combinations of tem
+			for side in &sides {
+				for order_side in &order_sides {
+					let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
+					for i in 1..max_fee_tier + 1 {
+						BaseFeeTierMap::<T>::remove(id, (i, side, &order_side));
+					}
+					MaxBaseFeeTier::<T>::remove(id, order_side);
+				}
+			}
+		}
+
 		fn update_base_fees_internal(
 			id: u128,
 			side: Side,
 			order_side: OrderSide,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
+			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 69 });
+
 			// Validate that the asset exists and it is a collateral
 			if let Some(asset) = T::AssetPallet::get_asset(id) {
 				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
 			} else {
+				Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 61 });
 				// If it's not an asset, ensure that it's a valid market
 				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
 			}
+
+			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 70 });
 
 			// Delete the fee details corresponding to the current side
 			let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
@@ -121,11 +143,15 @@ pub mod pallet {
 			let fee_details_length = fee_details.len();
 			ensure!(fee_details_length >= 1, Error::<T>::ZeroFeeTiers);
 
+			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 71 });
+
 			let update_base_fee_response = Self::update_base_fee(id, side, order_side, fee_details);
 			match update_base_fee_response {
 				Ok(()) => (),
 				Err(e) => return Err(e),
 			}
+
+			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 72 });
 
 			// Emit event
 			Self::deposit_event(Event::BaseFeesUpdated {

@@ -7,16 +7,16 @@ use pallet_support::{
 	},
 	traits::FieldElementExt,
 	types::{
-		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, MarketRemoved, MarketUpdated,
-		OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, ExtendedMarket, MarketRemoved,
+		MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved,
+		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_io::hashing::blake2_256;
-use sp_runtime::{print, traits::ConstU32, BoundedVec};
+use sp_runtime::{traits::ConstU32, BoundedVec};
 
 // declare test_helper module
 pub mod test_helper;
@@ -36,7 +36,11 @@ fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
 }
 
 fn get_collaterals() -> Vec<ExtendedAsset> {
-	vec![usdc(), usdt()]
+	vec![usdc(), usdt(), btc(), eth()]
+}
+
+fn get_markets() -> Vec<ExtendedMarket> {
+	vec![btc_usdc(), eth_usdc()]
 }
 
 fn get_signers() -> Vec<U256> {
@@ -76,6 +80,8 @@ fn setup() -> sp_io::TestExternalities {
 			.expect("error while setting quorum");
 		Assets::replace_all_assets(RuntimeOrigin::signed(1), get_collaterals())
 			.expect("error while adding assets");
+		Markets::replace_all_markets(RuntimeOrigin::signed(1), get_markets())
+			.expect("error while adding markets");
 		System::set_block_number(1336);
 	});
 
@@ -1184,6 +1190,7 @@ fn sync_settings_event_btc_usdc() {
 			.expect("error while adding signer");
 
 		print!("Events: {:?}", System::events());
+		// print!("BTC ID {:?}", btc_usdc().market.id);
 
 		// Check if the fees were set successfully
 		compare_base_fees(

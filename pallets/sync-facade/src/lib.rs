@@ -13,6 +13,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::Vec,
 		pallet_prelude::{OptionQuery, *},
+		print,
 	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
@@ -247,6 +248,7 @@ pub mod pallet {
 			signatures: Vec<SyncSignature>,
 			// block_number: u64,
 		) -> DispatchResult {
+			print("Reaches settings");
 			// Make sure the call is signed
 			ensure_signed(origin)?;
 
@@ -457,36 +459,60 @@ pub mod pallet {
 				}
 
 				// Set Maker Open fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
+				match T::TradingFeesPallet::update_base_fees_internal(
 					id,
 					Side::Buy,
 					OrderSide::Maker,
 					Self::create_base_fee_vec(maker_volumes.clone(), maker_open_fees),
-				);
+				) {
+					Ok(_) => (),
+					Err(_) => {
+						T::TradingFeesPallet::remove_base_fees_internal(id);
+						break;
+					},
+				}
 
 				// Set Maker Close fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
+				match T::TradingFeesPallet::update_base_fees_internal(
 					id,
 					Side::Sell,
 					OrderSide::Maker,
 					Self::create_base_fee_vec(maker_volumes.clone(), maker_close_fees),
-				);
+				) {
+					Ok(_) => (),
+					Err(_) => {
+						T::TradingFeesPallet::remove_base_fees_internal(id);
+						break;
+					},
+				}
 
 				// Set Taker Open fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
+				match T::TradingFeesPallet::update_base_fees_internal(
 					id,
 					Side::Buy,
 					OrderSide::Taker,
 					Self::create_base_fee_vec(taker_volumes.clone(), taker_open_fees),
-				);
+				) {
+					Ok(_) => (),
+					Err(_) => {
+						T::TradingFeesPallet::remove_base_fees_internal(id);
+						break;
+					},
+				}
 
 				// Set Taker Close fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
+				match T::TradingFeesPallet::update_base_fees_internal(
 					id,
 					Side::Sell,
 					OrderSide::Taker,
 					Self::create_base_fee_vec(taker_volumes.clone(), taker_close_fees),
-				);
+				) {
+					Ok(_) => (),
+					Err(_) => {
+						T::TradingFeesPallet::remove_base_fees_internal(id);
+						break;
+					},
+				}
 			}
 
 			TempFeesMap::<T>::drain();
@@ -506,6 +532,7 @@ pub mod pallet {
 		}
 
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
+			print("Reaches settings");
 			for setting in settings {
 				// Parse the key of the current setting
 				let parsing_result = Self::u256_to_tokens(setting.key);

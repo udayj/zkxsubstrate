@@ -284,13 +284,13 @@ impl SettingsAddedTrait for SettingsAdded {
 			Setting {
 				// F_BTCUSDC_M_-
 				key: U256::from(5575452638956490725563642502957_i128),
-				values: bounded_vec![FixedI128::from_u32(0), FixedI128::from_u32(1000000),]
+				values: bounded_vec![FixedI128::from_u32(10000), FixedI128::from_u32(1000000),]
 			},
 			Setting {
 				// F_BTCUSDC_T_-
 				key: U256::from(5575452638956490725563642961709_i128),
 				values: bounded_vec![
-					FixedI128::from_u32(0),
+					FixedI128::from_u32(10000),
 					FixedI128::from_u32(1000000),
 					FixedI128::from_u32(5000000)
 				]
@@ -455,6 +455,7 @@ pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
 pub fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.015) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.0) },
 	]
 }
@@ -480,6 +481,7 @@ pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
 pub fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
+		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.015) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.0) },
 	]
 }
@@ -506,6 +508,7 @@ pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
 pub fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.045) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
 		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.020) },
 	]
@@ -535,6 +538,7 @@ pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
 pub fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
+		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.045) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
 		BaseFee { volume: FixedI128::from_u32(5000000), fee: FixedI128::from_float(0.020) },
 	]
