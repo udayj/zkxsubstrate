@@ -13,7 +13,6 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::Vec,
 		pallet_prelude::{OptionQuery, *},
-		print,
 	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
@@ -250,7 +249,6 @@ pub mod pallet {
 			signatures: Vec<SyncSignature>,
 			// block_number: u64,
 		) -> DispatchResult {
-			print("Reaches settings");
 			// Make sure the call is signed
 			ensure_signed(origin)?;
 
@@ -427,7 +425,12 @@ pub mod pallet {
 			) {
 				Ok(_) => Ok(()),
 				Err(_) => {
+					// Remove partially set fees in Trading Fees pallet
 					T::TradingFeesPallet::remove_base_fees_internal(id);
+
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
 					Err(())
 				},
 			}
@@ -490,9 +493,6 @@ pub mod pallet {
 					maker_volumes.clone(),
 					maker_open_fees,
 				) {
-					// Emit Unknown data event
-					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -503,9 +503,6 @@ pub mod pallet {
 					maker_volumes.clone(),
 					maker_close_fees,
 				) {
-					// Emit Unknown data event
-					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -516,9 +513,6 @@ pub mod pallet {
 					taker_volumes.clone(),
 					taker_open_fees,
 				) {
-					// Emit Unknown data event
-					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -529,9 +523,6 @@ pub mod pallet {
 					taker_volumes.clone(),
 					taker_close_fees,
 				) {
-					// Emit Unknown data event
-					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
