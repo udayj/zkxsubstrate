@@ -136,6 +136,8 @@ pub mod pallet {
 		AddMarketError { id: u128 },
 		/// An invalid request to update a market
 		UpdateMarketError { id: u128 },
+		/// An unknown asset/market id passed
+		UnknownIdForFees { id: u128 },
 	}
 
 	#[pallet::error]
@@ -455,6 +457,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::InsufficientFeeData { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -476,6 +479,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::FeeDataLengthMismatch { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -486,6 +490,9 @@ pub mod pallet {
 					maker_volumes.clone(),
 					maker_open_fees,
 				) {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -496,6 +503,9 @@ pub mod pallet {
 					maker_volumes.clone(),
 					maker_close_fees,
 				) {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -506,6 +516,9 @@ pub mod pallet {
 					taker_volumes.clone(),
 					taker_open_fees,
 				) {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
 
@@ -516,28 +529,42 @@ pub mod pallet {
 					taker_volumes.clone(),
 					taker_close_fees,
 				) {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
 					continue;
 				}
-			}
 
-			TempFeesMap::<T>::drain();
-			TempAssetsMap::<T>::drain();
+				Self::remove_settings_from_maps(id);
+			}
 		}
 
 		fn add_settings_to_maps(
-			asset_id: u128,
+			id: u128,
 			fee_settings_type: FeeSettingsType,
 			values: Vec<FixedI128>,
 		) {
 			// Add the asset to the map
-			TempAssetsMap::<T>::insert(asset_id, true);
+			TempAssetsMap::<T>::insert(id, true);
 
 			// Insert maker volume vector to the map
-			TempFeesMap::<T>::insert(asset_id, fee_settings_type, values);
+			TempFeesMap::<T>::insert(id, fee_settings_type, values);
+		}
+
+		fn remove_settings_from_maps(id: u128) {
+			// Add the asset to the map
+			TempAssetsMap::<T>::insert(id, false);
+
+			// Insert maker volume vector to the map
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerVols);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerVols);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerOpen);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerClose);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerOpen);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerClose);
 		}
 
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
-			print("Reaches settings");
 			for setting in settings {
 				// Parse the key of the current setting
 				let parsing_result = Self::u256_to_tokens(setting.key);
@@ -545,7 +572,7 @@ pub mod pallet {
 				if parsing_result == None {
 					// exit from the loop
 					Self::deposit_event(Event::TokenParsingError { key: setting.key });
-					break;
+					continue;
 				}
 
 				// Get the constituents of the key
@@ -554,7 +581,7 @@ pub mod pallet {
 				// Resolve the type of setting
 				let setting_type = Self::resolve_setting(setting_type, param2, param3);
 				if setting_type == None {
-					break;
+					continue;
 				}
 
 				// Handle the setting

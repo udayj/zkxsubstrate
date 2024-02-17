@@ -116,18 +116,13 @@ pub mod pallet {
 			order_side: OrderSide,
 			fee_details: Vec<BaseFee>,
 		) -> DispatchResult {
-			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 69 });
-
 			// Validate that the asset exists and it is a collateral
 			if let Some(asset) = T::AssetPallet::get_asset(id) {
 				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
 			} else {
-				Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 61 });
 				// If it's not an asset, ensure that it's a valid market
 				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
 			}
-
-			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 70 });
 
 			// Delete the fee details corresponding to the current side
 			let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
@@ -139,15 +134,11 @@ pub mod pallet {
 			let fee_details_length = fee_details.len();
 			ensure!(fee_details_length >= 1, Error::<T>::ZeroFeeTiers);
 
-			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 71 });
-
 			let update_base_fee_response = Self::update_base_fee(id, side, order_side, fee_details);
 			match update_base_fee_response {
 				Ok(()) => (),
 				Err(e) => return Err(e),
 			}
-
-			Self::deposit_event(Event::BaseFeesUpdated { fee_tiers: 72 });
 
 			// Emit event
 			Self::deposit_event(Event::BaseFeesUpdated {
