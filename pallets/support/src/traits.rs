@@ -111,7 +111,7 @@ pub trait MarketInterface {
 }
 
 pub trait PricesInterface {
-	fn set_default_max_abr_internal(max_abr_value: FixedI128) -> DispatchResult;
+	fn set_default_max_abr_internal(max_abr_value: FixedI128);
 	fn set_max_abr_internal(market_id: u128, max_abr_value: FixedI128) -> DispatchResult;
 	fn convert_to_seconds(time_in_milli: u64) -> u64;
 	fn get_index_price(market_id: u128) -> FixedI128;

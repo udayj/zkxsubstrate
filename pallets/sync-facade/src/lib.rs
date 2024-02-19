@@ -139,7 +139,9 @@ pub mod pallet {
 		/// An unknown asset/market id passed
 		UnknownIdForFees { id: u128 },
 		/// An invalid request to set max abr
-		InvalidMaxABR { id: u128 },
+		InvalidMarket { id: u128 },
+		/// A max abr request with empty array
+		EmptyValuesError { id: u128 },
 	}
 
 	#[pallet::error]
@@ -646,20 +648,22 @@ pub mod pallet {
 			market_id: u128,
 			values: Vec<FixedI128>,
 		) {
+			// Check if values is not empty
+			if values.is_empty() {
+				// Handle the case where values is empty
+				Self::deposit_event(Event::EmptyValuesError { id: market_id });
+				return;
+			}
+
 			match abr_settings_type {
 				ABRSettingsType::MaxDefault => {
-					match T::PricesPallet::set_default_max_abr_internal(values[0]) {
-						Ok(()) => (),
-						Err(_) => {
-							Self::deposit_event(Event::InvalidMaxABR { id: market_id });
-						},
-					}
+					T::PricesPallet::set_default_max_abr_internal(values[0]);
 				},
 				ABRSettingsType::MaxPerMarket => {
 					match T::PricesPallet::set_max_abr_internal(market_id, values[0]) {
 						Ok(()) => (),
 						Err(_) => {
-							Self::deposit_event(Event::InvalidMaxABR { id: market_id });
+							Self::deposit_event(Event::InvalidMarket { id: market_id });
 						},
 					}
 				},

@@ -77,6 +77,9 @@ pub trait SettingsAddedTrait {
 	fn get_usdt_fees_settings() -> SettingsAdded;
 	fn get_btc_usdc_fees_settings() -> SettingsAdded;
 	fn get_frax_fees_settings() -> SettingsAdded;
+	fn get_max_default_settings() -> SettingsAdded;
+	fn get_max_btc_usdc_settings() -> SettingsAdded;
+	fn get_max_eth_usdc_settings() -> SettingsAdded;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
@@ -416,6 +419,36 @@ impl SettingsAddedTrait for SettingsAdded {
 				]
 			}
 		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_max_default_settings() -> SettingsAdded {
+		let settings = bounded_vec![Setting {
+			// A_-_-_-
+			key: U256::from(18400521961168685_i128),
+			values: bounded_vec![FixedI128::from_float(0.0012)]
+		}];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_max_btc_usdc_settings() -> SettingsAdded {
+		let settings = bounded_vec![Setting {
+			// A_BTCUSDC_-_-
+			key: U256::from(5179311826385169037595920654125_i128),
+			values: bounded_vec![FixedI128::from_float(0.01)]
+		}];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_max_eth_usdc_settings() -> SettingsAdded {
+		let settings = bounded_vec![Setting {
+			// A_ETHUSDC_-_-
+			key: U256::from(5179315453254861601851992530733_i128),
+			values: bounded_vec![FixedI128::from_float(0.05)]
+		}];
 
 		SettingsAdded { event_index: 1, settings, block_number: 1337 }
 	}

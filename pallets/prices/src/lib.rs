@@ -321,7 +321,9 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_root(origin)?;
 
-			Self::set_default_max_abr_internal(max_abr_value)
+			Self::set_default_max_abr_internal(max_abr_value);
+
+			Ok(())
 		}
 
 		/// External function to be called for setting max abr per market
@@ -1185,16 +1187,12 @@ pub mod pallet {
 	}
 
 	impl<T: Config> PricesInterface for Pallet<T> {
-		fn set_default_max_abr_internal(max_abr_value: FixedI128) -> DispatchResult {
-			// Validate the value
-			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
-
+		fn set_default_max_abr_internal(max_abr_value: FixedI128) {
 			// Set the given abr value
 			MaxABRDefault::<T>::set(max_abr_value);
 
 			// Emit Default Max ABR value updated event
 			Self::deposit_event(Event::DefaultMaxAbrUpdated { max_abr_value });
-			Ok(())
 		}
 
 		fn set_max_abr_internal(market_id: u128, max_abr_value: FixedI128) -> DispatchResult {
@@ -1204,9 +1202,6 @@ pub mod pallet {
 			let market = market.unwrap();
 
 			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
-
-			// Validate the value
-			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
 
 			// Set the given abr value
 			MaxABRPerMarket::<T>::insert(market_id, max_abr_value);
