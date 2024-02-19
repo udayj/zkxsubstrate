@@ -20,7 +20,7 @@ pub mod pallet {
 		helpers::compute_hash_on_elements,
 		traits::{
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
-			TradingAccountInterface, TradingFeesInterface, U256Ext,
+			PricesInterface, TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
 			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
@@ -47,6 +47,7 @@ pub mod pallet {
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingFeesPallet: TradingFeesInterface;
+		type PricesPallet: PricesInterface;
 	}
 
 	#[pallet::storage]
@@ -137,6 +138,8 @@ pub mod pallet {
 		UpdateMarketError { id: u128 },
 		/// An unknown asset/market id passed
 		UnknownIdForFees { id: u128 },
+		/// An invalid request to set max abr
+		InvalidMaxABR { id: u128 },
 	}
 
 	#[pallet::error]
@@ -173,7 +176,6 @@ pub mod pallet {
 	const CLOSE_ENCODING: u128 = 67;
 	const OMISSION_ENCODING: u128 = 45;
 	const ABR_ENCODING: u128 = 65;
-	const MAX_ABR_ENCODING: u128 = 77;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -575,10 +577,10 @@ pub mod pallet {
 				}
 
 				// Get the constituents of the key
-				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
+				let (setting_encoding, param1, param2, param3) = parsing_result.unwrap();
 
 				// Resolve the type of setting
-				let setting_type = Self::resolve_setting(setting_type, param1, param2, param3);
+				let setting_type = Self::resolve_setting(setting_encoding, param1, param2, param3);
 				if setting_type == None {
 					continue;
 				}
@@ -646,10 +648,20 @@ pub mod pallet {
 		) {
 			match abr_settings_type {
 				ABRSettingsType::MaxDefault => {
-					return;
+					match T::PricesPallet::set_default_max_abr_internal(values[0]) {
+						Ok(()) => (),
+						Err(_) => {
+							Self::deposit_event(Event::InvalidMaxABR { id: market_id });
+						},
+					}
 				},
 				ABRSettingsType::MaxPerMarket => {
-					return;
+					match T::PricesPallet::set_max_abr_internal(market_id, values[0]) {
+						Ok(()) => (),
+						Err(_) => {
+							Self::deposit_event(Event::InvalidMaxABR { id: market_id });
+						},
+					}
 				},
 			}
 		}

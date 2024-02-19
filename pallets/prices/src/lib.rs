@@ -321,15 +321,7 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_root(origin)?;
 
-			// Validate the value
-			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
-
-			// Set the given abr value
-			MaxABRDefault::<T>::set(max_abr_value);
-
-			// Emit Default Max ABR value updated event
-			Self::deposit_event(Event::DefaultMaxAbrUpdated { max_abr_value });
-			Ok(())
+			Self::set_default_max_abr_internal(max_abr_value)
 		}
 
 		/// External function to be called for setting max abr per market
@@ -342,22 +334,7 @@ pub mod pallet {
 			// Make sure the caller is from a signed origin
 			ensure_root(origin)?;
 
-			// Check if the market exists and is tradable
-			let market = T::MarketPallet::get_market(market_id);
-			ensure!(market.is_some(), Error::<T>::MarketNotFound);
-			let market = market.unwrap();
-
-			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
-
-			// Validate the value
-			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
-
-			// Set the given abr value
-			MaxABRPerMarket::<T>::insert(market_id, max_abr_value);
-
-			// Emit Max ABR updated for a market event
-			Self::deposit_event(Event::MaxAbrForMarketUpdated { market_id, max_abr_value });
-			Ok(())
+			Self::set_max_abr_internal(market_id, max_abr_value)
 		}
 
 		/// External function to be called for setting ABR interval
@@ -1208,6 +1185,37 @@ pub mod pallet {
 	}
 
 	impl<T: Config> PricesInterface for Pallet<T> {
+		fn set_default_max_abr_internal(max_abr_value: FixedI128) -> DispatchResult {
+			// Validate the value
+			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
+
+			// Set the given abr value
+			MaxABRDefault::<T>::set(max_abr_value);
+
+			// Emit Default Max ABR value updated event
+			Self::deposit_event(Event::DefaultMaxAbrUpdated { max_abr_value });
+			Ok(())
+		}
+
+		fn set_max_abr_internal(market_id: u128, max_abr_value: FixedI128) -> DispatchResult {
+			// Check if the market exists and is tradable
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::MarketNotFound);
+			let market = market.unwrap();
+
+			ensure!(market.is_tradable == true, Error::<T>::MarketNotTradable);
+
+			// Validate the value
+			ensure!(!max_abr_value.is_negative(), Error::<T>::NegativeMaxValue);
+
+			// Set the given abr value
+			MaxABRPerMarket::<T>::insert(market_id, max_abr_value);
+
+			// Emit Max ABR updated for a market event
+			Self::deposit_event(Event::MaxAbrForMarketUpdated { market_id, max_abr_value });
+			Ok(())
+		}
+
 		fn get_last_oracle_price(market_id: u128) -> FixedI128 {
 			let last_oracle_price = LastOraclePricesMap::<T>::get(market_id);
 
