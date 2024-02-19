@@ -17,8 +17,8 @@ pub mod pallet {
 		ecdsa_verify,
 		helpers::{get_day_diff, max, shift_and_recompute, sig_u256_to_sig_felt},
 		traits::{
-			AssetInterface, FieldElementExt, Hashable, MarketInterface, PricesInterface,
-			TradingAccountInterface, TradingInterface, U256Ext,
+			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
+			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
@@ -789,6 +789,9 @@ pub mod pallet {
 			let markets: Vec<u128> =
 				T::TradingPallet::get_markets_of_collateral(account_id, collateral_id);
 
+			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+
 			// Get balance for the given collateral
 			let collateral_balance = BalancesMap::<T>::get(account_id, collateral_id);
 
@@ -813,6 +816,9 @@ pub mod pallet {
 					new_position_maintanence_requirement,
 					markets,
 				);
+
+			let unrealized_pnl_sum =
+				unrealized_pnl_sum.round_to_precision(collateral_token_decimal.into());
 
 			// Add the new position's margin
 			let total_initial_margin_sum = initial_margin_sum + new_position_margin;
