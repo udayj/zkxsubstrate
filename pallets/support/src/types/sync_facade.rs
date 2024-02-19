@@ -105,6 +105,7 @@ pub struct SettingsAdded {
 #[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
 pub enum SettingsType {
 	FeeSettings(FeeSettingsType),
+	ABRSettings(ABRSettingsType),
 	GeneralSettings,
 }
 
@@ -116,4 +117,10 @@ pub enum FeeSettingsType {
 	MakerClose,
 	TakerOpen,
 	TakerClose,
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
+pub enum ABRSettingsType {
+	MaxDefault,
+	MaxPerMarket,
 }

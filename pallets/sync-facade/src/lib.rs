@@ -23,8 +23,8 @@ pub mod pallet {
 			TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
-			BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide, Setting,
-			SettingsType, Side, SyncSignature, UniversalEvent,
+			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
+			Setting, SettingsType, Side, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -172,6 +172,8 @@ pub mod pallet {
 	const OPEN_ENCODING: u128 = 79;
 	const CLOSE_ENCODING: u128 = 67;
 	const OMISSION_ENCODING: u128 = 45;
+	const ABR_ENCODING: u128 = 65;
+	const MAX_ABR_ENCODING: u128 = 77;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -326,6 +328,7 @@ pub mod pallet {
 
 		fn resolve_setting(
 			settings_type: u128,
+			param1: u128,
 			param2: u128,
 			param3: u128,
 		) -> Option<SettingsType> {
@@ -359,6 +362,11 @@ pub mod pallet {
 						Self::deposit_event(Event::SettingsKeyError { key: param2 });
 						return None;
 					},
+				},
+				ABR_ENCODING => match param1 {
+					OMISSION_ENCODING =>
+						return Some(SettingsType::ABRSettings(ABRSettingsType::MaxDefault)),
+					_ => return Some(SettingsType::ABRSettings(ABRSettingsType::MaxPerMarket)),
 				},
 				GENERAL_SETTINGS => {
 					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
@@ -570,7 +578,7 @@ pub mod pallet {
 				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
 
 				// Resolve the type of setting
-				let setting_type = Self::resolve_setting(setting_type, param2, param3);
+				let setting_type = Self::resolve_setting(setting_type, param1, param2, param3);
 				if setting_type == None {
 					continue;
 				}
@@ -621,12 +629,29 @@ pub mod pallet {
 							);
 						},
 					},
+					SettingsType::ABRSettings(abr_settings_type) =>
+						Self::set_abr_max(abr_settings_type, param1, setting.values.to_vec()),
 					SettingsType::GeneralSettings => {},
 				}
 			}
 
 			// Set the trading Fees and remove the temporary storage items
 			Self::set_trading_fees();
+		}
+
+		fn set_abr_max(
+			abr_settings_type: ABRSettingsType,
+			market_id: u128,
+			values: Vec<FixedI128>,
+		) {
+			match abr_settings_type {
+				ABRSettingsType::MaxDefault => {
+					return;
+				},
+				ABRSettingsType::MaxPerMarket => {
+					return;
+				},
+			}
 		}
 
 		fn handle_events(events_batch: Vec<UniversalEvent>) {
