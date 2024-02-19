@@ -55,6 +55,7 @@ fn test_enum_felt() {
 	let b = string_to_felt("MARKET").unwrap();
 	assert_eq!(a, b, "Error");
 }
+
 #[test]
 fn test_felt_and_hash_values() {
 	let val1 = FieldElement::from(1_u8);
@@ -148,28 +149,28 @@ fn test_felt_and_hash_values() {
 	assert_ne!(pedersen_hash(&zero, &fixed1_fe), pedersen_hash(&zero, &fixed2_fe));
 }
 
-// #[test]
-// fn test_order_signature() {
-// 	let order = Order::new(U256::from(201), U256::from(0));
-// 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
-// 	let expected_hash = FieldElement::from_dec_str(
-// 		"3132625918282695035920415711376638693136677687288415900988049051810724895775",
-// 	)
-// 	.unwrap();
-// 	// order hash should match
-// 	// compute_hash_on_elements(
-// 	// [0,0,201,0,1,327647316308,1280265799,4347225,
-// 	// 100000000000000000000,1000000000000000000,1000000000000000000,100000000000000000,0,4674627,
-// 	// 1699940278000])
-// 	assert_eq!(order_hash, expected_hash);
+#[test]
+fn test_order_signature() {
+	let order = Order::new(U256::from(201), U256::from(0));
+	let order_hash = order.hash(&HashType::Pedersen).unwrap();
+	let expected_hash = FieldElement::from_dec_str(
+		"2440053169174277907356274916994871562413487047629405842152703102223257139832",
+	)
+	.unwrap();
+	// order hash should match
+	// compute_hash_on_elements(
+	// [0,0,201,0,1,327647316308,1280265799,4347225,
+	// 100000000000000000000,1000000000000000000,1000000000000000000,100000000000000000,0,4674627,
+	// 1699940278000])
+	assert_eq!(order_hash, expected_hash);
 
-// 	let private_key = FieldElement::from_dec_str("100").unwrap();
-// 	let public_key = get_public_key(&private_key);
-// 	let signature = ecdsa_sign(&private_key, &order_hash).unwrap();
-// 	let verification =
-// 		ecdsa_verify(&public_key, &expected_hash, &Signature::from(signature)).unwrap();
-// 	assert_eq!(verification, true);
-// }
+	let private_key = FieldElement::from_dec_str("100").unwrap();
+	let public_key = get_public_key(&private_key);
+	let signature = ecdsa_sign(&private_key, &order_hash).unwrap();
+	let verification =
+		ecdsa_verify(&public_key, &expected_hash, &Signature::from(signature)).unwrap();
+	assert_eq!(verification, true);
+}
 
 #[test]
 fn test_round_to_precision_1() {
