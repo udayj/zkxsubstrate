@@ -414,11 +414,11 @@ pub mod pallet {
 			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
 		}
 
-		fn create_base_fee_vec(volumes: Vec<FixedI128>, fees: Vec<FixedI128>) -> Vec<BaseFee> {
+		fn create_base_fee_vec(volumes: &Vec<FixedI128>, fees: &Vec<FixedI128>) -> Vec<BaseFee> {
 			volumes
 				.into_iter()
 				.zip(fees.into_iter())
-				.map(|(volume, fee)| BaseFee { volume, fee })
+				.map(|(volume, fee)| BaseFee { volume: *volume, fee: *fee })
 				.collect()
 		}
 
@@ -426,8 +426,8 @@ pub mod pallet {
 			id: u128,
 			side: Side,
 			order_side: OrderSide,
-			volumes: Vec<FixedI128>,
-			fees: Vec<FixedI128>,
+			volumes: &Vec<FixedI128>,
+			fees: &Vec<FixedI128>,
 		) -> Result<(), ()> {
 			match T::TradingFeesPallet::update_base_fees_internal(
 				id,
@@ -502,8 +502,8 @@ pub mod pallet {
 					id,
 					Side::Buy,
 					OrderSide::Maker,
-					maker_volumes.clone(),
-					maker_open_fees,
+					&maker_volumes,
+					&maker_open_fees,
 				) {
 					continue;
 				}
@@ -512,8 +512,8 @@ pub mod pallet {
 					id,
 					Side::Sell,
 					OrderSide::Maker,
-					maker_volumes.clone(),
-					maker_close_fees,
+					&maker_volumes,
+					&maker_close_fees,
 				) {
 					continue;
 				}
@@ -522,8 +522,8 @@ pub mod pallet {
 					id,
 					Side::Buy,
 					OrderSide::Taker,
-					taker_volumes.clone(),
-					taker_open_fees,
+					&taker_volumes,
+					&taker_open_fees,
 				) {
 					continue;
 				}
@@ -532,8 +532,8 @@ pub mod pallet {
 					id,
 					Side::Sell,
 					OrderSide::Taker,
-					taker_volumes.clone(),
-					taker_close_fees,
+					&taker_volumes,
+					&taker_close_fees,
 				) {
 					continue;
 				}
