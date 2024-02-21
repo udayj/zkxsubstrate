@@ -3077,7 +3077,6 @@ fn it_reverts_when_user_cant_cover_losses() {
 
 		// market id
 		let market_id = btc_usdc().market.id;
-		let collateral_id = usdc().asset.id;
 
 		// Create open orders
 		let alice_open_order = Order::new(U256::from(201), alice_id)
@@ -3140,7 +3139,5 @@ fn it_reverts_when_user_cant_cover_losses() {
 			// batch_timestamp
 			1699940367000,
 		));
-
-		println!("Eventssss: {:?}", System::events());
 	});
 }

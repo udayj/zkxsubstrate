@@ -1536,35 +1536,36 @@ pub mod pallet {
 				// user has lost some borrowed funds
 				if margin_plus_pnl.is_negative() {
 					let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
+					let pnl_abs = pnl.saturating_abs();
 
 					// Check if user's balance can cover the deficit
-					if amount_to_transfer_from > balance {
+					if pnl_abs > balance {
 						if balance.is_negative() {
 							// Complete funds lost by user should be taken from insurance fund
 							Self::deposit_event(Event::InsuranceFundChange {
 								collateral_id,
-								amount: amount_to_transfer_from,
+								amount: pnl_abs,
 								modify_type: FundModifyType::Decrease,
 								block_number,
 							});
 
 							LiquidationFeeMap::<T>::insert(
 								collateral_id,
-								current_liquidation_fee - amount_to_transfer_from,
+								current_liquidation_fee - pnl_abs,
 							);
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
 							Self::deposit_event(Event::InsuranceFundChange {
 								collateral_id,
-								amount: amount_to_transfer_from - balance,
+								amount: pnl_abs - balance,
 								modify_type: FundModifyType::Decrease,
 								block_number,
 							});
 
 							LiquidationFeeMap::<T>::insert(
 								collateral_id,
-								current_liquidation_fee - (amount_to_transfer_from - balance),
+								current_liquidation_fee - (pnl_abs - balance),
 							);
 						}
 					}
