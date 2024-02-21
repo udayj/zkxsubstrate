@@ -3063,3 +3063,84 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 		assert_eq!(markets, vec![eth_usdc().market.id]);
 	});
 }
+
+#[test]
+#[should_panic(expected = "TradeBatchError532")]
+// user tries to close a position, but does not have enough balance to cover loses
+fn it_reverts_when_user_cant_cover_losses() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+
+		// Create open orders
+		let alice_open_order = Order::new(U256::from(201), alice_id)
+			.set_price(7500.into())
+			.set_size(8.into())
+			.set_leverage(8.into())
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_price(7500.into())
+			.set_size(8.into())
+			.set_leverage(8.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			8.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			7500.into(),
+			// orders
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Close close orders
+		let alice_close_order = Order::new(U256::from(203), alice_id)
+			.set_side(Side::Sell)
+			.set_price(9000.into())
+			.set_size(8.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_close_order = Order::new(U256::from(204), bob_id)
+			.set_side(Side::Sell)
+			.set_price(9000.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_size(8.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(1),
+			// batch_id
+			U256::from(2_u8),
+			// quantity_locked
+			8.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			9000.into(),
+			// orders
+			vec![alice_close_order.clone(), bob_close_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		println!("Eventssss: {:?}", System::events());
+	});
+}

@@ -1530,82 +1530,54 @@ pub mod pallet {
 			// Get the Liquidation fee
 			let current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
-			// Check if user is under water, ie,
-			// user has lost some borrowed funds
-			if margin_plus_pnl.is_negative() {
-				let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
+			// If the order type is Liquidate or Deleverage
+			if order.order_type == OrderType::Forced {
+				// Check if user is under water, ie,
+				// user has lost some borrowed funds
+				if margin_plus_pnl.is_negative() {
+					let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
 
-				// Check if user's balance can cover the deficit
-				if amount_to_transfer_from > balance {
-					if order.order_type != OrderType::Forced {
-						ensure!(false, Error::<T>::TradeBatchError532);
-					}
-
-					if balance.is_negative() {
-						// Complete funds lost by user should be taken from insurance fund
-						Self::deposit_event(Event::InsuranceFundChange {
-							collateral_id,
-							amount: amount_to_transfer_from,
-							modify_type: FundModifyType::Decrease,
-							block_number,
-						});
-
-						LiquidationFeeMap::<T>::insert(
-							collateral_id,
-							current_liquidation_fee - amount_to_transfer_from,
-						);
-					} else {
-						// Some amount of lost funds can be taken from user available balance
-						// Rest of the funds should be taken from insurance fund
-						Self::deposit_event(Event::InsuranceFundChange {
-							collateral_id,
-							amount: amount_to_transfer_from - balance,
-							modify_type: FundModifyType::Decrease,
-							block_number,
-						});
-
-						LiquidationFeeMap::<T>::insert(
-							collateral_id,
-							current_liquidation_fee - (amount_to_transfer_from - balance),
-						);
-					}
-				}
-
-				// Deduct loss from user
-				T::TradingAccountPallet::transfer_from(
-					order.account_id,
-					collateral_id,
-					pnl.saturating_abs(),
-					BalanceChangeReason::PnlRealization,
-				);
-			} else {
-				if order.order_type != OrderType::Forced {
-					// User is not under water
-					// User is in loss
-					if pnl.is_negative() {
-						// Loss cannot be covered by the user
-						if pnl.saturating_abs() > balance {
-							ensure!(false, Error::<T>::TradeBatchError532);
-						} else {
-							// Deduct required funds from user
-							T::TradingAccountPallet::transfer_from(
-								order.account_id,
+					// Check if user's balance can cover the deficit
+					if amount_to_transfer_from > balance {
+						if balance.is_negative() {
+							// Complete funds lost by user should be taken from insurance fund
+							Self::deposit_event(Event::InsuranceFundChange {
 								collateral_id,
-								pnl.saturating_abs(),
-								BalanceChangeReason::PnlRealization,
+								amount: amount_to_transfer_from,
+								modify_type: FundModifyType::Decrease,
+								block_number,
+							});
+
+							LiquidationFeeMap::<T>::insert(
+								collateral_id,
+								current_liquidation_fee - amount_to_transfer_from,
+							);
+						} else {
+							// Some amount of lost funds can be taken from user available balance
+							// Rest of the funds should be taken from insurance fund
+							Self::deposit_event(Event::InsuranceFundChange {
+								collateral_id,
+								amount: amount_to_transfer_from - balance,
+								modify_type: FundModifyType::Decrease,
+								block_number,
+							});
+
+							LiquidationFeeMap::<T>::insert(
+								collateral_id,
+								current_liquidation_fee - (amount_to_transfer_from - balance),
 							);
 						}
-					} else {
-						// User is in profit
-						// Transfer the profit to user
-						T::TradingAccountPallet::transfer(
-							order.account_id,
-							collateral_id,
-							pnl,
-							BalanceChangeReason::PnlRealization,
-						);
 					}
+
+					// Deduct loss from user
+					T::TradingAccountPallet::transfer_from(
+						order.account_id,
+						collateral_id,
+						pnl.saturating_abs(),
+						BalanceChangeReason::PnlRealization,
+					);
 				} else {
+					// User is not underwater, order type is Liquidate or Deleverage
 					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
 
@@ -1685,6 +1657,31 @@ pub mod pallet {
 							pnl = FixedI128::zero();
 						},
 					}
+				}
+			} else {
+				// User is in loss and order type is Market or Limit
+				if pnl.is_negative() {
+					// Loss cannot be covered by the user
+					if pnl.saturating_abs() > balance {
+						ensure!(false, Error::<T>::TradeBatchError532);
+					} else {
+						// Deduct required funds from user
+						T::TradingAccountPallet::transfer_from(
+							order.account_id,
+							collateral_id,
+							pnl.saturating_abs(),
+							BalanceChangeReason::PnlRealization,
+						);
+					}
+				} else {
+					// User is in profit
+					// Transfer the profit to user
+					T::TradingAccountPallet::transfer(
+						order.account_id,
+						collateral_id,
+						pnl,
+						BalanceChangeReason::PnlRealization,
+					);
 				}
 			}
 
