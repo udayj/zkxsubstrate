@@ -20,11 +20,11 @@ pub mod pallet {
 		helpers::compute_hash_on_elements,
 		traits::{
 			AssetInterface, FeltSerializedArrayExt, FieldElementExt, MarketInterface,
-			TradingAccountInterface, TradingFeesInterface, U256Ext,
+			PricesInterface, TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
-			BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide, Setting,
-			SettingsType, Side, SyncSignature, UniversalEvent,
+			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
+			Setting, SettingsType, Side, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -47,6 +47,7 @@ pub mod pallet {
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingFeesPallet: TradingFeesInterface;
+		type PricesPallet: PricesInterface;
 	}
 
 	#[pallet::storage]
@@ -137,6 +138,10 @@ pub mod pallet {
 		UpdateMarketError { id: u128 },
 		/// An unknown asset/market id passed
 		UnknownIdForFees { id: u128 },
+		/// An invalid request to set max abr
+		InvalidMarket { id: u128 },
+		/// A max abr request with empty array
+		EmptyValuesError { id: u128 },
 	}
 
 	#[pallet::error]
@@ -172,6 +177,7 @@ pub mod pallet {
 	const OPEN_ENCODING: u128 = 79;
 	const CLOSE_ENCODING: u128 = 67;
 	const OMISSION_ENCODING: u128 = 45;
+	const ABR_ENCODING: u128 = 65;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -326,6 +332,7 @@ pub mod pallet {
 
 		fn resolve_setting(
 			settings_type: u128,
+			param1: u128,
 			param2: u128,
 			param3: u128,
 		) -> Option<SettingsType> {
@@ -359,6 +366,11 @@ pub mod pallet {
 						Self::deposit_event(Event::SettingsKeyError { key: param2 });
 						return None;
 					},
+				},
+				ABR_ENCODING => match param1 {
+					OMISSION_ENCODING =>
+						return Some(SettingsType::ABRSettings(ABRSettingsType::MaxDefault)),
+					_ => return Some(SettingsType::ABRSettings(ABRSettingsType::MaxPerMarket)),
 				},
 				GENERAL_SETTINGS => {
 					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
@@ -402,11 +414,11 @@ pub mod pallet {
 			return Some((pieces[0], pieces[1], pieces[2], pieces[3]));
 		}
 
-		fn create_base_fee_vec(volumes: Vec<FixedI128>, fees: Vec<FixedI128>) -> Vec<BaseFee> {
+		fn create_base_fee_vec(volumes: &Vec<FixedI128>, fees: &Vec<FixedI128>) -> Vec<BaseFee> {
 			volumes
 				.into_iter()
 				.zip(fees.into_iter())
-				.map(|(volume, fee)| BaseFee { volume, fee })
+				.map(|(volume, fee)| BaseFee { volume: *volume, fee: *fee })
 				.collect()
 		}
 
@@ -414,8 +426,8 @@ pub mod pallet {
 			id: u128,
 			side: Side,
 			order_side: OrderSide,
-			volumes: Vec<FixedI128>,
-			fees: Vec<FixedI128>,
+			volumes: &Vec<FixedI128>,
+			fees: &Vec<FixedI128>,
 		) -> Result<(), ()> {
 			match T::TradingFeesPallet::update_base_fees_internal(
 				id,
@@ -490,8 +502,8 @@ pub mod pallet {
 					id,
 					Side::Buy,
 					OrderSide::Maker,
-					maker_volumes.clone(),
-					maker_open_fees,
+					&maker_volumes,
+					&maker_open_fees,
 				) {
 					continue;
 				}
@@ -500,8 +512,8 @@ pub mod pallet {
 					id,
 					Side::Sell,
 					OrderSide::Maker,
-					maker_volumes.clone(),
-					maker_close_fees,
+					&maker_volumes,
+					&maker_close_fees,
 				) {
 					continue;
 				}
@@ -510,8 +522,8 @@ pub mod pallet {
 					id,
 					Side::Buy,
 					OrderSide::Taker,
-					taker_volumes.clone(),
-					taker_open_fees,
+					&taker_volumes,
+					&taker_open_fees,
 				) {
 					continue;
 				}
@@ -520,8 +532,8 @@ pub mod pallet {
 					id,
 					Side::Sell,
 					OrderSide::Taker,
-					taker_volumes.clone(),
-					taker_close_fees,
+					&taker_volumes,
+					&taker_close_fees,
 				) {
 					continue;
 				}
@@ -567,10 +579,10 @@ pub mod pallet {
 				}
 
 				// Get the constituents of the key
-				let (setting_type, param1, param2, param3) = parsing_result.unwrap();
+				let (setting_encoding, param1, param2, param3) = parsing_result.unwrap();
 
 				// Resolve the type of setting
-				let setting_type = Self::resolve_setting(setting_type, param2, param3);
+				let setting_type = Self::resolve_setting(setting_encoding, param1, param2, param3);
 				if setting_type == None {
 					continue;
 				}
@@ -621,12 +633,41 @@ pub mod pallet {
 							);
 						},
 					},
+					SettingsType::ABRSettings(abr_settings_type) =>
+						Self::set_abr_max(abr_settings_type, param1, setting.values.to_vec()),
 					SettingsType::GeneralSettings => {},
 				}
 			}
 
 			// Set the trading Fees and remove the temporary storage items
 			Self::set_trading_fees();
+		}
+
+		fn set_abr_max(
+			abr_settings_type: ABRSettingsType,
+			market_id: u128,
+			values: Vec<FixedI128>,
+		) {
+			// Check if values is not empty
+			if values.is_empty() {
+				// Handle the case where values is empty
+				Self::deposit_event(Event::EmptyValuesError { id: market_id });
+				return;
+			}
+
+			match abr_settings_type {
+				ABRSettingsType::MaxDefault => {
+					T::PricesPallet::set_default_max_abr_internal(values[0]);
+				},
+				ABRSettingsType::MaxPerMarket => {
+					match T::PricesPallet::set_max_abr_internal(market_id, values[0]) {
+						Ok(()) => (),
+						Err(_) => {
+							Self::deposit_event(Event::InvalidMarket { id: market_id });
+						},
+					}
+				},
+			}
 		}
 
 		fn handle_events(events_batch: Vec<UniversalEvent>) {

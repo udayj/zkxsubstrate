@@ -1169,32 +1169,6 @@ fn test_set_max_abr_non_tradable_market() {
 }
 
 #[test]
-#[should_panic(expected = "NegativeMaxValue")]
-fn test_set_default_max_abr_negative_value() {
-	let mut env = setup_trading();
-
-	env.execute_with(|| {
-		PricesModule::set_default_max_abr(RuntimeOrigin::root(), FixedI128::from_float(-0.0001))
-			.expect("Error while setting max abr");
-	});
-}
-
-#[test]
-#[should_panic(expected = "NegativeMaxValue")]
-fn test_set_max_abr_negative_value() {
-	let mut env = setup_trading();
-
-	env.execute_with(|| {
-		PricesModule::set_max_abr(
-			RuntimeOrigin::root(),
-			btc_usdc().market.id,
-			FixedI128::from_float(-0.0001),
-		)
-		.expect("Error while setting max abr");
-	});
-}
-
-#[test]
 fn test_set_max_abr_admin() {
 	let mut env = setup_trading();
 

@@ -1517,6 +1517,187 @@ fn sync_settings_event_multiple_collaterals_markets() {
 }
 
 #[test]
+fn sync_settings_event_abr_default() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_max_default_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the max abr value is set
+		assert!(Prices::default_max() == FixedI128::from_float(0.0012), "Wrong max default value");
+	});
+}
+
+#[test]
+fn sync_settings_event_abr_default_empty_values() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut default_max_abr = <SettingsAdded as SettingsAddedTrait>::get_max_default_settings();
+	default_max_abr.settings[0].values = BoundedVec::new();
+	events_batch.add_settings_event(default_max_abr);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the max abr value is set
+		assert!(Prices::default_max() == FixedI128::from_float(0.0), "Wrong max default value");
+
+		// Check for the empty event
+		System::assert_has_event(Event::EmptyValuesError { id: 45 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_event_abr_btc_usd_value() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_max_btc_usdc_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the max abr value is set
+		assert!(
+			Prices::max_abr(btc_usdc().market.id) == FixedI128::from_float(0.01),
+			"Wrong max value for btc_usdc"
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_abr_invalid_market() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut max_btc_usdc = <SettingsAdded as SettingsAddedTrait>::get_max_btc_usdc_settings();
+	max_btc_usdc.settings[0].key = U256::from(1325909088870421414631324406079277_i128);
+	events_batch.add_settings_event(max_btc_usdc);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the max abr value is set
+		assert!(
+			Prices::max_abr(btc_usdc().market.id) == FixedI128::from_float(0.0),
+			"Wrong max value for btc_usdc"
+		);
+
+		// Check for the empty event
+		System::assert_has_event(Event::InvalidMarket { id: 6004514686699258947 }.into());
+	});
+}
+
+#[test]
+fn sync_settings_event_abr_multiple_markets() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut max_btc_usdc = <SettingsAdded as SettingsAddedTrait>::get_max_btc_usdc_settings();
+	let max_eth_usdc = <SettingsAdded as SettingsAddedTrait>::get_max_eth_usdc_settings();
+	let max_abr = <SettingsAdded as SettingsAddedTrait>::get_max_default_settings();
+
+	// Add the eth and default values to the same array
+	for setting in max_eth_usdc.settings {
+		max_btc_usdc.settings.force_push(setting);
+	}
+
+	for setting in max_abr.settings {
+		max_btc_usdc.settings.force_push(setting);
+	}
+
+	events_batch.add_settings_event(max_btc_usdc);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the max abr value is set for btc_usdc
+		assert!(
+			Prices::max_abr(btc_usdc().market.id) == FixedI128::from_float(0.01),
+			"Wrong max default value"
+		);
+
+		// Check if the max abr value is set for eth_usdc
+		assert!(
+			Prices::max_abr(eth_usdc().market.id) == FixedI128::from_float(0.05),
+			"Wrong max value for eth_usdc"
+		);
+
+		// Check if the max abr value is set
+		assert!(
+			Prices::default_max() == FixedI128::from_float(0.0012),
+			"Wrong max value for eth_usdc"
+		);
+	});
+}
+
+#[test]
 fn sync_settings_invalid_key_general_settings_type() {
 	// Get a test environment
 	let mut env = setup();
