@@ -1,6 +1,7 @@
 use crate as trading_fees;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
+use pallet_market;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -15,7 +16,8 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		TradingFeesModule: trading_fees,
-		Assets: pallet_asset
+		Assets: pallet_asset,
+		Markets: pallet_market
 	}
 );
 
@@ -49,9 +51,15 @@ impl pallet_asset::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+impl pallet_market::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type AssetPallet = Assets;
+}
+
 impl trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
+	type MarketPallet = Markets;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -7,6 +7,8 @@ use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use starknet_crypto::{sign, FieldElement};
 
+use super::btc_usdc;
+
 pub fn setup_fee() -> (Vec<BaseFee>, Vec<BaseFee>) {
 	// TODO(merkle-groot): Using manual pushing because vec! has some issues in support pallet
 	// fee tiers
@@ -40,7 +42,7 @@ impl Order {
 		Order {
 			account_id,
 			order_id,
-			market_id: 1,
+			market_id: btc_usdc().market.id,
 			order_type: OrderType::Limit,
 			direction: Direction::Long,
 			side: Side::Buy,

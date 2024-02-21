@@ -5,11 +5,11 @@ use pallet_support::{
 		asset_helper::{btc, eth, usdc, usdt},
 		market_helper::{btc_usdc, eth_usdc},
 	},
-	traits::FieldElementExt,
+	traits::{FieldElementExt, TradingFeesInterface},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, MarketRemoved, MarketUpdated,
-		OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType,
+		MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded,
+		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -36,7 +36,11 @@ fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
 }
 
 fn get_collaterals() -> Vec<ExtendedAsset> {
-	vec![usdc(), usdt()]
+	vec![usdc(), usdt(), btc(), eth()]
+}
+
+fn get_markets() -> Vec<ExtendedMarket> {
+	vec![btc_usdc(), eth_usdc()]
 }
 
 fn get_signers() -> Vec<U256> {
@@ -49,16 +53,41 @@ fn get_signers() -> Vec<U256> {
 	]
 }
 
-fn compare_base_fees(
-	asset_id: u128,
-	side: Side,
-	order_side: OrderSide,
-	expected_values: Vec<BaseFee>,
-) {
+fn compare_base_fees(id: u128, side: Side, order_side: OrderSide, expected_values: Vec<BaseFee>) {
 	for (iterator, expected_fee) in (1..=expected_values.len() as u8).zip(expected_values) {
 		assert!(
-			TradingFees::base_fee_tier(asset_id, (iterator, side, order_side)) == expected_fee,
+			TradingFees::base_fee_tier(id, (iterator, side, order_side)) == expected_fee,
 			"Mismatch fees"
+		);
+	}
+}
+
+fn check_fees_storage_empty(ids: Vec<u128>) {
+	for id in ids {
+		assert!(SyncFacade::get_temp_assets(id) == Some(false), "id is not removed");
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::MakerVols) == None,
+			"Maker volumes not removed"
+		);
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::TakerVols) == None,
+			"Taker volumes not removed"
+		);
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::MakerOpen) == None,
+			"Maker Open values not removed"
+		);
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::MakerClose) == None,
+			"Maker Close values not removed"
+		);
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::TakerOpen) == None,
+			"Taker Open values not removed"
+		);
+		assert!(
+			SyncFacade::get_temp_fees(id, FeeSettingsType::TakerClose) == None,
+			"Taker Close values not removed"
 		);
 	}
 }
@@ -75,6 +104,8 @@ fn setup() -> sp_io::TestExternalities {
 			.expect("error while setting quorum");
 		Assets::replace_all_assets(RuntimeOrigin::signed(1), get_collaterals())
 			.expect("error while adding assets");
+		Markets::replace_all_markets(RuntimeOrigin::signed(1), get_markets())
+			.expect("error while adding markets");
 		System::set_block_number(1336);
 	});
 
@@ -339,7 +370,7 @@ fn sync_update_asset_event_add_asset() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating asset");
 
-		assert_eq!(Assets::assets_count(), 3);
+		assert_eq!(Assets::assets_count(), 4);
 		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
 	});
 }
@@ -427,7 +458,7 @@ fn sync_asset_event_add_asset_remove_asset() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating asset");
 
-		assert_eq!(Assets::assets_count(), 2);
+		assert_eq!(Assets::assets_count(), 3);
 	});
 }
 
@@ -464,7 +495,7 @@ fn sync_update_market_event_add_market() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating market");
 
-		assert_eq!(Markets::markets_count(), 1);
+		assert_eq!(Markets::markets_count(), 2);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
 	});
 }
@@ -504,7 +535,10 @@ fn sync_update_market_event_multiple_add_market() {
 	);
 
 	env.execute_with(|| {
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth(), btc()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(1),
+			vec![usdc(), eth(), btc()]
+		));
 
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
@@ -726,7 +760,7 @@ fn sync_update_asset_event_bump_asset() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating asset");
 
-		assert_eq!(Assets::assets_count(), 2);
+		assert_eq!(Assets::assets_count(), 4);
 		assert_eq!(Assets::assets(modified_usdc_asset.asset.id).unwrap(), modified_usdc_asset);
 	});
 }
@@ -755,7 +789,7 @@ fn sync_update_remove_asset() {
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while updating asset");
 
-		assert_eq!(Assets::assets_count(), 1);
+		assert_eq!(Assets::assets_count(), 3);
 	});
 }
 
@@ -877,7 +911,6 @@ fn sync_batch_insufficient_signatures() {
 	events_batch.add_signer_added_event(add_signer_event_1);
 
 	let events_batch_hash = events_batch.compute_hash();
-	print!("batch hash in test: {}", events_batch_hash);
 
 	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
 	signature_array.add_new_signature(
@@ -1136,7 +1169,7 @@ fn sync_settings_event_usdc() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
 		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
@@ -1153,6 +1186,127 @@ fn sync_settings_event_usdc() {
 			OrderSide::Taker,
 			get_usdc_taker_close_fees(),
 		);
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_btc_usdc() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_btc_usdc_fees_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			get_btc_usdc_maker_open_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_btc_usdc_maker_close_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			get_btc_usdc_taker_open_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_btc_usdc_taker_close_fees(),
+		);
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![btc_usdc().market.id]);
+
+		// Check fees for maker
+		let fees_1 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(9999),
+		);
+		let fees_2 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(999999),
+		);
+		let fees_3 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(1000001),
+		);
+
+		// Check if we get correct values from get_fee_rate
+		assert!(fees_1 == (FixedI128::from_float(0.002), 1), "Invalid fees for tier 1");
+		assert!(fees_2 == (FixedI128::from_float(0.001), 2), "Invalid fees for tier 2");
+		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
+
+		// Check fees for taker
+		let fees_1 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(9999),
+		);
+		let fees_2 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(999999),
+		);
+		let fees_3 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(1000001),
+		);
+		let fees_4 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(5000001),
+		);
+
+		// Check if we get correct values from get_fee_rate
+		assert!(fees_1 == (FixedI128::from_float(0.005), 1), "Invalid fees for tier 1");
+		assert!(fees_2 == (FixedI128::from_float(0.0045), 2), "Invalid fees for tier 2");
+		assert!(fees_3 == (FixedI128::from_float(0.004), 3), "Invalid fees for tier 3");
+		assert!(fees_4 == (FixedI128::from_float(0.002), 4), "Invalid fees for tier 4");
 	});
 }
 
@@ -1177,7 +1331,7 @@ fn sync_settings_event_usdt() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
 		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
@@ -1194,21 +1348,30 @@ fn sync_settings_event_usdt() {
 			OrderSide::Taker,
 			get_usdt_taker_close_fees(),
 		);
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdt().asset.id]);
 	});
 }
 
 #[test]
-fn sync_settings_event_multiple_collaterals() {
+fn sync_settings_event_multiple_collaterals_markets() {
 	// Get a test environment
 	let mut env = setup();
 
 	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
 	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
 	let usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
+	let btc_usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_btc_usdc_fees_settings();
 
 	for setting in usdt_fees.settings {
 		usdc_fees.settings.force_push(setting);
 	}
+
+	for setting in btc_usdc_fees.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+
 	events_batch.add_settings_event(usdc_fees);
 
 	let events_batch_hash = events_batch.compute_hash();
@@ -1223,7 +1386,7 @@ fn sync_settings_event_multiple_collaterals() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
 		// USDT
@@ -1257,6 +1420,99 @@ fn sync_settings_event_multiple_collaterals() {
 			OrderSide::Taker,
 			get_usdc_taker_close_fees(),
 		);
+
+		// BTC USDC
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			get_btc_usdc_maker_open_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Sell,
+			OrderSide::Maker,
+			get_btc_usdc_maker_close_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			get_btc_usdc_taker_open_fees(),
+		);
+		compare_base_fees(
+			btc_usdc().market.id,
+			Side::Sell,
+			OrderSide::Taker,
+			get_btc_usdc_taker_close_fees(),
+		);
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id, usdt().asset.id, btc_usdc().market.id]);
+
+		// Check fees for maker
+		let fees_1 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(9999),
+		);
+		let fees_2 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(999999),
+		);
+		let fees_3 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Maker,
+			FixedI128::from_u32(1000001),
+		);
+
+		// Check if we get correct values from get_fee_rate
+		assert!(fees_1 == (FixedI128::from_float(0.002), 1), "Invalid fees for tier 1");
+		assert!(fees_2 == (FixedI128::from_float(0.001), 2), "Invalid fees for tier 2");
+		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
+
+		// Check fees for taker
+		let fees_1 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(9999),
+		);
+		let fees_2 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(999999),
+		);
+		let fees_3 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(1000001),
+		);
+		let fees_4 = TradingFees::get_fee_rate(
+			usdc().asset.id,
+			btc_usdc().market.id,
+			Side::Buy,
+			OrderSide::Taker,
+			FixedI128::from_u32(5000001),
+		);
+
+		// Check if we get correct values from get_fee_rate
+		assert!(fees_1 == (FixedI128::from_float(0.005), 1), "Invalid fees for tier 1");
+		assert!(fees_2 == (FixedI128::from_float(0.0045), 2), "Invalid fees for tier 2");
+		assert!(fees_3 == (FixedI128::from_float(0.004), 3), "Invalid fees for tier 3");
+		assert!(fees_4 == (FixedI128::from_float(0.002), 4), "Invalid fees for tier 4");
 	});
 }
 
@@ -1282,9 +1538,12 @@ fn sync_settings_invalid_key_general_settings_type() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 71 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
 	});
 }
 
@@ -1310,9 +1569,42 @@ fn sync_settings_invalid_key_unknown_settings_type() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 80 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
+	});
+}
+
+#[test]
+fn sync_settings_unknown_id() {
+	// Get a test environment
+	let mut env = setup();
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let frax_fees = <SettingsAdded as SettingsAddedTrait>::get_frax_fees_settings();
+	events_batch.add_settings_event(frax_fees);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
+			.expect("error while adding settings");
+
+		System::assert_has_event(Event::UnknownIdForFees { id: 1179795800 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![1179795800]);
 	});
 }
 
@@ -1338,9 +1630,12 @@ fn sync_settings_invalid_key_order_side_key() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 76 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
 	});
 }
 
@@ -1366,9 +1661,12 @@ fn sync_settings_invalid_key_maker_side_key() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 90 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
 	});
 }
 
@@ -1394,9 +1692,12 @@ fn sync_settings_invalid_key_taker_side_key() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 82 }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdc().asset.id]);
 	});
 }
 
@@ -1422,8 +1723,11 @@ fn sync_settings_event_insuffient_data_usdt() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
-		System::assert_has_event(Event::InsufficientFeeData { asset_id: usdt().asset.id }.into());
+			.expect("error while adding settings");
+		System::assert_has_event(Event::InsufficientFeeData { id: usdt().asset.id }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdt().asset.id]);
 	});
 }
 
@@ -1449,10 +1753,13 @@ fn sync_settings_event_invalid_key_pattern() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 		System::assert_has_event(
 			Event::TokenParsingError { key: U256::from(5070865521559494477_i128) }.into(),
 		);
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdt().asset.id]);
 	});
 }
 
@@ -1479,9 +1786,12 @@ fn sync_settings_event_invalid_length_usdt() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+			.expect("error while adding settings");
 
-		System::assert_has_event(Event::FeeDataLengthMismatch { asset_id: usdt().asset.id }.into());
+		System::assert_has_event(Event::FeeDataLengthMismatch { id: usdt().asset.id }.into());
+
+		// The storage should be empty
+		check_fees_storage_empty(vec![usdt().asset.id]);
 	});
 }
 
@@ -1497,15 +1807,14 @@ fn sync_deposit_event_non_existent_asset() {
 	};
 	let alice_account_id = get_trading_account_id(alice_account);
 
-	let deposit_event_1 =
-		<UserDeposit as UserDepositTrait>::new(
-			1,
-			alice_account,
-			12345_u128,
-			U256::from(1),
-			FixedI128::from(123),
-			1337,
-		);
+	let deposit_event_1 = <UserDeposit as UserDepositTrait>::new(
+		1,
+		alice_account,
+		12345_u128,
+		U256::from(1),
+		FixedI128::from(123),
+		1337,
+	);
 
 	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
 	events_batch.add_user_deposit_event(deposit_event_1);

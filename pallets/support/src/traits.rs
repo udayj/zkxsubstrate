@@ -149,6 +149,7 @@ pub trait FieldElementExt {
 }
 
 pub trait TradingFeesInterface {
+	fn remove_base_fees_internal(id: u128);
 	fn update_base_fees_internal(
 		collateral_id: u128,
 		side: Side,
@@ -157,6 +158,7 @@ pub trait TradingFeesInterface {
 	) -> DispatchResult;
 	fn get_fee_rate(
 		collateral_id: u128,
+		market_id: u128,
 		side: Side,
 		order_side: OrderSide,
 		volume: FixedI128,

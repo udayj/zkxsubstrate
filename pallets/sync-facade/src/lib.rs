@@ -73,6 +73,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_temp_fees)]
+	// k1 - market_id/asset_id, k2 - FeeSettingType, v - FixedI28[]
 	pub(super) type TempFeesMap<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
@@ -83,8 +84,11 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	// Note: This storage map is used for market_ids as well;
+	// Keeping the name unchanged for the upgrade support
 	#[pallet::storage]
 	#[pallet::getter(fn get_temp_assets)]
+	// k1 - market_id/asset_id, v - bool
 	pub(super) type TempAssetsMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, bool>;
 
 	#[pallet::storage]
@@ -118,9 +122,9 @@ pub mod pallet {
 		/// An invalid key in settings
 		SettingsKeyError { key: u128 },
 		/// Insufficient data for setting fees
-		InsufficientFeeData { asset_id: u128 },
+		InsufficientFeeData { id: u128 },
 		/// Fee data length mismatch
-		FeeDataLengthMismatch { asset_id: u128 },
+		FeeDataLengthMismatch { id: u128 },
 		/// Token parsing error
 		TokenParsingError { key: U256 },
 		/// An invalid request to add an asset
@@ -131,6 +135,8 @@ pub mod pallet {
 		AddMarketError { id: u128 },
 		/// An invalid request to update a market
 		UpdateMarketError { id: u128 },
+		/// An unknown asset/market id passed
+		UnknownIdForFees { id: u128 },
 	}
 
 	#[pallet::error]
@@ -404,25 +410,45 @@ pub mod pallet {
 				.collect()
 		}
 
+		fn set_fees_internal(
+			id: u128,
+			side: Side,
+			order_side: OrderSide,
+			volumes: Vec<FixedI128>,
+			fees: Vec<FixedI128>,
+		) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_base_fees_internal(
+				id,
+				side,
+				order_side,
+				Self::create_base_fee_vec(volumes, fees),
+			) {
+				Ok(_) => Ok(()),
+				Err(_) => {
+					// Remove partially set fees in Trading Fees pallet
+					T::TradingFeesPallet::remove_base_fees_internal(id);
+
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Self::remove_settings_from_maps(id);
+					Err(())
+				},
+			}
+		}
+
 		fn set_trading_fees() {
-			let asset_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
-			for &asset_id in asset_list.iter() {
+			let id_list: Vec<u128> = TempAssetsMap::<T>::iter().map(|(key, _)| key).collect();
+			for &id in id_list.iter() {
 				// get maker and taker volumes
-				let maker_volumes_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerVols);
-				let taker_volumes_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerVols);
+				let maker_volumes_query = TempFeesMap::<T>::get(id, FeeSettingsType::MakerVols);
+				let taker_volumes_query = TempFeesMap::<T>::get(id, FeeSettingsType::TakerVols);
 				// Get the fee vectors of Maker
-				let maker_open_fees_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerOpen);
-				let maker_close_fees_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::MakerClose);
+				let maker_open_fees_query = TempFeesMap::<T>::get(id, FeeSettingsType::MakerOpen);
+				let maker_close_fees_query = TempFeesMap::<T>::get(id, FeeSettingsType::MakerClose);
 
 				// Get the fee vectors of Taker
-				let taker_open_fees_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerOpen);
-				let taker_close_fees_query =
-					TempFeesMap::<T>::get(asset_id, FeeSettingsType::TakerClose);
+				let taker_open_fees_query = TempFeesMap::<T>::get(id, FeeSettingsType::TakerOpen);
+				let taker_close_fees_query = TempFeesMap::<T>::get(id, FeeSettingsType::TakerClose);
 
 				// Check if all the required data is present for this asset
 				if !(maker_volumes_query.is_some() &&
@@ -433,8 +459,9 @@ pub mod pallet {
 					taker_close_fees_query.is_some())
 				{
 					// Emit Insufficient data event
-					Self::deposit_event(Event::InsufficientFeeData { asset_id });
-					break;
+					Self::deposit_event(Event::InsufficientFeeData { id });
+					Self::remove_settings_from_maps(id);
+					continue;
 				}
 
 				// Unwrap maker data
@@ -454,57 +481,78 @@ pub mod pallet {
 						taker_open_fees.len() == taker_close_fees.len())
 				{
 					// Emit Insufficient data event
-					Self::deposit_event(Event::FeeDataLengthMismatch { asset_id });
-					break;
+					Self::deposit_event(Event::FeeDataLengthMismatch { id });
+					Self::remove_settings_from_maps(id);
+					continue;
 				}
 
-				// Set Maker Open fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
-					asset_id,
+				if let Err(_) = Self::set_fees_internal(
+					id,
 					Side::Buy,
 					OrderSide::Maker,
-					Self::create_base_fee_vec(maker_volumes.clone(), maker_open_fees),
-				);
+					maker_volumes.clone(),
+					maker_open_fees,
+				) {
+					continue;
+				}
 
-				// Set Maker Close fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
-					asset_id,
+				if let Err(_) = Self::set_fees_internal(
+					id,
 					Side::Sell,
 					OrderSide::Maker,
-					Self::create_base_fee_vec(maker_volumes.clone(), maker_close_fees),
-				);
+					maker_volumes.clone(),
+					maker_close_fees,
+				) {
+					continue;
+				}
 
-				// Set Taker Open fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
-					asset_id,
+				if let Err(_) = Self::set_fees_internal(
+					id,
 					Side::Buy,
 					OrderSide::Taker,
-					Self::create_base_fee_vec(taker_volumes.clone(), taker_open_fees),
-				);
+					taker_volumes.clone(),
+					taker_open_fees,
+				) {
+					continue;
+				}
 
-				// Set Taker Close fees
-				let _ = T::TradingFeesPallet::update_base_fees_internal(
-					asset_id,
+				if let Err(_) = Self::set_fees_internal(
+					id,
 					Side::Sell,
 					OrderSide::Taker,
-					Self::create_base_fee_vec(taker_volumes.clone(), taker_close_fees),
-				);
+					taker_volumes.clone(),
+					taker_close_fees,
+				) {
+					continue;
+				}
+
+				Self::remove_settings_from_maps(id);
 			}
-
-			TempFeesMap::<T>::drain();
-			TempAssetsMap::<T>::drain();
 		}
 
 		fn add_settings_to_maps(
-			asset_id: u128,
+			id: u128,
 			fee_settings_type: FeeSettingsType,
 			values: Vec<FixedI128>,
 		) {
 			// Add the asset to the map
-			TempAssetsMap::<T>::insert(asset_id, true);
+			TempAssetsMap::<T>::insert(id, true);
 
 			// Insert maker volume vector to the map
-			TempFeesMap::<T>::insert(asset_id, fee_settings_type, values);
+			TempFeesMap::<T>::insert(id, fee_settings_type, values);
+		}
+
+		fn remove_settings_from_maps(id: u128) {
+			// Add the asset to the map
+			TempAssetsMap::<T>::insert(id, false);
+
+			// Insert maker volume vector to the map
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerVols);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerVols);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerOpen);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerClose);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerOpen);
+			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerClose);
 		}
 
 		fn handle_settings(settings: &BoundedVec<Setting, ConstU32<256>>) {
@@ -515,7 +563,7 @@ pub mod pallet {
 				if parsing_result == None {
 					// exit from the loop
 					Self::deposit_event(Event::TokenParsingError { key: setting.key });
-					break;
+					continue;
 				}
 
 				// Get the constituents of the key
@@ -524,7 +572,7 @@ pub mod pallet {
 				// Resolve the type of setting
 				let setting_type = Self::resolve_setting(setting_type, param2, param3);
 				if setting_type == None {
-					break;
+					continue;
 				}
 
 				// Handle the setting
@@ -700,9 +748,9 @@ pub mod pallet {
 							true => {
 								// If yes, emit an error
 								// Duplicate signer
-								Self::deposit_event(
-									Event::SignerAddedError { pub_key: signer_added.signer }
-								);
+								Self::deposit_event(Event::SignerAddedError {
+									pub_key: signer_added.signer,
+								});
 							},
 							// If not, whitelist the key
 							false => {
@@ -721,17 +769,16 @@ pub mod pallet {
 									// If yes, remove the signer
 									true => Self::remove_signer_internal(signer_removed.signer),
 									// If not, emit an error
-									false =>
-										Self::deposit_event(Event::SignerRemovedQuorumError {
-											quorum: signer_quorum,
-										}),
+									false => Self::deposit_event(Event::SignerRemovedQuorumError {
+										quorum: signer_quorum,
+									}),
 								};
 							},
 							// If not, emit an error
 							false => {
-								Self::deposit_event(
-									Event::SignerRemovedError { pub_key: signer_removed.signer }
-								);
+								Self::deposit_event(Event::SignerRemovedError {
+									pub_key: signer_removed.signer,
+								});
 							},
 						};
 					},
@@ -758,36 +805,29 @@ pub mod pallet {
 			let quorum = SignersQuorum::<T>::get() as usize;
 
 			// Find the number of valid sigs
-			let valid_sigs =
-				signatures
-					.iter()
-					.filter(|&curr_signature| {
-						// Convert the data to felt252
-						let pub_key_result = curr_signature.signer_pub_key.try_to_felt();
-						let r_value_result = curr_signature.r.try_to_felt();
-						let s_value_result = curr_signature.s.try_to_felt();
+			let valid_sigs = signatures
+				.iter()
+				.filter(|&curr_signature| {
+					// Convert the data to felt252
+					let pub_key_result = curr_signature.signer_pub_key.try_to_felt();
+					let r_value_result = curr_signature.r.try_to_felt();
+					let s_value_result = curr_signature.s.try_to_felt();
 
-						match pub_key_result.is_ok() &
-							r_value_result.is_ok() & s_value_result.is_ok()
-						{
-							true => {
-								let signature_felt252 = Signature {
-									r: r_value_result.unwrap(),
-									s: s_value_result.unwrap(),
-								};
+					match pub_key_result.is_ok() & r_value_result.is_ok() & s_value_result.is_ok() {
+						true => {
+							let signature_felt252 = Signature {
+								r: r_value_result.unwrap(),
+								s: s_value_result.unwrap(),
+							};
 
-								// Check if the sig is valid
-								Self::verify_signature(
-									pub_key_result.unwrap(),
-									hash,
-									signature_felt252,
-								)
-							},
-							false => false,
-						}
-					})
-					.take(quorum)
-					.count();
+							// Check if the sig is valid
+							Self::verify_signature(pub_key_result.unwrap(), hash, signature_felt252)
+						},
+						false => false,
+					}
+				})
+				.take(quorum)
+				.count();
 
 			valid_sigs == quorum
 		}

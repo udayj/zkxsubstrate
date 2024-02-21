@@ -92,7 +92,7 @@ pub fn eth_usdc() -> ExtendedMarket {
 
 	ExtendedMarket {
 		market: Market {
-			id: 3,
+			id: 19514443038934083,
 			version: 1,
 			asset: 4543560,
 			asset_collateral: 1431520323,
@@ -128,7 +128,7 @@ pub fn link_usdc() -> ExtendedMarket {
 
 	ExtendedMarket {
 		market: Market {
-			id: 2,
+			id: 5497010905643435075,
 			version: 1,
 			asset: 1279872587,
 			asset_collateral: 1431520323,
@@ -164,7 +164,7 @@ pub fn btc_usdc() -> ExtendedMarket {
 
 	ExtendedMarket {
 		market: Market {
-			id: 1,
+			id: 18669996633965635,
 			version: 1,
 			asset: 4346947,
 			asset_collateral: 1431520323,

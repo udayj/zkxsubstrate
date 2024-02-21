@@ -55,6 +55,7 @@ fn test_enum_felt() {
 	let b = string_to_felt("MARKET").unwrap();
 	assert_eq!(a, b, "Error");
 }
+
 #[test]
 fn test_felt_and_hash_values() {
 	let val1 = FieldElement::from(1_u8);
@@ -153,7 +154,7 @@ fn test_order_signature() {
 	let order = Order::new(U256::from(201), U256::from(0));
 	let order_hash = order.hash(&HashType::Pedersen).unwrap();
 	let expected_hash = FieldElement::from_dec_str(
-		"3132625918282695035920415711376638693136677687288415900988049051810724895775",
+		"2440053169174277907356274916994871562413487047629405842152703102223257139832",
 	)
 	.unwrap();
 	// order hash should match

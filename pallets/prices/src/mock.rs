@@ -76,6 +76,7 @@ impl pallet_risk_management::Config for Test {
 impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = AssetModule;
+	type MarketPallet = MarketModule;
 }
 
 impl pallet_timestamp::Config for Test {

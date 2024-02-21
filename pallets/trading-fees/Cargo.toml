@@ -19,6 +19,7 @@ sp-core = { version = "21.0.0", git = "https://github.com/paritytech/substrate.g
 sp-io = { version = "23.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 sp-runtime = { version = "24.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v1.0.0" }
 pallet-asset = { default-features = false, path = "../asset" }
+pallet-market = { default-features = false, path = "../market" }
 
 [features]
 default = ["std"]
