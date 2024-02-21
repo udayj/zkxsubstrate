@@ -21,8 +21,8 @@ pub mod pallet {
 			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, Position,
-			TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
+			Position, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -97,6 +97,12 @@ pub mod pallet {
 	// Here, key is the index and value is the account_id
 	pub(super) type AccountsListMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, u128, U256, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn monetary_to_trading_accounts)]
+	// Here, key is the Monetary_account_address and value is the vector of trading_account_id's
+	pub(super) type MonetaryToTradingAccountsMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn balances)]
@@ -204,6 +210,24 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::weight(0)]
+		pub fn update_monetary_to_trading_accounts(
+			origin: OriginFor<T>,
+			monetary_accounts: Vec<MonetaryAccountDetails>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			for account in monetary_accounts {
+				for trading_account in account.trading_accounts {
+					MonetaryToTradingAccountsMap::<T>::append(
+						account.monetary_account,
+						trading_account,
+					);
+				}
+			}
+			Ok(())
+		}
+
 		// TODO(merkle-groot): To be removed in production
 		/// To test depositing funds
 		#[pallet::weight(0)]
@@ -245,6 +269,9 @@ pub mod pallet {
 
 				// Check if the account already exists
 				ensure!(!AccountMap::<T>::contains_key(account_id), Error::<T>::DuplicateAccount);
+
+				MonetaryToTradingAccountsMap::<T>::append(element.account_address, account_id);
+
 				let trading_account: TradingAccount = TradingAccount {
 					account_id,
 					account_address: element.account_address,

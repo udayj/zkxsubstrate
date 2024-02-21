@@ -1,9 +1,10 @@
-use crate::helpers::compute_hash_on_elements;
-use crate::traits::{FixedI128Ext, Hashable, U256Ext};
-use crate::types::common::{convert_to_u128_pair, HashType};
+use crate::{
+	helpers::compute_hash_on_elements,
+	traits::{FixedI128Ext, Hashable, U256Ext},
+	types::common::{convert_to_u128_pair, HashType},
+};
 use codec::{Decode, Encode};
-use frame_support::dispatch::Vec;
-use frame_support::pallet_prelude::MaxEncodedLen;
+use frame_support::{dispatch::Vec, pallet_prelude::MaxEncodedLen};
 use primitive_types::U256;
 use scale_info::TypeInfo;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -28,6 +29,12 @@ pub struct TradingAccountMinimal {
 	pub account_address: U256,
 	pub pub_key: U256,
 	pub index: u8,
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MonetaryAccountDetails {
+	pub monetary_account: U256,
+	pub trading_accounts: Vec<U256>,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug)]
@@ -65,7 +72,8 @@ impl TradingAccount {
 
 impl Hashable for WithdrawalRequest {
 	// No error apart from error during conversion from U256 to FieldElement should happen
-	// Hence associated type is defined to be exactly that error i.e. starknet_ff::FromByteSliceError
+	// Hence associated type is defined to be exactly that error i.e.
+	// starknet_ff::FromByteSliceError
 	type ConversionError = FromByteSliceError;
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
