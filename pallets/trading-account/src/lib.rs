@@ -219,10 +219,14 @@ pub mod pallet {
 
 			for account in monetary_accounts {
 				for trading_account in account.trading_accounts {
-					MonetaryToTradingAccountsMap::<T>::append(
-						account.monetary_account,
-						trading_account,
-					);
+					let trading_accounts =
+						MonetaryToTradingAccountsMap::<T>::get(account.monetary_account);
+					if !trading_accounts.contains(&trading_account) {
+						MonetaryToTradingAccountsMap::<T>::append(
+							account.monetary_account,
+							trading_account,
+						);
+					}
 				}
 			}
 			Ok(())
