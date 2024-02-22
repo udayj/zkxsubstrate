@@ -64,7 +64,7 @@ fn compare_base_fees(id: u128, side: Side, order_side: OrderSide, expected_value
 
 fn check_fees_storage_empty(ids: Vec<u128>) {
 	for id in ids {
-		assert!(SyncFacade::get_temp_assets(id) == Some(false), "id is not removed");
+		assert!(SyncFacade::get_temp_assets(id) == None, "Id is not removed");
 		assert!(
 			SyncFacade::get_temp_fees(id, FeeSettingsType::MakerVols) == None,
 			"Maker volumes not removed"
