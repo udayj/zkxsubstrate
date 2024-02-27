@@ -908,6 +908,7 @@ pub mod pallet {
 
 			// Check if the account already exists, if it doesn't exist then create an account
 			if !AccountMap::<T>::contains_key(&account_id) {
+				MonetaryToTradingAccountsMap::<T>::append(account_address, account_id);
 				let current_length = AccountsCount::<T>::get();
 
 				let trading_account: TradingAccount =
