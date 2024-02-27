@@ -1,5 +1,7 @@
-use crate::traits::{FieldElementExt, FixedI128Ext, StringExt, U256Ext};
-use crate::FieldElement;
+use crate::{
+	traits::{FieldElementExt, FixedI128Ext, StringExt, U256Ext},
+	FieldElement,
+};
 use codec::{Decode, Encode};
 use primitive_types::U256;
 use scale_info::TypeInfo;
@@ -55,8 +57,34 @@ impl FixedI128Ext for FixedI128 {
 		res
 	}
 
+	fn floor_with_precision(&self, precision: u32) -> FixedI128 {
+		// Get the inner value (number * 10^18) from FixedI128 representation
+		let inner_value: i128 = FixedI128::into_inner(*self);
+		// Get the integer part and decimal part separately
+		let divisor: i128 = 10_u64.pow(18).into();
+		let integer_part: i128 = inner_value / divisor;
+		let decimal_part: i128 = inner_value % divisor;
+		// Multiply decimal part with (10 ^ precision) and round it
+		// so that now we have the required precision
+		let ten_power_precision: i128 = 10_u64.pow(precision).into();
+		let decimal_part: FixedI128 = FixedI128::from_inner(decimal_part * ten_power_precision);
+		let decimal_part_rounded: FixedI128 = decimal_part.floor();
+
+		// Divide the decimal part with (10 ^ precision)
+		// so that we get it to required decimal representaion
+		let ten_power_precision: FixedI128 =
+			FixedI128::checked_from_integer(ten_power_precision).unwrap();
+		let decimal_part: FixedI128 =
+			decimal_part_rounded.checked_div(&ten_power_precision).unwrap();
+		let integer_part: FixedI128 = FixedPointNumber::checked_from_integer(integer_part).unwrap();
+		// Add both the parts together to get the final result
+		let res: FixedI128 = FixedI128::add(integer_part, decimal_part);
+		res
+	}
+
 	// Function to convert from fixed point number to U256 inside the PRIME field
-	// This function does the appropriate mod arithmetic to ensure the returned value is actually less than PRIME
+	// This function does the appropriate mod arithmetic to ensure the returned value is actually
+	// less than PRIME
 	fn to_u256(&self) -> U256 {
 		let inner_val: U256;
 		// Max prime 2^251 + 17*2^192 + 1

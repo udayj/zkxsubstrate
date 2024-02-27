@@ -341,6 +341,60 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Adjust balances which were not rounded correctly
+		#[pallet::weight(0)]
+		pub fn adjust_balances(
+			origin: OriginFor<T>,
+			start_index: u128,
+			end_index: u128,
+			precision: u32,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			let collateral_id = T::AssetPallet::get_default_collateral();
+
+			for i in start_index..=end_index {
+				let account_id = AccountsListMap::<T>::get(i);
+				if account_id.is_none() {
+					return Ok(());
+				}
+				let account_id = account_id.unwrap();
+				let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+				let adjusted_balance = current_balance.floor_with_precision(precision);
+				BalancesMap::<T>::set(account_id, collateral_id, adjusted_balance);
+			}
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_balance(
+			origin: OriginFor<T>,
+			account_id: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			// Check if the account already exists
+			ensure!(AccountMap::<T>::contains_key(account_id), Error::<T>::AccountDoesNotExist);
+
+			// Validate that the asset exists and it is a collateral
+			if let Some(asset) = T::AssetPallet::get_asset(collateral_id) {
+				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
+			} else {
+				ensure!(false, Error::<T>::AssetNotFound);
+			}
+
+			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+			if current_balance == FixedI128::zero() {
+				Self::add_collateral(account_id, collateral_id);
+			}
+			// Update the map with new balance
+			BalancesMap::<T>::set(account_id, collateral_id, amount);
+
+			Ok(())
+		}
+
 		#[pallet::weight(0)]
 		pub fn withdraw(
 			origin: OriginFor<T>,

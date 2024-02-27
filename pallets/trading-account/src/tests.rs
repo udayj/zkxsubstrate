@@ -996,3 +996,38 @@ fn test_volume_update_31_days_diff() {
 		assert_eq!(bob_tx_timestamp, init_timestamp + 31 * one_day, "Error in timestamp 3");
 	});
 }
+
+#[test]
+fn test_adjust_balances() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get the trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+		let balances_array = vec![BalanceUpdate {
+			asset_id: usdc().asset.id,
+			balance_value: FixedI128::from_inner(100123456789012345678),
+		}];
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::set_balance(
+			RuntimeOrigin::root(),
+			trading_account_id,
+			usdc().asset.id,
+			FixedI128::from_inner(100123456789012345678)
+		));
+
+		println!("Count: {:?}", TradingAccountModule::accounts_count());
+
+		assert_ok!(TradingAccountModule::adjust_balances(RuntimeOrigin::root(), 0, 3, 6));
+
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			FixedI128::from_inner(100123456000000000000)
+		);
+		println!(
+			"Alice balance: {:?}",
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id)
+		);
+	});
+}
