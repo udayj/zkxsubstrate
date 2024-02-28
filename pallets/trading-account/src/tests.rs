@@ -12,7 +12,7 @@ use pallet_support::{
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, Order,
+		BalanceUpdate, MonetaryAccountDetails, Order,
 	},
 };
 use primitive_types::U256;
@@ -99,6 +99,71 @@ fn test_add_accounts() {
 		// Check the balance of Dave
 		let dave_balance = TradingAccountModule::balances(dave_account_id, usdc().asset.id);
 		assert!(dave_balance == 10000.into());
+	});
+}
+
+#[test]
+fn test_update_monetary_account_to_trading_accounts_map() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get the trading account of Alice and bob
+		let alice_account_id = get_trading_account_id(alice());
+		let bob_account_id = get_trading_account_id(bob());
+
+		// Add alice to the list
+		let mut trading_accounts = vec![alice_account_id];
+
+		// update update monetary to trading accounts map
+		let account_details = MonetaryAccountDetails {
+			monetary_account: U256::from(100_u8),
+			trading_accounts: trading_accounts.clone(),
+		};
+		assert_ok!(TradingAccountModule::update_monetary_to_trading_accounts(
+			RuntimeOrigin::root(),
+			vec![account_details]
+		));
+		let trading_accounts_list =
+			TradingAccountModule::monetary_to_trading_accounts(U256::from(100_u8));
+
+		assert_eq!(alice_account_id, trading_accounts_list[0]);
+
+		// Add bob to the list
+		trading_accounts.push(bob_account_id);
+
+		// update update monetary to trading accounts map
+		let account_details = MonetaryAccountDetails {
+			monetary_account: U256::from(100_u8),
+			trading_accounts: trading_accounts.clone(),
+		};
+		assert_ok!(TradingAccountModule::update_monetary_to_trading_accounts(
+			RuntimeOrigin::root(),
+			vec![account_details]
+		));
+		let trading_accounts_list =
+			TradingAccountModule::monetary_to_trading_accounts(U256::from(100_u8));
+
+		assert_eq!(alice_account_id, trading_accounts_list[0]);
+		assert_eq!(bob_account_id, trading_accounts_list[1]);
+
+		// Try adding bob_account_id to the list again
+		trading_accounts.push(bob_account_id);
+
+		// update update monetary to trading accounts map
+		let account_details = MonetaryAccountDetails {
+			monetary_account: U256::from(100_u8),
+			trading_accounts: trading_accounts.clone(),
+		};
+		assert_ok!(TradingAccountModule::update_monetary_to_trading_accounts(
+			RuntimeOrigin::root(),
+			vec![account_details]
+		));
+		let trading_accounts_list =
+			TradingAccountModule::monetary_to_trading_accounts(U256::from(100_u8));
+
+		assert_eq!(alice_account_id, trading_accounts_list[0]);
+		assert_eq!(bob_account_id, trading_accounts_list[1]);
+		assert_eq!(2, trading_accounts_list.len());
 	});
 }
 

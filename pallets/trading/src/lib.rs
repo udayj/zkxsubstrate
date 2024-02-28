@@ -1536,7 +1536,6 @@ pub mod pallet {
 				// Check if user is under water, ie,
 				// user has lost some borrowed funds
 				if margin_plus_pnl.is_negative() {
-					let amount_to_transfer_from = margin_plus_pnl.saturating_abs();
 					let pnl_abs = pnl.saturating_abs();
 
 					// Check if user's balance can cover the deficit
