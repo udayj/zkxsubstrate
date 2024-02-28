@@ -135,6 +135,7 @@ pub trait PricesInterface {
 
 pub trait FixedI128Ext {
 	fn round_to_precision(&self, precision: u32) -> Self;
+	fn floor_with_precision(&self, precision: u32) -> Self;
 	fn to_u256(&self) -> U256;
 }
 

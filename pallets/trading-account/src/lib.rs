@@ -372,6 +372,31 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Adjust balances which were not rounded correctly
+		#[pallet::weight(0)]
+		pub fn adjust_balances(
+			origin: OriginFor<T>,
+			start_index: u128,
+			end_index: u128,
+			precision: u32,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			let collateral_id = T::AssetPallet::get_default_collateral();
+
+			for i in start_index..=end_index {
+				let account_id = AccountsListMap::<T>::get(i);
+				if account_id.is_none() {
+					break;
+				}
+				let account_id = account_id.unwrap();
+				let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
+				let adjusted_balance = current_balance.floor_with_precision(precision);
+				BalancesMap::<T>::set(account_id, collateral_id, adjusted_balance);
+			}
+
+			Ok(())
+		}
+
 		#[pallet::weight(0)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
