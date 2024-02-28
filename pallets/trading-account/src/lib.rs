@@ -355,7 +355,7 @@ pub mod pallet {
 			for i in start_index..=end_index {
 				let account_id = AccountsListMap::<T>::get(i);
 				if account_id.is_none() {
-					return Ok(());
+					break;
 				}
 				let account_id = account_id.unwrap();
 				let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);

@@ -1010,11 +1010,10 @@ fn test_adjust_balances() {
 		}];
 
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::set_balance(
-			RuntimeOrigin::root(),
+		assert_ok!(TradingAccountModule::set_balances(
+			RuntimeOrigin::signed(1),
 			trading_account_id,
-			usdc().asset.id,
-			FixedI128::from_inner(100123456789012345678)
+			balances_array,
 		));
 
 		println!("Count: {:?}", TradingAccountModule::accounts_count());

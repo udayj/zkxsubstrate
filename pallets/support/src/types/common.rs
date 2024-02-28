@@ -61,12 +61,12 @@ impl FixedI128Ext for FixedI128 {
 		// Get the inner value (number * 10^18) from FixedI128 representation
 		let inner_value: i128 = FixedI128::into_inner(*self);
 		// Get the integer part and decimal part separately
-		let divisor: i128 = 10_u64.pow(18).into();
+		let divisor: i128 = 10_i128.pow(18);
 		let integer_part: i128 = inner_value / divisor;
 		let decimal_part: i128 = inner_value % divisor;
 		// Multiply decimal part with (10 ^ precision) and round it
 		// so that now we have the required precision
-		let ten_power_precision: i128 = 10_u64.pow(precision).into();
+		let ten_power_precision: i128 = 10_i128.pow(precision);
 		let decimal_part: FixedI128 = FixedI128::from_inner(decimal_part * ten_power_precision);
 		let decimal_part_rounded: FixedI128 = decimal_part.floor();
 
