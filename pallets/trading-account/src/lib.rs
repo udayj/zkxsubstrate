@@ -367,35 +367,6 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn set_balance(
-			origin: OriginFor<T>,
-			account_id: U256,
-			collateral_id: u128,
-			amount: FixedI128,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			// Check if the account already exists
-			ensure!(AccountMap::<T>::contains_key(account_id), Error::<T>::AccountDoesNotExist);
-
-			// Validate that the asset exists and it is a collateral
-			if let Some(asset) = T::AssetPallet::get_asset(collateral_id) {
-				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
-			} else {
-				ensure!(false, Error::<T>::AssetNotFound);
-			}
-
-			let current_balance: FixedI128 = BalancesMap::<T>::get(account_id, collateral_id);
-			if current_balance == FixedI128::zero() {
-				Self::add_collateral(account_id, collateral_id);
-			}
-			// Update the map with new balance
-			BalancesMap::<T>::set(account_id, collateral_id, amount);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
 			withdrawal_request: WithdrawalRequest,
