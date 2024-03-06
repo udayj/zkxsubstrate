@@ -287,7 +287,7 @@ pub mod pallet {
 		/// Trade batch failed since no makers got executed
 		TradeExecutionFailed { batch_id: U256 },
 		/// Order error
-		OrderError { order_id: U256, account_id: U256, error_code: u16 },
+		OrderError { order_id: U256, error_code: u16, account_id: U256 },
 		/// Order of a user executed successfully
 		OrderExecuted {
 			account_id: U256,
@@ -1889,8 +1889,8 @@ pub mod pallet {
 		) {
 			Self::deposit_event(Event::OrderError {
 				order_id,
-				account_id,
 				error_code: Self::get_error_code(&e),
+				account_id,
 			});
 			maker_error_codes.push(Self::get_error_code(&e));
 		}
