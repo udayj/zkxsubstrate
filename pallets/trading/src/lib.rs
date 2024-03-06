@@ -287,7 +287,7 @@ pub mod pallet {
 		/// Trade batch failed since no makers got executed
 		TradeExecutionFailed { batch_id: U256 },
 		/// Order error
-		OrderError { order_id: U256, error_code: u16 },
+		OrderError { order_id: U256, account_id: U256, error_code: u16 },
 		/// Order of a user executed successfully
 		OrderExecuted {
 			account_id: U256,
@@ -436,7 +436,12 @@ pub mod pallet {
 					Err(e) => {
 						// if maker order, emit event and process next order
 						if element.order_id != taker_order.order_id {
-							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
+							Self::handle_maker_error(
+								element.order_id,
+								element.account_id,
+								e,
+								&mut maker_error_codes,
+							);
 							continue
 						} else {
 							// if taker order, revert with error
@@ -467,7 +472,12 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
+							Self::handle_maker_error(
+								element.order_id,
+								element.account_id,
+								e,
+								&mut maker_error_codes,
+							);
 							continue
 						},
 					}
@@ -485,7 +495,12 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							Self::handle_maker_error(element.order_id, e, &mut maker_error_codes);
+							Self::handle_maker_error(
+								element.order_id,
+								element.account_id,
+								e,
+								&mut maker_error_codes,
+							);
 							continue
 						},
 					}
@@ -578,6 +593,7 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::handle_maker_error(
 									element.order_id,
+									element.account_id,
 									e,
 									&mut maker_error_codes,
 								);
@@ -707,6 +723,7 @@ pub mod pallet {
 							if element.order_id != taker_order.order_id {
 								Self::handle_maker_error(
 									element.order_id,
+									element.account_id,
 									e,
 									&mut maker_error_codes,
 								);
@@ -1864,9 +1881,15 @@ pub mod pallet {
 			}
 		}
 
-		fn handle_maker_error(order_id: U256, e: Error<T>, maker_error_codes: &mut Vec<u16>) {
+		fn handle_maker_error(
+			order_id: U256,
+			account_id: U256,
+			e: Error<T>,
+			maker_error_codes: &mut Vec<u16>,
+		) {
 			Self::deposit_event(Event::OrderError {
 				order_id,
+				account_id,
 				error_code: Self::get_error_code(&e),
 			});
 			maker_error_codes.push(Self::get_error_code(&e));

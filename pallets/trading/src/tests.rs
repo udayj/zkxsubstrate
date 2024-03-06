@@ -321,9 +321,12 @@ fn it_reverts_for_more_than_max_size() {
 			1699940367000,
 		));
 
-		assert_has_events(vec![
-			Event::OrderError { order_id: U256::from(201), error_code: 548 }.into()
-		]);
+		assert_has_events(vec![Event::OrderError {
+			order_id: U256::from(201),
+			account_id: alice_id,
+			error_code: 548,
+		}
+		.into()]);
 	});
 }
 
@@ -1307,7 +1310,8 @@ fn it_emits_event_for_trade_with_maker_order_size_not_multiple_of_step_size() {
 			1699940367000,
 		));
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 517 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 517 }
+				.into(),
 		);
 	});
 }
@@ -1449,7 +1453,8 @@ fn it_produces_error_when_user_not_registered() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 510 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 510 }
+				.into(),
 		);
 	});
 }
@@ -1495,7 +1500,8 @@ fn it_produces_error_when_size_too_small() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 505 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 505 }
+				.into(),
 		);
 	});
 }
@@ -1539,7 +1545,8 @@ fn it_produces_error_when_market_id_is_different() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 504 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 504 }
+				.into(),
 		);
 	});
 }
@@ -1583,7 +1590,8 @@ fn it_produces_error_when_leverage_is_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 502 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 502 }
+				.into(),
 		);
 	});
 }
@@ -1626,7 +1634,8 @@ fn it_produces_error_when_signature_is_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 536 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 536 }
+				.into(),
 		);
 	});
 }
@@ -1681,7 +1690,8 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(202), error_code: 512 }.into(),
+			Event::OrderError { order_id: U256::from(202), account_id: bob_id, error_code: 512 }
+				.into(),
 		);
 	});
 }
@@ -1725,7 +1735,8 @@ fn it_produces_error_when_maker_is_market_order() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 518 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 518 }
+				.into(),
 		);
 	});
 }
@@ -1825,7 +1836,8 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 		println!("Events: {:?}", event_record);
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(205), error_code: 524 }.into(),
+			Event::OrderError { order_id: U256::from(205), account_id: alice_id, error_code: 524 }
+				.into(),
 		);
 	});
 }
@@ -1879,7 +1891,12 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(203), error_code: 511 }.into(),
+			Event::OrderError {
+				order_id: U256::from(203),
+				account_id: charlie_id,
+				error_code: 511,
+			}
+			.into(),
 		);
 	});
 }
@@ -1922,7 +1939,8 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 508 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 508 }
+				.into(),
 		);
 	});
 }
@@ -1965,7 +1983,8 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 507 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 507 }
+				.into(),
 		);
 	});
 }
@@ -2670,7 +2689,8 @@ fn it_does_not_work_for_not_enough_balance() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(301), error_code: 501 }.into(),
+			Event::OrderError { order_id: U256::from(301), account_id: alice_id, error_code: 501 }
+				.into(),
 		);
 		System::assert_has_event(Event::TradeExecutionFailed { batch_id: U256::from(1_u8) }.into());
 	});
@@ -2725,7 +2745,8 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 		));
 
 		System::assert_has_event(
-			Event::OrderError { order_id: U256::from(201), error_code: 506 }.into(),
+			Event::OrderError { order_id: U256::from(201), account_id: alice_id, error_code: 506 }
+				.into(),
 		);
 	});
 }
