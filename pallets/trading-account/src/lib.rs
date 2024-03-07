@@ -11,11 +11,12 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
+	use core::cmp::{max, min};
 	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime, Blake2_128Concat};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{get_day_diff, max, min, shift_and_recompute, sig_u256_to_sig_felt},
+		helpers::{get_day_diff, shift_and_recompute, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
