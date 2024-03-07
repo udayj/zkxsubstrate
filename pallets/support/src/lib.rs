@@ -48,6 +48,14 @@ pub mod helpers {
 		}
 	}
 
+	pub fn min(a: FixedI128, b: FixedI128) -> FixedI128 {
+		if a <= b {
+			a
+		} else {
+			b
+		}
+	}
+
 	pub fn fixed_pow(base: FixedI128, exp: u64) -> FixedI128 {
 		if exp == 0 {
 			// Anything raised to the power of 0 is 1

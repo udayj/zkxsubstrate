@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{get_day_diff, max, shift_and_recompute, sig_u256_to_sig_felt},
+		helpers::{get_day_diff, max, min, shift_and_recompute, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
@@ -206,6 +206,13 @@ pub mod pallet {
 		AccountCreated { account_id: U256, account_address: U256, index: u8 },
 		/// Amount passed to transfer/transfer_from functions is negative
 		AmountIsNegative { account_id: U256, collateral_id: u128, amount: FixedI128, reason: u8 },
+		/// Insurance fund updation event
+		InsuranceFundChange {
+			collateral_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			block_number: BlockNumberFor<T>,
+		},
 	}
 
 	#[pallet::call]
@@ -947,10 +954,20 @@ pub mod pallet {
 
 			// Get the current balance
 			let current_balance = BalancesMap::<T>::get(account_id, collateral_id);
+			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			// If the current balance is 0, then add collateral to the AccountCollateralsMap
 			if current_balance == FixedI128::zero() {
 				Self::add_collateral(account_id, collateral_id);
+			} else if current_balance.is_negative() {
+				let absolute_amount = min(-current_balance, amount);
+
+				Self::deposit_event(Event::InsuranceFundChange {
+					collateral_id,
+					amount: absolute_amount,
+					modify_type: FundModifyType::Increase.into(),
+					block_number,
+				})
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;
@@ -959,7 +976,6 @@ pub mod pallet {
 
 			// Get the user account
 			let account = AccountMap::<T>::get(&account_id).unwrap().to_trading_account_minimal();
-			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			// BalanceUpdated event is emitted
 			Self::deposit_event(Event::BalanceUpdated {
