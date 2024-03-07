@@ -1,4 +1,4 @@
-use crate::mock::*;
+use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use pallet_support::{
 	test_helpers::{
@@ -12,7 +12,7 @@ use pallet_support::{
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, MonetaryAccountDetails, Order,
+		BalanceUpdate, FundModifyType, MonetaryAccountDetails, Order,
 	},
 };
 use primitive_types::U256;
@@ -255,6 +255,76 @@ fn test_deposit() {
 		assert_eq!(
 			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
 			11000.into()
+		);
+	});
+}
+
+#[test]
+fn test_deposit_when_negative() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get the trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::set_balances(
+			RuntimeOrigin::signed(1),
+			trading_account_id,
+			vec![BalanceUpdate { asset_id: usdc().asset.id, balance_value: (-250).into() }],
+		));
+
+		// Check the state
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			(-250).into()
+		);
+
+		// Desposit 100 USDC
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			alice(),
+			usdc().asset.id,
+			100.into(),
+		));
+
+		// Check the state
+		assert_eq!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			(-150).into()
+		);
+
+		// Check the InsuranceFundChange event
+		System::assert_has_event(
+			Event::InsuranceFundChange {
+				collateral_id: usdc().asset.id,
+				amount: 100.into(),
+				modify_type: FundModifyType::Increase,
+				block_number: 1,
+			}
+			.into(),
+		);
+
+		// Desposit 160 USDC
+		assert_ok!(TradingAccountModule::deposit(
+			RuntimeOrigin::signed(1),
+			alice(),
+			usdc().asset.id,
+			160.into(),
+		));
+
+		// Check the state
+		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().asset.id), 10.into());
+
+		// Check the InsuranceFundChange event
+		System::assert_has_event(
+			Event::InsuranceFundChange {
+				collateral_id: usdc().asset.id,
+				amount: 150.into(),
+				modify_type: FundModifyType::Increase,
+				block_number: 1,
+			}
+			.into(),
 		);
 	});
 }

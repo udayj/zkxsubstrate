@@ -10,7 +10,7 @@ mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
-	use core::option::Option;
+	use core::{cmp::max, option::Option};
 	use frame_support::{
 		dispatch::Vec,
 		pallet_prelude::{DispatchResult, *},
@@ -18,7 +18,7 @@ pub mod pallet {
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 	use pallet_support::{
-		helpers::{fixed_pow, ln, max},
+		helpers::{fixed_pow, ln},
 		traits::{
 			AssetInterface, FixedI128Ext, MarketInterface, PricesInterface,
 			TradingAccountInterface, TradingInterface,

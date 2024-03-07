@@ -40,14 +40,6 @@ pub mod helpers {
 		Ok((sig_r_felt, sig_s_felt))
 	}
 
-	pub fn max(a: FixedI128, b: FixedI128) -> FixedI128 {
-		if a >= b {
-			a
-		} else {
-			b
-		}
-	}
-
 	pub fn fixed_pow(base: FixedI128, exp: u64) -> FixedI128 {
 		if exp == 0 {
 			// Anything raised to the power of 0 is 1
