@@ -16,7 +16,11 @@ pub mod pallet {
 		pallet_prelude::{DispatchResult, *},
 		traits::UnixTime,
 	};
-	use frame_system::{ensure_signed, pallet_prelude::*};
+	use frame_system::{
+		ensure_signed,
+		offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
+		pallet_prelude::*,
+	};
 	use pallet_support::{
 		helpers::{fixed_pow, ln},
 		traits::{
@@ -30,6 +34,8 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_core::crypto::KeyTypeId;
+	use sp_runtime::traits::BlockNumberProvider;
 
 	// ////////////
 	// Constants //
@@ -55,17 +61,40 @@ pub mod pallet {
 	// Number of deletions for cleanup
 	static CLEANUP_COUNT: u64 = 10;
 
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
+	pub mod crypto {
+		use super::KEY_TYPE;
+		use sp_core::sr25519::Signature as Sr25519Signature;
+		use sp_runtime::{
+			app_crypto::{app_crypto, sr25519},
+			traits::Verify,
+			MultiSignature, MultiSigner,
+		};
+		app_crypto!(sr25519, KEY_TYPE);
+
+		pub struct TestAuthId;
+
+		// implemented for runtime
+		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
+
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingPallet: TradingInterface;
 		type TimeProvider: UnixTime;
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
 
 	#[pallet::storage]
@@ -179,6 +208,10 @@ pub mod pallet {
 	#[pallet::getter(fn default_max)]
 	// v - Default maximum ABR allowed
 	pub(super) type MaxABRDefault<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn count)]
+	pub(super) type Count<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
@@ -322,6 +355,17 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			Self::set_default_max_abr_internal(max_abr_value);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn increment_count(origin: OriginFor<T>) -> DispatchResult {
+			// Make sure the caller is from a signed origin
+			ensure_signed(origin)?;
+
+			let count = Count::<T>::get();
+			Count::<T>::put(count + 1);
 
 			Ok(())
 		}
@@ -1417,6 +1461,32 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// Offchain worker entry point.
+		///
+		/// By implementing `fn offchain_worker` you declare a new offchain worker.
+		/// This function will be called when the node is fully synced and a new best block is
+		/// successfully imported.
+		/// Note that it's not guaranteed for offchain workers to run on EVERY block, there might
+		/// be cases where some blocks are skipped, or for some the worker runs twice (re-orgs),
+		/// so the code should be able to handle that.
+
+		fn offchain_worker(block_number: BlockNumberFor<T>) {
+			// let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			// let results =
+			// 	signer.send_signed_transaction(|_account| Call::increment_count {});
+			// for (acc, res) in &results {
+			// 	match res {
+			// 		Ok(()) => log::info!("[{:?}]: submit transaction success.", acc.id),
+			// 		Err(e) =>
+			// 			log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
+			// 	}
+			// }
+			log::info!("hello from offchain worker");
 		}
 	}
 }
