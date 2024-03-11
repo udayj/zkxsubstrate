@@ -52,9 +52,8 @@ pub mod pallet {
 	const MILLIS_PER_SECOND: u64 = 1000;
 	// Duration for which price data is available
 	static FOUR_WEEKS: u64 = 2419200;
-	// Clear limit for the historical prices map
-	static CLEAR_LIMIT: u32 = 1000;
-	static ONE_HOUR: u64 = 3600;
+	// Number of deletions for cleanup
+	static CLEANUP_COUNT: u64 = 10;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -599,7 +598,7 @@ pub mod pallet {
 				PricesStartTimestamp::<T>::get().ok_or(Error::<T>::PricesStartTimestampEmpty)?;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit = current_timestamp - FOUR_WEEKS;
-			let mut cleanup_count = ONE_HOUR;
+			let mut cleanup_count = CLEANUP_COUNT;
 
 			for timestamp in start_timestamp..timestamp_limit {
 				if cleanup_count == 0 {
@@ -608,7 +607,9 @@ pub mod pallet {
 				}
 				// we are passing None as 3rd argument as no.of prices stored for a particular
 				// timestamp is limited and it doesn't need another call to remove
-				let _ = HistoricalPricesMap::<T>::clear_prefix(timestamp, CLEAR_LIMIT, None);
+				let markets = T::MarketPallet::get_all_markets_by_state(true, false);
+				let _ =
+					HistoricalPricesMap::<T>::clear_prefix(timestamp, markets.len() as u32, None);
 				cleanup_count -= 1;
 			}
 			if start_timestamp < timestamp_limit {
@@ -1403,7 +1404,7 @@ pub mod pallet {
 
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 			let timestamp_limit: u64 = current_timestamp - FOUR_WEEKS;
-			let cleanup_count = ONE_HOUR;
+			let cleanup_count = CLEANUP_COUNT;
 
 			if start_timestamp < timestamp_limit {
 				let remaining_time = timestamp_limit - start_timestamp;

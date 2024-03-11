@@ -392,12 +392,12 @@ fn test_historical_prices_cleanup_after_timelimit() {
 
 		// Read historical prices after cleanup, every price should show as zero
 		let historical_price = PricesModule::historical_price(1702359500, market1.market.id);
-		assert_eq!(FixedI128::zero(), historical_price.mark_price);
-		assert_eq!(FixedI128::zero(), historical_price.index_price);
+		assert_eq!(FixedI128::from_u32(301), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(300), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359500, market2.market.id);
-		assert_eq!(FixedI128::zero(), historical_price.mark_price);
-		assert_eq!(FixedI128::zero(), historical_price.index_price);
+		assert_eq!(FixedI128::from_u32(401), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(400), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359400, market1.market.id);
 		assert_eq!(FixedI128::zero(), historical_price.mark_price);
@@ -408,12 +408,12 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		assert_eq!(FixedI128::zero(), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359601, market1.market.id);
-		assert_eq!(FixedI128::zero(), historical_price.mark_price);
-		assert_eq!(FixedI128::zero(), historical_price.index_price);
+		assert_eq!(FixedI128::from_u32(501), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(500), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359601, market2.market.id);
-		assert_eq!(FixedI128::zero(), historical_price.mark_price);
-		assert_eq!(FixedI128::zero(), historical_price.index_price);
+		assert_eq!(FixedI128::from_u32(601), historical_price.mark_price);
+		assert_eq!(FixedI128::from_u32(600), historical_price.index_price);
 	});
 }
 

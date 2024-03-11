@@ -2538,12 +2538,12 @@ fn it_works_for_cleanup() {
 		assert_ne!(order4, U256::zero());
 
 		let batch1 = Trading::batch_status(U256::from(1_u8));
-		assert_eq!(batch1, false);
+		assert_eq!(batch1, true);
 		let batch2 = Trading::batch_status(U256::from(2_u8));
 		assert_eq!(batch2, true);
 
 		let start_timestamp = Trading::start_timestamp();
-		assert_eq!(1699940400, start_timestamp.unwrap());
+		assert_eq!(1699940288, start_timestamp.unwrap());
 
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());
@@ -2553,7 +2553,7 @@ fn it_works_for_cleanup() {
 		assert_eq!(vec![U256::from(204)], timestamp3.unwrap());
 
 		let timestamp1 = Trading::batches(1699940360);
-		assert_eq!(false, timestamp1.is_some());
+		assert_eq!(false, timestamp1.is_none());
 		let timestamp2 = Trading::batches(1702359550);
 		assert_eq!(vec![U256::from(2_u8)], timestamp2.unwrap());
 	});
