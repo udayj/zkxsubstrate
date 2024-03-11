@@ -963,12 +963,11 @@ pub mod pallet {
 			} else if current_balance.is_negative() {
 				let absolute_amount = min(-current_balance, amount);
 
-				Self::deposit_event(Event::InsuranceFundChange {
+				Self::emit_insurance_fund_change_event(
 					collateral_id,
-					amount: absolute_amount,
-					modify_type: FundModifyType::Increase.into(),
-					block_number,
-				})
+					absolute_amount,
+					FundModifyType::Increase.into(),
+				);
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;
@@ -988,6 +987,20 @@ pub mod pallet {
 				reason: BalanceChangeReason::Deposit.into(),
 				previous_balance: current_balance,
 				new_balance,
+				block_number,
+			});
+		}
+
+		fn emit_insurance_fund_change_event(
+			collateral_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+		) {
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			Self::deposit_event(Event::InsuranceFundChange {
+				collateral_id,
+				amount,
+				modify_type,
 				block_number,
 			});
 		}

@@ -14,7 +14,7 @@ use pallet_support::{
 		Position, Side,
 	},
 };
-use pallet_trading::Event;
+use pallet_trading_account::Event;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
 
