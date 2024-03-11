@@ -303,13 +303,6 @@ pub mod pallet {
 			is_final: bool,
 			is_maker: bool,
 		},
-		/// Insurance fund updation event
-		InsuranceFundChange {
-			collateral_id: u128,
-			amount: FixedI128,
-			modify_type: FundModifyType,
-			block_number: BlockNumberFor<T>,
-		},
 		/// Force closure flag updation event
 		ForceClosureFlagsChanged { account_id: U256, collateral_id: u128, force_closure_flag: u8 },
 		/// Liquidator signer added
@@ -1501,7 +1494,6 @@ pub mod pallet {
 		> {
 			let actual_execution_price: FixedI128;
 			let price_diff: FixedI128;
-			let block_number = <frame_system::Pallet<T>>::block_number();
 
 			if order.direction == Direction::Long {
 				actual_execution_price = execution_price;
@@ -1559,13 +1551,11 @@ pub mod pallet {
 					if pnl_abs > balance {
 						if balance.is_negative() {
 							// Complete funds lost by user should be taken from insurance fund
-							Self::deposit_event(Event::InsuranceFundChange {
+							T::TradingAccountPallet::emit_insurance_fund_change_event(
 								collateral_id,
-								amount: pnl_abs,
-								modify_type: FundModifyType::Decrease,
-								block_number,
-							});
-
+								pnl_abs,
+								FundModifyType::Decrease,
+							);
 							LiquidationFeeMap::<T>::insert(
 								collateral_id,
 								current_liquidation_fee - pnl_abs,
@@ -1573,12 +1563,11 @@ pub mod pallet {
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
-							Self::deposit_event(Event::InsuranceFundChange {
+							T::TradingAccountPallet::emit_insurance_fund_change_event(
 								collateral_id,
-								amount: pnl_abs - balance,
-								modify_type: FundModifyType::Decrease,
-								block_number,
-							});
+								pnl_abs - balance,
+								FundModifyType::Decrease,
+							);
 
 							LiquidationFeeMap::<T>::insert(
 								collateral_id,
@@ -1607,12 +1596,11 @@ pub mod pallet {
 							// if balance >= margin amount, deposit remaining margin in insurance
 							if margin_amount_to_reduce <= balance {
 								// Deposit margin_plus_pnl to insurance fund
-								Self::deposit_event(Event::InsuranceFundChange {
+								T::TradingAccountPallet::emit_insurance_fund_change_event(
 									collateral_id,
-									amount: margin_plus_pnl,
-									modify_type: FundModifyType::Increase,
-									block_number,
-								});
+									margin_plus_pnl,
+									FundModifyType::Increase,
+								);
 								LiquidationFeeMap::<T>::insert(
 									collateral_id,
 									current_liquidation_fee + margin_plus_pnl,
@@ -1620,12 +1608,11 @@ pub mod pallet {
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
-									Self::deposit_event(Event::InsuranceFundChange {
+									T::TradingAccountPallet::emit_insurance_fund_change_event(
 										collateral_id,
-										amount: margin_amount_to_reduce,
-										modify_type: FundModifyType::Decrease,
-										block_number,
-									});
+										margin_amount_to_reduce,
+										FundModifyType::Decrease,
+									);
 
 									LiquidationFeeMap::<T>::insert(
 										collateral_id,
@@ -1636,12 +1623,11 @@ pub mod pallet {
 									let pnl_abs = pnl.saturating_abs();
 									if balance <= pnl_abs {
 										// Deduct (pnl_abs -  balance) from insurance fund
-										Self::deposit_event(Event::InsuranceFundChange {
+										T::TradingAccountPallet::emit_insurance_fund_change_event(
 											collateral_id,
-											amount: pnl_abs - balance,
-											modify_type: FundModifyType::Decrease,
-											block_number,
-										});
+											pnl_abs - balance,
+											FundModifyType::Decrease,
+										);
 
 										LiquidationFeeMap::<T>::insert(
 											collateral_id,
@@ -1649,13 +1635,11 @@ pub mod pallet {
 										);
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
-										Self::deposit_event(Event::InsuranceFundChange {
+										T::TradingAccountPallet::emit_insurance_fund_change_event(
 											collateral_id,
-											amount: balance - pnl_abs,
-											modify_type: FundModifyType::Increase,
-											block_number,
-										});
-
+											balance - pnl_abs,
+											FundModifyType::Increase,
+										);
 										LiquidationFeeMap::<T>::insert(
 											collateral_id,
 											current_liquidation_fee + (balance - pnl_abs),

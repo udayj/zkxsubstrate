@@ -1,9 +1,9 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
-	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, HashType,
-	MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position, PositionExtended,
-	QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit,
+	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, FundModifyType,
+	HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position,
+	PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved,
+	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -17,6 +17,11 @@ pub trait TradingAccountInterface {
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		amount: FixedI128,
+	);
+	fn emit_insurance_fund_change_event(
+		collateral_id: u128,
+		amount: FixedI128,
+		modify_type: FundModifyType,
 	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
