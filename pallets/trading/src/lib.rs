@@ -1406,7 +1406,6 @@ pub mod pallet {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
 			let average_execution_price: FixedI128;
-			let _block_number = <frame_system::Pallet<T>>::block_number();
 
 			// Calculate average execution price
 			if position_details.size == FixedI128::zero() {
