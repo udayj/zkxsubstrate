@@ -1696,7 +1696,7 @@ pub mod pallet {
 				)
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let mut fee = if order.order_type != OrderType::Forced {
+			let fee = if order.order_type != OrderType::Forced {
 				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
 					collateral_id,
 					order.market_id,
@@ -1705,7 +1705,8 @@ pub mod pallet {
 					total_30day_volume,
 				);
 
-				let fee = fee_rate * leveraged_order_value;
+				let mut fee = fee_rate * leveraged_order_value;
+				fee = fee.round_to_precision(collateral_token_decimal.into());
 
 				// Deduct fee while closing a position
 				T::TradingAccountPallet::transfer_from(
@@ -1719,7 +1720,6 @@ pub mod pallet {
 			} else {
 				FixedI128::zero()
 			};
-			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			Ok((
 				margin_amount,
