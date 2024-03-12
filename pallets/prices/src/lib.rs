@@ -1476,16 +1476,15 @@ pub mod pallet {
 		/// so the code should be able to handle that.
 
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
-			// let signer = Signer::<T, T::AuthorityId>::all_accounts();
-			// let results =
-			// 	signer.send_signed_transaction(|_account| Call::increment_count {});
-			// for (acc, res) in &results {
-			// 	match res {
-			// 		Ok(()) => log::info!("[{:?}]: submit transaction success.", acc.id),
-			// 		Err(e) =>
-			// 			log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
-			// 	}
-			// }
+			let signer = Signer::<T, T::AuthorityId>::any_account();
+			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
+			for (acc, res) in &results {
+				match res {
+					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
+					Err(e) =>
+						log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
+				}
+			}
 			log::info!("hello from offchain worker");
 		}
 	}

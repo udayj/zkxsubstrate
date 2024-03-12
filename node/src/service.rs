@@ -95,6 +95,13 @@ pub fn new_partial(
 			Some("//Alice"),
 		)
 		.expect("Creating key with account Alice should succeed.");
+
+		sp_keystore::Keystore::sr25519_generate_new(
+			&*keystore,
+			node_template_runtime::pallet_prices::KEY_TYPE,
+			Some("//Bob"),
+		)
+		.expect("Creating key with account Bob should succeed.");
 	}
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
