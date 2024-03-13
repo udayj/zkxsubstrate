@@ -90,9 +90,9 @@ pub enum TimeInForce {
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum BalanceChangeReason {
+	Deposit,
 	#[default]
 	Fee,
-	Deposit,
 	Liquidation,
 	PnlRealization,
 	Withdrawal,
