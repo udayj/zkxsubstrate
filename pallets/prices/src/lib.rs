@@ -1485,7 +1485,9 @@ pub mod pallet {
 
 		// Entry point for off-chain worker execution
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
-			let signer = Signer::<T, T::AuthorityId>::any_account();
+			log::info!("Entry to offchain worker");
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			log::info!("Signers: {}", signer.can_sign());
 
 			let seed = sp_io::offchain::random_seed();
 			let random: U256 = blake2_256(&seed).into();
@@ -1497,8 +1499,9 @@ pub mod pallet {
 			// if block_number >= delay_blocks {
 			// Execute the off-chain worker logic
 			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
+			log::info!("Before for loop");
 			for (acc, res) in &results {
-				log::info!("After sending transaction");
+				log::info!("After sending transaction, account id: {:?}", acc.id);
 				match res {
 					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
 					Err(e) =>
