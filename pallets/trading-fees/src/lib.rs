@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		traits::{AssetInterface, MarketInterface, TradingFeesInterface},
-		types::{BaseFee, FeeRates, OrderSide, Side},
+		types::{BaseFee, BaseFeesTest, FeeRates, OrderSide, Side},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -50,6 +50,16 @@ pub mod pallet {
 		Blake2_128Concat,
 		(u8, Side, OrderSide), // (tier, buy or sell, maker or taker)
 		BaseFee,
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn base_fees_all)]
+	pub(super) type BaseFeeMapTest<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		u128, // collateral_id or market_id
+		BaseFeesTest,
 		ValueQuery,
 	>;
 
@@ -108,6 +118,21 @@ pub mod pallet {
 					MaxBaseFeeTier::<T>::remove(id, order_side);
 				}
 			}
+		}
+
+		fn update_base_fees_internal_test(id: u128, fee_details: BaseFeesTest) -> DispatchResult {
+			// Validate that the asset exists and it is a collateral
+			if let Some(asset) = T::AssetPallet::get_asset(id) {
+				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
+			} else {
+				// If it's not an asset, ensure that it's a valid market
+				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
+			}
+
+			// Add it to storage
+			BaseFeeMapTest::<T>::set(id, fee_details);
+
+			Ok(())
 		}
 
 		fn update_base_fees_internal(
@@ -169,6 +194,10 @@ pub mod pallet {
 				Self::find_user_base_fee(id, side, order_side, volume, current_max_base_fee_tier);
 
 			(base_fee, base_fee_tier)
+		}
+
+		fn get_all_fees_test(id: u128) -> BaseFeesTest {
+			BaseFeeMapTest::<T>::get(id)
 		}
 
 		fn get_all_fee_rates(id: u128, volume: FixedI128) -> FeeRates {

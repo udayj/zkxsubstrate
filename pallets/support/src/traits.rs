@@ -1,9 +1,9 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
-	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, FundModifyType,
-	HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position,
-	PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	BaseFee, BaseFeesTest, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag,
+	FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide,
+	Position, PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -164,6 +164,7 @@ pub trait TradingFeesInterface {
 		order_side: OrderSide,
 		fee_details: Vec<BaseFee>,
 	) -> DispatchResult;
+	fn update_base_fees_internal_test(id: u128, fee_details: BaseFeesTest) -> DispatchResult;
 	fn get_fee_rate(
 		collateral_id: u128,
 		market_id: u128,
@@ -172,6 +173,7 @@ pub trait TradingFeesInterface {
 		volume: FixedI128,
 	) -> (FixedI128, u8);
 	fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates;
+	fn get_all_fees_test(id: u128) -> BaseFeesTest;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

@@ -26,7 +26,7 @@ pub mod pallet {
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, Direction, FeeRates, ForceClosureFlag,
+			AccountInfo, BalanceChangeReason, BaseFeesTest, Direction, FeeRates, ForceClosureFlag,
 			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
 			PositionExtended, Side, SignatureInfo, TimeInForce,
 		},
@@ -385,6 +385,8 @@ pub mod pallet {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
 				Err(e) => return Err(e.into()),
 			}
+
+			let market_fees: BaseFeesTest = T::TradingFeesPallet::get_all_fees_test(market_id);
 
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
 			let mut total_order_volume: FixedI128 = FixedI128::zero();
@@ -1139,7 +1141,7 @@ pub mod pallet {
 				Ok(quantity_to_execute)
 			} else {
 				if order.order_type == OrderType::Forced {
-					let force_closure_flag =
+					let force_closure_flag: Option<ForceClosureFlag> =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
 
 					// If order type is Forced, force closure flag will always be
