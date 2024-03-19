@@ -64,7 +64,7 @@ pub mod pallet {
 
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
 	// Define the maximum delay before executing OCWs
-	const MAX_DELAY_BLOCKS: u32 = 50; // Maximum delay of 5 blocks
+	const MAX_DELAY_BLOCKS: u32 = 10; // Maximum delay of 10 blocks
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -1494,21 +1494,17 @@ pub mod pallet {
 			let block_number = block_number.saturated_into::<u32>() % MAX_DELAY_BLOCKS;
 			// Generate a random delay before executing OCWs
 			let delay_blocks = random % MAX_DELAY_BLOCKS;
-			if block_number >= delay_blocks {
-				// Execute the off-chain worker logic
-				let results = signer.send_signed_transaction(|_account| Call::increment_count {});
-				for (acc, res) in &results {
-					match res {
-						Ok(()) =>
-							log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
-						Err(e) => log::error!(
-							"[{:?}]: submit transaction failure. Reason: {:?}",
-							acc.id,
-							e
-						),
-					}
+			// if block_number >= delay_blocks {
+			// Execute the off-chain worker logic
+			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
+			for (acc, res) in &results {
+				match res {
+					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
+					Err(e) =>
+						log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
 				}
 			}
+			// }
 			log::info!("hello from offchain worker");
 		}
 	}
