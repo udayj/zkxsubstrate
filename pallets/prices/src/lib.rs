@@ -1498,10 +1498,11 @@ pub mod pallet {
 			// Execute the off-chain worker logic
 			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
 			for (acc, res) in &results {
+				log::info!("After sending transaction");
 				match res {
 					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
 					Err(e) =>
-						log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
+						log::info!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
 				}
 			}
 			// }
