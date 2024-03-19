@@ -35,7 +35,8 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	use sp_core::crypto::KeyTypeId;
-	use sp_runtime::traits::BlockNumberProvider;
+	use sp_io::hashing::blake2_256;
+	use sp_runtime::traits::SaturatedConversion;
 
 	// ////////////
 	// Constants //
@@ -62,16 +63,16 @@ pub mod pallet {
 	static CLEANUP_COUNT: u64 = 10;
 
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+	// Define the maximum delay before executing OCWs
+	const MAX_DELAY_BLOCKS: u32 = 50; // Maximum delay of 5 blocks
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	pub mod crypto {
 		use super::KEY_TYPE;
-		use sp_core::sr25519::Signature as Sr25519Signature;
 		use sp_runtime::{
 			app_crypto::{app_crypto, sr25519},
-			traits::Verify,
 			MultiSignature, MultiSigner,
 		};
 		app_crypto!(sr25519, KEY_TYPE);
@@ -212,6 +213,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn count)]
 	pub(super) type Count<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn block_number)]
+	pub(super) type BlockNumber<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
@@ -363,6 +368,9 @@ pub mod pallet {
 		pub fn increment_count(origin: OriginFor<T>) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
+
+			let block_number = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
+			BlockNumber::<T>::put(block_number + 1);
 
 			let count = Count::<T>::get();
 			Count::<T>::put(count + 1);
@@ -1475,14 +1483,30 @@ pub mod pallet {
 		/// be cases where some blocks are skipped, or for some the worker runs twice (re-orgs),
 		/// so the code should be able to handle that.
 
+		// Entry point for off-chain worker execution
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
 			let signer = Signer::<T, T::AuthorityId>::any_account();
-			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
-			for (acc, res) in &results {
-				match res {
-					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
-					Err(e) =>
-						log::error!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
+
+			let seed = sp_io::offchain::random_seed();
+			let random: U256 = blake2_256(&seed).into();
+			let random = random.low_u32();
+
+			let block_number = block_number.saturated_into::<u32>() % MAX_DELAY_BLOCKS;
+			// Generate a random delay before executing OCWs
+			let delay_blocks = random % MAX_DELAY_BLOCKS;
+			if block_number >= delay_blocks {
+				// Execute the off-chain worker logic
+				let results = signer.send_signed_transaction(|_account| Call::increment_count {});
+				for (acc, res) in &results {
+					match res {
+						Ok(()) =>
+							log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
+						Err(e) => log::error!(
+							"[{:?}]: submit transaction failure. Reason: {:?}",
+							acc.id,
+							e
+						),
+					}
 				}
 			}
 			log::info!("hello from offchain worker");

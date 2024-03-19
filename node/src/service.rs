@@ -10,7 +10,6 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpS
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-//use sp_keystore::SyncCryptoStore;
 use std::{sync::Arc, time::Duration};
 
 // Our native executor instance.
@@ -81,28 +80,6 @@ pub fn new_partial(
 			executor,
 		)?;
 	let client = Arc::new(client);
-
-	let keystore = keystore_container.keystore();
-	if config.offchain_worker.enabled {
-		// Initialize seed for signing transaction using off-chain workers. This is a convenience
-		// so learners can see the transactions submitted simply running the node.
-		// Typically these keys should be inserted with RPC calls to `author_insertKey`.
-
-		// For pallet-prices
-		sp_keystore::Keystore::sr25519_generate_new(
-			&*keystore,
-			node_template_runtime::pallet_prices::KEY_TYPE,
-			Some("//Alice"),
-		)
-		.expect("Creating key with account Alice should succeed.");
-
-		sp_keystore::Keystore::sr25519_generate_new(
-			&*keystore,
-			node_template_runtime::pallet_prices::KEY_TYPE,
-			Some("//Bob"),
-		)
-		.expect("Creating key with account Bob should succeed.");
-	}
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		task_manager.spawn_handle().spawn("telemetry", None, worker.run());
