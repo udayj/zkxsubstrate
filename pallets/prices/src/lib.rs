@@ -1493,19 +1493,23 @@ pub mod pallet {
 			let random: U256 = blake2_256(&seed).into();
 			let random = random.low_u32();
 
-			let block_number = block_number.saturated_into::<u32>() % MAX_DELAY_BLOCKS;
+			let _block_number = block_number.saturated_into::<u32>() % MAX_DELAY_BLOCKS;
 			// Generate a random delay before executing OCWs
-			let delay_blocks = random % MAX_DELAY_BLOCKS;
+			let _delay_blocks = random % MAX_DELAY_BLOCKS;
 			// if block_number >= delay_blocks {
 			// Execute the off-chain worker logic
 			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
 			log::info!("Before for loop");
+			log::info!("Results {:?}", results.len());
 			for (acc, res) in &results {
-				log::info!("After sending transaction, account id: {:?}", acc.id);
+				log::info!("After sending transaction, account id: {:?}", acc.index);
 				match res {
 					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
-					Err(e) =>
-						log::info!("[{:?}]: submit transaction failure. Reason: {:?}", acc.id, e),
+					Err(e) => log::info!(
+						"[{:?}]: submit transaction failure. Reason: {:?}",
+						acc.public,
+						e
+					),
 				}
 			}
 			// }
