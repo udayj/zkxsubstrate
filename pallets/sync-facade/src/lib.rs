@@ -555,10 +555,10 @@ pub mod pallet {
 		}
 
 		fn remove_settings_from_maps(id: u128) {
-			// Add the asset to the map
+			// REmove the id to the map
 			TempAssetsMap::<T>::remove(id);
 
-			// Insert maker volume vector to the map
+			// Remove base fees from the storage map
 			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerVols);
 			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerVols);
 			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerOpen);

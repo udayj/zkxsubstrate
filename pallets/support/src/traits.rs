@@ -1,9 +1,9 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
-	BaseFee, BaseFeesTest, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag,
-	FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide,
-	Position, PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded,
-	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	BaseFee, BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
+	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
+	Order, OrderSide, Position, PositionExtended, QuorumSet, Setting, SettingsAdded, Side,
+	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -80,6 +80,12 @@ pub trait TradingInterface {
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_remaining_trading_cleanup_calls() -> u64;
+	fn get_user_fee_rate(
+		base_fees: &BaseFeeAggregate,
+		side: Side,
+		order_side: OrderSide,
+		volume: FixedI128,
+	) -> (FixedI128, u8);
 }
 
 pub trait AssetInterface {
@@ -158,22 +164,7 @@ pub trait FieldElementExt {
 
 pub trait TradingFeesInterface {
 	fn remove_base_fees_internal(id: u128);
-	fn update_base_fees_internal(
-		collateral_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		fee_details: Vec<BaseFee>,
-	) -> DispatchResult;
-	fn update_base_fees_internal_test(id: u128, fee_details: BaseFeesTest) -> DispatchResult;
-	fn get_fee_rate(
-		collateral_id: u128,
-		market_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		volume: FixedI128,
-	) -> (FixedI128, u8);
-	fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates;
-	fn get_all_fees_test(id: u128) -> BaseFeesTest;
+	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

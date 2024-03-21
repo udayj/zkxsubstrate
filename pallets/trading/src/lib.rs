@@ -26,9 +26,9 @@ pub mod pallet {
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, BaseFeesTest, Direction, FeeRates, ForceClosureFlag,
-			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionExtended, Side, SignatureInfo, TimeInForce,
+			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
+			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce,
 		},
 		Signature,
 	};
@@ -386,7 +386,7 @@ pub mod pallet {
 				Err(e) => return Err(e.into()),
 			}
 
-			let market_fees: BaseFeesTest = T::TradingFeesPallet::get_all_fees_test(market_id);
+			let market_fees: BaseFeeAggregate = T::TradingFeesPallet::get_all_fees_test(market_id);
 
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
 			let mut total_order_volume: FixedI128 = FixedI128::zero();
@@ -2037,6 +2037,37 @@ pub mod pallet {
 			collateral_id: u128,
 		) -> Option<ForceClosureFlag> {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
+		}
+
+		fn get_user_fee_rate(
+			base_fees: &BaseFeeAggregate,
+			side: Side,
+			order_side: OrderSide,
+			volume: FixedI128,
+		) -> (FixedI128, u8) {
+			// Get fee data for given side and orderside
+			let fee_details = match (order_side, side) {
+				(OrderSide::Maker, Side::Buy) => &base_fees.maker_buy,
+				(OrderSide::Maker, Side::Sell) => &base_fees.maker_sell,
+				(OrderSide::Taker, Side::Buy) => &base_fees.taker_buy,
+				(OrderSide::Taker, Side::Sell) => &base_fees.taker_sell,
+			};
+
+			// If no fee_tiers are set, return 0 as fees and tier as 0
+			if fee_details.is_empty() {
+				return (FixedI128::zero(), 0);
+			}
+
+			// Find the appropriate fee tier for the user
+			for (index, tier) in fee_details.iter().enumerate().rev() {
+				if volume >= tier.volume {
+					return (tier.fee, (index + 1) as u8);
+				}
+			}
+
+			// If volume is not greater than any tier's volume, it falls into the lowest tier
+			let first_tier = &fee_details[0];
+			(first_tier.fee, 1)
 		}
 
 		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
