@@ -35,7 +35,6 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	use sp_core::crypto::KeyTypeId;
-	use sp_io::hashing::blake2_256;
 	use sp_runtime::traits::SaturatedConversion;
 
 	// ////////////
@@ -61,10 +60,10 @@ pub mod pallet {
 	static FOUR_WEEKS: u64 = 2419200;
 	// Number of deletions for cleanup
 	static CLEANUP_COUNT: u64 = 10;
+	// Block interval at which offchain workers will be executed
+	const BLOCK_INTERVAL: u32 = 10;
 
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
-	// Define the maximum delay before executing OCWs
-	const MAX_DELAY_BLOCKS: u32 = 10; // Maximum delay of 10 blocks
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -1479,41 +1478,35 @@ pub mod pallet {
 		/// By implementing `fn offchain_worker` you declare a new offchain worker.
 		/// This function will be called when the node is fully synced and a new best block is
 		/// successfully imported.
-		/// Note that it's not guaranteed for offchain workers to run on EVERY block, there might
-		/// be cases where some blocks are skipped, or for some the worker runs twice (re-orgs),
-		/// so the code should be able to handle that.
-
-		// Entry point for off-chain worker execution
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
 			log::info!("Entry to offchain worker");
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
-			log::info!("Signers: {}", signer.can_sign());
+			if !signer.can_sign() {
+				log::info!(
+					"No local accounts available. Consider adding one via `author_insertKey` RPC."
+				);
+			}
 
-			let seed = sp_io::offchain::random_seed();
-			let random: U256 = blake2_256(&seed).into();
-			let random = random.low_u32();
-
-			let _block_number = block_number.saturated_into::<u32>() % MAX_DELAY_BLOCKS;
-			// Generate a random delay before executing OCWs
-			let _delay_blocks = random % MAX_DELAY_BLOCKS;
-			// if block_number >= delay_blocks {
-			// Execute the off-chain worker logic
-			let results = signer.send_signed_transaction(|_account| Call::increment_count {});
-			log::info!("Before for loop");
-			log::info!("Results {:?}", results.len());
-			for (acc, res) in &results {
-				log::info!("After sending transaction, account id: {:?}", acc.index);
-				match res {
-					Ok(()) => log::info!("[{:?}]: Dev mode: submit transaction success.", acc.id),
-					Err(e) => log::info!(
-						"[{:?}]: submit transaction failure. Reason: {:?}",
-						acc.public,
-						e
-					),
+			// Converts block number to u32 format
+			let block_number = block_number.saturated_into::<u32>();
+			if block_number % BLOCK_INTERVAL == 0 {
+				// Using `send_signed_transaction` associated type we create and submit a
+				// transaction representing the call, we've just created.
+				// Submit signed will return a vector of results for all accounts that were found in
+				// the local keystore with expected `KEY_TYPE`.
+				let results = signer.send_signed_transaction(|_account| Call::increment_count {});
+				for (acc, res) in &results {
+					match res {
+						Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
+						Err(e) => log::info!(
+							"[{:?}]: Submit transaction failure. Reason: {:?}",
+							acc.id,
+							e
+						),
+					}
 				}
 			}
-			// }
-			log::info!("hello from offchain worker");
+			log::info!("Exit from offchain worker");
 		}
 	}
 }
