@@ -4,9 +4,9 @@ use pallet_support::{
 	helpers::compute_hash_on_elements,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, Market, MarketRemoved,
-		MarketUpdated, QuorumSet, Setting, SettingsAdded, SignerAdded, SignerRemoved,
-		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate, Market,
+		MarketRemoved, MarketUpdated, QuorumSet, Setting, SettingsAdded, SignerAdded,
+		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -567,7 +567,34 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 	}
 }
 
-pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
+pub fn get_usdc_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_usdc_maker_open_fees(),
+		maker_sell: get_usdc_maker_close_fees(),
+		taker_buy: get_usdc_taker_open_fees(),
+		taker_sell: get_usdc_taker_close_fees(),
+	}
+}
+
+pub fn get_usdt_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_usdt_maker_open_fees(),
+		maker_sell: get_usdt_maker_close_fees(),
+		taker_buy: get_usdt_taker_open_fees(),
+		taker_sell: get_usdt_taker_close_fees(),
+	}
+}
+
+pub fn get_btc_usdc_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_btc_usdc_maker_open_fees(),
+		maker_sell: get_btc_usdc_maker_close_fees(),
+		taker_buy: get_btc_usdc_taker_open_fees(),
+		taker_sell: get_btc_usdc_taker_close_fees(),
+	}
+}
+
+fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -577,7 +604,7 @@ pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.002) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.001) },
@@ -585,7 +612,7 @@ pub fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
+fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -593,7 +620,7 @@ pub fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
+fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -603,7 +630,7 @@ pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.002) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.001) },
@@ -611,7 +638,7 @@ pub fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
+fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -619,7 +646,7 @@ pub fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
+fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -630,7 +657,7 @@ pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.005) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.0045) },
@@ -639,7 +666,7 @@ pub fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
+fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -649,7 +676,7 @@ pub fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
+fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -660,7 +687,7 @@ pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.005) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.0045) },
@@ -669,7 +696,7 @@ pub fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_taker_close_fees() -> Vec<BaseFee> {
+fn get_usdt_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },

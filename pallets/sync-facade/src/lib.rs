@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -23,8 +23,8 @@ pub mod pallet {
 			PricesInterface, TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
-			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
-			Setting, SettingsType, Side, SyncSignature, UniversalEvent,
+			ABRSettingsType, BaseFee, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
+			FeeSettingsType, OrderSide, Setting, SettingsType, Side, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -422,27 +422,12 @@ pub mod pallet {
 				.collect()
 		}
 
-		fn set_fees_internal(
-			id: u128,
-			side: Side,
-			order_side: OrderSide,
-			volumes: &Vec<FixedI128>,
-			fees: &Vec<FixedI128>,
-		) -> Result<(), ()> {
-			match T::TradingFeesPallet::update_base_fees_internal(
-				id,
-				side,
-				order_side,
-				Self::create_base_fee_vec(volumes, fees),
-			) {
+		fn set_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_base_fees_internal(id, fee_details) {
 				Ok(_) => Ok(()),
 				Err(_) => {
-					// Remove partially set fees in Trading Fees pallet
-					T::TradingFeesPallet::remove_base_fees_internal(id);
-
 					// Emit Unknown data event
 					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
 					Err(())
 				},
 			}
@@ -498,45 +483,14 @@ pub mod pallet {
 					continue;
 				}
 
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Buy,
-					OrderSide::Maker,
-					&maker_volumes,
-					&maker_open_fees,
-				) {
-					continue;
-				}
+				let fee_details = BaseFeeAggregate {
+					maker_buy: Self::create_base_fee_vec(&maker_volumes, &maker_open_fees),
+					maker_sell: Self::create_base_fee_vec(&maker_volumes, &maker_close_fees),
+					taker_buy: Self::create_base_fee_vec(&taker_volumes, &taker_open_fees),
+					taker_sell: Self::create_base_fee_vec(&taker_volumes, &taker_close_fees),
+				};
 
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Sell,
-					OrderSide::Maker,
-					&maker_volumes,
-					&maker_close_fees,
-				) {
-					continue;
-				}
-
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Buy,
-					OrderSide::Taker,
-					&taker_volumes,
-					&taker_open_fees,
-				) {
-					continue;
-				}
-
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Sell,
-					OrderSide::Taker,
-					&taker_volumes,
-					&taker_close_fees,
-				) {
-					continue;
-				}
+				let _ = Self::set_fees_internal(id, fee_details);
 
 				Self::remove_settings_from_maps(id);
 			}

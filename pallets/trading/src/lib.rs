@@ -33,7 +33,7 @@ pub mod pallet {
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedI128, FixedPointNumber};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 10;
