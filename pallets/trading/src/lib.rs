@@ -33,7 +33,7 @@ pub mod pallet {
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedI128, FixedPointNumber};
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 10;
@@ -386,7 +386,8 @@ pub mod pallet {
 				Err(e) => return Err(e.into()),
 			}
 
-			let market_fees: BaseFeeAggregate = T::TradingFeesPallet::get_all_fees_test(market_id);
+			let market_fees: BaseFeeAggregate =
+				T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
 			let mut total_order_volume: FixedI128 = FixedI128::zero();
@@ -567,6 +568,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -695,6 +697,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -1404,6 +1407,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
@@ -1453,13 +1457,9 @@ pub mod pallet {
 			)
 			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-				collateral_id,
-				market_id,
-				Side::Buy,
-				order_side,
-				total_30day_volume,
-			);
+			let (fee_rate, _) =
+				Self::get_user_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
+
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
@@ -1489,6 +1489,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<
 			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
 			Error<T>,
@@ -1699,9 +1700,8 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-					collateral_id,
-					order.market_id,
+				let (fee_rate, _) = Self::get_user_fee_rate(
+					&market_fees,
 					Side::Sell,
 					order_side,
 					total_30day_volume,
@@ -2039,6 +2039,45 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 
+		fn get_user_all_fee_rates(
+			market_id: u128,
+			collateral_id: u128,
+			volume: FixedI128,
+		) -> FeeRates {
+			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
+
+			FeeRates {
+				maker_buy: Self::get_user_fee_rate(
+					&fees_details,
+					Side::Buy,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				maker_sell: Self::get_user_fee_rate(
+					&fees_details,
+					Side::Sell,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				taker_buy: Self::get_user_fee_rate(
+					&fees_details,
+					Side::Buy,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
+				taker_sell: Self::get_user_fee_rate(
+					&fees_details,
+					Side::Sell,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
+			}
+		}
+
 		fn get_user_fee_rate(
 			base_fees: &BaseFeeAggregate,
 			side: Side,
@@ -2086,7 +2125,7 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
 			let fee_rates =
-				T::TradingFeesPallet::get_all_fee_rates(market.asset_collateral, last_30day_volume);
+				Self::get_user_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
 
 			let one_day = 24 * 60 * 60;
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();

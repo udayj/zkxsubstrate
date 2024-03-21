@@ -1,9 +1,9 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
-	BaseFee, BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
-	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	Order, OrderSide, Position, PositionExtended, QuorumSet, Setting, SettingsAdded, Side,
-	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag,
+	FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide,
+	Position, PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -86,6 +86,7 @@ pub trait TradingInterface {
 		order_side: OrderSide,
 		volume: FixedI128,
 	) -> (FixedI128, u8);
+	fn get_user_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates;
 }
 
 pub trait AssetInterface {
@@ -163,6 +164,7 @@ pub trait FieldElementExt {
 }
 
 pub trait TradingFeesInterface {
+	fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate;
 	fn remove_base_fees_internal(id: u128);
 	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
 }

@@ -13,12 +13,12 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{
 		dispatch::{DispatchResult, Vec},
-		pallet_prelude::*,
+		pallet_prelude::{ValueQuery, *},
 	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		traits::{AssetInterface, MarketInterface, TradingFeesInterface},
-		types::{BaseFee, BaseFeeAggregate, FeeRates, OrderSide, Side},
+		types::{BaseFee, BaseFeeAggregate, OrderSide, Side},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -63,6 +63,16 @@ pub mod pallet {
 		Blake2_128Concat,
 		u128, // collateral_id or market_id
 		BaseFeeAggregate,
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn is_base_fees_set)]
+	pub(super) type IsBaseFeesSet<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		u128, // collateral_id or market_id
+		bool,
 		ValueQuery,
 	>;
 
@@ -130,7 +140,7 @@ pub mod pallet {
 				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
 			}
 
-			Self::validate_fee_details(&fee_details);
+			Self::validate_fee_details(&fee_details)?;
 
 			// Remove any fees if present
 			BaseFeeMap::<T>::remove(id);
@@ -140,16 +150,24 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate {
+			if IsBaseFeesSet::<T>::get(market_id) {
+				return BaseFeeMap::<T>::get(market_id);
+			} else {
+				return BaseFeeMap::<T>::get(collateral_id);
+			}
+		}
 	}
 
 	// Pallet internal functions
 	impl<T: Config> Pallet<T> {
 		fn validate_fee_details(fee_details: &BaseFeeAggregate) -> DispatchResult {
 			// Validate each variant of BaseFee
-			Self::validate_base_fees(&fee_details.maker_buy);
-			Self::validate_base_fees(&fee_details.maker_sell);
-			Self::validate_base_fees(&fee_details.taker_buy);
-			Self::validate_base_fees(&fee_details.taker_sell);
+			Self::validate_base_fees(&fee_details.maker_buy)?;
+			Self::validate_base_fees(&fee_details.maker_sell)?;
+			Self::validate_base_fees(&fee_details.taker_buy)?;
+			Self::validate_base_fees(&fee_details.taker_sell)?;
 
 			Ok(())
 		}
