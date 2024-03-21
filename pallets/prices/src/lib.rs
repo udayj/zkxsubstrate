@@ -57,7 +57,7 @@ pub mod pallet {
 	// To convert milliseconds to seconds
 	const MILLIS_PER_SECOND: u64 = 1000;
 	// Duration for which price data is available
-	static FOUR_WEEKS: u64 = 2419200;
+	static FOUR_WEEKS: u64 = 683900;
 	// Number of deletions for cleanup
 	static CLEANUP_COUNT: u64 = 10;
 	// Block interval at which offchain workers will be executed
@@ -1489,20 +1489,26 @@ pub mod pallet {
 
 			// Converts block number to u32 format
 			let block_number = block_number.saturated_into::<u32>();
+			// Calls extrinsic after every block interval
 			if block_number % BLOCK_INTERVAL == 0 {
-				// Using `send_signed_transaction` associated type we create and submit a
-				// transaction representing the call, we've just created.
-				// Submit signed will return a vector of results for all accounts that were found in
-				// the local keystore with expected `KEY_TYPE`.
-				let results = signer.send_signed_transaction(|_account| Call::increment_count {});
-				for (acc, res) in &results {
-					match res {
-						Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
-						Err(e) => log::info!(
-							"[{:?}]: Submit transaction failure. Reason: {:?}",
-							acc.id,
-							e
-						),
+				// Call perform prices clean up only when there are prices to clean up
+				let cleanup_calls = Self::get_remaining_prices_cleanup_calls();
+				if cleanup_calls != 0 {
+					// Using `send_signed_transaction` associated type we create and submit a
+					// transaction representing the call, we've just created.
+					// Submit signed will return a vector of results for all accounts that were
+					// found in the local keystore with expected `KEY_TYPE`.
+					let results =
+						signer.send_signed_transaction(|_account| Call::perform_prices_cleanup {});
+					for (acc, res) in &results {
+						match res {
+							Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
+							Err(e) => log::info!(
+								"[{:?}]: Submit transaction failure. Reason: {:?}",
+								acc.id,
+								e
+							),
+						}
 					}
 				}
 			}
