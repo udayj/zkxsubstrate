@@ -29,9 +29,10 @@ fn test_update_fees() {
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			get_usdc_aggregate_fees()
+			expected_fees.clone()
 		));
 
+		// Check the state
 		assert_eq!(TradingFeesModule::get_all_fees(0_u128, usdc().asset.id), expected_fees);
 
 		// Assert that the correct event was deposited
@@ -55,14 +56,10 @@ fn test_update_market_fees() {
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			btc_usdc().market.id,
-			get_btc_usdc_aggregate_fees(),
+			expected_fees.clone(),
 		));
 
-		print!(
-			"BTC FEES:::::: {:?}",
-			TradingFeesModule::get_all_fees(btc_usdc().market.id, usdc().asset.id)
-		);
-
+		// Check the state
 		assert_eq!(
 			TradingFeesModule::get_all_fees(btc_usdc().market.id, usdc().asset.id),
 			expected_fees
@@ -92,9 +89,10 @@ fn test_update_market_fees_0() {
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			btc_usdc().market.id,
-			get_0_aggregate_fees(),
+			expected_fees.clone(),
 		));
 
+		// Check the state
 		assert_eq!(
 			TradingFeesModule::get_all_fees(btc_usdc().market.id, usdc().asset.id),
 			expected_fees

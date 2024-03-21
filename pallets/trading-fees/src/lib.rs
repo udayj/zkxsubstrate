@@ -125,14 +125,6 @@ pub mod pallet {
 	}
 
 	impl<T: Config> TradingFeesInterface for Pallet<T> {
-		fn remove_base_fees_internal(id: u128) {
-			// Remove fees set for the id
-			BaseFeeMap::<T>::remove(id);
-
-			// Unset the storage variable
-			IsBaseFeesSet::<T>::set(id, false);
-		}
-
 		fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult {
 			// Validate that the asset exists and it is a collateral
 			if let Some(asset) = T::AssetPallet::get_asset(id) {
