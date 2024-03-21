@@ -24,7 +24,7 @@ pub mod pallet {
 		},
 		types::{
 			ABRSettingsType, BaseFee, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
-			FeeSettingsType, OrderSide, Setting, SettingsType, Side, SyncSignature, UniversalEvent,
+			FeeSettingsType, Setting, SettingsType, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};

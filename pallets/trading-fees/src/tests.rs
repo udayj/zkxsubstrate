@@ -148,7 +148,6 @@ fn test_update_fees_invalid_collateral() {
 fn test_update_fees_with_invalid_volume() {
 	new_test_ext().execute_with(|| {
 		setup();
-
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
