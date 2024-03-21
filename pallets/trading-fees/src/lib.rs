@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -96,7 +96,14 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Base fees details updated
-		BaseFeesUpdated { fee_tiers: u8 },
+		/// No longer used
+		BaseFeesUpdated {
+			fee_tiers: u8,
+		},
+		BaseFeeAggregateSet {
+			id: u128,
+			base_fee_aggregate: BaseFeeAggregate,
+		},
 	}
 
 	// Pallet callable functions
@@ -119,16 +126,11 @@ pub mod pallet {
 
 	impl<T: Config> TradingFeesInterface for Pallet<T> {
 		fn remove_base_fees_internal(id: u128) {
-			// Delete all combinations of OrderSide and Side
-			for side in &[Side::Buy, Side::Sell] {
-				for order_side in &[OrderSide::Maker, OrderSide::Taker] {
-					let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
-					for i in 1..max_fee_tier + 1 {
-						BaseFeeTierMap::<T>::remove(id, (i, side, &order_side));
-					}
-					MaxBaseFeeTier::<T>::remove(id, order_side);
-				}
-			}
+			// Remove fees set for the id
+			BaseFeeMap::<T>::remove(id);
+
+			// Unset the storage variable
+			IsBaseFeesSet::<T>::set(id, false);
 		}
 
 		fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult {
@@ -140,18 +142,27 @@ pub mod pallet {
 				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
 			}
 
+			// Validate the fee details
 			Self::validate_fee_details(&fee_details)?;
 
 			// Remove any fees if present
 			BaseFeeMap::<T>::remove(id);
 
 			// Add it to storage
-			BaseFeeMap::<T>::set(id, fee_details);
+			BaseFeeMap::<T>::set(id, fee_details.clone());
+
+			// Set boolean value as true
+			IsBaseFeesSet::<T>::set(id, true);
+
+			Self::deposit_event(Event::BaseFeeAggregateSet { id, base_fee_aggregate: fee_details });
 
 			Ok(())
 		}
 
 		fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate {
+			// First try to fetch market fees
+			// If it doesn't exist, fetch asset fees
+			// NOTE: Asset fees can be 0
 			if IsBaseFeesSet::<T>::get(market_id) {
 				return BaseFeeMap::<T>::get(market_id);
 			} else {
