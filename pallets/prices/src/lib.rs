@@ -59,7 +59,7 @@ pub mod pallet {
 	// Duration for which price data is available
 	static FOUR_WEEKS: u64 = 732900;
 	// Number of deletions for cleanup
-	static CLEANUP_COUNT: u64 = 60;
+	static CLEANUP_COUNT: u64 = 120;
 	// Block interval at which offchain workers will be executed
 	const BLOCK_INTERVAL: u32 = 120;
 
