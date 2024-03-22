@@ -1462,12 +1462,14 @@ pub mod pallet {
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				fee,
-				BalanceChangeReason::Fee,
-			);
+			if fee != FixedI128::zero() {
+				T::TradingAccountPallet::transfer_from(
+					order.account_id,
+					collateral_id,
+					fee,
+					BalanceChangeReason::Fee,
+				);
+			}
 
 			Ok((
 				margin_amount,
@@ -1709,12 +1711,14 @@ pub mod pallet {
 				fee = fee.round_to_precision(collateral_token_decimal.into());
 
 				// Deduct fee while closing a position
-				T::TradingAccountPallet::transfer_from(
-					order.account_id,
-					collateral_id,
-					fee,
-					BalanceChangeReason::Fee,
-				);
+				if fee != FixedI128::zero() {
+					T::TradingAccountPallet::transfer_from(
+						order.account_id,
+						collateral_id,
+						fee,
+						BalanceChangeReason::Fee,
+					);
+				}
 
 				fee
 			} else {
