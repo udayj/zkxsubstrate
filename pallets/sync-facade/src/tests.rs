@@ -1210,19 +1210,19 @@ fn sync_settings_event_btc_usdc() {
 		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
 
 		// Check fees for maker
-		let fees_1 = Trading::get_user_fee_rate(
+		let fees_1 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = Trading::get_user_fee_rate(
+		let fees_2 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = Trading::get_user_fee_rate(
+		let fees_3 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
@@ -1235,25 +1235,25 @@ fn sync_settings_event_btc_usdc() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = Trading::get_user_fee_rate(
+		let fees_1 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = Trading::get_user_fee_rate(
+		let fees_2 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = Trading::get_user_fee_rate(
+		let fees_3 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = Trading::get_user_fee_rate(
+		let fees_4 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
@@ -1349,19 +1349,19 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
 
 		// Check fees for maker
-		let fees_1 = Trading::get_user_fee_rate(
+		let fees_1 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = Trading::get_user_fee_rate(
+		let fees_2 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = Trading::get_user_fee_rate(
+		let fees_3 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
@@ -1374,25 +1374,25 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = Trading::get_user_fee_rate(
+		let fees_1 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = Trading::get_user_fee_rate(
+		let fees_2 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = Trading::get_user_fee_rate(
+		let fees_3 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = Trading::get_user_fee_rate(
+		let fees_4 = Trading::get_base_fee_rate(
 			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,

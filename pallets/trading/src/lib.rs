@@ -1457,8 +1457,25 @@ pub mod pallet {
 			)
 			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) =
-				Self::get_user_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
+			let (fee_rate, tier, is_cache_valid) = Self::get_user_fee_rate(
+				order.account_id,
+				market_id,
+				&market_fees,
+				Side::Buy,
+				order_side,
+				total_30day_volume,
+			);
+
+			if !is_cache_valid {
+				T::TradingAccountPallet::set_cache_fee(
+					order.account_id,
+					market_id,
+					order_side,
+					order.side,
+					fee_rate,
+					tier,
+				);
+			}
 
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -1700,12 +1717,25 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) = Self::get_user_fee_rate(
+				let (fee_rate, tier, is_cache_valid) = Self::get_user_fee_rate(
+					order.account_id,
+					order.market_id,
 					&market_fees,
 					Side::Sell,
 					order_side,
 					total_30day_volume,
 				);
+
+				if !is_cache_valid {
+					T::TradingAccountPallet::set_cache_fee(
+						order.account_id,
+						order.market_id,
+						order_side,
+						order.side,
+						fee_rate,
+						tier,
+					);
+				}
 
 				let mut fee = fee_rate * leveraged_order_value;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -2047,28 +2077,28 @@ pub mod pallet {
 			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
 			FeeRates {
-				maker_buy: Self::get_user_fee_rate(
+				maker_buy: Self::get_base_fee_rate(
 					&fees_details,
 					Side::Buy,
 					OrderSide::Maker,
 					volume,
 				)
 				.0,
-				maker_sell: Self::get_user_fee_rate(
+				maker_sell: Self::get_base_fee_rate(
 					&fees_details,
 					Side::Sell,
 					OrderSide::Maker,
 					volume,
 				)
 				.0,
-				taker_buy: Self::get_user_fee_rate(
+				taker_buy: Self::get_base_fee_rate(
 					&fees_details,
 					Side::Buy,
 					OrderSide::Taker,
 					volume,
 				)
 				.0,
-				taker_sell: Self::get_user_fee_rate(
+				taker_sell: Self::get_base_fee_rate(
 					&fees_details,
 					Side::Sell,
 					OrderSide::Taker,
@@ -2079,6 +2109,23 @@ pub mod pallet {
 		}
 
 		fn get_user_fee_rate(
+			account_id: U256,
+			market_id: u128,
+			base_fees: &BaseFeeAggregate,
+			side: Side,
+			order_side: OrderSide,
+			volume: FixedI128,
+		) -> (FixedI128, u8, bool) {
+			match T::TradingAccountPallet::get_cached_fee(account_id, market_id, order_side, side) {
+				Some((fees, tier)) => return (fees, tier, true),
+				None => {
+					let (fee, tier) = Self::get_base_fee_rate(base_fees, side, order_side, volume);
+					return (fee, tier, false);
+				},
+			}
+		}
+
+		fn get_base_fee_rate(
 			base_fees: &BaseFeeAggregate,
 			side: Side,
 			order_side: OrderSide,

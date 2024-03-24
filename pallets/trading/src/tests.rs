@@ -2233,7 +2233,7 @@ fn test_fee_while_opening_order() {
 				order_type: alice_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: 5.into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: true,
 			}
@@ -2248,7 +2248,7 @@ fn test_fee_while_opening_order() {
 				order_type: bob_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: (-5).into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: false,
 			}
@@ -2386,6 +2386,8 @@ fn test_fee_while_closing_order() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		print!("Events: {:?}", System::events());
 
 		// Check for events
 		assert_has_events(vec![

@@ -23,7 +23,7 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
-			Position, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+			OrderSide, Position, Side, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -128,6 +128,25 @@ pub mod pallet {
 	// Here, key1 is account_id and value is vector of collateral_ids
 	pub(super) type AccountCollateralsMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, Vec<u128>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn fee_cache)]
+	// Here, key1 is monetary account, key2 is the market_id and value is a tuple of fee rate, tier
+	// and timestamp
+	pub(super) type FeeCacheMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		U256,
+		Blake2_128Concat,
+		(u128, OrderSide, Side),
+		(FixedI128, u8, u64),
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn fee_cache_ttl)]
+	// Here, key1 is account_id and value is vector of collateral_ids
+	pub(super) type FeeCacheTTL<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -1069,6 +1088,44 @@ pub mod pallet {
 
 		fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128 {
 			Self::calculate_amount_to_withdraw(account_id, collateral_id)
+		}
+
+		fn set_cache_fee(
+			account_id: U256,
+			market_id: u128,
+			order_side: OrderSide,
+			side: Side,
+			fee: FixedI128,
+			tier: u8,
+		) {
+			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
+				FeeCacheMap::<T>::set(
+					trading_account.account_address,
+					(market_id, order_side, side),
+					(fee, tier, T::TimeProvider::now().as_secs()),
+				);
+			}
+		}
+
+		fn get_cached_fee(
+			account_id: U256,
+			market_id: u128,
+			order_side: OrderSide,
+			side: Side,
+		) -> Option<(FixedI128, u8)> {
+			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
+				// Assuming FeeCacheMap::<T>::get returns a tuple inside an Option
+				let (cached_fee, cached_tier, timestamp) = FeeCacheMap::<T>::get(
+					trading_account.account_address,
+					(market_id, order_side, side),
+				);
+
+				if T::TimeProvider::now().as_secs() - timestamp < FeeCacheTTL::<T>::get() {
+					// Correctly returning Some(cached_fee) to match the function's return type
+					return Some((cached_fee, cached_tier));
+				}
+			}
+			None
 		}
 
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days'
