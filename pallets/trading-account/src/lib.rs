@@ -31,6 +31,9 @@ pub mod pallet {
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	use sp_io::hashing::blake2_256;
 
+	// 1 day diff
+	const FEE_DAY_DIFF: usize = 1;
+
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
 
@@ -142,11 +145,6 @@ pub mod pallet {
 		(FixedI128, u8, u64),
 		ValueQuery,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn fee_cache_ttl)]
-	// Here, key1 is account_id and value is vector of collateral_ids
-	pub(super) type FeeCacheTTL<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -1114,13 +1112,15 @@ pub mod pallet {
 			side: Side,
 		) -> Option<(FixedI128, u8)> {
 			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
-				// Assuming FeeCacheMap::<T>::get returns a tuple inside an Option
+				// FeeCacheMap::<T>::get returns a tuple
 				let (cached_fee, cached_tier, timestamp) = FeeCacheMap::<T>::get(
 					trading_account.account_address,
 					(market_id, order_side, side),
 				);
 
-				if T::TimeProvider::now().as_secs() - timestamp < FeeCacheTTL::<T>::get() {
+				if timestamp != 0_u64 &&
+					get_day_diff(timestamp, T::TimeProvider::now().as_secs()) < FEE_DAY_DIFF
+				{
 					// Correctly returning Some(cached_fee) to match the function's return type
 					return Some((cached_fee, cached_tier));
 				}
