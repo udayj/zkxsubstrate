@@ -135,9 +135,9 @@ pub mod pallet {
 	// and timestamp
 	pub(super) type FeeCacheMap<T: Config> = StorageDoubleMap<
 		_,
-		Blake2_128Concat,
+		Twox64Concat,
 		U256,
-		Blake2_128Concat,
+		Twox64Concat,
 		(u128, OrderSide, Side),
 		(FixedI128, u8, u64),
 		ValueQuery,
