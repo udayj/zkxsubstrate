@@ -13,7 +13,7 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{
 		dispatch::{DispatchResult, Vec},
-		pallet_prelude::{ValueQuery, *},
+		pallet_prelude::{OptionQuery, ValueQuery, *},
 	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
@@ -63,17 +63,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		u128, // collateral_id or market_id
 		BaseFeeAggregate,
-		ValueQuery,
-	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn is_base_fees_set)]
-	pub(super) type IsBaseFeesSet<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		u128, // collateral_id or market_id
-		bool,
-		ValueQuery,
+		OptionQuery,
 	>;
 
 	#[pallet::error]
@@ -141,10 +131,7 @@ pub mod pallet {
 			BaseFeeMap::<T>::remove(id);
 
 			// Add it to storage
-			BaseFeeMap::<T>::set(id, fee_details.clone());
-
-			// Set boolean value as true
-			IsBaseFeesSet::<T>::set(id, true);
+			BaseFeeMap::<T>::set(id, Some(fee_details.clone()));
 
 			Self::deposit_event(Event::BaseFeeAggregateSet { id, base_fee_aggregate: fee_details });
 
@@ -155,11 +142,9 @@ pub mod pallet {
 			// First try to fetch market fees
 			// If it doesn't exist, fetch asset fees
 			// NOTE: Asset fees can be 0
-			if IsBaseFeesSet::<T>::get(market_id) {
-				return BaseFeeMap::<T>::get(market_id);
-			} else {
-				return BaseFeeMap::<T>::get(collateral_id);
-			}
+			BaseFeeMap::<T>::get(market_id)
+				.or_else(|| BaseFeeMap::<T>::get(collateral_id))
+				.unwrap_or_else(BaseFeeAggregate::default)
 		}
 	}
 

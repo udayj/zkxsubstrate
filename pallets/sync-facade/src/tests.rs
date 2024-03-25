@@ -55,7 +55,7 @@ fn get_signers() -> Vec<U256> {
 }
 
 fn compare_base_fees(id: u128, expected_value: BaseFeeAggregate) {
-	let actual_fees = TradingFees::base_fees_all(id);
+	let actual_fees = TradingFees::base_fees_all(id).unwrap_or_default();
 
 	assert!(actual_fees == expected_value, "Mismatch fees");
 }
