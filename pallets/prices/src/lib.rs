@@ -57,9 +57,9 @@ pub mod pallet {
 	// To convert milliseconds to seconds
 	const MILLIS_PER_SECOND: u64 = 1000;
 	// Duration for which price data is available
-	static FOUR_WEEKS: u64 = 732900;
+	static FOUR_WEEKS: u64 = 57600;
 	// Number of deletions for cleanup
-	static CLEANUP_COUNT: u64 = 120;
+	static CLEANUP_COUNT: u64 = 60;
 	// Block interval at which offchain workers will be executed
 	const BLOCK_INTERVAL: u32 = 120;
 
