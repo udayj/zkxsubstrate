@@ -193,8 +193,8 @@ pub mod pallet {
 
 				// Ensure volume increases with each tier
 				ensure!(current_fee.volume > prev_fee.volume, Error::<T>::InvalidVolume);
-				// Adjust this comparison based on your actual fee structure requirements
-				ensure!(current_fee.fee < prev_fee.fee, Error::<T>::InvalidFee);
+				// Volume in each tier must more than equal to the previous one
+				ensure!(current_fee.fee <= prev_fee.fee, Error::<T>::InvalidFee);
 			}
 
 			Ok(())
