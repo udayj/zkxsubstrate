@@ -19,7 +19,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{sig_u256_to_sig_felt, TIMESTAMP_START},
+		helpers::{get_expiry_timestamp, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, RiskManagementInterface, TradingAccountInterface,
@@ -34,6 +34,7 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 10;
@@ -2174,12 +2175,7 @@ pub mod pallet {
 			let fee_rates =
 				Self::get_user_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
 
-			let one_day = 24 * 60 * 60;
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let diff = current_timestamp - TIMESTAMP_START;
-			let seconds_to_expiry = one_day - (diff % one_day);
-			let expires_at = current_timestamp + seconds_to_expiry;
-
+			let expires_at: u64 = get_expiry_timestamp(T::TimeProvider::now().as_secs());
 			(fee_rates, expires_at)
 		}
 

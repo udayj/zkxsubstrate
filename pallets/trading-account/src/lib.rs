@@ -16,7 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{get_day_diff, shift_and_recompute, sig_u256_to_sig_felt},
+		helpers::{get_day_diff, get_expiry_timestamp, shift_and_recompute, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
@@ -30,9 +30,6 @@ pub mod pallet {
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
 	use sp_io::hashing::blake2_256;
-
-	// 1 day diff
-	const FEE_DAY_DIFF: usize = 1;
 
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
@@ -1100,7 +1097,7 @@ pub mod pallet {
 				FeeCacheMap::<T>::set(
 					trading_account.account_address,
 					(market_id, order_side, side),
-					(fee, tier, T::TimeProvider::now().as_secs()),
+					(fee, tier, get_expiry_timestamp(T::TimeProvider::now().as_secs())),
 				);
 			}
 		}
@@ -1118,9 +1115,7 @@ pub mod pallet {
 					(market_id, order_side, side),
 				);
 
-				if timestamp != 0_u64 &&
-					get_day_diff(timestamp, T::TimeProvider::now().as_secs()) < FEE_DAY_DIFF
-				{
+				if timestamp > T::TimeProvider::now().as_secs() {
 					// Correctly returning Some(cached_fee) to match the function's return type
 					return Some((cached_fee, cached_tier));
 				}

@@ -7,9 +7,9 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	traits::TradingAccountInterface,
+	traits::{TradingAccountInterface, TradingInterface},
 	types::{
-		BalanceChangeReason, BaseFee, BaseFeeAggregate, Direction, FundModifyType, Order,
+		BalanceChangeReason, BaseFee, BaseFeeAggregate, Direction, FeeRates, FundModifyType, Order,
 		OrderSide, OrderType, Position, Side,
 	},
 };
@@ -3274,6 +3274,19 @@ fn cache_test_open_trade() {
 				taker_sell: fee_details_taker.clone(),
 			}
 		));
+
+		// Check for get_fee function
+		let common_fee_rates = FeeRates {
+			maker_buy: FixedI128::from_inner(20000000000000000),
+			maker_sell: FixedI128::from_inner(20000000000000000),
+			taker_buy: FixedI128::from_inner(50000000000000000),
+			taker_sell: FixedI128::from_inner(50000000000000000),
+		};
+		let alice_fee = Trading::get_fee(alice_id, market_id);
+		let bob_fee = Trading::get_fee(bob_id, market_id);
+
+		assert_eq!(alice_fee, (common_fee_rates, init_timestamp + one_day));
+		assert_eq!(bob_fee, (common_fee_rates, init_timestamp + one_day));
 
 		// Check for cached fee
 		let alice_cache_maker_buy =
