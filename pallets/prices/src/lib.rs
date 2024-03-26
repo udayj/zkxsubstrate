@@ -63,7 +63,7 @@ pub mod pallet {
 	// Block interval at which offchain workers will be executed
 	const BLOCK_INTERVAL: u32 = 120;
 
-	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"ofcw");
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
