@@ -40,7 +40,7 @@ pub mod pallet {
 	use sp_runtime::traits::SaturatedConversion;
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
-	static FOUR_WEEKS: u64 = 57600;
+	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 120;
 	// Block interval at which offchain workers will be executed
 	const BLOCK_INTERVAL: u32 = 120;

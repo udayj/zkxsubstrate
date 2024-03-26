@@ -4612,7 +4612,6 @@ dependencies = [
  "sc-consensus-aura",
  "sc-consensus-grandpa",
  "sc-executor",
- "sc-keystore",
  "sc-network",
  "sc-offchain",
  "sc-rpc-api",
@@ -4631,7 +4630,6 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
- "sp-keystore",
  "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
@@ -5173,6 +5171,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-asset",
  "pallet-market",
  "pallet-prices",
