@@ -309,6 +309,14 @@ pub mod pallet {
 		LiquidatorSignerAdded { signer: U256 },
 		/// Liquidator signer removed
 		LiquidatorSignerRemoved { signer: U256 },
+		/// Liquidation pnl for the system
+		LiquidationPNL {
+			account_id: U256,
+			order_id: U256,
+			market_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
 	}
 
 	// Pallet callable functions
@@ -1559,6 +1567,13 @@ pub mod pallet {
 								collateral_id,
 								current_liquidation_fee - pnl_abs,
 							);
+							Self::deposit_event(Event::LiquidationPNL {
+								account_id: order.account_id,
+								order_id: order.order_id,
+								market_id: order.market_id,
+								amount: pnl,
+								block_number: <frame_system::Pallet<T>>::block_number(),
+							});
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
@@ -1572,6 +1587,13 @@ pub mod pallet {
 								collateral_id,
 								current_liquidation_fee - (pnl_abs - balance),
 							);
+							Self::deposit_event(Event::LiquidationPNL {
+								account_id: order.account_id,
+								order_id: order.order_id,
+								market_id: order.market_id,
+								amount: balance + pnl,
+								block_number: <frame_system::Pallet<T>>::block_number(),
+							});
 						}
 					}
 
@@ -1604,6 +1626,14 @@ pub mod pallet {
 									collateral_id,
 									current_liquidation_fee + margin_plus_pnl,
 								);
+
+								Self::deposit_event(Event::LiquidationPNL {
+									account_id: order.account_id,
+									order_id: order.order_id,
+									market_id: order.market_id,
+									amount: margin_plus_pnl,
+									block_number: <frame_system::Pallet<T>>::block_number(),
+								});
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
@@ -1617,6 +1647,14 @@ pub mod pallet {
 										collateral_id,
 										current_liquidation_fee - margin_amount_to_reduce,
 									);
+
+									Self::deposit_event(Event::LiquidationPNL {
+										account_id: order.account_id,
+										order_id: order.order_id,
+										market_id: order.market_id,
+										amount: -margin_amount_to_reduce,
+										block_number: <frame_system::Pallet<T>>::block_number(),
+									});
 								} else {
 									// if user has some balance
 									let pnl_abs = pnl.saturating_abs();
@@ -1632,6 +1670,14 @@ pub mod pallet {
 											collateral_id,
 											current_liquidation_fee - (pnl_abs - balance),
 										);
+
+										Self::deposit_event(Event::LiquidationPNL {
+											account_id: order.account_id,
+											order_id: order.order_id,
+											market_id: order.market_id,
+											amount: balance + pnl,
+											block_number: <frame_system::Pallet<T>>::block_number(),
+										});
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
 										T::TradingAccountPallet::emit_insurance_fund_change_event(
@@ -1643,6 +1689,14 @@ pub mod pallet {
 											collateral_id,
 											current_liquidation_fee + (balance - pnl_abs),
 										);
+
+										Self::deposit_event(Event::LiquidationPNL {
+											account_id: order.account_id,
+											order_id: order.order_id,
+											market_id: order.market_id,
+											amount: balance + pnl,
+											block_number: <frame_system::Pallet<T>>::block_number(),
+										});
 									}
 								}
 							}
