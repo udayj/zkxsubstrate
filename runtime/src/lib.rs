@@ -10,7 +10,7 @@ use codec::Encode;
 use frame_support::dispatch::Vec;
 use frame_system::EnsureRoot;
 use pallet_grandpa::AuthorityId as GrandpaId;
-use pallet_prices::crypto::TestAuthId;
+use pallet_prices::crypto::AuthId;
 use primitive_types::U256;
 use sp_api::impl_runtime_apis;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -123,7 +123,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 109,
+	spec_version: 117,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -331,7 +331,7 @@ impl pallet_prices::Config for Runtime {
 	type TimeProvider = Timestamp;
 	type TradingPallet = Trading;
 	type TradingAccountPallet = TradingAccount;
-	type AuthorityId = TestAuthId;
+	type AuthorityId = AuthId;
 }
 
 impl pallet_trading_fees::Config for Runtime {
@@ -358,6 +358,7 @@ impl pallet_trading::Config for Runtime {
 	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
 	type TimeProvider = Timestamp;
+	type AuthorityId = AuthId;
 }
 
 impl pallet_node_authorization::Config for Runtime {

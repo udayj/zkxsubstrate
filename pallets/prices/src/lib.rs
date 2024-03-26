@@ -76,10 +76,10 @@ pub mod pallet {
 		};
 		app_crypto!(sr25519, KEY_TYPE);
 
-		pub struct TestAuthId;
+		pub struct AuthId;
 
 		// implemented for runtime
-		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for AuthId {
 			type RuntimeAppPublic = Public;
 			type GenericSignature = sp_core::sr25519::Signature;
 			type GenericPublic = sp_core::sr25519::Public;
@@ -212,10 +212,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn count)]
 	pub(super) type Count<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn block_number)]
-	pub(super) type BlockNumber<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
@@ -367,9 +363,6 @@ pub mod pallet {
 		pub fn increment_count(origin: OriginFor<T>) -> DispatchResult {
 			// Make sure the caller is from a signed origin
 			ensure_signed(origin)?;
-
-			let block_number = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-			BlockNumber::<T>::put(block_number + 1);
 
 			let count = Count::<T>::get();
 			Count::<T>::put(count + 1);
@@ -1479,7 +1472,7 @@ pub mod pallet {
 		/// This function will be called when the node is fully synced and a new best block is
 		/// successfully imported.
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
-			log::info!("Entry to offchain worker");
+			log::info!("Prices Entry to offchain worker");
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				log::info!(
@@ -1512,7 +1505,7 @@ pub mod pallet {
 					}
 				}
 			}
-			log::info!("Exit from offchain worker");
+			log::info!("Prices Exit from offchain worker");
 		}
 	}
 }
