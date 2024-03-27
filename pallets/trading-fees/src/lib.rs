@@ -60,7 +60,7 @@ pub mod pallet {
 	#[pallet::getter(fn base_fees_all)]
 	pub(super) type BaseFeeMap<T: Config> = StorageMap<
 		_,
-		Blake2_128Concat,
+		Twox64Concat,
 		u128, // collateral_id or market_id
 		BaseFeeAggregate,
 		OptionQuery,

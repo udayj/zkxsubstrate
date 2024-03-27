@@ -1145,7 +1145,7 @@ pub mod pallet {
 				Ok(quantity_to_execute)
 			} else {
 				if order.order_type == OrderType::Forced {
-					let force_closure_flag: Option<ForceClosureFlag> =
+					let force_closure_flag =
 						ForceClosureFlagMap::<T>::get(order.account_id, collateral_id);
 
 					// If order type is Forced, force closure flag will always be
@@ -1459,7 +1459,7 @@ pub mod pallet {
 			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) =
-				Self::get_base_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
+				Self::get_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
 
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -1701,12 +1701,8 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) = Self::get_base_fee_rate(
-					&market_fees,
-					Side::Sell,
-					order_side,
-					total_30day_volume,
-				);
+				let (fee_rate, _) =
+					Self::get_fee_rate(&market_fees, Side::Sell, order_side, total_30day_volume);
 
 				let mut fee = fee_rate * leveraged_order_value;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -2040,46 +2036,20 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_user_all_fee_rates(
-			market_id: u128,
-			collateral_id: u128,
-			volume: FixedI128,
-		) -> FeeRates {
+		fn get_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates {
 			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
 			FeeRates {
-				maker_buy: Self::get_base_fee_rate(
-					&fees_details,
-					Side::Buy,
-					OrderSide::Maker,
-					volume,
-				)
-				.0,
-				maker_sell: Self::get_base_fee_rate(
-					&fees_details,
-					Side::Sell,
-					OrderSide::Maker,
-					volume,
-				)
-				.0,
-				taker_buy: Self::get_base_fee_rate(
-					&fees_details,
-					Side::Buy,
-					OrderSide::Taker,
-					volume,
-				)
-				.0,
-				taker_sell: Self::get_base_fee_rate(
-					&fees_details,
-					Side::Sell,
-					OrderSide::Taker,
-					volume,
-				)
-				.0,
+				maker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Maker, volume).0,
+				maker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Maker, volume)
+					.0,
+				taker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Taker, volume).0,
+				taker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Taker, volume)
+					.0,
 			}
 		}
 
-		fn get_base_fee_rate(
+		fn get_fee_rate(
 			base_fees: &BaseFeeAggregate,
 			side: Side,
 			order_side: OrderSide,
@@ -2126,7 +2096,7 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
 			let fee_rates =
-				Self::get_user_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
+				Self::get_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
 
 			let expires_at: u64 = get_expiry_timestamp(T::TimeProvider::now().as_secs());
 			(fee_rates, expires_at)
