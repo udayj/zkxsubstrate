@@ -29,6 +29,7 @@ pub enum UniversalEvent {
 	SignerRemoved(SignerRemoved),
 	QuorumSet(QuorumSet),
 	SettingsAdded(SettingsAdded),
+	ReferralAdded(ReferralAdded),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -99,6 +100,15 @@ pub struct QuorumSet {
 pub struct SettingsAdded {
 	pub event_index: u32,
 	pub settings: BoundedVec<Setting, ConstU32<256>>,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ReferralAdded {
+	pub event_index: u32,
+	pub master_account_address: U256,
+	pub referral_account_address: U256,
+	pub fee_discount: FixedI128,
 	pub block_number: u64,
 }
 

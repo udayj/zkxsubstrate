@@ -23,7 +23,7 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
-			Position, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+			Position, ReferralDetails, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -129,6 +129,20 @@ pub mod pallet {
 	pub(super) type AccountCollateralsMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, Vec<u128>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn master_account)]
+	// Here, key1 is monetary account address and value is referral details with master monetary
+	// address
+	pub(super) type MasterAccountMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, ReferralDetails, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn referral_accounts)]
+	// Here, key1 is monetary account address and value is vector of referral monetary account
+	// addresses
+	pub(super) type ReferralAccountsMap<T: Config> =
+		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
@@ -213,6 +227,11 @@ pub mod pallet {
 			amount: FixedI128,
 			modify_type: FundModifyType,
 			block_number: BlockNumberFor<T>,
+		},
+		ReferralAdded {
+			master_account_address: U256,
+			referral_account_address: U256,
+			fee_discount: FixedI128,
 		},
 	}
 
@@ -365,6 +384,23 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		/// To test adding of referral
+		#[pallet::weight(0)]
+		pub fn add_referral(
+			origin: OriginFor<T>,
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			// Call the internal function to add referral
+			Self::add_referral_internal(referral_account_address, referral_details);
 			Ok(())
 		}
 
@@ -709,6 +745,38 @@ pub mod pallet {
 				return current_balance - max(total_maintenance_requirement, margin_locked) +
 					negative_unrealized_pnl_sum
 			}
+		}
+
+		fn setup_referral(referral_account_address: U256, referral_details: ReferralDetails) {
+			// Both master account and referral account should be registered
+			if !Self::is_registered_user(referral_account_address) ||
+				!Self::is_registered_user(referral_details.master_account_address)
+			{
+				return;
+			}
+
+			let referral = MasterAccountMap::<T>::get(referral_account_address);
+			// Referral account can belong to only one master account
+			if referral.fee_discount != FixedI128::zero() {
+				return;
+			}
+			MasterAccountMap::<T>::set(referral_account_address, referral_details);
+			let referrals = ReferralAccountsMap::<T>::get(referral_details.master_account_address);
+			if !referrals.is_empty() {
+				ReferralAccountsMap::<T>::append(
+					referral_details.master_account_address,
+					referral_account_address,
+				);
+			} else {
+				let mut referrals_list = Vec::<U256>::new();
+				referrals_list.push(referral_account_address);
+			}
+
+			Self::deposit_event(Event::ReferralAdded {
+				master_account_address: referral_details.master_account_address,
+				referral_account_address,
+				fee_discount: referral_details.fee_discount,
+			});
 		}
 	}
 
@@ -1186,6 +1254,13 @@ pub mod pallet {
 				}
 			}
 			Err(Error::<T>::AccountDoesNotExist)
+		}
+
+		fn add_referral_internal(
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+		) {
+			Self::setup_referral(referral_account_address, referral_details);
 		}
 	}
 }

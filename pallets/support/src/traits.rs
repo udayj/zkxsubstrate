@@ -2,8 +2,8 @@ use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
 	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, FundModifyType,
 	HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position,
-	PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	PositionExtended, QuorumSet, ReferralAdded, ReferralDetails, Setting, SettingsAdded, Side,
+	SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -60,6 +60,7 @@ pub trait TradingAccountInterface {
 		new_volume: FixedI128,
 	) -> Result<FixedI128, Self::VolumeError>;
 	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
+	fn add_referral_internal(referral_account_address: U256, referral_details: ReferralDetails);
 }
 
 pub trait TradingInterface {
@@ -237,6 +238,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_settings_added_event(
 		&mut self,
 		settings_added: &SettingsAdded,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_referral_added_event(
+		&mut self,
+		referral_added_event: &ReferralAdded,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,

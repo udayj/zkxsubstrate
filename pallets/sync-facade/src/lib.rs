@@ -24,7 +24,7 @@ pub mod pallet {
 		},
 		types::{
 			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
-			Setting, SettingsType, Side, SyncSignature, UniversalEvent,
+			ReferralDetails, Setting, SettingsType, Side, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -837,6 +837,15 @@ pub mod pallet {
 					UniversalEvent::SettingsAdded(settings_added) => {
 						Self::handle_settings(&settings_added.settings);
 					},
+					UniversalEvent::ReferralAdded(referral_added) => {
+						T::TradingAccountPallet::add_referral_internal(
+							referral_added.referral_account_address,
+							ReferralDetails {
+								master_account_address: referral_added.master_account_address,
+								fee_discount: referral_added.fee_discount,
+							},
+						);
+					},
 				}
 			}
 		}
@@ -917,6 +926,8 @@ pub mod pallet {
 					(quorum_set.block_number, quorum_set.event_index),
 				UniversalEvent::SettingsAdded(settings_added) =>
 					(settings_added.block_number, settings_added.event_index),
+				UniversalEvent::ReferralAdded(referral_added) =>
+					(referral_added.block_number, referral_added.event_index),
 			}
 		}
 	}

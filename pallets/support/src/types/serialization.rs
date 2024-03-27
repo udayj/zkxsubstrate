@@ -2,8 +2,8 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, Setting, SettingsAdded, SignerAdded, SignerRemoved, TradingAccountMinimal,
-		UniversalEvent, UserDeposit,
+		MarketUpdated, ReferralAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 };
 use frame_support::dispatch::Vec;
@@ -253,6 +253,21 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::from(quorum_set.block_number));
 	}
 
+	fn try_append_referral_added_event(
+		&mut self,
+		referral_added_event: &ReferralAdded,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(9_u8));
+		self.push(FieldElement::from(referral_added_event.event_index));
+		self.try_append_u256(referral_added_event.master_account_address)?;
+		self.try_append_u256(referral_added_event.referral_account_address)?;
+		self.try_append_fixedi128(referral_added_event.fee_discount)?;
+		self.push(FieldElement::from(referral_added_event.block_number));
+
+		Ok(())
+	}
+
 	fn try_append_universal_event_array(
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
@@ -285,6 +300,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				},
 				UniversalEvent::SettingsAdded(settings_added) => {
 					self.try_append_settings_added_event(settings_added)?;
+				},
+				UniversalEvent::ReferralAdded(referral_added) => {
+					self.try_append_referral_added_event(referral_added)?;
 				},
 			}
 		}
