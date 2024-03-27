@@ -2139,13 +2139,8 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		/// Offchain worker entry point.
-		///
-		/// By implementing `fn offchain_worker` you declare a new offchain worker.
-		/// This function will be called when the node is fully synced and a new best block is
-		/// successfully imported.
+		/// Offchain worker entry point
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
-			log::info!("Trading Entry to offchain worker");
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				log::info!(
@@ -2157,13 +2152,9 @@ pub mod pallet {
 			let block_number = block_number.saturated_into::<u32>();
 			// Calls extrinsic after every block interval
 			if block_number % BLOCK_INTERVAL == 0 {
-				// Call perform prices clean up only when there are prices to clean up
+				// Call perform trading clean up only when there are orders to clean up
 				let cleanup_calls = Self::get_remaining_trading_cleanup_calls();
 				if cleanup_calls != 0 {
-					// Using `send_signed_transaction` associated type we create and submit a
-					// transaction representing the call, we've just created.
-					// Submit signed will return a vector of results for all accounts that were
-					// found in the local keystore with expected `KEY_TYPE`.
 					let results =
 						signer.send_signed_transaction(|_account| Call::perform_cleanup {});
 					for (acc, res) in &results {
@@ -2178,7 +2169,6 @@ pub mod pallet {
 					}
 				}
 			}
-			log::info!("Trading Exit from offchain worker");
 		}
 	}
 }

@@ -209,10 +209,6 @@ pub mod pallet {
 	// v - Default maximum ABR allowed
 	pub(super) type MaxABRDefault<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn count)]
-	pub(super) type Count<T: Config> = StorageValue<_, u32, ValueQuery>;
-
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -355,17 +351,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			Self::set_default_max_abr_internal(max_abr_value);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn increment_count(origin: OriginFor<T>) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			let count = Count::<T>::get();
-			Count::<T>::put(count + 1);
 
 			Ok(())
 		}
@@ -1466,13 +1451,8 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		/// Offchain worker entry point.
-		///
-		/// By implementing `fn offchain_worker` you declare a new offchain worker.
-		/// This function will be called when the node is fully synced and a new best block is
-		/// successfully imported.
+		/// Offchain worker entry point
 		fn offchain_worker(block_number: BlockNumberFor<T>) {
-			log::info!("Prices Entry to offchain worker");
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				log::info!(
@@ -1487,10 +1467,6 @@ pub mod pallet {
 				// Call perform prices clean up only when there are prices to clean up
 				let cleanup_calls = Self::get_remaining_prices_cleanup_calls();
 				if cleanup_calls != 0 {
-					// Using `send_signed_transaction` associated type we create and submit a
-					// transaction representing the call, we've just created.
-					// Submit signed will return a vector of results for all accounts that were
-					// found in the local keystore with expected `KEY_TYPE`.
 					let results =
 						signer.send_signed_transaction(|_account| Call::perform_prices_cleanup {});
 					for (acc, res) in &results {
@@ -1505,7 +1481,6 @@ pub mod pallet {
 					}
 				}
 			}
-			log::info!("Prices Exit from offchain worker");
 		}
 	}
 }
