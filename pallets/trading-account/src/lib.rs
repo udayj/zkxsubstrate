@@ -134,14 +134,14 @@ pub mod pallet {
 	// Here, key1 is monetary account address and value is referral details with master monetary
 	// address
 	pub(super) type MasterAccountMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, ReferralDetails, ValueQuery>;
+		StorageMap<_, Twox64Concat, U256, ReferralDetails, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
 	// Here, key1 is monetary account address and value is vector of referral monetary account
 	// addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, U256, Vec<U256>, ValueQuery>;
+		StorageMap<_, Twox64Concat, U256, Vec<U256>, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -757,7 +757,7 @@ pub mod pallet {
 
 			let referral = MasterAccountMap::<T>::get(referral_account_address);
 			// Referral account can belong to only one master account
-			if referral.fee_discount != FixedI128::zero() {
+			if referral.master_account_address != U256::zero() {
 				return;
 			}
 			MasterAccountMap::<T>::set(referral_account_address, referral_details);
