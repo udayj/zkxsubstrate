@@ -7,19 +7,14 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	traits::{TradingAccountInterface, TradingInterface},
-	types::{
-		BalanceChangeReason, BaseFee, BaseFeeAggregate, Direction, FeeRates, FundModifyType, Order,
-		OrderSide, OrderType, Position, Side,
-	},
+	traits::TradingInterface,
+	types::{BaseFee, BaseFeeAggregate, Direction, FeeRates, Order, OrderType, Position, Side},
 };
-use pallet_trading_account::Event as TradingAccountEvent;
 use primitive_types::U256;
 use sp_arithmetic::{
 	traits::{One, Zero},
 	FixedI128,
 };
-use sp_io::TestExternalities;
 
 fn assert_has_events(expected_events: Vec<RuntimeEvent>) {
 	for expected_event in &expected_events {
@@ -63,82 +58,6 @@ fn setup() -> sp_io::TestExternalities {
 	});
 
 	env
-}
-
-fn execute_simple_open_trade(env: &mut TestExternalities) {
-	env.execute_with(|| {
-		// Generate account_ids
-		let alice_id: U256 = get_trading_account_id(alice());
-		let bob_id: U256 = get_trading_account_id(bob());
-
-		// market id
-		let market_id = btc_usdc().market.id;
-
-		// Create orders
-		let alice_order = Order::new(U256::from(201), alice_id)
-			.set_price(1001.into())
-			.sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(U256::from(202), bob_id)
-			.set_price(1001.into())
-			.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
-
-		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
-			// batch_id
-			U256::from(1_u8),
-			// quantity_locked
-			1.into(),
-			// market_id
-			market_id,
-			// oracle_price
-			1001.into(),
-			// orders
-			vec![alice_order.clone(), bob_order.clone()],
-			// batch_timestamp
-			1698796800000,
-		));
-	});
-}
-
-fn execute_simple_close_trade(env: &mut TestExternalities) {
-	env.execute_with(|| {
-		// Generate account_ids
-		let alice_id: U256 = get_trading_account_id(alice());
-		let bob_id: U256 = get_trading_account_id(bob());
-
-		// market id
-		let market_id = btc_usdc().market.id;
-
-		// Create orders
-		let alice_order = Order::new(U256::from(203), alice_id)
-			.set_price(1001.into())
-			.set_side(Side::Sell)
-			.sign_order(get_private_key(alice().pub_key));
-		let bob_order = Order::new(U256::from(204), bob_id)
-			.set_price(1001.into())
-			.set_side(Side::Sell)
-			.set_direction(Direction::Short)
-			.set_order_type(OrderType::Market)
-			.sign_order(get_private_key(bob().pub_key));
-
-		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
-			// batch_id
-			U256::from(2_u8),
-			// quantity_locked
-			1.into(),
-			// market_id
-			market_id,
-			// oracle_price
-			1001.into(),
-			// orders
-			vec![alice_order.clone(), bob_order.clone()],
-			// batch_timestamp
-			1698796800000,
-		));
-	});
 }
 
 #[test]
@@ -3240,7 +3159,7 @@ fn it_reverts_when_user_cant_cover_losses() {
 }
 
 #[test]
-fn cache_test_open_trade() {
+fn test_fee_rates() {
 	// Get a test environment
 	let mut env = setup();
 
@@ -3287,195 +3206,5 @@ fn cache_test_open_trade() {
 
 		assert_eq!(alice_fee, (common_fee_rates, init_timestamp + one_day));
 		assert_eq!(bob_fee, (common_fee_rates, init_timestamp + one_day));
-
-		// Check for cached fee
-		let alice_cache_maker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Buy);
-		let alice_cache_maker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Sell);
-		let alice_cache_taker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Buy);
-		let alice_cache_taker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_taker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Buy);
-		let bob_cache_taker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_maker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Buy);
-		let bob_cache_maker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Sell);
-
-		assert!(alice_cache_maker_buy.is_none(), "Alice Maker Buy fee mismatch");
-		assert!(alice_cache_maker_sell.is_none(), "Alice Maker Sell fee mismatch");
-		assert!(alice_cache_taker_buy.is_none(), "Alice Taker Buy fee mismatch");
-		assert!(alice_cache_taker_sell.is_none(), "Alice Taker Sell fee mismatch");
-		assert!(bob_cache_taker_buy.is_none(), "Bob Taker Buy fee mismatch");
-		assert!(bob_cache_taker_sell.is_none(), "Bob Taker Sell fee mismatch");
-		assert!(bob_cache_maker_buy.is_none(), "Bob Maker Buy fee mismatch");
-		assert!(bob_cache_maker_sell.is_none(), "Bob Maker Sell fee mismatch");
-	});
-
-	// Execute simple trade for day 1
-	execute_simple_open_trade(&mut env);
-
-	// Go forward a day
-	env.execute_with(|| {
-		// Check fee events for the previous trade
-		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChange {
-				trading_account: alice(),
-				collateral_id,
-				amount: FixedI128::from_inner(20020000000000000000),
-				modify_type: FundModifyType::Decrease,
-				reason: BalanceChangeReason::Fee.into(),
-				block_number: 1,
-			}
-			.into(),
-			TradingAccountEvent::UserBalanceChange {
-				trading_account: bob(),
-				collateral_id,
-				amount: FixedI128::from_inner(50050000000000000000),
-				modify_type: FundModifyType::Decrease,
-				reason: BalanceChangeReason::Fee.into(),
-				block_number: 1,
-			}
-			.into(),
-		]);
-
-		// Check for cached fee
-		let alice_cache_maker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Buy);
-		let alice_cache_maker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Sell);
-		let alice_cache_taker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Buy);
-		let alice_cache_taker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_taker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Buy);
-		let bob_cache_taker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_maker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Buy);
-		let bob_cache_maker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Sell);
-
-		assert_eq!(
-			alice_cache_maker_buy.unwrap(),
-			(FixedI128::from_inner(20000000000000000), 1_u8),
-			"Alice Maker Buy fee mismatch"
-		);
-		assert_eq!(
-			bob_cache_taker_buy.unwrap(),
-			(FixedI128::from_inner(50000000000000000), 1_u8),
-			"Bob Taker Buy fee mismatch"
-		);
-		assert!(alice_cache_maker_sell.is_none(), "Alice Maker Sell fee mismatch");
-		assert!(alice_cache_taker_buy.is_none(), "Alice Taker Buy fee mismatch");
-		assert!(alice_cache_taker_sell.is_none(), "Alice Taker Sell fee mismatch");
-		assert!(bob_cache_taker_sell.is_none(), "Bob Taker Sell fee mismatch");
-		assert!(bob_cache_maker_buy.is_none(), "Bob Maker Buy fee mismatch");
-		assert!(bob_cache_maker_sell.is_none(), "Bob Maker Sell fee mismatch");
-	});
-
-	// Execute simple trade close for day 1
-	execute_simple_close_trade(&mut env);
-
-	env.execute_with(|| {
-		// Check fee events for the previous trade
-		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChange {
-				trading_account: alice(),
-				collateral_id,
-				amount: FixedI128::from_inner(20020000000000000000),
-				modify_type: FundModifyType::Decrease,
-				reason: BalanceChangeReason::Fee.into(),
-				block_number: 1,
-			}
-			.into(),
-			TradingAccountEvent::UserBalanceChange {
-				trading_account: bob(),
-				collateral_id,
-				amount: FixedI128::from_inner(50050000000000000000),
-				modify_type: FundModifyType::Decrease,
-				reason: BalanceChangeReason::Fee.into(),
-				block_number: 1,
-			}
-			.into(),
-		]);
-
-		// Check for cached fee
-		let alice_cache_maker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Buy);
-		let alice_cache_maker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Sell);
-		let alice_cache_taker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Buy);
-		let alice_cache_taker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_taker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Buy);
-		let bob_cache_taker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_maker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Buy);
-		let bob_cache_maker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Sell);
-
-		assert_eq!(
-			alice_cache_maker_buy.unwrap(),
-			(FixedI128::from_inner(20000000000000000), 1_u8),
-			"Alice Maker Buy fee mismatch"
-		);
-		assert_eq!(
-			alice_cache_maker_sell.unwrap(),
-			(FixedI128::from_inner(20000000000000000), 1_u8),
-			"Alice Maker Sell fee mismatch"
-		);
-		assert_eq!(
-			bob_cache_taker_buy.unwrap(),
-			(FixedI128::from_inner(50000000000000000), 1_u8),
-			"Bob Taker Buy fee mismatch"
-		);
-		assert_eq!(
-			bob_cache_taker_sell.unwrap(),
-			(FixedI128::from_inner(50000000000000000), 1_u8),
-			"Bob Taker Sell fee mismatch"
-		);
-		assert!(alice_cache_taker_buy.is_none(), "Alice Taker Buy fee mismatch");
-		assert!(alice_cache_taker_sell.is_none(), "Alice Taker Sell fee mismatch");
-		assert!(bob_cache_maker_buy.is_none(), "Bob Maker Buy fee mismatch");
-		assert!(bob_cache_maker_sell.is_none(), "Bob Maker Sell fee mismatch");
-
-		// Fast Forward a day
-		Timestamp::set_timestamp((init_timestamp + one_day) * 1000);
-
-		// Check for cached fee
-		let alice_cache_maker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Buy);
-		let alice_cache_maker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Maker, Side::Sell);
-		let alice_cache_taker_buy =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Buy);
-		let alice_cache_taker_sell =
-			TradingAccounts::get_cached_fee(alice_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_taker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Buy);
-		let bob_cache_taker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Taker, Side::Sell);
-		let bob_cache_maker_buy =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Buy);
-		let bob_cache_maker_sell =
-			TradingAccounts::get_cached_fee(bob_id, market_id, OrderSide::Maker, Side::Sell);
-
-		assert!(alice_cache_maker_buy.is_none(), "Alice Maker Buy fee mismatch");
-		assert!(alice_cache_maker_sell.is_none(), "Alice Maker Sell fee mismatch");
-		assert!(alice_cache_taker_buy.is_none(), "Alice Taker Buy fee mismatch");
-		assert!(alice_cache_taker_sell.is_none(), "Alice Taker Sell fee mismatch");
-		assert!(bob_cache_taker_buy.is_none(), "Bob Taker Buy fee mismatch");
-		assert!(bob_cache_taker_sell.is_none(), "Bob Taker Sell fee mismatch");
-		assert!(bob_cache_maker_buy.is_none(), "Bob Maker Buy fee mismatch");
-		assert!(bob_cache_maker_sell.is_none(), "Bob Maker Sell fee mismatch");
 	});
 }

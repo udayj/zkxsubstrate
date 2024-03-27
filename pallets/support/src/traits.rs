@@ -60,20 +60,6 @@ pub trait TradingAccountInterface {
 		new_volume: FixedI128,
 	) -> Result<FixedI128, Self::VolumeError>;
 	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
-	fn get_cached_fee(
-		account_id: U256,
-		market_id: u128,
-		order_side: OrderSide,
-		side: Side,
-	) -> Option<(FixedI128, u8)>;
-	fn set_cache_fee(
-		account_id: U256,
-		market_id: u128,
-		order_side: OrderSide,
-		side: Side,
-		fee: FixedI128,
-		tier: u8,
-	);
 }
 
 pub trait TradingInterface {
@@ -94,14 +80,6 @@ pub trait TradingInterface {
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_remaining_trading_cleanup_calls() -> u64;
-	fn get_user_fee_rate(
-		account_id: U256,
-		market_id: u128,
-		base_fees: &BaseFeeAggregate,
-		side: Side,
-		order_side: OrderSide,
-		volume: FixedI128,
-	) -> (FixedI128, u8, bool);
 	fn get_base_fee_rate(
 		base_fees: &BaseFeeAggregate,
 		side: Side,
