@@ -134,7 +134,7 @@ pub mod pallet {
 	// Here, key1 is monetary account address and value is referral details with master monetary
 	// address
 	pub(super) type MasterAccountMap<T: Config> =
-		StorageMap<_, Twox64Concat, U256, ReferralDetails, ValueQuery>;
+		StorageMap<_, Twox64Concat, U256, ReferralDetails, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
@@ -142,6 +142,12 @@ pub mod pallet {
 	// addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, Vec<U256>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn master_account_level)]
+	// It stores master account level
+	pub(super) type MasterAccountLevel<T: Config> =
+		StorageMap<_, Twox64Concat, U256, u8, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -401,6 +407,23 @@ pub mod pallet {
 
 			// Call the internal function to add referral
 			Self::add_referral_internal(referral_account_address, referral_details);
+			Ok(())
+		}
+
+		/// To test adding of referral
+		#[pallet::weight(0)]
+		pub fn update_master_account_level(
+			origin: OriginFor<T>,
+			master_account_address: U256,
+			level: u8,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			// Call the internal function to add referral
+			Self::modify_master_account_level(master_account_address, level);
 			Ok(())
 		}
 
@@ -747,20 +770,23 @@ pub mod pallet {
 			}
 		}
 
-		fn setup_referral(referral_account_address: U256, referral_details: ReferralDetails) {
+		fn setup_referral(
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+		) -> bool {
 			// Both master account and referral account should be registered
 			if !Self::is_registered_user(referral_account_address) ||
 				!Self::is_registered_user(referral_details.master_account_address)
 			{
-				return;
+				return false;
 			}
 
 			let referral = MasterAccountMap::<T>::get(referral_account_address);
 			// Referral account can belong to only one master account
-			if referral.master_account_address != U256::zero() {
-				return;
+			if referral.is_some() {
+				return false;
 			}
-			MasterAccountMap::<T>::set(referral_account_address, referral_details);
+			MasterAccountMap::<T>::set(referral_account_address, Some(referral_details));
 			let referrals = ReferralAccountsMap::<T>::get(referral_details.master_account_address);
 			if !referrals.is_empty() {
 				ReferralAccountsMap::<T>::append(
@@ -777,6 +803,12 @@ pub mod pallet {
 				referral_account_address,
 				fee_discount: referral_details.fee_discount,
 			});
+
+			true
+		}
+
+		fn modify_master_account_level(master_account_address: U256, level: u8) {
+			MasterAccountLevel::<T>::set(master_account_address, level);
 		}
 	}
 
@@ -1259,8 +1291,12 @@ pub mod pallet {
 		fn add_referral_internal(
 			referral_account_address: U256,
 			referral_details: ReferralDetails,
-		) {
-			Self::setup_referral(referral_account_address, referral_details);
+		) -> bool {
+			Self::setup_referral(referral_account_address, referral_details)
+		}
+
+		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
+			Self::modify_master_account_level(master_account_address, level);
 		}
 	}
 }
