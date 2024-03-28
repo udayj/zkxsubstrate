@@ -138,7 +138,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
-	// Here, key1 is (monetary account address, index) and value is vector of referral
+	// Here, key1 is (monetary account address, index) and value is referral
 	// monetary account addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
 		StorageMap<_, Twox64Concat, (U256, u64), U256, ValueQuery>;
