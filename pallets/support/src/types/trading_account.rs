@@ -54,6 +54,14 @@ pub struct WithdrawalRequest {
 	pub hash_type: HashType,
 }
 
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
+pub struct ReferralDetails {
+	pub master_account_address: U256,
+	pub fee_discount: FixedI128,
+}
+
 impl TradingAccountMinimal {
 	pub fn new(account_address: U256, pub_key: U256, index: u8) -> TradingAccountMinimal {
 		TradingAccountMinimal { account_address, pub_key, index }
