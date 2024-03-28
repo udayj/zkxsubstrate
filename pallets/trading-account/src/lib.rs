@@ -138,10 +138,16 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
-	// Here, key1 is monetary account address and value is vector of referral monetary account
-	// addresses
+	// Here, key1 is (monetary account address, index) and value is vector of referral
+	// monetary account addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
-		StorageMap<_, Twox64Concat, U256, Vec<U256>, ValueQuery>;
+		StorageMap<_, Twox64Concat, (U256, u64), U256, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn referrals_count)]
+	// Here, key1 is monetary account address and value is number of referrals
+	pub(super) type ReferralsCountMap<T: Config> =
+		StorageMap<_, Twox64Concat, U256, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn master_account_level)]
@@ -789,17 +795,18 @@ pub mod pallet {
 			if referral.is_some() {
 				return false;
 			}
-			MasterAccountMap::<T>::set(referral_account_address, Some(referral_details));
-			let referrals = ReferralAccountsMap::<T>::get(referral_details.master_account_address);
-			if !referrals.is_empty() {
-				ReferralAccountsMap::<T>::append(
-					referral_details.master_account_address,
-					referral_account_address,
-				);
-			} else {
-				let mut referrals_list = Vec::<U256>::new();
-				referrals_list.push(referral_account_address);
-			}
+
+			MasterAccountMap::<T>::insert(referral_account_address, referral_details);
+			let referrals_count =
+				ReferralsCountMap::<T>::get(referral_details.master_account_address);
+			ReferralAccountsMap::<T>::set(
+				(referral_details.master_account_address, referrals_count),
+				referral_account_address,
+			);
+			ReferralsCountMap::<T>::set(
+				referral_details.master_account_address,
+				referrals_count + 1,
+			);
 
 			Self::deposit_event(Event::ReferralAdded {
 				master_account_address: referral_details.master_account_address,
