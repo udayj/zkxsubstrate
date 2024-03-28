@@ -848,6 +848,7 @@ pub mod pallet {
 								master_account_address: referral_added.master_account_address,
 								fee_discount: referral_added.fee_discount,
 							},
+							referral_added.referral_code,
 						) {
 							false => Self::deposit_event(Event::AddReferralError {
 								master_account_address: referral_added.master_account_address,

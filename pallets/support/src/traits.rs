@@ -64,6 +64,7 @@ pub trait TradingAccountInterface {
 	fn add_referral_internal(
 		referral_account_address: U256,
 		referral_details: ReferralDetails,
+		referral_code: U256,
 	) -> bool;
 	fn update_master_account_level_internal(master_account_address: U256, level: u8);
 }

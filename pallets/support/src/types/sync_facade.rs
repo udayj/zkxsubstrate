@@ -110,6 +110,7 @@ pub struct ReferralAdded {
 	pub master_account_address: U256,
 	pub referral_account_address: U256,
 	pub fee_discount: FixedI128,
+	pub referral_code: U256,
 	pub block_number: u64,
 }
 

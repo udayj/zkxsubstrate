@@ -238,6 +238,7 @@ pub mod pallet {
 			master_account_address: U256,
 			referral_account_address: U256,
 			fee_discount: FixedI128,
+			referral_code: U256,
 		},
 	}
 
@@ -399,6 +400,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			referral_account_address: U256,
 			referral_details: ReferralDetails,
+			referral_code: U256,
 		) -> DispatchResult {
 			if !IS_DEV_ENABLED {
 				return Err(Error::<T>::DevOnlyCall.into())
@@ -406,11 +408,11 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Call the internal function to add referral
-			Self::add_referral_internal(referral_account_address, referral_details);
+			Self::setup_referral(referral_account_address, referral_details, referral_code);
 			Ok(())
 		}
 
-		/// To test adding of referral
+		/// To test updating master account level
 		#[pallet::weight(0)]
 		pub fn update_master_account_level(
 			origin: OriginFor<T>,
@@ -422,7 +424,7 @@ pub mod pallet {
 			}
 			ensure_signed(origin)?;
 
-			// Call the internal function to add referral
+			// Call the internal function to update account level
 			Self::modify_master_account_level(master_account_address, level);
 			Ok(())
 		}
@@ -773,6 +775,7 @@ pub mod pallet {
 		fn setup_referral(
 			referral_account_address: U256,
 			referral_details: ReferralDetails,
+			referral_code: U256,
 		) -> bool {
 			// Both master account and referral account should be registered
 			if !Self::is_registered_user(referral_account_address) ||
@@ -802,6 +805,7 @@ pub mod pallet {
 				master_account_address: referral_details.master_account_address,
 				referral_account_address,
 				fee_discount: referral_details.fee_discount,
+				referral_code,
 			});
 
 			true
@@ -1291,8 +1295,9 @@ pub mod pallet {
 		fn add_referral_internal(
 			referral_account_address: U256,
 			referral_details: ReferralDetails,
+			referral_code: U256,
 		) -> bool {
-			Self::setup_referral(referral_account_address, referral_details)
+			Self::setup_referral(referral_account_address, referral_details, referral_code)
 		}
 
 		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
