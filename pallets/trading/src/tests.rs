@@ -7,7 +7,8 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, Order, OrderSide, OrderType, Position, Side},
+	traits::TradingInterface,
+	types::{BaseFee, BaseFeeAggregate, Direction, FeeRates, Order, OrderType, Position, Side},
 };
 use primitive_types::U256;
 use sp_arithmetic::{
@@ -2090,16 +2091,12 @@ fn test_fee_while_opening_order() {
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::root(),
 			collateral_id,
-			Side::Buy,
-			OrderSide::Maker,
-			fee_details_maker.clone(),
-		));
-		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::root(),
-			collateral_id,
-			Side::Buy,
-			OrderSide::Taker,
-			fee_details_taker.clone(),
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+			}
 		));
 
 		// Create orders
@@ -2237,7 +2234,7 @@ fn test_fee_while_opening_order() {
 				order_type: alice_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: 5.into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: true,
 			}
@@ -2252,7 +2249,7 @@ fn test_fee_while_opening_order() {
 				order_type: bob_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: (-5).into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: false,
 			}
@@ -2279,16 +2276,12 @@ fn test_fee_while_closing_order() {
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::root(),
 			collateral_id,
-			Side::Sell,
-			OrderSide::Maker,
-			fee_details_maker.clone(),
-		));
-		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::root(),
-			collateral_id,
-			Side::Sell,
-			OrderSide::Taker,
-			fee_details_taker.clone(),
+			BaseFeeAggregate {
+				maker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				maker_sell: fee_details_maker.clone(),
+				taker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_sell: fee_details_taker.clone(),
+			}
 		));
 
 		// Create orders
@@ -2394,6 +2387,8 @@ fn test_fee_while_closing_order() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		print!("Events: {:?}", System::events());
 
 		// Check for events
 		assert_has_events(vec![
@@ -3160,5 +3155,56 @@ fn it_reverts_when_user_cant_cover_losses() {
 			// batch_timestamp
 			1699940367000,
 		));
+	});
+}
+
+#[test]
+fn test_fee_rates() {
+	// Get a test environment
+	let mut env = setup();
+
+	// User accounts
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	// market id
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	// Initial timestamp
+	let init_timestamp = 1698796800;
+	let one_day = 60 * 60 * 24;
+
+	// Get the fees
+	let (fee_details_maker, fee_details_taker) = setup_fee();
+
+	env.execute_with(|| {
+		// Set the init timestamp
+		Timestamp::set_timestamp(init_timestamp * 1000);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: fee_details_maker.clone(),
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: fee_details_taker.clone(),
+			}
+		));
+
+		// Check for get_fee function
+		let common_fee_rates = FeeRates {
+			maker_buy: FixedI128::from_inner(20000000000000000),
+			maker_sell: FixedI128::from_inner(20000000000000000),
+			taker_buy: FixedI128::from_inner(50000000000000000),
+			taker_sell: FixedI128::from_inner(50000000000000000),
+		};
+		let alice_fee = Trading::get_fee(alice_id, market_id);
+		let bob_fee = Trading::get_fee(bob_id, market_id);
+
+		assert_eq!(alice_fee, (common_fee_rates, init_timestamp + one_day));
+		assert_eq!(bob_fee, (common_fee_rates, init_timestamp + one_day));
 	});
 }

@@ -10,13 +10,14 @@ use pallet_support::{
 		setup_fee,
 	},
 	types::{
-		BalanceUpdate, Direction, FundModifyType, MultiplePrices, Order, OrderSide, OrderType,
-		Position, Side,
+		BalanceUpdate, BaseFee, BaseFeeAggregate, Direction, FundModifyType, MultiplePrices, Order,
+		OrderType, Position, Side,
 	},
 };
 use pallet_trading_account::Event;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
+use sp_runtime::traits::Zero;
 
 fn assert_has_events(expected_events: Vec<RuntimeEvent>) {
 	for expected_event in &expected_events {
@@ -196,16 +197,12 @@ fn test_liquidation_w_fees() {
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::root(),
 			collateral_id,
-			Side::Sell,
-			OrderSide::Maker,
-			fee_details_maker.clone(),
-		));
-		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::root(),
-			collateral_id,
-			Side::Sell,
-			OrderSide::Taker,
-			fee_details_taker.clone(),
+			BaseFeeAggregate {
+				maker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				maker_sell: fee_details_maker.clone(),
+				taker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_sell: fee_details_taker.clone(),
+			}
 		));
 
 		// Create orders

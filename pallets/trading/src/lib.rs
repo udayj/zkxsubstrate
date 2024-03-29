@@ -19,21 +19,22 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{sig_u256_to_sig_felt, TIMESTAMP_START},
+		helpers::{get_expiry_timestamp, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, RiskManagementInterface, TradingAccountInterface,
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, Direction, FeeRates, ForceClosureFlag,
-			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionExtended, Side, SignatureInfo, TimeInForce,
+			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
+			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce,
 		},
 		Signature,
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 10;
@@ -386,6 +387,9 @@ pub mod pallet {
 				Err(e) => return Err(e.into()),
 			}
 
+			let market_fees: BaseFeeAggregate =
+				T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
+
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
 			let mut total_order_volume: FixedI128 = FixedI128::zero();
 			let mut updated_position: Position;
@@ -565,6 +569,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -693,6 +698,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -1402,6 +1408,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
@@ -1451,13 +1458,9 @@ pub mod pallet {
 			)
 			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-				collateral_id,
-				market_id,
-				Side::Buy,
-				order_side,
-				total_30day_volume,
-			);
+			let (fee_rate, _) =
+				Self::get_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
+
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
@@ -1487,6 +1490,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<
 			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
 			Error<T>,
@@ -1697,13 +1701,8 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-					collateral_id,
-					order.market_id,
-					Side::Sell,
-					order_side,
-					total_30day_volume,
-				);
+				let (fee_rate, _) =
+					Self::get_fee_rate(&market_fees, Side::Sell, order_side, total_30day_volume);
 
 				let mut fee = fee_rate * leveraged_order_value;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -2037,6 +2036,50 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 
+		fn get_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates {
+			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
+
+			FeeRates {
+				maker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Maker, volume).0,
+				maker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Maker, volume)
+					.0,
+				taker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Taker, volume).0,
+				taker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Taker, volume)
+					.0,
+			}
+		}
+
+		fn get_fee_rate(
+			base_fees: &BaseFeeAggregate,
+			side: Side,
+			order_side: OrderSide,
+			volume: FixedI128,
+		) -> (FixedI128, u8) {
+			// Get fee data for given side and orderside
+			let fee_details = match (order_side, side) {
+				(OrderSide::Maker, Side::Buy) => &base_fees.maker_buy,
+				(OrderSide::Maker, Side::Sell) => &base_fees.maker_sell,
+				(OrderSide::Taker, Side::Buy) => &base_fees.taker_buy,
+				(OrderSide::Taker, Side::Sell) => &base_fees.taker_sell,
+			};
+
+			// If no fee_tiers are set, return 0 as fees and tier as 0
+			if fee_details.is_empty() {
+				return (FixedI128::zero(), 0);
+			}
+
+			// Find the appropriate fee tier for the user
+			for (index, tier) in fee_details.iter().enumerate().rev() {
+				if volume >= tier.volume {
+					return (tier.fee, (index + 1) as u8);
+				}
+			}
+
+			// If volume is not greater than any tier's volume, it falls into the lowest tier
+			let first_tier = &fee_details[0];
+			(first_tier.fee, 1)
+		}
+
 		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
 			let zero = FixedI128::zero();
 			let is_registered = T::TradingAccountPallet::is_registered_user(account_id);
@@ -2053,14 +2096,9 @@ pub mod pallet {
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
 			let fee_rates =
-				T::TradingFeesPallet::get_all_fee_rates(market.asset_collateral, last_30day_volume);
+				Self::get_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
 
-			let one_day = 24 * 60 * 60;
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let diff = current_timestamp - TIMESTAMP_START;
-			let seconds_to_expiry = one_day - (diff % one_day);
-			let expires_at = current_timestamp + seconds_to_expiry;
-
+			let expires_at: u64 = get_expiry_timestamp(T::TimeProvider::now().as_secs());
 			(fee_rates, expires_at)
 		}
 

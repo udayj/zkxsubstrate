@@ -30,6 +30,8 @@ pub mod helpers {
 
 	// Unix timestamp for 1st Nov 12:00 AM UTC
 	pub const TIMESTAMP_START: u64 = 1698796800;
+	// One day in seconds
+	pub const ONE_DAY: u64 = 86400;
 
 	pub fn sig_u256_to_sig_felt(
 		sig_r: &U256,
@@ -111,6 +113,12 @@ pub mod helpers {
 
 		let total_volume = calc_30day_volume(&updated_volume_array);
 		(updated_volume_array, total_volume)
+	}
+
+	// Function to calculate the expiry of a price wrt to 12am UTC
+	// Returns the next instance of 12am UTC
+	pub fn get_expiry_timestamp(current_timestamp: u64) -> u64 {
+		current_timestamp + ONE_DAY - (current_timestamp % ONE_DAY)
 	}
 
 	// Function to calculate difference in days between two timestamps

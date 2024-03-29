@@ -1,6 +1,6 @@
 use crate::types::{
 	ABRDetails, AccountInfo, AccountLevelUpdated, Asset, AssetAddress, AssetRemoved, AssetUpdated,
-	BalanceChangeReason, BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
+	BalanceChangeReason, BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
 	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
 	Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded, ReferralDetails,
 	Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
@@ -87,6 +87,13 @@ pub trait TradingInterface {
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_remaining_trading_cleanup_calls() -> u64;
+	fn get_fee_rate(
+		base_fees: &BaseFeeAggregate,
+		side: Side,
+		order_side: OrderSide,
+		volume: FixedI128,
+	) -> (FixedI128, u8);
+	fn get_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates;
 }
 
 pub trait AssetInterface {
@@ -164,21 +171,8 @@ pub trait FieldElementExt {
 }
 
 pub trait TradingFeesInterface {
-	fn remove_base_fees_internal(id: u128);
-	fn update_base_fees_internal(
-		collateral_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		fee_details: Vec<BaseFee>,
-	) -> DispatchResult;
-	fn get_fee_rate(
-		collateral_id: u128,
-		market_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		volume: FixedI128,
-	) -> (FixedI128, u8);
-	fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates;
+	fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate;
+	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

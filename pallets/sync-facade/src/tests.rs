@@ -5,11 +5,12 @@ use pallet_support::{
 		asset_helper::{btc, eth, usdc, usdt},
 		market_helper::{btc_usdc, eth_usdc},
 	},
-	traits::{FieldElementExt, TradingFeesInterface},
+	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType,
-		MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded,
-		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
+		FeeSettingsType, MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side,
+		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
+		UserDeposit,
 	},
 	FieldElement,
 };
@@ -53,13 +54,10 @@ fn get_signers() -> Vec<U256> {
 	]
 }
 
-fn compare_base_fees(id: u128, side: Side, order_side: OrderSide, expected_values: Vec<BaseFee>) {
-	for (iterator, expected_fee) in (1..=expected_values.len() as u8).zip(expected_values) {
-		assert!(
-			TradingFees::base_fee_tier(id, (iterator, side, order_side)) == expected_fee,
-			"Mismatch fees"
-		);
-	}
+fn compare_base_fees(id: u128, expected_value: BaseFeeAggregate) {
+	let actual_fees = TradingFees::base_fees_all(id).unwrap_or_default();
+
+	assert!(actual_fees == expected_value, "Mismatch fees");
 }
 
 fn check_fees_storage_empty(ids: Vec<u128>) {
@@ -1172,20 +1170,7 @@ fn sync_settings_event_usdc() {
 			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdc_maker_close_fees(),
-		);
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdc_taker_close_fees(),
-		);
+		compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdc().asset.id]);
@@ -1216,52 +1201,29 @@ fn sync_settings_event_btc_usdc() {
 			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Maker,
-			get_btc_usdc_maker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_btc_usdc_maker_close_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Taker,
-			get_btc_usdc_taker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_btc_usdc_taker_close_fees(),
-		);
+		compare_base_fees(btc_usdc().market.id, get_btc_usdc_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![btc_usdc().market.id]);
 
+		// Get the aggregate fee structure stored in TradingFees
+		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
+
 		// Check fees for maker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(1000001),
@@ -1273,30 +1235,26 @@ fn sync_settings_event_btc_usdc() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_4 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(5000001),
@@ -1334,20 +1292,7 @@ fn sync_settings_event_usdt() {
 			.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdt_maker_close_fees(),
-		);
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdt_taker_close_fees(),
-		);
+		compare_base_fees(usdt().asset.id, get_usdt_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdt().asset.id]);
@@ -1390,84 +1335,34 @@ fn sync_settings_event_multiple_collaterals_markets() {
 
 		// Check if the fees were set successfully
 		// USDT
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdt_maker_close_fees(),
-		);
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdt_taker_close_fees(),
-		);
+		compare_base_fees(usdt().asset.id, get_usdt_aggregate_fees());
 
-		// USDT
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdc_maker_close_fees(),
-		);
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdc_taker_close_fees(),
-		);
+		// USDC
+		compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
 
 		// BTC USDC
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Maker,
-			get_btc_usdc_maker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_btc_usdc_maker_close_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Taker,
-			get_btc_usdc_taker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_btc_usdc_taker_close_fees(),
-		);
+		compare_base_fees(btc_usdc().market.id, get_btc_usdc_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdc().asset.id, usdt().asset.id, btc_usdc().market.id]);
 
+		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
+
 		// Check fees for maker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(1000001),
@@ -1479,30 +1374,26 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_4 = Trading::get_fee_rate(
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(5000001),

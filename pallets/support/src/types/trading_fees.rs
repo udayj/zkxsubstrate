@@ -1,4 +1,5 @@
 use codec::{Decode, Encode};
+use frame_support::dispatch::Vec;
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 use sp_arithmetic::fixed_point::FixedI128;
@@ -8,6 +9,14 @@ use sp_runtime::RuntimeDebug;
 pub struct BaseFee {
 	pub volume: FixedI128,
 	pub fee: FixedI128,
+}
+
+#[derive(Clone, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct BaseFeeAggregate {
+	pub maker_buy: Vec<BaseFee>,
+	pub maker_sell: Vec<BaseFee>,
+	pub taker_buy: Vec<BaseFee>,
+	pub taker_sell: Vec<BaseFee>,
 }
 
 #[derive(

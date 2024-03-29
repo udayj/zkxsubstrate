@@ -11,11 +11,14 @@ mod tests;
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use core::option::Option;
-	use frame_support::{dispatch::Vec, pallet_prelude::*};
+	use frame_support::{
+		dispatch::{DispatchResult, Vec},
+		pallet_prelude::{OptionQuery, ValueQuery, *},
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		traits::{AssetInterface, MarketInterface, TradingFeesInterface},
-		types::{BaseFee, FeeRates, OrderSide, Side},
+		types::{BaseFee, BaseFeeAggregate, OrderSide, Side},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -53,6 +56,16 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn base_fees_all)]
+	pub(super) type BaseFeeMap<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		u128, // collateral_id or market_id
+		BaseFeeAggregate,
+		OptionQuery,
+	>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Invalid fee
@@ -73,7 +86,14 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Base fees details updated
-		BaseFeesUpdated { fee_tiers: u8 },
+		/// No longer used
+		BaseFeesUpdated {
+			fee_tiers: u8,
+		},
+		BaseFeeAggregateSet {
+			id: u128,
+			base_fee_aggregate: BaseFeeAggregate,
+		},
 	}
 
 	// Pallet callable functions
@@ -84,38 +104,18 @@ pub mod pallet {
 		pub fn update_base_fees(
 			origin: OriginFor<T>,
 			id: u128,
-			side: Side,
-			order_side: OrderSide,
-			fee_details: Vec<BaseFee>,
+			fee_details: BaseFeeAggregate,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
 
-			Self::update_base_fees_internal(id, side, order_side, fee_details)?;
+			Self::update_base_fees_internal(id, fee_details)?;
 			Ok(())
 		}
 	}
 
 	impl<T: Config> TradingFeesInterface for Pallet<T> {
-		fn remove_base_fees_internal(id: u128) {
-			// Delete all combinations of OrderSide and Side
-			for side in &[Side::Buy, Side::Sell] {
-				for order_side in &[OrderSide::Maker, OrderSide::Taker] {
-					let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
-					for i in 1..max_fee_tier + 1 {
-						BaseFeeTierMap::<T>::remove(id, (i, side, &order_side));
-					}
-					MaxBaseFeeTier::<T>::remove(id, order_side);
-				}
-			}
-		}
-
-		fn update_base_fees_internal(
-			id: u128,
-			side: Side,
-			order_side: OrderSide,
-			fee_details: Vec<BaseFee>,
-		) -> DispatchResult {
+		fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult {
 			// Validate that the asset exists and it is a collateral
 			if let Some(asset) = T::AssetPallet::get_asset(id) {
 				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
@@ -124,137 +124,63 @@ pub mod pallet {
 				ensure!(T::MarketPallet::get_market(id).is_some(), Error::<T>::MarketNotFound);
 			}
 
-			// Delete the fee details corresponding to the current side
-			let max_fee_tier = MaxBaseFeeTier::<T>::get(id, order_side);
-			for i in 1..max_fee_tier + 1 {
-				BaseFeeTierMap::<T>::remove(id, (i, side, &order_side));
-			}
-			MaxBaseFeeTier::<T>::remove(id, order_side);
+			// Validate the fee details
+			Self::validate_fee_details(&fee_details)?;
 
-			let fee_details_length = fee_details.len();
-			ensure!(fee_details_length >= 1, Error::<T>::ZeroFeeTiers);
+			// Remove any fees if present
+			BaseFeeMap::<T>::remove(id);
 
-			let update_base_fee_response = Self::update_base_fee(id, side, order_side, fee_details);
-			match update_base_fee_response {
-				Ok(()) => (),
-				Err(e) => return Err(e),
-			}
+			// Add it to storage
+			BaseFeeMap::<T>::set(id, Some(fee_details.clone()));
 
-			// Emit event
-			Self::deposit_event(Event::BaseFeesUpdated {
-				fee_tiers: u8::try_from(fee_details_length).unwrap(),
-			});
+			Self::deposit_event(Event::BaseFeeAggregateSet { id, base_fee_aggregate: fee_details });
 
 			Ok(())
 		}
 
-		fn get_fee_rate(
-			collateral_id: u128,
-			market_id: u128,
-			side: Side,
-			order_side: OrderSide,
-			volume: FixedI128,
-		) -> (FixedI128, u8) {
-			// Check if the market has fees set
-			let current_max_base_fee_tier_market = MaxBaseFeeTier::<T>::get(market_id, order_side);
-
-			let (id, current_max_base_fee_tier) = if current_max_base_fee_tier_market > 0 {
-				(market_id, current_max_base_fee_tier_market)
-			} else {
-				(collateral_id, MaxBaseFeeTier::<T>::get(collateral_id, order_side))
-			};
-
-			// Calculate base fee of the maker, taker and base fee tier
-			let (base_fee, base_fee_tier) =
-				Self::find_user_base_fee(id, side, order_side, volume, current_max_base_fee_tier);
-
-			(base_fee, base_fee_tier)
-		}
-
-		fn get_all_fee_rates(id: u128, volume: FixedI128) -> FeeRates {
-			// Get the max base fee tier
-			let current_max_base_fee_tier_maker = MaxBaseFeeTier::<T>::get(id, OrderSide::Maker);
-			// Calculate base fee of the maker, taker and base fee tier
-			let (maker_buy, _) = Self::find_user_base_fee(
-				id,
-				Side::Buy,
-				OrderSide::Maker,
-				volume,
-				current_max_base_fee_tier_maker,
-			);
-			let (maker_sell, _) = Self::find_user_base_fee(
-				id,
-				Side::Sell,
-				OrderSide::Maker,
-				volume,
-				current_max_base_fee_tier_maker,
-			);
-			let current_max_base_fee_tier_taker = MaxBaseFeeTier::<T>::get(id, OrderSide::Taker);
-			let (taker_buy, _) = Self::find_user_base_fee(
-				id,
-				Side::Buy,
-				OrderSide::Taker,
-				volume,
-				current_max_base_fee_tier_taker,
-			);
-			let (taker_sell, _) = Self::find_user_base_fee(
-				id,
-				Side::Sell,
-				OrderSide::Taker,
-				volume,
-				current_max_base_fee_tier_taker,
-			);
-			FeeRates { maker_buy, maker_sell, taker_buy, taker_sell }
+		fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate {
+			// First try to fetch market fees
+			// If it doesn't exist, fetch asset fees
+			// NOTE: Asset fees can be 0
+			BaseFeeMap::<T>::get(market_id)
+				.or_else(|| BaseFeeMap::<T>::get(collateral_id))
+				.unwrap_or_else(BaseFeeAggregate::default)
 		}
 	}
 
 	// Pallet internal functions
 	impl<T: Config> Pallet<T> {
-		fn find_user_base_fee(
-			id: u128,
-			side: Side,
-			order_side: OrderSide,
-			volume: FixedI128,
-			current_max_base_fee_tier: u8,
-		) -> (FixedI128, u8) {
-			let mut tier = current_max_base_fee_tier;
-			let mut fee_details = BaseFeeTierMap::<T>::get(id, (tier, side, &order_side));
-			while tier >= 1 {
-				fee_details = BaseFeeTierMap::<T>::get(id, (tier, side, &order_side));
-				if volume >= fee_details.volume {
-					break
-				}
-				tier -= 1;
-			}
-			return (fee_details.fee, tier)
+		fn validate_fee_details(fee_details: &BaseFeeAggregate) -> DispatchResult {
+			// Validate each variant of BaseFee
+			Self::validate_base_fees(&fee_details.maker_buy)?;
+			Self::validate_base_fees(&fee_details.maker_sell)?;
+			Self::validate_base_fees(&fee_details.taker_buy)?;
+			Self::validate_base_fees(&fee_details.taker_sell)?;
+
+			Ok(())
 		}
 
-		fn update_base_fee(
-			id: u128,
-			side: Side,
-			order_side: OrderSide,
-			fee_details: Vec<BaseFee>,
-		) -> DispatchResult {
-			let mut fee_info: BaseFee;
+		fn validate_base_fees(base_fees: &Vec<BaseFee>) -> DispatchResult {
+			// The base_fees array cannot be empty
+			ensure!(!base_fees.is_empty(), Error::<T>::ZeroFeeTiers);
 
-			for index in 0..fee_details.len() {
-				fee_info = fee_details[index];
-				ensure!(fee_info.volume >= FixedI128::zero(), Error::<T>::InvalidVolume);
-				ensure!(fee_info.fee >= FixedI128::zero(), Error::<T>::InvalidFee);
+			// Validate the first fee tier
+			let first_fee = &base_fees[0];
+			ensure!(first_fee.fee >= FixedI128::zero(), Error::<T>::InvalidFee);
+			// The volume of first tier must be 0
+			ensure!(first_fee.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
 
-				// Verify whether the base fee of the tier being updated/added is correct
-				// with respect to the lower tier, if lower tier exists
-				let lower_tier_fee = BaseFeeTierMap::<T>::get(id, (index as u8, side, &order_side));
-				if index != 0 {
-					ensure!(lower_tier_fee.volume < fee_info.volume, Error::<T>::InvalidVolume);
-					ensure!(fee_info.fee < lower_tier_fee.fee, Error::<T>::InvalidFee);
-				} else {
-					ensure!(lower_tier_fee.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
-				}
-				BaseFeeTierMap::<T>::insert(id, ((index + 1) as u8, side, &order_side), fee_info);
+			// Validate the base fees in pairs;
+			// Each base_fee's fee < previous base_fee's fee
+			// Each base_fee's volume > previous base_fee's volume
+			for window in base_fees.windows(2) {
+				let (prev_fee, current_fee) = (&window[0], &window[1]);
+
+				// Ensure volume increases with each tier
+				ensure!(current_fee.volume > prev_fee.volume, Error::<T>::InvalidVolume);
+				// Volume in each tier must more than equal to the previous one
+				ensure!(current_fee.fee <= prev_fee.fee, Error::<T>::InvalidFee);
 			}
-			let max_tier = fee_details.len() as u8;
-			MaxBaseFeeTier::<T>::insert(id, order_side, max_tier);
 
 			Ok(())
 		}
