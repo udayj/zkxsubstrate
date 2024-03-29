@@ -23,7 +23,7 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
-			Position, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+			Position, ReferralDetails, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -129,6 +129,32 @@ pub mod pallet {
 	pub(super) type AccountCollateralsMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, U256, Vec<u128>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn master_account)]
+	// Here, key1 is monetary account address and value is referral details with master monetary
+	// address
+	pub(super) type MasterAccountMap<T: Config> =
+		StorageMap<_, Twox64Concat, U256, ReferralDetails, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn referral_accounts)]
+	// Here, key1 is (monetary account address, index) and value is referral
+	// monetary account addresses
+	pub(super) type ReferralAccountsMap<T: Config> =
+		StorageMap<_, Twox64Concat, (U256, u64), U256, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn referrals_count)]
+	// Here, key1 is monetary account address and value is number of referrals
+	pub(super) type ReferralsCountMap<T: Config> =
+		StorageMap<_, Twox64Concat, U256, u64, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn master_account_level)]
+	// It stores master account level
+	pub(super) type MasterAccountLevel<T: Config> =
+		StorageMap<_, Twox64Concat, U256, u8, ValueQuery>;
+
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
@@ -213,6 +239,12 @@ pub mod pallet {
 			amount: FixedI128,
 			modify_type: FundModifyType,
 			block_number: BlockNumberFor<T>,
+		},
+		ReferralAdded {
+			master_account_address: U256,
+			referral_account_address: U256,
+			fee_discount: FixedI128,
+			referral_code: U256,
 		},
 	}
 
@@ -365,6 +397,41 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		/// To test adding of referral
+		#[pallet::weight(0)]
+		pub fn add_referral(
+			origin: OriginFor<T>,
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+			referral_code: U256,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			// Call the internal function to add referral
+			Self::setup_referral(referral_account_address, referral_details, referral_code);
+			Ok(())
+		}
+
+		/// To test updating master account level
+		#[pallet::weight(0)]
+		pub fn update_master_account_level(
+			origin: OriginFor<T>,
+			master_account_address: U256,
+			level: u8,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			// Call the internal function to update account level
+			Self::modify_master_account_level(master_account_address, level);
 			Ok(())
 		}
 
@@ -709,6 +776,50 @@ pub mod pallet {
 				return current_balance - max(total_maintenance_requirement, margin_locked) +
 					negative_unrealized_pnl_sum
 			}
+		}
+
+		fn setup_referral(
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+			referral_code: U256,
+		) -> bool {
+			// Both master account and referral account should be registered
+			if !Self::is_registered_user(referral_account_address) ||
+				!Self::is_registered_user(referral_details.master_account_address)
+			{
+				return false;
+			}
+
+			let referral = MasterAccountMap::<T>::get(referral_account_address);
+			// Referral account can belong to only one master account
+			if referral.is_some() {
+				return false;
+			}
+
+			MasterAccountMap::<T>::insert(referral_account_address, referral_details);
+			let referrals_count =
+				ReferralsCountMap::<T>::get(referral_details.master_account_address);
+			ReferralAccountsMap::<T>::set(
+				(referral_details.master_account_address, referrals_count),
+				referral_account_address,
+			);
+			ReferralsCountMap::<T>::set(
+				referral_details.master_account_address,
+				referrals_count + 1,
+			);
+
+			Self::deposit_event(Event::ReferralAdded {
+				master_account_address: referral_details.master_account_address,
+				referral_account_address,
+				fee_discount: referral_details.fee_discount,
+				referral_code,
+			});
+
+			true
+		}
+
+		fn modify_master_account_level(master_account_address: U256, level: u8) {
+			MasterAccountLevel::<T>::set(master_account_address, level);
 		}
 	}
 
@@ -1186,6 +1297,18 @@ pub mod pallet {
 				}
 			}
 			Err(Error::<T>::AccountDoesNotExist)
+		}
+
+		fn add_referral_internal(
+			referral_account_address: U256,
+			referral_details: ReferralDetails,
+			referral_code: U256,
+		) -> bool {
+			Self::setup_referral(referral_account_address, referral_details, referral_code)
+		}
+
+		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
+			Self::modify_master_account_level(master_account_address, level);
 		}
 	}
 }

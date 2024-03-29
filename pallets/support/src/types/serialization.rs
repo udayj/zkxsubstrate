@@ -2,8 +2,8 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, Setting, SettingsAdded, SignerAdded, SignerRemoved, TradingAccountMinimal,
-		UniversalEvent, UserDeposit,
+		MarketUpdated, ReferralAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 };
 use frame_support::dispatch::Vec;
@@ -12,7 +12,7 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
-use super::{AssetAddress, QuorumSet};
+use super::{AccountLevelUpdated, AssetAddress, QuorumSet};
 
 impl FeltSerializedArrayExt for Vec<FieldElement> {
 	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
@@ -253,6 +253,35 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::from(quorum_set.block_number));
 	}
 
+	fn try_append_referral_added_event(
+		&mut self,
+		referral_added_event: &ReferralAdded,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(9_u8));
+		self.push(FieldElement::from(referral_added_event.event_index));
+		self.try_append_u256(referral_added_event.master_account_address)?;
+		self.try_append_u256(referral_added_event.referral_account_address)?;
+		self.try_append_fixedi128(referral_added_event.fee_discount)?;
+		self.push(FieldElement::from(referral_added_event.block_number));
+
+		Ok(())
+	}
+
+	fn try_append_account_level_updated_event(
+		&mut self,
+		account_level_updated_event: &AccountLevelUpdated,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(10_u8));
+		self.push(FieldElement::from(account_level_updated_event.event_index));
+		self.try_append_u256(account_level_updated_event.master_account_address)?;
+		self.push(FieldElement::from(account_level_updated_event.level));
+		self.push(FieldElement::from(account_level_updated_event.block_number));
+
+		Ok(())
+	}
+
 	fn try_append_universal_event_array(
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
@@ -285,6 +314,12 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				},
 				UniversalEvent::SettingsAdded(settings_added) => {
 					self.try_append_settings_added_event(settings_added)?;
+				},
+				UniversalEvent::ReferralAdded(referral_added) => {
+					self.try_append_referral_added_event(referral_added)?;
+				},
+				UniversalEvent::AccountLevelUpdated(account_level_updated) => {
+					self.try_append_account_level_updated_event(account_level_updated)?;
 				},
 			}
 		}
