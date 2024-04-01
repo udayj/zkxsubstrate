@@ -29,6 +29,13 @@ pub struct FeeRates {
 	pub taker_sell: FixedI128,
 }
 
+#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct FeeShareDetails {
+	pub tier: u8,
+	pub volume: FixedI128,
+	pub fee_share: FixedI128,
+}
+
 impl FeeRates {
 	pub fn new(
 		maker_buy: FixedI128,

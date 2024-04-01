@@ -18,7 +18,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		traits::{AssetInterface, MarketInterface, TradingFeesInterface},
-		types::{BaseFee, BaseFeeAggregate, OrderSide, Side},
+		types::{BaseFee, BaseFeeAggregate, FeeShareDetails, OrderSide, Side},
 	};
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
@@ -66,6 +66,10 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn fee_share)]
+	pub(super) type FeeShare<T: Config> = StorageValue<_, Vec<FeeShareDetails>, OptionQuery>;
+
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Invalid fee
@@ -80,6 +84,8 @@ pub mod pallet {
 		AssetNotCollateral,
 		/// Market does not exist
 		MarketNotFound,
+		/// Empty array passed for
+		EmptyFeeShares,
 	}
 
 	#[pallet::event]
@@ -93,6 +99,9 @@ pub mod pallet {
 		BaseFeeAggregateSet {
 			id: u128,
 			base_fee_aggregate: BaseFeeAggregate,
+		},
+		FeeShareSet {
+			fee_share: Vec<FeeShareDetails>,
 		},
 	}
 
@@ -110,6 +119,19 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			Self::update_base_fees_internal(id, fee_details)?;
+			Ok(())
+		}
+
+		/// External function for updating fee details
+		#[pallet::weight(0)]
+		pub fn update_fee_share(
+			origin: OriginFor<T>,
+			fee_share_details: Vec<FeeShareDetails>,
+		) -> DispatchResult {
+			// Make sure the caller is root
+			ensure_root(origin)?;
+
+			Self::update_fee_shares_internal(fee_share_details)?;
 			Ok(())
 		}
 	}
@@ -146,6 +168,41 @@ pub mod pallet {
 				.or_else(|| BaseFeeMap::<T>::get(collateral_id))
 				.unwrap_or_else(BaseFeeAggregate::default)
 		}
+
+		fn update_fee_shares_internal(fee_share_details: Vec<FeeShareDetails>) -> DispatchResult {
+			// Validate the fee share details
+			Self::validate_fee_shares(&fee_share_details)?;
+
+			// Remove any fees if present
+			FeeShare::<T>::kill();
+
+			// Add it to storage
+			FeeShare::<T>::put(&fee_share_details);
+
+			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
+
+			Ok(())
+		}
+
+		fn get_fee_share(volume: FixedI128) -> FixedI128 {
+			let fee_share_details = FeeShare::<T>::get();
+
+			// If no fee_tiers are set, return 0 as fees and tier as 0
+			if fee_share_details.is_none() {
+				return FixedI128::zero();
+			}
+
+			// Find the appropriate fee tier for the user
+			let fee_share_details = fee_share_details.unwrap();
+			for (_, tier) in fee_share_details.iter().enumerate().rev() {
+				if volume >= tier.volume {
+					return tier.fee_share;
+				}
+			}
+
+			// If volume is not greater than any tier's volume, it falls into the lowest tier
+			fee_share_details[0].fee_share
+		}
 	}
 
 	// Pallet internal functions
@@ -178,8 +235,38 @@ pub mod pallet {
 
 				// Ensure volume increases with each tier
 				ensure!(current_fee.volume > prev_fee.volume, Error::<T>::InvalidVolume);
-				// Volume in each tier must more than equal to the previous one
+				// Fee in each tier must be less than or equal to the previous one
 				ensure!(current_fee.fee <= prev_fee.fee, Error::<T>::InvalidFee);
+			}
+
+			Ok(())
+		}
+
+		fn validate_fee_shares(fee_shares: &Vec<FeeShareDetails>) -> DispatchResult {
+			// The fee_shares array cannot be empty
+			ensure!(!fee_shares.is_empty(), Error::<T>::EmptyFeeShares);
+
+			// Validate the first fee tier
+			let first_fee_share = &fee_shares[0];
+			// The volume of first tier must be 0
+			ensure!(first_fee_share.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
+
+			// Validate the fee shares in pairs;
+			// Each tier's fee share >= previous tier's fee share
+			// Each tier's volume > previous tier's volume
+			for window in fee_shares.windows(2) {
+				let (prev_fee_share, current_fee_share) = (&window[0], &window[1]);
+
+				// Ensure volume increases with each tier
+				ensure!(
+					current_fee_share.volume > prev_fee_share.volume,
+					Error::<T>::InvalidVolume
+				);
+				// Fee share in each tier must be more than equal to the previous one
+				ensure!(
+					current_fee_share.fee_share >= prev_fee_share.fee_share,
+					Error::<T>::InvalidFee
+				);
 			}
 
 			Ok(())
