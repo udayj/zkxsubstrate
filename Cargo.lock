@@ -4648,6 +4648,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "log",
  "pallet-asset",
  "pallet-aura",
  "pallet-balances",
@@ -4994,6 +4995,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-asset",
  "pallet-market",
  "pallet-prices",
@@ -5170,6 +5172,7 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-asset",
  "pallet-market",
  "pallet-prices",

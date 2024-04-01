@@ -16,7 +16,10 @@ pub mod pallet {
 		pallet_prelude::{OptionQuery, ValueQuery, *},
 		traits::UnixTime,
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{
+		offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
+		pallet_prelude::*,
+	};
 	use pallet_support::{
 		ecdsa_verify,
 		helpers::{get_expiry_timestamp, sig_u256_to_sig_felt},
@@ -34,16 +37,19 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_runtime::traits::SaturatedConversion;
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
-	static CLEANUP_COUNT: u64 = 10;
+	static CLEANUP_COUNT: u64 = 120;
+	// Block interval at which offchain workers will be executed
+	const BLOCK_INTERVAL: u32 = 120;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
@@ -52,6 +58,7 @@ pub mod pallet {
 		type PricesPallet: PricesInterface;
 		type RiskManagementPallet: RiskManagementInterface;
 		type TimeProvider: UnixTime;
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
 
 	#[pallet::storage]
@@ -2185,6 +2192,41 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// Offchain worker entry point
+		fn offchain_worker(block_number: BlockNumberFor<T>) {
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			if !signer.can_sign() {
+				log::info!(
+					"No local accounts available. Consider adding one via `author_insertKey` RPC."
+				);
+			}
+
+			// Converts block number to u32 format
+			let block_number = block_number.saturated_into::<u32>();
+			// Calls extrinsic after every block interval
+			if block_number % BLOCK_INTERVAL == 0 {
+				// Call perform trading clean up only when there are orders to clean up
+				let cleanup_calls = Self::get_remaining_trading_cleanup_calls();
+				if cleanup_calls != 0 {
+					let results =
+						signer.send_signed_transaction(|_account| Call::perform_cleanup {});
+					for (acc, res) in &results {
+						match res {
+							Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
+							Err(e) => log::info!(
+								"[{:?}]: Submit transaction failure. Reason: {:?}",
+								acc.id,
+								e
+							),
+						}
+					}
+				}
+			}
 		}
 	}
 }
