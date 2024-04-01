@@ -15,7 +15,7 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
 )]
-pub enum VolumeUpdateType {
+pub enum VolumeType {
 	#[default]
 	UserVolume,
 	MasterVolume,

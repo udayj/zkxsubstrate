@@ -527,8 +527,9 @@ fn test_volume_update_two_trades() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id);
 		// None type volume is returned in case of no prior trades
@@ -555,8 +556,9 @@ fn test_volume_update_two_trades() {
 
 		// Check 30 day volume
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
@@ -603,8 +605,9 @@ fn test_volume_update_two_trades() {
 
 		// 30 day volume should still be the same
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
@@ -656,8 +659,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume alice-1");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume bob-1");
@@ -705,8 +709,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		// getting 30 day trade volume should now include previous day's trade although no new trade
 		// is made
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// 30 day volume should now include previous day's trade volume
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-2");
@@ -737,8 +742,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// 30 day volume should include previous day's trade volume
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-3");
@@ -795,8 +801,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// 30 day volume should remain unchanged since it is still day 2
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-4");
@@ -838,8 +845,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 
 		// getting 30 day trade volume should now include previous 2 day's trade
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// 30 day volume should now include previous 2 day's trade volume
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-5");
@@ -869,8 +877,9 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// 30 day volume should now include day 1 and day 2 trade volumes
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-6");
@@ -929,8 +938,9 @@ fn test_volume_update_30_days_diff() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
@@ -977,8 +987,9 @@ fn test_volume_update_30_days_diff() {
 		));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume");
@@ -1031,8 +1042,9 @@ fn test_volume_update_31_days_diff() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
@@ -1077,8 +1089,9 @@ fn test_volume_update_31_days_diff() {
 		Timestamp::set_timestamp((init_timestamp + 31 * one_day) * 1000);
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// last trade should not be included in 30 day trade volume since 31 days have gone by
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
@@ -1101,8 +1114,9 @@ fn test_volume_update_31_days_diff() {
 		));
 
 		let alice_30day_volume =
-			TradingAccountModule::get_30day_volume(alice_id, market_id).unwrap();
-		let bob_30day_volume = TradingAccountModule::get_30day_volume(bob_id, market_id).unwrap();
+			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
+		let bob_30day_volume =
+			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
 
 		// last trade should not be included in 30 day trade volume since 31 days have gone by
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");

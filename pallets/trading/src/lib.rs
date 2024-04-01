@@ -28,7 +28,7 @@ pub mod pallet {
 		types::{
 			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
 			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
-			Position, PositionExtended, Side, SignatureInfo, TimeInForce,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce, VolumeType,
 		},
 		Signature,
 	};
@@ -2089,7 +2089,11 @@ pub mod pallet {
 			}
 
 			let last_30day_volume: FixedI128;
-			match T::TradingAccountPallet::get_30day_volume(account_id, market_id) {
+			match T::TradingAccountPallet::get_30day_volume(
+				account_id,
+				market_id,
+				VolumeType::UserVolume,
+			) {
 				Ok(value) => last_30day_volume = value,
 				Err(_) => return (FeeRates::new(zero, zero, zero, zero), 0),
 			}

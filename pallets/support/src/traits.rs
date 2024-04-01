@@ -4,7 +4,7 @@ use crate::types::{
 	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
 	Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded, ReferralDetails,
 	Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeUpdateType,
+	TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -59,7 +59,7 @@ pub trait TradingAccountInterface {
 		monetary_account_address: U256,
 		market_id: u128,
 		new_volume: FixedI128,
-		volume_update_type: VolumeUpdateType,
+		volume_update_type: VolumeType,
 	) -> Result<FixedI128, Self::VolumeError>;
 
 	fn update_and_get_user_and_master_volume(
@@ -67,7 +67,19 @@ pub trait TradingAccountInterface {
 		market_id: u128,
 		new_volume: FixedI128,
 	) -> Result<(FixedI128, FixedI128), Self::VolumeError>;
-	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_user_volume(
+		account_id: U256,
+		market_id: u128,
+	) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_master_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+	) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+		volume_type: VolumeType,
+	) -> Result<FixedI128, Self::VolumeError>;
 	fn add_referral_internal(
 		referral_account_address: U256,
 		referral_details: ReferralDetails,
