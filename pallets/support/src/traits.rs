@@ -173,10 +173,7 @@ pub trait FieldElementExt {
 pub trait TradingFeesInterface {
 	fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate;
 	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
-	fn update_fee_shares_internal(
-		num_of_levels: u8,
-		fee_share_details: Vec<Vec<FeeShareDetails>>,
-	) -> DispatchResult;
+	fn update_fee_shares_internal(fee_share_details: Vec<Vec<FeeShareDetails>>) -> DispatchResult;
 	fn get_fee_share(acount_level: u8, volume: FixedI128) -> FixedI128;
 }
 

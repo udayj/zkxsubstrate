@@ -67,13 +67,9 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn max_fee_share_tier)]
-	pub(super) type MaxFeeShareTier<T: Config> = StorageValue<_, u8, OptionQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn fee_share)]
 	pub(super) type FeeShareMap<T: Config> =
-		StorageMap<_, Twox64Concat, u8, Vec<FeeShareDetails>, OptionQuery>;
+		StorageValue<_, Vec<Vec<FeeShareDetails>>, OptionQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -91,8 +87,6 @@ pub mod pallet {
 		MarketNotFound,
 		/// Empty array passed for
 		EmptyFeeShares,
-		/// Length mismatch between account levels and length of vector
-		LengthMismatch,
 	}
 
 	#[pallet::event]
@@ -133,13 +127,12 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn update_fee_share(
 			origin: OriginFor<T>,
-			num_of_levels: u8,
 			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
 
-			Self::update_fee_shares_internal(num_of_levels, fee_share_details)?;
+			Self::update_fee_shares_internal(fee_share_details)?;
 			Ok(())
 		}
 	}
@@ -178,24 +171,18 @@ pub mod pallet {
 		}
 
 		fn update_fee_shares_internal(
-			num_of_levels: u8,
 			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
-			// Number of levels and vector length should be same
-			ensure!(num_of_levels as usize == fee_share_details.len(), Error::<T>::LengthMismatch);
-
-			for level in 0..num_of_levels {
+			for level in 0..fee_share_details.len() {
 				// Validate the fee share details
 				Self::validate_fee_shares(&fee_share_details[level as usize])?;
-
-				// Remove any fees if present
-				FeeShareMap::<T>::remove(level);
-
-				// Add it to storage
-				FeeShareMap::<T>::insert(level, &fee_share_details[level as usize]);
 			}
 
-			MaxFeeShareTier::<T>::put(num_of_levels);
+			// Remove any fee share details if present
+			FeeShareMap::<T>::kill();
+
+			// Add it to storage
+			FeeShareMap::<T>::put(&fee_share_details);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
@@ -203,7 +190,7 @@ pub mod pallet {
 		}
 
 		fn get_fee_share(account_level: u8, volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShareMap::<T>::get(account_level);
+			let fee_share_details = FeeShareMap::<T>::get();
 
 			// If no fee_tiers are set, return 0 as fees and tier as 0
 			if fee_share_details.is_none() {
@@ -211,7 +198,7 @@ pub mod pallet {
 			}
 
 			// Find the appropriate fee tier for the user
-			let fee_share_details = fee_share_details.unwrap();
+			let fee_share_details = &fee_share_details.unwrap()[account_level as usize];
 			for (_, tier) in fee_share_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
 					return tier.fee_share;
