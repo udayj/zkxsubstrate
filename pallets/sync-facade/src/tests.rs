@@ -2,6 +2,7 @@ use crate::{mock::*, Event};
 use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
+		accounts_helper::{alice, get_trading_account_id},
 		asset_helper::{btc, eth, usdc, usdt},
 		market_helper::{btc_usdc, eth_usdc},
 	},
@@ -16,25 +17,11 @@ use pallet_support::{
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_io::hashing::blake2_256;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 
 // declare test_helper module
 pub mod test_helper;
 use test_helper::*;
-
-fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
-	let account_address = U256::from(trading_account.account_address);
-	let mut account_array: [u8; 32] = [0; 32];
-	account_address.to_little_endian(&mut account_array);
-
-	let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
-	concatenated_bytes.push(trading_account.index);
-	let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
-
-	let trading_account_id: U256 = blake2_256(&result).into();
-	trading_account_id
-}
 
 fn get_collaterals() -> Vec<ExtendedAsset> {
 	vec![usdc(), usdt(), btc(), eth()]
@@ -1196,6 +1183,10 @@ fn sync_settings_event_btc_usdc() {
 	);
 
 	env.execute_with(|| {
+		// Add accounts to the system
+		assert_ok!(TradingAccounts::add_accounts(RuntimeOrigin::signed(1), vec![alice()]));
+		let alice_id: U256 = get_trading_account_id(alice());
+
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while adding settings");
@@ -1329,6 +1320,10 @@ fn sync_settings_event_multiple_collaterals_markets() {
 	);
 
 	env.execute_with(|| {
+		// Add accounts to the system
+		assert_ok!(TradingAccounts::add_accounts(RuntimeOrigin::signed(1), vec![alice()]));
+		let alice_id: U256 = get_trading_account_id(alice());
+
 		// synchronize the events
 		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
 			.expect("error while adding settings");

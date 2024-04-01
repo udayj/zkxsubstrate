@@ -1303,5 +1303,21 @@ pub mod pallet {
 		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
 			Self::modify_master_account_level(master_account_address, level);
 		}
+
+		fn get_fee_discount(trading_account_id: U256) -> FixedI128 {
+			let trading_account = AccountMap::<T>::get(trading_account_id);
+			// Here, unwrap will not lead to any error becuase, we are checking
+			// account existence in trading flow before calling this function
+			let trading_account_details = trading_account.unwrap();
+			let referral = MasterAccountMap::<T>::get(trading_account_details.account_address);
+			// Check if current account has Master
+			// If yes, return discount else return zero
+			if referral.is_some() {
+				let referral_details = referral.unwrap();
+				return referral_details.fee_discount;
+			} else {
+				return FixedI128::zero();
+			}
+		}
 	}
 }

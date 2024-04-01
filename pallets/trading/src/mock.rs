@@ -83,6 +83,7 @@ impl pallet_trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
+	type TradingAccountPallet = TradingAccounts;
 }
 
 impl pallet_trading_account::Config for Test {

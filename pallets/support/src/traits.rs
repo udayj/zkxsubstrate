@@ -67,6 +67,7 @@ pub trait TradingAccountInterface {
 		referral_code: U256,
 	) -> bool;
 	fn update_master_account_level_internal(master_account_address: U256, level: u8);
+	fn get_fee_discount(trading_account_id: U256) -> FixedI128;
 }
 
 pub trait TradingInterface {
