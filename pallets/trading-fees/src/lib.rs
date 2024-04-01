@@ -67,8 +67,13 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn max_fee_share_tier)]
+	pub(super) type MaxFeeShareTier<T: Config> = StorageValue<_, u8, OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn fee_share)]
-	pub(super) type FeeShare<T: Config> = StorageValue<_, Vec<FeeShareDetails>, OptionQuery>;
+	pub(super) type FeeShareMap<T: Config> =
+		StorageMap<_, Twox64Concat, u8, Vec<FeeShareDetails>, OptionQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -86,6 +91,8 @@ pub mod pallet {
 		MarketNotFound,
 		/// Empty array passed for
 		EmptyFeeShares,
+		/// Length mismatch between account levels and length of vector
+		LengthMismatch,
 	}
 
 	#[pallet::event]
@@ -101,7 +108,7 @@ pub mod pallet {
 			base_fee_aggregate: BaseFeeAggregate,
 		},
 		FeeShareSet {
-			fee_share: Vec<FeeShareDetails>,
+			fee_share: Vec<Vec<FeeShareDetails>>,
 		},
 	}
 
@@ -122,16 +129,17 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// External function for updating fee details
+		/// External function for updating fee share details
 		#[pallet::weight(0)]
 		pub fn update_fee_share(
 			origin: OriginFor<T>,
-			fee_share_details: Vec<FeeShareDetails>,
+			num_of_levels: u8,
+			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
 
-			Self::update_fee_shares_internal(fee_share_details)?;
+			Self::update_fee_shares_internal(num_of_levels, fee_share_details)?;
 			Ok(())
 		}
 	}
@@ -169,23 +177,33 @@ pub mod pallet {
 				.unwrap_or_else(BaseFeeAggregate::default)
 		}
 
-		fn update_fee_shares_internal(fee_share_details: Vec<FeeShareDetails>) -> DispatchResult {
-			// Validate the fee share details
-			Self::validate_fee_shares(&fee_share_details)?;
+		fn update_fee_shares_internal(
+			num_of_levels: u8,
+			fee_share_details: Vec<Vec<FeeShareDetails>>,
+		) -> DispatchResult {
+			// Number of levels and vector length should be same
+			ensure!(num_of_levels as usize == fee_share_details.len(), Error::<T>::LengthMismatch);
 
-			// Remove any fees if present
-			FeeShare::<T>::kill();
+			for level in 0..num_of_levels {
+				// Validate the fee share details
+				Self::validate_fee_shares(&fee_share_details[level as usize])?;
 
-			// Add it to storage
-			FeeShare::<T>::put(&fee_share_details);
+				// Remove any fees if present
+				FeeShareMap::<T>::remove(level);
+
+				// Add it to storage
+				FeeShareMap::<T>::insert(level, &fee_share_details[level as usize]);
+			}
+
+			MaxFeeShareTier::<T>::put(num_of_levels);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
 			Ok(())
 		}
 
-		fn get_fee_share(volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShare::<T>::get();
+		fn get_fee_share(account_level: u8, volume: FixedI128) -> FixedI128 {
+			let fee_share_details = FeeShareMap::<T>::get(account_level);
 
 			// If no fee_tiers are set, return 0 as fees and tier as 0
 			if fee_share_details.is_none() {
