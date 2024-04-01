@@ -4,7 +4,7 @@ use crate::types::{
 	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
 	Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded, ReferralDetails,
 	Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit,
+	TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeUpdateType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -56,10 +56,17 @@ pub trait TradingAccountInterface {
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
 	fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn update_and_get_cumulative_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+		new_volume: FixedI128,
+		volume_update_type: VolumeUpdateType,
+	) -> Result<FixedI128, Self::VolumeError>;
+
+	fn update_and_get_user_and_master_volume(
 		account_id: U256,
 		market_id: u128,
 		new_volume: FixedI128,
-	) -> Result<FixedI128, Self::VolumeError>;
+	) -> Result<(FixedI128, FixedI128), Self::VolumeError>;
 	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
 	fn add_referral_internal(
 		referral_account_address: U256,

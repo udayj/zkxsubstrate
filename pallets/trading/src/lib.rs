@@ -1451,12 +1451,13 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-				order.account_id,
-				order.market_id,
-				current_volume,
-			)
-			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
+					order.account_id,
+					order.market_id,
+					current_volume,
+				)
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) =
 				Self::get_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
@@ -1692,8 +1693,8 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume: FixedI128 =
-				T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
 					current_volume,
