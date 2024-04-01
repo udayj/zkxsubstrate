@@ -14,6 +14,7 @@ use pallet_support::{
 		OrderType, Position, Side,
 	},
 };
+use pallet_trading::Event as TradingEvent;
 use pallet_trading_account::Event;
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
@@ -168,13 +169,23 @@ fn test_liquidation() {
 		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
 		assert_eq!(flag.is_none(), true);
 
-		assert_has_events(vec![Event::InsuranceFundChange {
-			collateral_id: 1431520323,
-			amount: FixedI128::from_u32(15000),
-			modify_type: FundModifyType::Decrease,
-			block_number: 1,
-		}
-		.into()]);
+		assert_has_events(vec![
+			Event::InsuranceFundChange {
+				collateral_id: 1431520323,
+				amount: FixedI128::from_u32(15000),
+				modify_type: FundModifyType::Decrease,
+				block_number: 1,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id,
+				amount: FixedI128::from_inner(-15000000000000000000000),
+				block_number: 1,
+			}
+			.into(),
+		]);
 	});
 }
 
@@ -291,21 +302,31 @@ fn test_liquidation_w_fees() {
 		assert_eq!(expected_position, alice_position);
 
 		// Check for events
-		assert_has_events(vec![pallet_trading::Event::OrderExecuted {
-			account_id: alice_id,
-			order_id: alice_forced_order.order_id,
-			market_id,
-			size: 5.into(),
-			direction: alice_forced_order.direction.into(),
-			side: alice_forced_order.side.into(),
-			order_type: alice_forced_order.order_type.into(),
-			execution_price: 5000.into(),
-			pnl: (-25000).into(),
-			fee: 0.into(),
-			is_final: true,
-			is_maker: false,
-		}
-		.into()]);
+		assert_has_events(vec![
+			pallet_trading::Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: alice_forced_order.order_id,
+				market_id,
+				size: 5.into(),
+				direction: alice_forced_order.direction.into(),
+				side: alice_forced_order.side.into(),
+				order_type: alice_forced_order.order_type.into(),
+				execution_price: 5000.into(),
+				pnl: (-25000).into(),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: false,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id,
+				amount: FixedI128::from_inner(-15000000000000000000000),
+				block_number: 1,
+			}
+			.into(),
+		]);
 
 		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
 		assert_eq!(flag.is_none(), true);
@@ -669,6 +690,25 @@ fn test_liquidation_multiple_positions() {
 			1699949278000,
 		));
 
+		assert_has_events(vec![
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id: btc_usdc().market.id,
+				amount: FixedI128::from_inner(5062500000000000000000),
+				block_number: 1,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(207),
+				market_id,
+				amount: FixedI128::from_inner(240000000000000000000),
+				block_number: 1,
+			}
+			.into(),
+		]);
+
 		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
 		assert_eq!(flag.is_none(), true);
 
@@ -841,12 +881,22 @@ fn test_liquidation_on_time() {
 		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
 		assert_eq!(flag.is_none(), true);
 
-		assert_has_events(vec![Event::InsuranceFundChange {
-			collateral_id: 1431520323,
-			amount: FixedI128::from_u32(1000),
-			modify_type: FundModifyType::Increase,
-			block_number: 1,
-		}
-		.into()]);
+		assert_has_events(vec![
+			Event::InsuranceFundChange {
+				collateral_id: 1431520323,
+				amount: FixedI128::from_u32(1000),
+				modify_type: FundModifyType::Increase,
+				block_number: 1,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id,
+				amount: FixedI128::from_inner(1000000000000000000000),
+				block_number: 1,
+			}
+			.into(),
+		]);
 	});
 }
