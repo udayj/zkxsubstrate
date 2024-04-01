@@ -175,7 +175,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			for level in 0..fee_share_details.len() {
 				// Validate the fee share details
-				Self::validate_fee_shares(&fee_share_details[level as usize])?;
+				Self::validate_fee_shares(&fee_share_details[level])?;
 			}
 
 			// Remove any fee share details if present
@@ -197,8 +197,14 @@ pub mod pallet {
 				return FixedI128::zero();
 			}
 
+			let fee_share_details = fee_share_details.unwrap();
+
+			if account_level as usize > &fee_share_details.len() - 1 {
+				return FixedI128::zero();
+			}
+
 			// Find the appropriate fee tier for the user
-			let fee_share_details = &fee_share_details.unwrap()[account_level as usize];
+			let fee_share_details = &fee_share_details[account_level as usize];
 			for (_, tier) in fee_share_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
 					return tier.fee_share;
