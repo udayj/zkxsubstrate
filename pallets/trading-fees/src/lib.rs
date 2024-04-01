@@ -68,8 +68,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn fee_share)]
-	pub(super) type FeeShareMap<T: Config> =
-		StorageValue<_, Vec<Vec<FeeShareDetails>>, OptionQuery>;
+	pub(super) type FeeShare<T: Config> = StorageValue<_, Vec<Vec<FeeShareDetails>>, OptionQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -179,10 +178,10 @@ pub mod pallet {
 			}
 
 			// Remove any fee share details if present
-			FeeShareMap::<T>::kill();
+			FeeShare::<T>::kill();
 
 			// Add it to storage
-			FeeShareMap::<T>::put(&fee_share_details);
+			FeeShare::<T>::put(&fee_share_details);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
@@ -190,20 +189,21 @@ pub mod pallet {
 		}
 
 		fn get_fee_share(account_level: u8, volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShareMap::<T>::get();
+			let fee_share_details = FeeShare::<T>::get();
 
-			// If no fee_tiers are set, return 0 as fees and tier as 0
+			// If no fee share tiers are set, return 0 as fee share
 			if fee_share_details.is_none() {
 				return FixedI128::zero();
 			}
 
 			let fee_share_details = fee_share_details.unwrap();
 
+			// If account level is invalid, return 0 as fee share
 			if account_level as usize > &fee_share_details.len() - 1 {
 				return FixedI128::zero();
 			}
 
-			// Find the appropriate fee tier for the user
+			// Find the appropriate fee share tier for the user
 			let fee_share_details = &fee_share_details[account_level as usize];
 			for (_, tier) in fee_share_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
