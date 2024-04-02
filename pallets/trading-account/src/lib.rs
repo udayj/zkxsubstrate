@@ -161,21 +161,14 @@ pub mod pallet {
 	// Maps from (monetary_account_address,collateral_id)-> volume vector
 	// This stores 31 days of volume, starting from day of last trade (index 0 stores volume for
 	// most recent day of trade)
-	pub(super) type MasterAccountVolumeMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		U256,
-		Blake2_128Concat,
-		u128,
-		Vec<FixedI128>,
-		OptionQuery,
-	>;
+	pub(super) type MasterAccountVolumeMap<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, Vec<FixedI128>, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn master_account_tx_timestamp)]
 	// Maps from (monetary_account_address, collateral_id) -> timestamp for last trade
 	pub(super) type MasterAccountLastTxTimestamp<T: Config> =
-		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, u64, OptionQuery>;
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, u64, OptionQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
