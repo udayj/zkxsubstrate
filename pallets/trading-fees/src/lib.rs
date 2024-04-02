@@ -20,7 +20,10 @@ pub mod pallet {
 		traits::{AssetInterface, MarketInterface, TradingFeesInterface},
 		types::{BaseFee, BaseFeeAggregate, FeeShareDetails, OrderSide, Side},
 	};
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use sp_arithmetic::{
+		fixed_point::FixedI128,
+		traits::{One, Zero},
+	};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -86,6 +89,8 @@ pub mod pallet {
 		MarketNotFound,
 		/// Empty array passed for
 		EmptyFeeShares,
+		/// Invalid value for fee share
+		InvalidFeeShare,
 	}
 
 	#[pallet::event]
@@ -261,6 +266,12 @@ pub mod pallet {
 			let first_fee_share = &fee_shares[0];
 			// The volume of first tier must be 0
 			ensure!(first_fee_share.volume == FixedI128::zero(), Error::<T>::InvalidVolume);
+			// Validate fee share is between 0 and 1
+			ensure!(
+				first_fee_share.fee_share >= FixedI128::zero() &&
+					first_fee_share.fee_share <= FixedI128::one(),
+				Error::<T>::InvalidFeeShare
+			);
 
 			// Validate the fee shares in pairs;
 			// Each tier's fee share >= previous tier's fee share
@@ -277,6 +288,12 @@ pub mod pallet {
 				ensure!(
 					current_fee_share.fee_share >= prev_fee_share.fee_share,
 					Error::<T>::InvalidFee
+				);
+				// Validate fee share is between 0 and 1
+				ensure!(
+					current_fee_share.fee_share >= FixedI128::zero() &&
+						current_fee_share.fee_share <= FixedI128::one(),
+					Error::<T>::InvalidFeeShare
 				);
 			}
 
