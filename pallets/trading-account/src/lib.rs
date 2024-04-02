@@ -1263,35 +1263,74 @@ pub mod pallet {
 				// Also find last 30 days volume after computing the new volume vector
 				let (updated_volume, last_30day_volume) =
 					shift_and_recompute(&vol31, new_volume, day_diff);
-				MonetaryAccountVolumeMap::<T>::set(
-					monetary_account_address,
-					collateral_id,
-					Some(updated_volume),
-				);
+				match volume_update_type {
+					VolumeType::UserVolume => {
+						MonetaryAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
 
-				// update current tx timestamp
-				MonetaryAccountLastTxTimestamp::<T>::set(
-					monetary_account_address,
-					collateral_id,
-					Some(current_timestamp),
-				);
+						// update current tx timestamp
+						MonetaryAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+					VolumeType::MasterVolume => {
+						MasterAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MasterAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+				};
+
 				return Ok(last_30day_volume)
 			} else {
 				// Here the updated_volume vector will be all 0s except 1st element which will
 				// store the new_volume
 				let (updated_volume, last_30day_volume) =
 					shift_and_recompute(&Vec::from([FixedI128::from_inner(0); 31]), new_volume, 31);
-				MonetaryAccountVolumeMap::<T>::set(
-					monetary_account_address,
-					collateral_id,
-					Some(updated_volume),
-				);
+				match volume_update_type {
+					VolumeType::UserVolume => {
+						MonetaryAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
 
-				MonetaryAccountLastTxTimestamp::<T>::set(
-					monetary_account_address,
-					collateral_id,
-					Some(current_timestamp),
-				);
+						// update current tx timestamp
+						MonetaryAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+					VolumeType::MasterVolume => {
+						MasterAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MasterAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+				};
+
 				return Ok(last_30day_volume)
 			}
 		}
