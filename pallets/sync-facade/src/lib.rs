@@ -458,7 +458,7 @@ pub mod pallet {
 				.collect()
 		}
 
-		fn create_fee_share_vec(
+		fn create_fee_shares_vec(
 			volumes: &Vec<FixedI128>,
 			fees: &Vec<FixedI128>,
 		) -> Vec<FeeShareDetails> {
@@ -471,6 +471,17 @@ pub mod pallet {
 
 		fn set_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> Result<(), ()> {
 			match T::TradingFeesPallet::update_base_fees_internal(id, fee_details) {
+				Ok(_) => Ok(()),
+				Err(_) => {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
+					Err(())
+				},
+			}
+		}
+
+		fn set_fee_shares_internal(id: u128, fee_details: Vec<FeeShareDetails>) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_fee_shares_internal(id, fee_details) {
 				Ok(_) => Ok(()),
 				Err(_) => {
 					// Emit Unknown data event
@@ -572,6 +583,10 @@ pub mod pallet {
 					Self::remove_fee_share_settings_from_map(id);
 					continue;
 				}
+
+				let _ =
+					Self::set_fee_shares_internal(id, Self::create_fee_shares_vec(&volumes, &fees));
+				Self::remove_settings_from_maps(id);
 			}
 		}
 

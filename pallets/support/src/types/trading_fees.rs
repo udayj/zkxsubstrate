@@ -19,12 +19,6 @@ pub struct BaseFeeAggregate {
 	pub taker_sell: Vec<BaseFee>,
 }
 
-#[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct FeeShareDetails {
-	pub volume: FixedI128,
-	pub fee_share: FixedI128,
-}
-
 #[derive(
 	Clone, Copy, Decode, Default, Deserialize, Encode, PartialEq, RuntimeDebug, Serialize, TypeInfo,
 )]

@@ -71,7 +71,13 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn fee_share)]
-	pub(super) type FeeShare<T: Config> = StorageValue<_, Vec<Vec<FeeShareDetails>>, OptionQuery>;
+	pub(super) type FeeShare<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		u128, // collateral_id
+		Vec<FeeShareDetails>,
+		OptionQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -106,7 +112,7 @@ pub mod pallet {
 			base_fee_aggregate: BaseFeeAggregate,
 		},
 		FeeShareSet {
-			fee_share: Vec<Vec<FeeShareDetails>>,
+			fee_share: Vec<FeeShareDetails>,
 		},
 	}
 
@@ -131,12 +137,13 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn update_fee_share(
 			origin: OriginFor<T>,
-			fee_share_details: Vec<Vec<FeeShareDetails>>,
+			id: u128,
+			fee_share_details: Vec<FeeShareDetails>,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
 
-			Self::update_fee_shares_internal(fee_share_details)?;
+			Self::update_fee_shares_internal(id, fee_share_details)?;
 			Ok(())
 		}
 	}
@@ -175,26 +182,29 @@ pub mod pallet {
 		}
 
 		fn update_fee_shares_internal(
-			fee_share_details: Vec<Vec<FeeShareDetails>>,
+			id: u128,
+			fee_share_details: Vec<FeeShareDetails>,
 		) -> DispatchResult {
-			for level in 0..fee_share_details.len() {
-				// Validate the fee share details
-				Self::validate_fee_shares(&fee_share_details[level])?;
+			// Validate that the asset exists and it is a collateral
+			if let Some(asset) = T::AssetPallet::get_asset(id) {
+				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
 			}
 
+			Self::validate_fee_shares(&fee_share_details)?;
+
 			// Remove any fee share details if present
-			FeeShare::<T>::kill();
+			FeeShare::<T>::remove(id);
 
 			// Add it to storage
-			FeeShare::<T>::put(&fee_share_details);
+			FeeShare::<T>::set(id, Some(fee_share_details.clone()));
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
 			Ok(())
 		}
 
-		fn get_fee_share(account_level: u8, volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShare::<T>::get();
+		fn get_fee_share(account_level: u8, id: u128, volume: FixedI128) -> FixedI128 {
+			let fee_share_details = FeeShare::<T>::get(id);
 
 			// If no fee share tiers are set, return 0 as fee share
 			if fee_share_details.is_none() {
@@ -209,7 +219,6 @@ pub mod pallet {
 			}
 
 			// Find the appropriate fee share tier for the user
-			let fee_share_details = &fee_share_details[account_level as usize];
 			for (_, tier) in fee_share_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
 					return tier.fee_share;
