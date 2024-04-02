@@ -126,7 +126,14 @@ pub struct AccountLevelUpdated {
 pub enum SettingsType {
 	FeeSettings(FeeSettingsType),
 	ABRSettings(ABRSettingsType),
+	FeeShareSettings(FeeShareSettingsType),
 	GeneralSettings,
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
+pub enum FeeShareSettingsType {
+	Vols,
+	Fees,
 }
 
 #[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
