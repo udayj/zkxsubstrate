@@ -89,12 +89,18 @@ pub trait TradingInterface {
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_remaining_trading_cleanup_calls() -> u64;
 	fn get_fee_rate(
+		account_id: U256,
 		base_fees: &BaseFeeAggregate,
 		side: Side,
 		order_side: OrderSide,
 		volume: FixedI128,
 	) -> (FixedI128, u8);
-	fn get_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates;
+	fn get_all_fee_rates(
+		account_id: U256,
+		market_id: u128,
+		collateral_id: u128,
+		volume: FixedI128,
+	) -> FeeRates;
 }
 
 pub trait AssetInterface {
