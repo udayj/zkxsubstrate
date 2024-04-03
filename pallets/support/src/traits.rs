@@ -1,9 +1,9 @@
 use crate::types::{
 	ABRDetails, AccountInfo, AccountLevelUpdated, Asset, AssetAddress, AssetRemoved, AssetUpdated,
 	BalanceChangeReason, BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
-	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded, ReferralDetails,
-	Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
+	FeeShareDetails, ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved,
+	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded,
+	ReferralDetails, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
 	TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
@@ -192,6 +192,8 @@ pub trait FieldElementExt {
 pub trait TradingFeesInterface {
 	fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate;
 	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
+	fn update_fee_shares_internal(fee_share_details: Vec<Vec<FeeShareDetails>>) -> DispatchResult;
+	fn get_fee_share(acount_level: u8, volume: FixedI128) -> FixedI128;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and
