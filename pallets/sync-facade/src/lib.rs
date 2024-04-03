@@ -30,6 +30,7 @@ pub mod pallet {
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
+	use scale_info::prelude::vec;
 	use sp_arithmetic::fixed_point::FixedI128;
 
 	#[cfg(not(feature = "dev"))]
@@ -106,7 +107,7 @@ pub mod pallet {
 		Twox64Concat,
 		u128,
 		Twox64Concat,
-		FeeShareSettingsType,
+		(FeeShareSettingsType, u128),
 		Vec<FixedI128>,
 		OptionQuery,
 	>;
@@ -460,12 +461,16 @@ pub mod pallet {
 
 		fn create_fee_shares_vec(
 			volumes: &Vec<FixedI128>,
-			fees: &Vec<FixedI128>,
-		) -> Vec<FeeShareDetails> {
-			volumes
-				.into_iter()
-				.zip(fees.into_iter())
-				.map(|(volume, fee)| FeeShareDetails { volume: *volume, fee_share: *fee })
+			fees: &Vec<Vec<FixedI128>>,
+		) -> Vec<Vec<FeeShareDetails>> {
+			fees.iter()
+				.map(|fee_vec| {
+					volumes
+						.iter()
+						.zip(fee_vec.iter())
+						.map(|(&volume, &fee)| FeeShareDetails { volume, fee_share: fee })
+						.collect()
+				})
 				.collect()
 		}
 
@@ -480,7 +485,10 @@ pub mod pallet {
 			}
 		}
 
-		fn set_fee_shares_internal(id: u128, fee_details: Vec<FeeShareDetails>) -> Result<(), ()> {
+		fn set_fee_shares_internal(
+			id: u128,
+			fee_details: Vec<Vec<FeeShareDetails>>,
+		) -> Result<(), ()> {
 			match T::TradingFeesPallet::update_fee_shares_internal(id, fee_details) {
 				Ok(_) => Ok(()),
 				Err(_) => {
@@ -559,33 +567,45 @@ pub mod pallet {
 				TempFeeSharesAssetsMap::<T>::iter().map(|(key, _)| key).collect();
 			for &id in id_list.iter() {
 				// Get the volumes vector
-				let volumes_query = TempFeeSharesMap::<T>::get(id, FeeShareSettingsType::Vols);
+				if let Some(volumes) =
+					TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Vols, 0))
+				{
+					let mut fee_vectors = vec![];
+					let mut index = 0;
+					while let Some(fee) =
+						TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Fees, index))
+					{
+						fee_vectors.push(fee);
+						index += 1;
+					}
 
-				// Get the fees vector
-				let fees_query = TempFeeSharesMap::<T>::get(id, FeeShareSettingsType::Fees);
+					// Check if all the required data is present for this asset
+					if fee_vectors.is_empty() {
+						// Emit Insufficient data event
+						Self::deposit_event(Event::InsufficientFeeData { id });
+						Self::remove_settings_from_maps(id);
+						continue;
+					}
 
-				// Check if all the required data is present for this asset
-				if !(volumes_query.is_some() && fees_query.is_some()) {
+					// Check if the volume and fee vectors have the same size
+					if let Some(_fee_vector) =
+						fee_vectors.iter().find(|fee_vector| fee_vector.len() != volumes.len())
+					{
+						// Emit Fee data length mismatch event
+						Self::deposit_event(Event::FeeDataLengthMismatch { id });
+						Self::remove_fee_share_settings_from_map(id);
+						continue;
+					}
+
+					let _ = Self::set_fee_shares_internal(
+						id,
+						Self::create_fee_shares_vec(&volumes, &fee_vectors),
+					);
+				} else {
 					// Emit Insufficient data event
 					Self::deposit_event(Event::InsufficientFeeData { id });
-					Self::remove_settings_from_maps(id);
-					continue;
 				}
 
-				// Unwrap the fees data
-				let volumes = volumes_query.unwrap();
-				let fees = fees_query.unwrap();
-
-				// The volume and fees vectors must be of the same size
-				if volumes.len() != fees.len() {
-					// Emit Insufficient data event
-					Self::deposit_event(Event::FeeDataLengthMismatch { id });
-					Self::remove_fee_share_settings_from_map(id);
-					continue;
-				}
-
-				let _ =
-					Self::set_fee_shares_internal(id, Self::create_fee_shares_vec(&volumes, &fees));
 				Self::remove_settings_from_maps(id);
 			}
 		}
@@ -604,6 +624,7 @@ pub mod pallet {
 
 		fn add_fee_share_settings_to_map(
 			id: u128,
+			index: u128,
 			fee_share_settings_type: FeeShareSettingsType,
 			values: Vec<FixedI128>,
 		) {
@@ -611,7 +632,7 @@ pub mod pallet {
 			TempFeeSharesAssetsMap::<T>::insert(id, true);
 
 			// Insert vector into the map
-			TempFeeSharesMap::<T>::insert(id, fee_share_settings_type, values);
+			TempFeeSharesMap::<T>::insert(id, (fee_share_settings_type, index), values);
 		}
 
 		fn remove_fee_share_settings_from_map(id: u128) {
@@ -619,8 +640,15 @@ pub mod pallet {
 			TempFeeSharesAssetsMap::<T>::remove(id);
 
 			// Remove the vols and fees from the storage map
-			TempFeeSharesMap::<T>::remove(id, FeeShareSettingsType::Vols);
-			TempFeeSharesMap::<T>::remove(id, FeeShareSettingsType::Fees);
+			TempFeeSharesMap::<T>::remove(id, (FeeShareSettingsType::Vols, 0));
+
+			let mut index = 0;
+			while let Some(_fee) =
+				TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Fees, index))
+			{
+				TempFeeSharesMap::<T>::remove(id, (FeeShareSettingsType::Fees, index));
+				index += 1;
+			}
 		}
 
 		fn remove_settings_from_maps(id: u128) {
@@ -708,11 +736,13 @@ pub mod pallet {
 						match fee_share_settings_type {
 							FeeShareSettingsType::Vols => Self::add_fee_share_settings_to_map(
 								param1,
+								param3,
 								fee_share_settings_type,
 								setting.values.to_vec(),
 							),
 							FeeShareSettingsType::Fees => Self::add_fee_share_settings_to_map(
 								param1,
+								param3,
 								fee_share_settings_type,
 								setting.values.to_vec(),
 							),

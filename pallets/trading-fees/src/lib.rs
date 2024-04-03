@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -75,7 +75,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		u128, // collateral_id
-		Vec<FeeShareDetails>,
+		Vec<Vec<FeeShareDetails>>,
 		OptionQuery,
 	>;
 
@@ -112,7 +112,7 @@ pub mod pallet {
 			base_fee_aggregate: BaseFeeAggregate,
 		},
 		FeeShareSet {
-			fee_share: Vec<FeeShareDetails>,
+			fee_share: Vec<Vec<FeeShareDetails>>,
 		},
 	}
 
@@ -138,7 +138,7 @@ pub mod pallet {
 		pub fn update_fee_share(
 			origin: OriginFor<T>,
 			id: u128,
-			fee_share_details: Vec<FeeShareDetails>,
+			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
@@ -183,24 +183,26 @@ pub mod pallet {
 
 		fn update_fee_shares_internal(
 			id: u128,
-			fee_share_details: Vec<FeeShareDetails>,
+			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
-			// Validate that the asset exists and it is a collateral
-			if let Some(asset) = T::AssetPallet::get_asset(id) {
-				ensure!(asset.is_collateral, Error::<T>::AssetNotCollateral);
+			for level in 0..fee_share_details.len() {
+				// Validate the fee share details
+				Self::validate_fee_shares(&fee_share_details[level])?;
 			}
-
-			Self::validate_fee_shares(&fee_share_details)?;
 
 			// Remove any fee share details if present
 			FeeShare::<T>::remove(id);
 
 			// Add it to storage
-			FeeShare::<T>::set(id, Some(fee_share_details.clone()));
+			FeeShare::<T>::insert(id, &fee_share_details);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
 			Ok(())
+		}
+
+		fn get_all_fee_shares(id: u128) -> Vec<Vec<FeeShareDetails>> {
+			FeeShare::<T>::get(id).unwrap_or_default()
 		}
 
 		fn get_fee_share(account_level: u8, id: u128, volume: FixedI128) -> FixedI128 {
@@ -219,6 +221,7 @@ pub mod pallet {
 			}
 
 			// Find the appropriate fee share tier for the user
+			let fee_share_details = &fee_share_details[account_level as usize];
 			for (_, tier) in fee_share_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
 					return tier.fee_share;

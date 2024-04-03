@@ -175,9 +175,10 @@ pub trait TradingFeesInterface {
 	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
 	fn update_fee_shares_internal(
 		id: u128,
-		fee_share_details: Vec<FeeShareDetails>,
+		fee_share_details: Vec<Vec<FeeShareDetails>>,
 	) -> DispatchResult;
 	fn get_fee_share(account_level: u8, id: u128, volume: FixedI128) -> FixedI128;
+	fn get_all_fee_shares(id: u128) -> Vec<Vec<FeeShareDetails>>;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and
