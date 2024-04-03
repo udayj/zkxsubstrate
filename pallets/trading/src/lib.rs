@@ -31,7 +31,7 @@ pub mod pallet {
 		types::{
 			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
 			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
-			Position, PositionExtended, Side, SignatureInfo, TimeInForce,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce, VolumeType,
 		},
 		Signature,
 	};
@@ -1466,12 +1466,13 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-				order.account_id,
-				order.market_id,
-				current_volume,
-			)
-			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
+					order.account_id,
+					order.market_id,
+					current_volume,
+				)
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let (fee_rate, _) =
 				Self::get_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
@@ -1755,8 +1756,8 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume: FixedI128 =
-				T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
 					current_volume,
@@ -2153,7 +2154,11 @@ pub mod pallet {
 			}
 
 			let last_30day_volume: FixedI128;
-			match T::TradingAccountPallet::get_30day_volume(account_id, market_id) {
+			match T::TradingAccountPallet::get_30day_volume(
+				account_id,
+				market_id,
+				VolumeType::UserVolume,
+			) {
 				Ok(value) => last_30day_volume = value,
 				Err(_) => return (FeeRates::new(zero, zero, zero, zero), 0),
 			}

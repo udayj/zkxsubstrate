@@ -15,6 +15,15 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
 )]
+pub enum VolumeType {
+	#[default]
+	UserVolume,
+	MasterVolume,
+}
+
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
 pub struct TradingAccount {
 	pub account_id: U256,
 	pub account_address: U256,

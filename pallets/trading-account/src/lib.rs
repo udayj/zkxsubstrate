@@ -23,7 +23,8 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
-			Position, ReferralDetails, TradingAccount, TradingAccountMinimal, WithdrawalRequest,
+			Position, ReferralDetails, TradingAccount, TradingAccountMinimal, VolumeType,
+			WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -154,6 +155,20 @@ pub mod pallet {
 	// It stores master account level
 	pub(super) type MasterAccountLevel<T: Config> =
 		StorageMap<_, Twox64Concat, U256, u8, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn master_account_volume)]
+	// Maps from (monetary_account_address,collateral_id)-> volume vector
+	// This stores 31 days of volume, starting from day of last trade (index 0 stores volume for
+	// most recent day of trade)
+	pub(super) type MasterAccountVolumeMap<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, Vec<FixedI128>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn master_account_tx_timestamp)]
+	// Maps from (monetary_account_address, collateral_id) -> timestamp for last trade
+	pub(super) type MasterAccountLastTxTimestamp<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, u64, OptionQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -1182,14 +1197,37 @@ pub mod pallet {
 			Self::calculate_amount_to_withdraw(account_id, collateral_id)
 		}
 
+		fn update_and_get_user_and_master_volume(
+			account_id: U256,
+			market_id: u128,
+			new_volume: FixedI128,
+		) -> Result<(FixedI128, FixedI128), Self::VolumeError> {
+			// Get the corresponsing monetary address of the user
+			let user_monetary_address = AccountMap::<T>::get(account_id)
+				.ok_or(Error::<T>::AccountDoesNotExist)?
+				.account_address;
+
+			// Gets the 30 day volume for the user
+			let user_30_day_volume = Self::update_and_get_cumulative_volume(
+				user_monetary_address,
+				market_id,
+				new_volume,
+				VolumeType::UserVolume,
+			)?;
+
+			// TODO(merkle-groot): Get the 30 day volume for the master
+			Ok((user_30_day_volume, FixedI128::zero()))
+		}
+
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days'
 		// volume) and returns the current last 30 days volume not including the present day volume
 		// This function is meant to be called only during trade execution and hence volume vector
 		// is updated only during trade execution
 		fn update_and_get_cumulative_volume(
-			account_id: U256,
+			monetary_account_address: U256,
 			market_id: u128,
 			new_volume: FixedI128,
+			volume_update_type: VolumeType,
 		) -> Result<FixedI128, Self::VolumeError> {
 			// find collateral id corresponding to the given market id
 			// return error if market not found
@@ -1197,71 +1235,131 @@ pub mod pallet {
 				.ok_or(Error::<T>::MarketDoesNotExist)?
 				.asset_collateral;
 
-			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
-				// Find monetary account address corresponding to the trading account_id
-				let monetary_account_address = trading_account.account_address;
-				let current_timestamp = T::TimeProvider::now().as_secs();
-				if let Some(vol31) =
-					MonetaryAccountVolumeMap::<T>::get(monetary_account_address, collateral_id)
-				{
-					// we are bound to find last tx timestamp if volume vector was found, hence we
-					// can directly unwrap
-					let last_tx_timestamp = MonetaryAccountLastTxTimestamp::<T>::get(
+			let current_timestamp = T::TimeProvider::now().as_secs();
+			if let Some(vol31) = match volume_update_type {
+				VolumeType::UserVolume =>
+					MonetaryAccountVolumeMap::<T>::get(monetary_account_address, collateral_id),
+				VolumeType::MasterVolume =>
+					MasterAccountVolumeMap::<T>::get(monetary_account_address, collateral_id),
+			} {
+				// we are bound to find last tx timestamp if volume vector was found, hence we
+				// can directly unwrap
+				let last_tx_timestamp = match volume_update_type {
+					VolumeType::UserVolume => MonetaryAccountLastTxTimestamp::<T>::get(
 						monetary_account_address,
 						collateral_id,
 					)
-					.unwrap();
-
-					let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
-
-					// Compute new volume vector, shifting the volumes, if there is a day diff
-					// Also find last 30 days volume after computing the new volume vector
-					let (updated_volume, last_30day_volume) =
-						shift_and_recompute(&vol31, new_volume, day_diff);
-					MonetaryAccountVolumeMap::<T>::set(
+					.unwrap(),
+					VolumeType::MasterVolume => MasterAccountLastTxTimestamp::<T>::get(
 						monetary_account_address,
 						collateral_id,
-						Some(updated_volume),
-					);
+					)
+					.unwrap(),
+				};
 
-					// update current tx timestamp
-					MonetaryAccountLastTxTimestamp::<T>::set(
-						monetary_account_address,
-						collateral_id,
-						Some(current_timestamp),
-					);
-					return Ok(last_30day_volume)
-				} else {
-					// Here the updated_volume vector will be all 0s except 1st element which will
-					// store the new_volume
-					let (updated_volume, last_30day_volume) = shift_and_recompute(
-						&Vec::from([FixedI128::from_inner(0); 31]),
-						new_volume,
-						31,
-					);
-					MonetaryAccountVolumeMap::<T>::set(
-						monetary_account_address,
-						collateral_id,
-						Some(updated_volume),
-					);
+				let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
 
-					MonetaryAccountLastTxTimestamp::<T>::set(
-						monetary_account_address,
-						collateral_id,
-						Some(current_timestamp),
-					);
-					return Ok(last_30day_volume)
-				}
+				// Compute new volume vector, shifting the volumes, if there is a day diff
+				// Also find last 30 days volume after computing the new volume vector
+				let (updated_volume, last_30day_volume) =
+					shift_and_recompute(&vol31, new_volume, day_diff);
+				match volume_update_type {
+					VolumeType::UserVolume => {
+						MonetaryAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MonetaryAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+					VolumeType::MasterVolume => {
+						MasterAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MasterAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+				};
+
+				return Ok(last_30day_volume)
+			} else {
+				// Here the updated_volume vector will be all 0s except 1st element which will
+				// store the new_volume
+				let (updated_volume, last_30day_volume) =
+					shift_and_recompute(&Vec::from([FixedI128::from_inner(0); 31]), new_volume, 31);
+				match volume_update_type {
+					VolumeType::UserVolume => {
+						MonetaryAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MonetaryAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+					VolumeType::MasterVolume => {
+						MasterAccountVolumeMap::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(updated_volume),
+						);
+
+						// update current tx timestamp
+						MasterAccountLastTxTimestamp::<T>::set(
+							monetary_account_address,
+							collateral_id,
+							Some(current_timestamp),
+						);
+					},
+				};
+
+				return Ok(last_30day_volume)
 			}
-			Err(Error::<T>::AccountDoesNotExist)
+		}
+
+		fn get_30day_user_volume(
+			account_id: U256,
+			market_id: u128,
+		) -> Result<FixedI128, Self::VolumeError> {
+			let monetary_account_address = AccountMap::<T>::get(account_id)
+				.ok_or(Error::<T>::AccountDoesNotExist)?
+				.account_address;
+
+			Self::get_30day_volume(monetary_account_address, market_id, VolumeType::UserVolume)
+		}
+
+		fn get_30day_master_volume(
+			monetary_account_address: U256,
+			market_id: u128,
+		) -> Result<FixedI128, Self::VolumeError> {
+			Self::get_30day_volume(monetary_account_address, market_id, VolumeType::MasterVolume)
 		}
 
 		// This is a read-only function that returns the last 30 days volume (not including the
 		// current day) The volume vector is updated only when update_and_get_cumulative_volume() is
 		// called during execution of trade
 		fn get_30day_volume(
-			account_id: U256,
+			monetary_account_address: U256,
 			market_id: u128,
+			volume_type: VolumeType,
 		) -> Result<FixedI128, Self::VolumeError> {
 			// find collateral id corresponding to the market id given
 			// return error if market not found
@@ -1269,34 +1367,39 @@ pub mod pallet {
 				.ok_or(Error::<T>::MarketDoesNotExist)?
 				.asset_collateral;
 
-			if let Some(trading_account) = AccountMap::<T>::get(account_id) {
-				// Find monetary account address corresponding to the trading account_id
-				let monetary_account_address = trading_account.account_address;
-				let current_timestamp = T::TimeProvider::now().as_secs();
-				if let Some(vol31) =
-					MonetaryAccountVolumeMap::<T>::get(monetary_account_address, collateral_id)
-				{
-					// we are bound to find last tx timestamp if volume vector was found, hence we
-					// can directly unwrap
-					let last_tx_timestamp = MonetaryAccountLastTxTimestamp::<T>::get(
+			let current_timestamp = T::TimeProvider::now().as_secs();
+			if let Some(vol31) = match volume_type {
+				VolumeType::UserVolume =>
+					MonetaryAccountVolumeMap::<T>::get(monetary_account_address, collateral_id),
+				VolumeType::MasterVolume =>
+					MasterAccountVolumeMap::<T>::get(monetary_account_address, collateral_id),
+			} {
+				// we are bound to find last tx timestamp if volume vector was found, hence we
+				// can directly unwrap
+				let last_tx_timestamp = match volume_type {
+					VolumeType::UserVolume => MonetaryAccountLastTxTimestamp::<T>::get(
 						monetary_account_address,
 						collateral_id,
 					)
-					.unwrap();
+					.unwrap(),
+					VolumeType::MasterVolume => MasterAccountLastTxTimestamp::<T>::get(
+						monetary_account_address,
+						collateral_id,
+					)
+					.unwrap(),
+				};
 
-					let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
+				let day_diff = get_day_diff(last_tx_timestamp, current_timestamp);
 
-					// we can ignore the updated volume vector since this function is meant to be
-					// used in read-only calls
-					let (_, last_30day_volume) =
-						shift_and_recompute(&vol31, FixedI128::from_inner(0), day_diff);
-					return Ok(last_30day_volume)
-				} else {
-					// if no volume was found then no trade has happend in last 30 days, return 0
-					return Ok(FixedI128::from_inner(0))
-				}
+				// we can ignore the updated volume vector since this function is meant to be
+				// used in read-only calls
+				let (_, last_30day_volume) =
+					shift_and_recompute(&vol31, FixedI128::from_inner(0), day_diff);
+				return Ok(last_30day_volume)
+			} else {
+				// if no volume was found then no trade has happend in last 30 days, return 0
+				return Ok(FixedI128::from_inner(0))
 			}
-			Err(Error::<T>::AccountDoesNotExist)
 		}
 
 		fn add_referral_internal(
