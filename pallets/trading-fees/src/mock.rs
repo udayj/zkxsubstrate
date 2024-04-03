@@ -2,17 +2,21 @@ use crate as trading_fees;
 use frame_support::traits::{ConstU16, ConstU64};
 use pallet_asset;
 use pallet_market;
+use pallet_prices::{self, crypto::AuthId};
 use pallet_risk_management;
 use pallet_timestamp;
 use pallet_trading;
 use pallet_trading_account;
-use sp_core::H256;
+use sp_core::{sr25519::Signature, H256};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
+	testing::TestXt,
+	traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
 	BuildStorage,
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
+type Extrinsic = TestXt<RuntimeCall, ()>;
+type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -40,7 +44,7 @@ impl frame_system::Config for Test {
 	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
-	type AccountId = u64;
+	type AccountId = sp_core::sr25519::Public;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
@@ -72,6 +76,7 @@ impl pallet_prices::Config for Test {
 	type TimeProvider = Timestamp;
 	type TradingAccountPallet = TradingAccounts;
 	type TradingPallet = Trading;
+	type AuthorityId = AuthId;
 }
 
 impl pallet_trading::Config for Test {
@@ -83,6 +88,7 @@ impl pallet_trading::Config for Test {
 	type PricesPallet = Prices;
 	type RiskManagementPallet = RiskManagement;
 	type TimeProvider = Timestamp;
+	type AuthorityId = AuthId;
 }
 
 impl pallet_risk_management::Config for Test {
@@ -112,10 +118,36 @@ impl trading_fees::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
 	type MarketPallet = Markets;
-	type TradingAccountPallet = TradingAccounts;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	frame_system::GenesisConfig::<Test>::default().build_storage().unwrap().into()
+}
+
+impl frame_system::offchain::SigningTypes for Test {
+	type Public = <Signature as Verify>::Signer;
+	type Signature = Signature;
+}
+
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+where
+	RuntimeCall: From<LocalCall>,
+{
+	type OverarchingCall = RuntimeCall;
+	type Extrinsic = Extrinsic;
+}
+
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
+where
+	RuntimeCall: From<LocalCall>,
+{
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: RuntimeCall,
+		_public: <Signature as Verify>::Signer,
+		_account: AccountId,
+		nonce: u64,
+	) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+		Some((call, (nonce, ())))
+	}
 }

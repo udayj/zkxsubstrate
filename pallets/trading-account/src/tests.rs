@@ -29,17 +29,17 @@ fn setup() -> sp_io::TestExternalities {
 		assert_ok!(Timestamp::set(None.into(), 1699940367000));
 		// Set the assets in the system
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link(), btc(), usdt()]
 		));
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![btc_usdc(), link_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccountModule::add_accounts(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
 		));
 	});
@@ -178,7 +178,7 @@ fn test_add_balances_with_unknown_asset() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			vec![BalanceUpdate { asset_id: 1234567, balance_value: 1000.into() }]
 		));
@@ -196,7 +196,7 @@ fn test_add_balances_with_asset_not_marked_as_collateral() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			vec![BalanceUpdate { asset_id: eth().asset.id, balance_value: 1000.into() }],
 		));
@@ -217,7 +217,7 @@ fn test_add_balances() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			balances_array
 		));
@@ -245,7 +245,7 @@ fn test_deposit() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			alice(),
 			usdc().asset.id,
 			1000.into(),
@@ -269,7 +269,7 @@ fn test_deposit_when_negative() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			vec![BalanceUpdate { asset_id: usdc().asset.id, balance_value: (-250).into() }],
 		));
@@ -282,7 +282,7 @@ fn test_deposit_when_negative() {
 
 		// Desposit 100 USDC
 		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			alice(),
 			usdc().asset.id,
 			100.into(),
@@ -307,7 +307,7 @@ fn test_deposit_when_negative() {
 
 		// Desposit 160 USDC
 		assert_ok!(TradingAccountModule::deposit(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			alice(),
 			usdc().asset.id,
 			160.into(),
@@ -346,7 +346,10 @@ fn test_withdraw() {
 		.unwrap();
 
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
 
 		assert_eq!(
 			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
@@ -374,7 +377,10 @@ fn test_withdraw_twice() {
 		.unwrap();
 
 		// Send the withdrawal request
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
 
 		// Check the state
 		assert_eq!(
@@ -393,7 +399,10 @@ fn test_withdraw_twice() {
 		.unwrap();
 
 		// Send the new withdrawal request
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request_2));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request_2
+		));
 
 		// Check the state
 		assert_eq!(
@@ -422,13 +431,13 @@ fn test_withdraw_duplicate() {
 
 		// Send the withdrawal request
 		assert_ok!(TradingAccountModule::withdraw(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			withdrawal_request.clone()
 		));
 
 		// Send the withdrawal request again
 		assert_ok!(TradingAccountModule::withdraw(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			withdrawal_request.clone()
 		));
 	});
@@ -453,7 +462,10 @@ fn test_withdraw_on_not_existing_account() {
 		.unwrap();
 
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
 	});
 }
 
@@ -478,7 +490,10 @@ fn test_withdraw_on_invalid_sig() {
 		withdrawal_request.sig_r = U256::from(123123_u128);
 
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
 	});
 }
 
@@ -501,7 +516,10 @@ fn test_withdraw_with_insufficient_balance() {
 		.unwrap();
 
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::withdraw(RuntimeOrigin::signed(1), withdrawal_request));
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
 	});
 }
 
@@ -538,7 +556,7 @@ fn test_volume_update_two_trades() {
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			1.into(),
 			// quantity_locked
@@ -586,7 +604,7 @@ fn test_volume_update_two_trades() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			2.into(),
 			// quantity_locked
@@ -663,7 +681,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume bob-1");
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			1.into(),
 			// quantity_locked
@@ -721,7 +739,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			2.into(),
 			// quantity_locked
@@ -779,7 +797,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			3.into(),
 			// quantity_locked
@@ -853,7 +871,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			4.into(),
 			// quantity_locked
@@ -936,7 +954,7 @@ fn test_volume_update_30_days_diff() {
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			1.into(),
 			// quantity_locked
@@ -961,7 +979,7 @@ fn test_volume_update_30_days_diff() {
 		Timestamp::set_timestamp((init_timestamp + 30 * one_day) * 1000);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			2.into(),
 			// quantity_locked
@@ -1037,7 +1055,7 @@ fn test_volume_update_31_days_diff() {
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			1.into(),
 			// quantity_locked
@@ -1085,7 +1103,7 @@ fn test_volume_update_31_days_diff() {
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			2.into(),
 			// quantity_locked
@@ -1146,7 +1164,7 @@ fn test_adjust_balances() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			balances_array,
 		));

@@ -40,17 +40,17 @@ fn setup() -> sp_io::TestExternalities {
 
 		// Set the assets in the system
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link(), btc()]
 		));
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
@@ -97,7 +97,7 @@ fn test_liquidation() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -117,7 +117,11 @@ fn test_liquidation() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 5000.into(), mark_price: 5000.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204.into(), charlie_id)
@@ -135,7 +139,7 @@ fn test_liquidation() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -232,7 +236,7 @@ fn test_liquidation_w_fees() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -252,7 +256,11 @@ fn test_liquidation_w_fees() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 5000.into(), mark_price: 5000.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204.into(), charlie_id)
@@ -270,7 +278,7 @@ fn test_liquidation_w_fees() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -363,7 +371,7 @@ fn test_invalid_forced_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -383,7 +391,11 @@ fn test_invalid_forced_order() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 9500.into(), mark_price: 9500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204.into(), charlie_id)
@@ -400,7 +412,7 @@ fn test_invalid_forced_order() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -447,7 +459,7 @@ fn test_invalid_liquidator() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -467,7 +479,11 @@ fn test_invalid_liquidator() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 8500.into(), mark_price: 8500.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204.into(), charlie_id)
@@ -484,7 +500,7 @@ fn test_invalid_liquidator() {
 			.sign_order_liquidator(get_private_key(dave().pub_key), dave().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -531,7 +547,7 @@ fn test_liquidation_multiple_positions() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -565,7 +581,7 @@ fn test_liquidation_multiple_positions() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(3_u8),
 			// size
@@ -590,14 +606,22 @@ fn test_liquidation_multiple_positions() {
 			mark_price: 8000.into(),
 		};
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699949278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699949278000
+		));
 
 		// Decrease the price of ETHUSDC
 		let mut index_prices: Vec<MultiplePrices> = Vec::new();
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 95.into(), mark_price: 95.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699949278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699949278000
+		));
 
 		// Liquidation order for btc
 		let market_id = btc_usdc().market.id;
@@ -619,7 +643,7 @@ fn test_liquidation_multiple_positions() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -675,7 +699,7 @@ fn test_liquidation_multiple_positions() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(4_u8),
 			// size
@@ -714,7 +738,7 @@ fn test_liquidation_multiple_positions() {
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccounts::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			alice_id,
 			vec![BalanceUpdate {
 				asset_id: btc_usdc().market.asset_collateral,
@@ -722,7 +746,7 @@ fn test_liquidation_multiple_positions() {
 			}]
 		));
 		assert_ok!(TradingAccounts::set_balances(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			bob_id,
 			vec![BalanceUpdate {
 				asset_id: btc_usdc().market.asset_collateral,
@@ -748,7 +772,7 @@ fn test_liquidation_multiple_positions() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(5_u8),
 			// size
@@ -809,7 +833,7 @@ fn test_liquidation_on_time() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -829,7 +853,11 @@ fn test_liquidation_on_time() {
 		let index_price1 =
 			MultiplePrices { market_id, index_price: 8200.into(), mark_price: 8200.into() };
 		index_prices.push(index_price1);
-		assert_ok!(Prices::update_prices(RuntimeOrigin::signed(1), index_prices, 1699940278000));
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
 
 		// Place Forced order for liquidation
 		let charlie_order = Order::new(204.into(), charlie_id)
@@ -847,7 +875,7 @@ fn test_liquidation_on_time() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size

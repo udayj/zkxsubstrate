@@ -12,8 +12,14 @@ use test_helper::*;
 
 fn setup() {
 	// Set the assets in the system
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), btc(), link()]));
-	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc()]));
+	assert_ok!(Assets::replace_all_assets(
+		RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+		vec![usdc(), btc(), link()]
+	));
+	assert_ok!(Markets::replace_all_markets(
+		RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+		vec![btc_usdc()]
+	));
 }
 
 #[test]
