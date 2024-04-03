@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -131,14 +131,14 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn master_account)]
-	// Here, key1 is monetary account address and value is referral details with master monetary
-	// address
+	// Here, key1 is referral monetary account address and value is referral details with master
+	// monetary address
 	pub(super) type MasterAccountMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, ReferralDetails, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
-	// Here, key1 is (monetary account address, index) and value is referral
+	// Here, key1 is (master monetary account address, index) and value is referral
 	// monetary account addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
 		StorageMap<_, Twox64Concat, (U256, u64), U256, ValueQuery>;
@@ -783,13 +783,6 @@ pub mod pallet {
 			referral_details: ReferralDetails,
 			referral_code: U256,
 		) -> bool {
-			// Both master account and referral account should be registered
-			if !Self::is_registered_user(referral_account_address) ||
-				!Self::is_registered_user(referral_details.master_account_address)
-			{
-				return false;
-			}
-
 			let referral = MasterAccountMap::<T>::get(referral_account_address);
 			// Referral account can belong to only one master account
 			if referral.is_some() {

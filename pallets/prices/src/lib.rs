@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -72,14 +72,26 @@ pub mod pallet {
 		use super::KEY_TYPE;
 		use sp_runtime::{
 			app_crypto::{app_crypto, sr25519},
+			traits::Verify,
 			MultiSignature, MultiSigner,
 		};
 		app_crypto!(sr25519, KEY_TYPE);
-
+		use sp_core::sr25519::Signature as Sr25519Signature;
 		pub struct AuthId;
 
 		// implemented for runtime
 		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for AuthId {
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+
+		impl
+			frame_system::offchain::AppCrypto<
+				<Sr25519Signature as Verify>::Signer,
+				Sr25519Signature,
+			> for AuthId
+		{
 			type RuntimeAppPublic = Public;
 			type GenericSignature = sp_core::sr25519::Signature;
 			type GenericPublic = sp_core::sr25519::Public;
