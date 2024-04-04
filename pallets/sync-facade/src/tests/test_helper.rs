@@ -4,9 +4,10 @@ use pallet_support::{
 	helpers::compute_hash_on_elements,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate, Market,
-		MarketRemoved, MarketUpdated, QuorumSet, Setting, SettingsAdded, SignerAdded,
-		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate,
+		FeeShareDetails, Market, MarketRemoved, MarketUpdated, QuorumSet, Setting, SettingsAdded,
+		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
+		UserDeposit,
 	},
 	FieldElement,
 };
@@ -82,6 +83,7 @@ pub trait SettingsAddedTrait {
 	fn get_max_eth_usdc_settings() -> SettingsAdded;
 	// fee share
 	fn get_usdc_fee_shares_settings() -> SettingsAdded;
+	fn get_usdt_fee_shares_settings() -> SettingsAdded;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
@@ -459,18 +461,100 @@ impl SettingsAddedTrait for SettingsAdded {
 		let settings = bounded_vec![
 			Setting {
 				// R_USDC_V_0
-				key: U256::from(388992640615285758779181_i128),
-				values: bounded_vec![FixedI128::from_float(0.05)]
+				key: U256::from(388992640615285758779184_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(200000),
+					FixedI128::from_u32(5000000),
+					FixedI128::from_u32(10000000),
+					FixedI128::from_u32(25000000),
+					FixedI128::from_u32(50000000)
+				]
 			},
 			Setting {
 				// R_USDC_F_0
-				key: U256::from(3889926406152857577306080_i128),
-				values: bounded_vec![FixedI128::from_float(0.05)]
+				key: U256::from(388992640615285757730608_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.05),
+					FixedI128::from_float(0.08),
+					FixedI128::from_float(0.1),
+					FixedI128::from_float(0.12),
+					FixedI128::from_float(0.15)
+				]
 			},
 			Setting {
 				// R_USDC_F_1
-				key: U256::from(3889926406152857577306090_i128),
-				values: bounded_vec![FixedI128::from_float(0.05)]
+				key: U256::from(388992640615285757730609_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5)
+				]
+			}
+		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_usdt_fee_shares_settings() -> SettingsAdded {
+		let settings = bounded_vec![
+			Setting {
+				// R_USDT_V_0
+				key: U256::from(388992640615358773223216_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(200000),
+					FixedI128::from_u32(5000000),
+				]
+			},
+			Setting {
+				// R_USDT_F_0
+				key: U256::from(388992640615358772174640_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.05),
+					FixedI128::from_float(0.08),
+				]
+			},
+			Setting {
+				// R_USDT_F_1
+				key: U256::from(388992640615358772174641_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_2
+				key: U256::from(388992640615358772174642_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_3
+				key: U256::from(388992640615358772174643_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_4
+				key: U256::from(388992640615358772174644_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
 			}
 		];
 
@@ -616,6 +700,138 @@ pub fn get_btc_usdc_aggregate_fees() -> BaseFeeAggregate {
 		taker_buy: get_btc_usdc_taker_open_fees(),
 		taker_sell: get_btc_usdc_taker_close_fees(),
 	}
+}
+
+pub fn get_usdc_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.1),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.12),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.15),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
+}
+
+pub fn get_usdt_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
 }
 
 fn get_usdc_maker_open_fees() -> Vec<BaseFee> {

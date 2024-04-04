@@ -205,7 +205,7 @@ pub mod pallet {
 	const FEE_SHARE_ENCODING: u128 = 82;
 	const FEE_SHARE_VOLS: u128 = 86;
 	const FEE_SHARE_FEES: u128 = 70;
-	const ZERO_ASCII_ENCODING: u128 = 45;
+	const ZERO_ASCII_ENCODING: u128 = 48;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -559,7 +559,7 @@ pub mod pallet {
 
 				let _ = Self::set_fees_internal(id, fee_details);
 
-				Self::remove_settings_from_maps(id);
+				Self::remove_fee_share_settings_from_map(id);
 			}
 		}
 
@@ -583,9 +583,8 @@ pub mod pallet {
 					// Check if all the required data is present for this asset
 					if fee_vectors.is_empty() {
 						// Emit Insufficient data event
-						// Emit Insufficient data event
 						Self::deposit_event(Event::InsufficientFeeData { id });
-						Self::remove_settings_from_maps(id);
+						Self::remove_fee_share_settings_from_map(id);
 						continue;
 					}
 
@@ -608,7 +607,7 @@ pub mod pallet {
 					Self::deposit_event(Event::InsufficientFeeData { id });
 				}
 
-				Self::remove_settings_from_maps(id);
+				Self::remove_fee_share_settings_from_map(id);
 			}
 		}
 
@@ -635,8 +634,6 @@ pub mod pallet {
 
 			// Insert vector into the map
 			TempFeeSharesMap::<T>::insert(id, (fee_share_settings_type, index), values);
-
-			Self::deposit_event(Event::UnknownIdForFees { id: index });
 		}
 
 		fn remove_fee_share_settings_from_map(id: u128) {
