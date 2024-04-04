@@ -203,8 +203,8 @@ pub trait TradingFeesInterface {
 		id: u128,
 		fee_share_details: Vec<Vec<FeeShareDetails>>,
 	) -> DispatchResult;
-	fn get_fee_share(account_level: u8, id: u128, volume: FixedI128) -> FixedI128;
-	fn get_all_fee_shares(id: u128) -> Vec<Vec<FeeShareDetails>>;
+	fn get_fee_share(account_level: u8, collateral_id: u128, volume: FixedI128) -> FixedI128;
+	fn get_all_fee_shares(collateral_id: u128) -> Vec<Vec<FeeShareDetails>>;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and

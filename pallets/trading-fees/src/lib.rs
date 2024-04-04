@@ -201,12 +201,12 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn get_all_fee_shares(id: u128) -> Vec<Vec<FeeShareDetails>> {
-			FeeShare::<T>::get(id).unwrap_or_default()
+		fn get_all_fee_shares(collateral_id: u128) -> Vec<Vec<FeeShareDetails>> {
+			FeeShare::<T>::get(collateral_id).unwrap_or_default()
 		}
 
-		fn get_fee_share(account_level: u8, id: u128, volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShare::<T>::get(id);
+		fn get_fee_share(account_level: u8, collateral_id: u128, volume: FixedI128) -> FixedI128 {
+			let fee_share_details = FeeShare::<T>::get(collateral_id);
 
 			// If no fee share tiers are set, return 0 as fee share
 			if fee_share_details.is_none() {
