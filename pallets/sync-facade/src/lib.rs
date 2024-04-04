@@ -205,6 +205,7 @@ pub mod pallet {
 	const FEE_SHARE_ENCODING: u128 = 82;
 	const FEE_SHARE_VOLS: u128 = 86;
 	const FEE_SHARE_FEES: u128 = 70;
+	const ZERO_ASCII_ENCODING: u128 = 45;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -582,6 +583,7 @@ pub mod pallet {
 					// Check if all the required data is present for this asset
 					if fee_vectors.is_empty() {
 						// Emit Insufficient data event
+						// Emit Insufficient data event
 						Self::deposit_event(Event::InsufficientFeeData { id });
 						Self::remove_settings_from_maps(id);
 						continue;
@@ -633,6 +635,8 @@ pub mod pallet {
 
 			// Insert vector into the map
 			TempFeeSharesMap::<T>::insert(id, (fee_share_settings_type, index), values);
+
+			Self::deposit_event(Event::UnknownIdForFees { id: index });
 		}
 
 		fn remove_fee_share_settings_from_map(id: u128) {
@@ -732,21 +736,26 @@ pub mod pallet {
 					},
 					SettingsType::ABRSettings(abr_settings_type) =>
 						Self::set_abr_max(abr_settings_type, param1, setting.values.to_vec()),
-					SettingsType::FeeShareSettings(fee_share_settings_type) =>
+					SettingsType::FeeShareSettings(fee_share_settings_type) => {
+						// If param3 which contains the index of the level cannot be less than 45
+						if param3 < ZERO_ASCII_ENCODING {
+							continue;
+						}
 						match fee_share_settings_type {
 							FeeShareSettingsType::Vols => Self::add_fee_share_settings_to_map(
 								param1,
-								param3,
+								param3 - ZERO_ASCII_ENCODING,
 								fee_share_settings_type,
 								setting.values.to_vec(),
 							),
 							FeeShareSettingsType::Fees => Self::add_fee_share_settings_to_map(
 								param1,
-								param3,
+								param3 - ZERO_ASCII_ENCODING,
 								fee_share_settings_type,
 								setting.values.to_vec(),
 							),
-						},
+						}
+					},
 					SettingsType::GeneralSettings => {},
 				}
 			}

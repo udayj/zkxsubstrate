@@ -464,12 +464,12 @@ impl SettingsAddedTrait for SettingsAdded {
 			},
 			Setting {
 				// R_USDC_F_0
-				key: U256::from(388992640615285757730608_i128),
+				key: U256::from(3889926406152857577306080_i128),
 				values: bounded_vec![FixedI128::from_float(0.05)]
 			},
 			Setting {
 				// R_USDC_F_1
-				key: U256::from(388992640615285757730609_i128),
+				key: U256::from(3889926406152857577306090_i128),
 				values: bounded_vec![FixedI128::from_float(0.05)]
 			}
 		];

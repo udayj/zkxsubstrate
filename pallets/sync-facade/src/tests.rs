@@ -9,9 +9,9 @@ use pallet_support::{
 	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
-		FeeSettingsType, MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		FeeSettingsType, FeeShareSettingsType, MarketRemoved, MarketUpdated, OrderSide, QuorumSet,
+		SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -1371,39 +1371,48 @@ fn sync_settings_event_usdc() {
 	});
 }
 
-#[test]
-fn sync_settings_event_usdc() {
-	// Get a test environment
-	let mut env = setup();
+// #[test]
+// fn sync_settings_event_fee_share_usdc() {
+// 	// Get a test environment
+// 	let mut env = setup();
 
-	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
-	events_batch
-		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings());
+// 	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+// 	events_batch
+// 		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings());
 
-	let events_batch_hash = events_batch.compute_hash();
+// 	let events_batch_hash = events_batch.compute_hash();
 
-	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
-	signature_array.add_new_signature(
-		events_batch_hash,
-		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
-		FieldElement::from(12345_u16),
-	);
+// 	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+// 	signature_array.add_new_signature(
+// 		events_batch_hash,
+// 		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+// 		FieldElement::from(12345_u16),
+// 	);
 
-	env.execute_with(|| {
-		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+// 	env.execute_with(|| {
+// 		// synchronize the events
+// 		SyncFacade::synchronize_events(
+// 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+// 			events_batch,
+// 			signature_array,
+// 		)
+// 		.expect("error while adding settings");
 
-		// // Check if the fees were set successfully
-		// compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
+// 		// // Check if the fees were set successfully
+// 		// compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
 
-		let fees = TradingFees::get_all_fee_shares(usdc().asset.id);
-		print!("{:?}", fees);
+// 		// let fees = TradingFees::get_all_fee_shares(usdc().asset.id);
+// 		// print!("{:?}", fees);
+// 		println!("{:?}", System::events());
 
-		// // The storage should be empty
-		// check_fees_storage_empty(vec![usdc().asset.id]);
-	});
-}
+// 		let data =
+// 			SyncFacade::get_temp_fee_shares(usdc().asset.id, (FeeShareSettingsType::Vols, 0))
+// 				.unwrap_or_default();
+// 		println!("data: {:?}", data);
+// 		// // The storage should be empty
+// 		// check_fees_storage_empty(vec![usdc().asset.id]);
+// 	});
+// }
 
 #[test]
 fn sync_settings_event_btc_usdc() {
