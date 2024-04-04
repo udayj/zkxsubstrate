@@ -182,7 +182,7 @@ pub mod pallet {
 		}
 
 		fn update_fee_shares_internal(
-			id: u128,
+			collateral_id: u128,
 			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			for level in 0..fee_share_details.len() {
@@ -191,10 +191,10 @@ pub mod pallet {
 			}
 
 			// Remove any fee share details if present
-			FeeShare::<T>::remove(id);
+			FeeShare::<T>::remove(collateral_id);
 
 			// Add it to storage
-			FeeShare::<T>::insert(id, &fee_share_details);
+			FeeShare::<T>::insert(collateral_id, &fee_share_details);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
