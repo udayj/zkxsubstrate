@@ -7,8 +7,11 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	traits::TradingInterface,
-	types::{BaseFee, BaseFeeAggregate, Direction, FeeRates, Order, OrderType, Position, Side},
+	traits::{TradingAccountInterface, TradingInterface},
+	types::{
+		BaseFee, BaseFeeAggregate, Direction, FeeRates, Order, OrderType, Position,
+		ReferralDetails, Side,
+	},
 };
 use primitive_types::U256;
 use sp_arithmetic::{
@@ -36,17 +39,17 @@ fn setup() -> sp_io::TestExternalities {
 
 		// Set the assets in the system
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link(), btc()]
 		));
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
@@ -180,7 +183,7 @@ fn it_works_for_open_trade_simple() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -285,7 +288,7 @@ fn it_reverts_for_more_than_max_size() {
 	env.execute_with(|| {
 		let modified_btc_usdc = btc_usdc().set_maximum_position_size(2.into());
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![modified_btc_usdc, link_usdc()]
 		));
 
@@ -307,7 +310,7 @@ fn it_reverts_for_more_than_max_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -356,7 +359,7 @@ fn it_works_for_open_trade_with_leverage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -471,7 +474,7 @@ fn it_works_for_close_trade_simple() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -500,7 +503,7 @@ fn it_works_for_close_trade_simple() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -604,7 +607,7 @@ fn it_works_for_open_trade_partial_open() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -624,7 +627,7 @@ fn it_works_for_open_trade_partial_open() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -762,7 +765,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -790,7 +793,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -815,7 +818,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// size
@@ -931,7 +934,7 @@ fn it_works_for_open_trade_multiple_makers() {
 			.sign_order(get_private_key(dave().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -990,7 +993,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1017,7 +1020,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1057,7 +1060,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1093,7 +1096,7 @@ fn it_reverts_for_trade_with_insufficient_orders_1_order() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1121,7 +1124,7 @@ fn it_reverts_for_trade_with_insufficient_orders_0_orders() {
 		let market_id = btc_usdc().market.id;
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1164,7 +1167,7 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1209,7 +1212,7 @@ fn it_reverts_for_trade_with_quantity_locked_is_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1253,7 +1256,7 @@ fn it_reverts_for_trade_with_taker_order_size_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1296,7 +1299,7 @@ fn it_emits_event_for_trade_with_maker_order_size_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1342,7 +1345,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1371,7 +1374,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// size
@@ -1397,7 +1400,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// size
@@ -1438,7 +1441,7 @@ fn it_produces_error_when_user_not_registered() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1485,7 +1488,7 @@ fn it_produces_error_when_size_too_small() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1530,7 +1533,7 @@ fn it_produces_error_when_market_id_is_different() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1575,7 +1578,7 @@ fn it_produces_error_when_leverage_is_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1619,7 +1622,7 @@ fn it_produces_error_when_signature_is_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1671,7 +1674,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 			.sign_order(get_private_key(charlie().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1720,7 +1723,7 @@ fn it_produces_error_when_maker_is_market_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -1766,7 +1769,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -1794,7 +1797,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -1818,7 +1821,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// quantity_locked
@@ -1872,7 +1875,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 			.sign_order(get_private_key(charlie().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1924,7 +1927,7 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1968,7 +1971,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2015,7 +2018,7 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2056,7 +2059,7 @@ fn it_works_when_taker_long_buy_price_very_low() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2108,7 +2111,7 @@ fn test_fee_while_opening_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2188,7 +2191,7 @@ fn test_fee_while_opening_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2293,7 +2296,7 @@ fn test_fee_while_closing_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2373,7 +2376,7 @@ fn test_fee_while_closing_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2467,7 +2470,7 @@ fn it_works_for_cleanup() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2483,8 +2486,6 @@ fn it_works_for_cleanup() {
 		));
 
 		Timestamp::set_timestamp(1702359600000);
-		let b = Timestamp::now();
-		print!("Block time {:?}", b);
 
 		// Create order 2
 		let alice_order = Order::new(U256::from(203), alice_id)
@@ -2497,7 +2498,7 @@ fn it_works_for_cleanup() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2512,8 +2513,11 @@ fn it_works_for_cleanup() {
 			1702359550000,
 		));
 
-		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
+		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
+		// Check for portion executed
 		let order1 = Trading::order_state(U256::from(201));
 		assert_eq!(order1.0, FixedI128::zero());
 		let order2 = Trading::order_state(U256::from(202));
@@ -2523,6 +2527,7 @@ fn it_works_for_cleanup() {
 		let order4 = Trading::order_state(U256::from(204));
 		assert_eq!(order4.0, FixedI128::one());
 
+		// Check for order hash
 		let order1 = Trading::order_hash(U256::from(201));
 		assert_eq!(order1, U256::zero());
 		let order2 = Trading::order_hash(U256::from(202));
@@ -2533,12 +2538,12 @@ fn it_works_for_cleanup() {
 		assert_ne!(order4, U256::zero());
 
 		let batch1 = Trading::batch_status(U256::from(1_u8));
-		assert_eq!(batch1, true);
+		assert_eq!(batch1, false);
 		let batch2 = Trading::batch_status(U256::from(2_u8));
 		assert_eq!(batch2, true);
 
 		let start_timestamp = Trading::start_timestamp();
-		assert_eq!(1699940288, start_timestamp.unwrap());
+		assert_eq!(1699940398, start_timestamp.unwrap());
 
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());
@@ -2548,7 +2553,7 @@ fn it_works_for_cleanup() {
 		assert_eq!(vec![U256::from(204)], timestamp3.unwrap());
 
 		let timestamp1 = Trading::batches(1699940360);
-		assert_eq!(false, timestamp1.is_none());
+		assert_eq!(true, timestamp1.is_none());
 		let timestamp2 = Trading::batches(1702359550);
 		assert_eq!(vec![U256::from(2_u8)], timestamp2.unwrap());
 	});
@@ -2577,7 +2582,7 @@ fn it_does_not_work_for_old_batch() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2618,7 +2623,7 @@ fn it_does_not_work_for_old_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2668,7 +2673,7 @@ fn it_does_not_work_for_not_enough_balance() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -2724,7 +2729,7 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 			.sign_order(get_private_key(dave().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2769,7 +2774,7 @@ fn it_works_when_taker_limit_order_has_0_slippage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2811,7 +2816,7 @@ fn it_emits_error_for_taker_for_slippage_validation() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2864,7 +2869,7 @@ fn it_makes_taker_is_final_as_false() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2937,7 +2942,7 @@ fn it_makes_taker_is_final_as_true() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2998,7 +3003,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -3029,7 +3034,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// quantity_locked
@@ -3060,7 +3065,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -3110,7 +3115,7 @@ fn it_reverts_when_user_cant_cover_losses() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -3141,7 +3146,7 @@ fn it_reverts_when_user_cant_cover_losses() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -3206,5 +3211,95 @@ fn test_fee_rates() {
 
 		assert_eq!(alice_fee, (common_fee_rates, init_timestamp + one_day));
 		assert_eq!(bob_fee, (common_fee_rates, init_timestamp + one_day));
+	});
+}
+
+#[test]
+fn test_discounted_fee_rate_for_referral() {
+	// Get a test environment
+	let mut env = setup();
+
+	// User accounts
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	// market id
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	env.execute_with(|| {
+		// Get the fees
+		let (fee_details_maker, fee_details_taker) = setup_fee();
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+			}
+		));
+
+		// Get Trading Account details
+		let alice_account_details = TradingAccounts::get_account(&alice_id).unwrap();
+		let bob_account_details = TradingAccounts::get_account(&bob_id).unwrap();
+		let referral_details = ReferralDetails {
+			master_account_address: alice_account_details.account_address,
+			fee_discount: FixedI128::from_inner(200000000000000000),
+		};
+		// Add referral to the system
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			bob_account_details.account_address,
+			referral_details,
+			U256::one()
+		));
+
+		let event_record = System::events();
+		println!("Events: {:?}", event_record);
+
+		let master_account =
+			TradingAccounts::master_account(bob_account_details.account_address).unwrap();
+		assert_eq!(master_account.master_account_address, referral_details.master_account_address);
+		assert_eq!(master_account.fee_discount, FixedI128::from_inner(200000000000000000));
+
+		let referral_monetary_address =
+			TradingAccounts::referral_accounts((alice_account_details.account_address, 0));
+		assert_eq!(referral_monetary_address, bob_account_details.account_address);
+
+		let referral_count =
+			TradingAccounts::referrals_count(alice_account_details.account_address);
+		assert_eq!(referral_count, 1_u64);
+
+		// Create open orders
+		let alice_open_order =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Check for balances
+		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 9998.into());
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9996.into());
 	});
 }

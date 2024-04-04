@@ -31,12 +31,16 @@ pub mod pallet {
 		types::{
 			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
 			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
-			Position, PositionExtended, Side, SignatureInfo, TimeInForce,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce, VolumeType,
 		},
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_arithmetic::{
+		fixed_point::FixedI128,
+		traits::{One, Zero},
+		FixedPointNumber,
+	};
 	use sp_runtime::traits::SaturatedConversion;
 
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
@@ -1466,15 +1470,21 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-				order.account_id,
-				order.market_id,
-				current_volume,
-			)
-			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
+					order.account_id,
+					order.market_id,
+					current_volume,
+				)
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) =
-				Self::get_fee_rate(&market_fees, Side::Buy, order_side, total_30day_volume);
+			let (fee_rate, _) = Self::get_fee_rate(
+				order.account_id,
+				&market_fees,
+				Side::Buy,
+				order_side,
+				total_30day_volume,
+			);
 
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -1755,8 +1765,8 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume: FixedI128 =
-				T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let (total_30day_volume, _) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
 					current_volume,
@@ -1764,8 +1774,13 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) =
-					Self::get_fee_rate(&market_fees, Side::Sell, order_side, total_30day_volume);
+				let (fee_rate, _) = Self::get_fee_rate(
+					order.account_id,
+					&market_fees,
+					Side::Sell,
+					order_side,
+					total_30day_volume,
+				);
 
 				let mut fee = fee_rate * leveraged_order_value;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
@@ -2101,20 +2116,52 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 
-		fn get_all_fee_rates(market_id: u128, collateral_id: u128, volume: FixedI128) -> FeeRates {
+		fn get_all_fee_rates(
+			account_id: U256,
+			market_id: u128,
+			collateral_id: u128,
+			volume: FixedI128,
+		) -> FeeRates {
 			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
 			FeeRates {
-				maker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Maker, volume).0,
-				maker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Maker, volume)
-					.0,
-				taker_buy: Self::get_fee_rate(&fees_details, Side::Buy, OrderSide::Taker, volume).0,
-				taker_sell: Self::get_fee_rate(&fees_details, Side::Sell, OrderSide::Taker, volume)
-					.0,
+				maker_buy: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Buy,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				maker_sell: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Sell,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				taker_buy: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Buy,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
+				taker_sell: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Sell,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
 			}
 		}
 
 		fn get_fee_rate(
+			account_id: U256,
 			base_fees: &BaseFeeAggregate,
 			side: Side,
 			order_side: OrderSide,
@@ -2133,16 +2180,26 @@ pub mod pallet {
 				return (FixedI128::zero(), 0);
 			}
 
+			// Get fee dicsount
+			let fee_discount = T::TradingAccountPallet::get_fee_discount(account_id);
+
+			// Get tier one fee details
+			let tier_1_fee_details = &fee_details[0];
+			let mut fee = tier_1_fee_details.fee;
+			let mut fee_tier: u8 = 1_u8;
+
 			// Find the appropriate fee tier for the user
 			for (index, tier) in fee_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
-					return (tier.fee, (index + 1) as u8);
+					fee = tier.fee;
+					fee_tier = (index + 1) as u8;
+					break;
 				}
 			}
 
-			// If volume is not greater than any tier's volume, it falls into the lowest tier
-			let first_tier = &fee_details[0];
-			(first_tier.fee, 1)
+			let fee = fee * (FixedI128::one() - fee_discount);
+
+			(fee, fee_tier)
 		}
 
 		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
@@ -2153,15 +2210,23 @@ pub mod pallet {
 			}
 
 			let last_30day_volume: FixedI128;
-			match T::TradingAccountPallet::get_30day_volume(account_id, market_id) {
+			match T::TradingAccountPallet::get_30day_volume(
+				account_id,
+				market_id,
+				VolumeType::UserVolume,
+			) {
 				Ok(value) => last_30day_volume = value,
 				Err(_) => return (FeeRates::new(zero, zero, zero, zero), 0),
 			}
 
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
-			let fee_rates =
-				Self::get_all_fee_rates(market_id, market.asset_collateral, last_30day_volume);
+			let fee_rates = Self::get_all_fee_rates(
+				account_id,
+				market_id,
+				market.asset_collateral,
+				last_30day_volume,
+			);
 
 			let expires_at: u64 = get_expiry_timestamp(T::TimeProvider::now().as_secs());
 			(fee_rates, expires_at)
