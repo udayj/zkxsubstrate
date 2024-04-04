@@ -2182,20 +2182,23 @@ pub mod pallet {
 			// Get fee dicsount
 			let fee_discount = T::TradingAccountPallet::get_fee_discount(account_id);
 
+			// Get tier one fee details
+			let tier_1_fee_details = &fee_details[0];
+			let mut fee = tier_1_fee_details.fee;
+			let mut fee_tier: u8 = 1_u8;
+
 			// Find the appropriate fee tier for the user
 			for (index, tier) in fee_details.iter().enumerate().rev() {
 				if volume >= tier.volume {
-					let fee = tier.fee * (FixedI128::one() - fee_discount);
-					return (fee, (index + 1) as u8);
+					fee = tier.fee;
+					fee_tier = (index + 1) as u8;
+					break;
 				}
 			}
 
-			// If volume is not greater than any tier's volume, it falls into the lowest tier
-			let first_tier = &fee_details[0];
+			let fee = fee * (FixedI128::one() - fee_discount);
 
-			let fee = first_tier.fee * (FixedI128::one() - fee_discount);
-
-			(fee, 1)
+			(fee, fee_tier)
 		}
 
 		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
