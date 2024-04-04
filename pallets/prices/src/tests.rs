@@ -25,7 +25,10 @@ fn setup() -> sp_io::TestExternalities {
 	// Set the signers using admin account
 	test_env.execute_with(|| {
 		assert_ok!(Timestamp::set(None.into(), 1699940367000));
-		assert_ok!(AssetModule::replace_all_assets(RuntimeOrigin::signed(1), assets));
+		assert_ok!(AssetModule::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			assets
+		));
 
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
@@ -46,17 +49,17 @@ fn setup_trading() -> sp_io::TestExternalities {
 
 		// Set the assets in the system
 		assert_ok!(AssetModule::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link(), btc()]
 		));
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
@@ -88,7 +91,11 @@ fn set_prices(market_id: u128, mark_prices: Vec<FixedI128>, index_prices: Vec<Fi
 		let price: MultiplePrices =
 			MultiplePrices { market_id, index_price: index_prices[i], mark_price: mark_prices[i] };
 		prices.push(price);
-		assert_ok!(PricesModule::update_prices(RuntimeOrigin::signed(1), prices, interval));
+		assert_ok!(PricesModule::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			interval
+		));
 		interval += 60000;
 	}
 }
@@ -105,7 +112,10 @@ fn test_update_prices() {
 	env.execute_with(|| {
 		// Dispatch a signed extrinsic.
 		let markets = vec![eth_usdc(), link_usdc()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			markets
+		));
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
 			market_id: market1.market.id,
@@ -120,7 +130,7 @@ fn test_update_prices() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1699940367000
 		));
@@ -151,7 +161,10 @@ fn test_update_prices_with_future_timestamp() {
 		Timestamp::set_timestamp(1702359600000);
 
 		let markets = vec![eth_usdc(), link_usdc()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			markets
+		));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -166,8 +179,12 @@ fn test_update_prices_with_future_timestamp() {
 		};
 		prices.push(mark_price1);
 		prices.push(mark_price2);
-		PricesModule::update_prices(RuntimeOrigin::signed(1), prices.clone(), 1702359660000)
-			.expect("Update price request for the future timestamp");
+		PricesModule::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices.clone(),
+			1702359660000,
+		)
+		.expect("Update price request for the future timestamp");
 	});
 }
 
@@ -184,7 +201,10 @@ fn test_historical_prices() {
 		Timestamp::set_timestamp(1702359600000);
 
 		let markets = vec![eth_usdc(), link_usdc()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			markets
+		));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -200,7 +220,7 @@ fn test_historical_prices() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359600000
 		));
@@ -237,7 +257,7 @@ fn test_historical_prices() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359620000
 		));
@@ -274,7 +294,7 @@ fn test_historical_prices() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359661000
 		));
@@ -310,7 +330,10 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		Timestamp::set_timestamp(1702359600000);
 
 		let markets = vec![eth_usdc(), link_usdc()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			markets
+		));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -326,7 +349,7 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359500000
 		));
@@ -350,7 +373,7 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359400000
 		));
@@ -374,7 +397,7 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359601000
 		));
@@ -388,16 +411,18 @@ fn test_historical_prices_cleanup_after_timelimit() {
 		Timestamp::set_timestamp(1704779800000);
 
 		// Perform cleanup of historical price data
-		assert_ok!(PricesModule::perform_prices_cleanup(RuntimeOrigin::signed(1)));
+		assert_ok!(PricesModule::perform_prices_cleanup(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
 		// Read historical prices after cleanup, every price should show as zero
 		let historical_price = PricesModule::historical_price(1702359500, market1.market.id);
-		assert_eq!(FixedI128::from_u32(301), historical_price.mark_price);
-		assert_eq!(FixedI128::from_u32(300), historical_price.index_price);
+		assert_eq!(FixedI128::zero(), historical_price.mark_price);
+		assert_eq!(FixedI128::zero(), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359500, market2.market.id);
-		assert_eq!(FixedI128::from_u32(401), historical_price.mark_price);
-		assert_eq!(FixedI128::from_u32(400), historical_price.index_price);
+		assert_eq!(FixedI128::zero(), historical_price.mark_price);
+		assert_eq!(FixedI128::zero(), historical_price.index_price);
 
 		let historical_price = PricesModule::historical_price(1702359400, market1.market.id);
 		assert_eq!(FixedI128::zero(), historical_price.mark_price);
@@ -430,7 +455,10 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		Timestamp::set_timestamp(1702359600000);
 
 		let markets = vec![eth_usdc(), link_usdc()];
-		assert_ok!(MarketModule::replace_all_markets(RuntimeOrigin::signed(1), markets));
+		assert_ok!(MarketModule::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			markets
+		));
 
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let mark_price1 = MultiplePrices {
@@ -446,7 +474,7 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359600000
 		));
@@ -470,7 +498,7 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359500000
 		));
@@ -494,7 +522,7 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		prices.push(mark_price1);
 		prices.push(mark_price2);
 		assert_ok!(PricesModule::update_prices(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices.clone(),
 			1702359601000
 		));
@@ -508,7 +536,9 @@ fn test_historical_prices_cleanup_before_timelimit() {
 		Timestamp::set_timestamp(1703569200000);
 
 		// Perform cleanup of historical price data
-		assert_ok!(PricesModule::perform_prices_cleanup(RuntimeOrigin::signed(1)));
+		assert_ok!(PricesModule::perform_prices_cleanup(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
 		// Prices remian intact becuase we called cleanup before the timelimit
 		let historical_price = PricesModule::historical_price(1702359601, market1.market.id);
@@ -721,8 +751,11 @@ fn test_unauthorized_set_abr_interval() {
 	let mut env = setup_trading();
 
 	env.execute_with(|| {
-		PricesModule::set_abr_interval(RuntimeOrigin::signed(1), 100)
-			.expect("Error while setting ABR interval");
+		PricesModule::set_abr_interval(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			100,
+		)
+		.expect("Error while setting ABR interval");
 	});
 }
 
@@ -743,8 +776,11 @@ fn test_unauthorized_set_base_abr() {
 	let mut env = setup_trading();
 
 	env.execute_with(|| {
-		PricesModule::set_base_abr(RuntimeOrigin::signed(1), FixedI128::from_inner(12000000000000))
-			.expect("Error while setting base ABR");
+		PricesModule::set_base_abr(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			FixedI128::from_inner(12000000000000),
+		)
+		.expect("Error while setting base ABR");
 	});
 }
 
@@ -788,8 +824,11 @@ fn test_set_abr_untradable_market() {
 		Timestamp::set_timestamp(1699979078000);
 
 		// link_usdc is not tradable
-		PricesModule::set_abr_value(RuntimeOrigin::signed(1), link_market_id)
-			.expect("Error while setting abr value");
+		PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			link_market_id,
+		)
+		.expect("Error while setting abr value");
 	});
 }
 
@@ -814,10 +853,16 @@ fn test_set_abr_value_for_already_set_market() {
 		let (mark_prices, index_prices) = mock_prices::get_btc_usdc_prices_1();
 		set_prices(btc_market_id, mark_prices, index_prices);
 
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
 		// setting abr value for already set market
-		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
-			.expect("Error while setting abr value");
+		PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+		)
+		.expect("Error while setting abr value");
 	});
 }
 
@@ -838,7 +883,10 @@ fn test_set_abr_value_when_prices_array_is_empty() {
 		Timestamp::set_timestamp(1699979078000);
 
 		// setting abr value when prices array is empty
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
 
 		let epoch_to_abr_value = PricesModule::epoch_market_to_abr_value(1, btc_market_id);
 		assert_eq!(epoch_to_abr_value, FixedI128::zero());
@@ -872,11 +920,20 @@ fn test_set_abr_value_with_invalid_state() {
 		set_prices(btc_market_id, mark_prices_btc, index_prices_btc);
 		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
 
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id
+		));
 		// calling set_abr_value again with state changed to 2
-		PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id)
-			.expect("Error while setting abr value");
+		PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+		)
+		.expect("Error while setting abr value");
 	});
 }
 
@@ -886,8 +943,10 @@ fn test_pay_abr_with_invalid_state() {
 	let mut env = setup_trading();
 
 	env.execute_with(|| {
-		PricesModule::make_abr_payments(RuntimeOrigin::signed(1))
-			.expect("Error while making abr payments");
+		PricesModule::make_abr_payments(RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw(
+			[1u8; 32],
+		)))
+		.expect("Error while making abr payments");
 	});
 }
 
@@ -920,7 +979,7 @@ fn test_abr_flow_for_btc_orders() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -950,8 +1009,14 @@ fn test_abr_flow_for_btc_orders() {
 		set_prices(eth_usdc().market.id, mark_prices_btc, index_prices_btc);
 
 		// Compute ABR value
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), market_id));
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_usdc().market.id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id
+		));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc().market.id
+		));
 		let abr_state = PricesModule::abr_state();
 		assert_eq!(abr_state, ABRState::State2);
 
@@ -968,7 +1033,9 @@ fn test_abr_flow_for_btc_orders() {
 			TradingAccounts::balances(bob_id, btc_usdc().market.asset_collateral);
 
 		// Pay ABR
-		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
+		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
 		let alice_after_balance =
 			TradingAccounts::balances(alice_id, btc_usdc().market.asset_collateral);
@@ -1024,7 +1091,7 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -1050,7 +1117,7 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -1080,10 +1147,16 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 		set_prices(eth_market_id, mark_prices_btc, index_prices_btc);
 
 		// Compute ABR value
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
 		let abr_state = PricesModule::abr_state();
 		assert_eq!(abr_state, ABRState::State1);
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id
+		));
 		let abr_state = PricesModule::abr_state();
 		assert_eq!(abr_state, ABRState::State2);
 
@@ -1103,7 +1176,9 @@ fn test_abr_flow_for_btc_and_eth_orders() {
 		println!("eth epoch_market_to_last_price: {:?}", epoch_market_to_last_price);
 
 		// Pay ABR
-		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(1)));
+		assert_ok!(PricesModule::make_abr_payments(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
 		let balance = TradingAccounts::balances(alice_id, btc_usdc().market.asset_collateral);
 		println!("Alice balance: {:?}", balance);
@@ -1123,7 +1198,7 @@ fn test_set_max_abr_non_admin() {
 
 	env.execute_with(|| {
 		PricesModule::set_max_abr(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_usdc().market.id,
 			FixedI128::from_float(0.0001),
 		)
@@ -1137,8 +1212,11 @@ fn test_set_max_default_abr_non_admin() {
 	let mut env = setup_trading();
 
 	env.execute_with(|| {
-		PricesModule::set_default_max_abr(RuntimeOrigin::signed(1), FixedI128::from_float(0.0001))
-			.expect("Error while setting max abr: Bad Origin");
+		PricesModule::set_default_max_abr(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			FixedI128::from_float(0.0001),
+		)
+		.expect("Error while setting max abr: Bad Origin");
 	});
 }
 
@@ -1220,8 +1298,14 @@ fn test_max_abr_flow() {
 		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
 
 		// Set the abr value
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id
+		));
 
 		// Compare the abr values
 		// Actual value is 8.83808701975073e-05
@@ -1275,8 +1359,14 @@ fn test_default_max_abr_flow() {
 		set_prices(eth_market_id, mark_prices_eth, index_prices_eth);
 
 		// Set the abr value
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), btc_market_id));
-		assert_ok!(PricesModule::set_abr_value(RuntimeOrigin::signed(1), eth_market_id));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id
+		));
+		assert_ok!(PricesModule::set_abr_value(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id
+		));
 
 		// Compare the abr values
 		// Actual value is 8.83808701975073e-05

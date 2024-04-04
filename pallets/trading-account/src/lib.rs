@@ -132,14 +132,14 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn master_account)]
-	// Here, key1 is monetary account address and value is referral details with master monetary
-	// address
+	// Here, key1 is referral monetary account address and value is referral details with master
+	// monetary address
 	pub(super) type MasterAccountMap<T: Config> =
 		StorageMap<_, Twox64Concat, U256, ReferralDetails, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn referral_accounts)]
-	// Here, key1 is (monetary account address, index) and value is referral
+	// Here, key1 is (master monetary account address, index) and value is referral
 	// monetary account addresses
 	pub(super) type ReferralAccountsMap<T: Config> =
 		StorageMap<_, Twox64Concat, (U256, u64), U256, ValueQuery>;
@@ -798,13 +798,6 @@ pub mod pallet {
 			referral_details: ReferralDetails,
 			referral_code: U256,
 		) -> bool {
-			// Both master account and referral account should be registered
-			if !Self::is_registered_user(referral_account_address) ||
-				!Self::is_registered_user(referral_details.master_account_address)
-			{
-				return false;
-			}
-
 			let referral = MasterAccountMap::<T>::get(referral_account_address);
 			// Referral account can belong to only one master account
 			if referral.is_some() {
@@ -1412,6 +1405,22 @@ pub mod pallet {
 
 		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
 			Self::modify_master_account_level(master_account_address, level);
+		}
+
+		fn get_fee_discount(trading_account_id: U256) -> FixedI128 {
+			let trading_account = AccountMap::<T>::get(trading_account_id);
+			// Here, unwrap will not lead to any error becuase, we are checking
+			// account existence in trading flow before calling this function
+			let trading_account_details = trading_account.unwrap();
+			let referral = MasterAccountMap::<T>::get(trading_account_details.account_address);
+			// Check if current account has Master
+			// If yes, return discount else return zero
+			if referral.is_some() {
+				let referral_details = referral.unwrap();
+				return referral_details.fee_discount;
+			} else {
+				return FixedI128::zero();
+			}
 		}
 	}
 }
