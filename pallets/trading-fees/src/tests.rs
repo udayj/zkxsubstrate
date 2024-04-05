@@ -3,7 +3,7 @@ use frame_support::assert_ok;
 use pallet_support::{
 	test_helpers::{asset_helper::usdc, btc, btc_usdc, eth_usdc, link},
 	traits::TradingFeesInterface,
-	types::BaseFeeAggregate,
+	types::{BaseFeeAggregate, FeeShareDetails},
 };
 
 // declare test_helper module
@@ -190,6 +190,160 @@ fn test_update_fee_shares() {
 			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::from_u32(199999)) ==
 				FixedI128::zero()
 		);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidVolume")]
+fn test_update_fee_shares_invalid_volume() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(100000000),
+			fee_share: FixedI128::from_float(0.123),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidVolume")]
+fn test_update_fee_shares_non_increasing_volume() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_float(0.2),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(500),
+				fee_share: FixedI128::from_float(0.3),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_non_increasing_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_float(0.122),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFeeShare")]
+fn test_update_fee_shares_large_non_zero_index_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_u32(2),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_negative_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(0),
+			fee_share: FixedI128::from_float(-0.123),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_large_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(0),
+			fee_share: FixedI128::from_float(1.2),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
 	});
 }
 

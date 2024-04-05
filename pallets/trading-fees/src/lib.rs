@@ -303,8 +303,7 @@ pub mod pallet {
 				);
 				// Validate fee share is between 0 and 1
 				ensure!(
-					current_fee_share.fee_share >= FixedI128::zero() &&
-						current_fee_share.fee_share <= FixedI128::one(),
+					current_fee_share.fee_share <= FixedI128::one(),
 					Error::<T>::InvalidFeeShare
 				);
 			}
