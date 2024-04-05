@@ -170,6 +170,12 @@ pub mod pallet {
 	pub(super) type MasterAccountLastTxTimestamp<T: Config> =
 		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, u64, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn master_account_fee_share)]
+	// Maps from (monetary_account_address, collateral_id) -> accumulated fee share
+	pub(super) type MasterAccountFeeShare<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, FixedI128, ValueQuery>;
+
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
@@ -207,13 +213,17 @@ pub mod pallet {
 		MarketDoesNotExist,
 		/// Invalid Call to dev mode only function
 		DevOnlyCall,
+		/// Insufficient fee share to transfer
+		InsufficientFeeShare,
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Several accounts added
-		AccountsAdded { length: u128 },
+		AccountsAdded {
+			length: u128,
+		},
 		/// Balances for an account updated
 		BalanceUpdated {
 			account_id: U256,
@@ -227,7 +237,11 @@ pub mod pallet {
 			block_number: BlockNumberFor<T>,
 		},
 		/// Event emitted for deferred deposits
-		DeferredBalance { account_id: U256, collateral_id: u128, amount: FixedI128 },
+		DeferredBalance {
+			account_id: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		},
 		/// Event to be synced by L2, for pnl changes
 		UserBalanceChange {
 			trading_account: TradingAccountMinimal,
@@ -245,9 +259,18 @@ pub mod pallet {
 			block_number: BlockNumberFor<T>,
 		},
 		/// Account created
-		AccountCreated { account_id: U256, account_address: U256, index: u8 },
+		AccountCreated {
+			account_id: U256,
+			account_address: U256,
+			index: u8,
+		},
 		/// Amount passed to transfer/transfer_from functions is negative
-		AmountIsNegative { account_id: U256, collateral_id: u128, amount: FixedI128, reason: u8 },
+		AmountIsNegative {
+			account_id: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+			reason: u8,
+		},
 		/// Insurance fund updation event
 		InsuranceFundChange {
 			collateral_id: u128,
@@ -260,6 +283,11 @@ pub mod pallet {
 			referral_account_address: U256,
 			fee_discount: FixedI128,
 			referral_code: U256,
+		},
+		FeeSharePaid {
+			account_address: U256,
+			collateral_id: u128,
+			amount: FixedI128,
 		},
 	}
 
@@ -589,6 +617,30 @@ pub mod pallet {
 				collateral_id: withdrawal_request.collateral_id,
 				amount: withdrawal_request.amount,
 				block_number,
+			});
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn pay_fee_share(
+			origin: OriginFor<T>,
+			account_address: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			let fee_share = MasterAccountFeeShare::<T>::get(account_address, collateral_id);
+			ensure!(amount <= fee_share, Error::<T>::InsufficientFeeShare);
+
+			// Reset fee share to 0
+			MasterAccountFeeShare::<T>::set(account_address, collateral_id, fee_share - amount);
+
+			Self::deposit_event(Event::FeeSharePaid {
+				account_address,
+				collateral_id,
+				amount: fee_share,
 			});
 
 			Ok(())
@@ -1208,8 +1260,22 @@ pub mod pallet {
 				VolumeType::UserVolume,
 			)?;
 
-			// TODO(merkle-groot): Get the 30 day volume for the master
-			Ok((user_30_day_volume, FixedI128::zero()))
+			// If monetary address has a master account, add volume as part of master account
+			let mut master_30_day_volume = FixedI128::zero();
+			let referral_details = MasterAccountMap::<T>::get(user_monetary_address);
+			if referral_details.is_some() {
+				let referral_details = referral_details.unwrap();
+				let master_volume = Self::update_and_get_cumulative_volume(
+					referral_details.master_account_address,
+					market_id,
+					new_volume,
+					VolumeType::MasterVolume,
+				)?;
+
+				master_30_day_volume = master_volume;
+			}
+
+			Ok((user_30_day_volume, master_30_day_volume))
 		}
 
 		// This function updates the 31 day volume vector (present day in index 0 and last 30 days'
@@ -1421,6 +1487,44 @@ pub mod pallet {
 			} else {
 				return FixedI128::zero();
 			}
+		}
+
+		fn get_master_account_level(referral_account_id: U256) -> Option<u8> {
+			// This unwrap won't fail because we are checking whether this is a registered user
+			// prior to this
+			let referral_account_address =
+				AccountMap::<T>::get(referral_account_id).unwrap().account_address;
+			let referral_details = MasterAccountMap::<T>::get(referral_account_address);
+			if referral_details.is_none() {
+				return None;
+			}
+			let account_level =
+				MasterAccountLevel::<T>::get(referral_details.unwrap().master_account_address);
+			Some(account_level)
+		}
+
+		fn update_master_fee_share(
+			referral_account_id: U256,
+			collateral_id: u128,
+			current_fee_share: FixedI128,
+		) {
+			// This unwrap won't fail because we are checking whether this is a registered user
+			// prior to this
+			let referral_account_address =
+				AccountMap::<T>::get(referral_account_id).unwrap().account_address;
+			// This unwrap won't fail since we checked whether user has a master just before this
+			// call
+			let referral_details = MasterAccountMap::<T>::get(referral_account_address).unwrap();
+
+			let new_fee_share = MasterAccountFeeShare::<T>::get(
+				referral_details.master_account_address,
+				collateral_id,
+			) + current_fee_share;
+			MasterAccountFeeShare::<T>::set(
+				referral_details.master_account_address,
+				collateral_id,
+				new_fee_share,
+			);
 		}
 	}
 }

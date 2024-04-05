@@ -1470,7 +1470,7 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let (total_30day_volume, _) =
+			let (total_30day_volume, master_30day_volume) =
 				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
@@ -1488,6 +1488,25 @@ pub mod pallet {
 
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
+
+			if master_30day_volume != FixedI128::zero() {
+				if let Some(account_level) =
+					T::TradingAccountPallet::get_master_account_level(order.account_id)
+				{
+					let fee_share_rate = T::TradingFeesPallet::get_fee_share(
+						account_level,
+						collateral_id,
+						master_30day_volume,
+					);
+					let mut fee_share = fee * fee_share_rate;
+					fee_share = fee_share.round_to_precision(collateral_token_decimal.into());
+					T::TradingAccountPallet::update_master_fee_share(
+						order.account_id,
+						collateral_id,
+						fee_share,
+					)
+				}
+			}
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
