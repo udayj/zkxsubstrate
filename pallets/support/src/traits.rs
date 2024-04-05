@@ -87,9 +87,10 @@ pub trait TradingAccountInterface {
 	) -> bool;
 	fn update_master_account_level_internal(master_account_address: U256, level: u8);
 	fn get_fee_discount(trading_account_id: U256) -> FixedI128;
-	fn get_master_account_level(master_account_id: U256) -> Option<u8>;
+	fn get_account_address_and_referral_details(account_id: U256) -> Option<ReferralDetails>;
+	fn get_master_account_level(account_address: U256) -> u8;
 	fn update_master_fee_share(
-		referral_account_id: U256,
+		account_address: U256,
 		collateral_id: u128,
 		current_fee_share: FixedI128,
 	);

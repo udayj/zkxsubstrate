@@ -1262,9 +1262,9 @@ pub mod pallet {
 
 			// If monetary address has a master account, add volume as part of master account
 			let mut master_30_day_volume = FixedI128::zero();
-			let referral_details = MasterAccountMap::<T>::get(user_monetary_address);
-			if referral_details.is_some() {
-				let referral_details = referral_details.unwrap();
+			// Retrieve referral details
+			if let Some(referral_details) = MasterAccountMap::<T>::get(user_monetary_address) {
+				// Update and get cumulative volume if referral details exist
 				let master_volume = Self::update_and_get_cumulative_volume(
 					referral_details.master_account_address,
 					market_id,
@@ -1489,42 +1489,30 @@ pub mod pallet {
 			}
 		}
 
-		fn get_master_account_level(referral_account_id: U256) -> Option<u8> {
+		fn get_account_address_and_referral_details(account_id: U256) -> Option<ReferralDetails> {
 			// This unwrap won't fail because we are checking whether this is a registered user
 			// prior to this
-			let referral_account_address =
-				AccountMap::<T>::get(referral_account_id).unwrap().account_address;
-			let referral_details = MasterAccountMap::<T>::get(referral_account_address);
-			if referral_details.is_none() {
-				return None;
+			let account_address = AccountMap::<T>::get(account_id).unwrap().account_address;
+			let referral_details = MasterAccountMap::<T>::get(account_address);
+			if let Some(details) = referral_details {
+				Some(details)
+			} else {
+				None
 			}
-			let account_level =
-				MasterAccountLevel::<T>::get(referral_details.unwrap().master_account_address);
-			Some(account_level)
+		}
+
+		fn get_master_account_level(account_address: U256) -> u8 {
+			MasterAccountLevel::<T>::get(account_address)
 		}
 
 		fn update_master_fee_share(
-			referral_account_id: U256,
+			account_address: U256,
 			collateral_id: u128,
 			current_fee_share: FixedI128,
 		) {
-			// This unwrap won't fail because we are checking whether this is a registered user
-			// prior to this
-			let referral_account_address =
-				AccountMap::<T>::get(referral_account_id).unwrap().account_address;
-			// This unwrap won't fail since we checked whether user has a master just before this
-			// call
-			let referral_details = MasterAccountMap::<T>::get(referral_account_address).unwrap();
-
-			let new_fee_share = MasterAccountFeeShare::<T>::get(
-				referral_details.master_account_address,
-				collateral_id,
-			) + current_fee_share;
-			MasterAccountFeeShare::<T>::set(
-				referral_details.master_account_address,
-				collateral_id,
-				new_fee_share,
-			);
+			let new_fee_share =
+				MasterAccountFeeShare::<T>::get(account_address, collateral_id) + current_fee_share;
+			MasterAccountFeeShare::<T>::set(account_address, collateral_id, new_fee_share);
 		}
 	}
 }
