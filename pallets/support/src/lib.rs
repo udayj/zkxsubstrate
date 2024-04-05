@@ -8,8 +8,8 @@ pub use starknet_ff::{FieldElement, FromByteSliceError};
 pub mod types;
 
 // Tests for support pallet
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // Trait definitions.
 pub mod traits;

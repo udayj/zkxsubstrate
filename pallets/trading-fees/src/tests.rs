@@ -59,6 +59,52 @@ fn test_update_fee_shares() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
+		// Before setting the fee share values
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
 		let expected_fees = get_usdc_fee_shares();
 
 		// Dispatch a signed extrinsic.
@@ -75,45 +121,75 @@ fn test_update_fee_shares() {
 		System::assert_last_event(Event::FeeShareSet { fee_share: expected_fees }.into());
 
 		// fetch fee_shares for different levels and volumes of a user
-		let fee_share_1 = TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::zero());
-		let fee_share_2 = TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(200001));
-		let fee_share_3 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(5000001));
-		let fee_share_4 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(10000001));
-		let fee_share_5 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(25000001));
-		let fee_share_6 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(50000001));
-		let fee_share_7 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(49999999));
-		let fee_share_8 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(24999999));
-		let fee_share_9 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(9999999));
-		let fee_share_10 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(4999999));
-		let fee_share_11 =
-			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999));
-		assert!(fee_share_1 == FixedI128::zero());
-		assert!(fee_share_2 == FixedI128::from_float(0.05));
-		assert!(fee_share_3 == FixedI128::from_float(0.08));
-		assert!(fee_share_4 == FixedI128::from_float(0.1));
-		assert!(fee_share_5 == FixedI128::from_float(0.12));
-		assert!(fee_share_6 == FixedI128::from_float(0.15));
-		assert!(fee_share_7 == FixedI128::from_float(0.12));
-		assert!(fee_share_8 == FixedI128::from_float(0.1));
-		assert!(fee_share_9 == FixedI128::from_float(0.08));
-		assert!(fee_share_10 == FixedI128::from_float(0.05));
-		assert!(fee_share_11 == FixedI128::zero());
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::from_float(0.15)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
 
 		// fetch fee_shares for different levels and volumes of a user
-		let fee_share_1 = TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::zero());
-		let fee_share_2 = TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::from_u32(200001));
-		let fee_share_3 = TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999));
-		assert!(fee_share_1 == FixedI128::zero());
-		assert!(fee_share_2 == FixedI128::from_float(0.5));
-		assert!(fee_share_3 == FixedI128::zero());
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.5)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		// fetch fees_shares for user level > fee share level
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
 	});
 }
 

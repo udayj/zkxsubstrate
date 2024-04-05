@@ -524,7 +524,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::InsufficientFeeData { id });
-					Self::remove_settings_from_maps(id);
+					Self::remove_fee_settings_from_maps(id);
 					continue;
 				}
 
@@ -546,7 +546,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::FeeDataLengthMismatch { id });
-					Self::remove_settings_from_maps(id);
+					Self::remove_fee_settings_from_maps(id);
 					continue;
 				}
 
@@ -559,7 +559,7 @@ pub mod pallet {
 
 				let _ = Self::set_fees_internal(id, fee_details);
 
-				Self::remove_fee_share_settings_from_map(id);
+				Self::remove_fee_settings_from_maps(id);
 			}
 		}
 
@@ -652,7 +652,7 @@ pub mod pallet {
 			}
 		}
 
-		fn remove_settings_from_maps(id: u128) {
+		fn remove_fee_settings_from_maps(id: u128) {
 			// Remove the id from the map
 			TempAssetsMap::<T>::remove(id);
 
