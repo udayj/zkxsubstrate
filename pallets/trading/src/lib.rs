@@ -333,6 +333,7 @@ pub mod pallet {
 			master_account_address: U256,
 			referral_account_address: U256,
 			fee_share: FixedI128,
+			collateral_id: u128,
 		},
 	}
 
@@ -1871,6 +1872,7 @@ pub mod pallet {
 					master_account_address: referral_details.master_account_address,
 					referral_account_address,
 					fee_share,
+					collateral_id,
 				});
 			}
 		}
