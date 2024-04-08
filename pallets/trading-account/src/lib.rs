@@ -278,7 +278,7 @@ pub mod pallet {
 			modify_type: FundModifyType,
 			block_number: BlockNumberFor<T>,
 		},
-		ReferralAdded {
+		ReferralDetailsAdded {
 			master_account_address: U256,
 			referral_account_address: U256,
 			fee_discount: FixedI128,
@@ -868,7 +868,7 @@ pub mod pallet {
 				referrals_count + 1,
 			);
 
-			Self::deposit_event(Event::ReferralAdded {
+			Self::deposit_event(Event::ReferralDetailsAdded {
 				master_account_address: referral_details.master_account_address,
 				referral_account_address,
 				fee_discount: referral_details.fee_discount,

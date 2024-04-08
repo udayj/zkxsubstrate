@@ -2,7 +2,7 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, ReferralAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		MarketUpdated, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
 		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 };
@@ -12,7 +12,7 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
-use super::{AccountLevelUpdated, AssetAddress, QuorumSet};
+use super::{AssetAddress, MasterAccountLevelChanged, QuorumSet};
 
 impl FeltSerializedArrayExt for Vec<FieldElement> {
 	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
@@ -255,13 +255,14 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_referral_added_event(
 		&mut self,
-		referral_added_event: &ReferralAdded,
+		referral_added_event: &ReferralDetailsAdded,
 	) -> Result<(), FromByteSliceError> {
 		// enum prefix
 		self.push(FieldElement::from(9_u8));
 		self.push(FieldElement::from(referral_added_event.event_index));
 		self.try_append_u256(referral_added_event.master_account_address)?;
 		self.try_append_u256(referral_added_event.referral_account_address)?;
+		self.try_append_u256(referral_added_event.referral_code)?;
 		self.try_append_fixedi128(referral_added_event.fee_discount)?;
 		self.push(FieldElement::from(referral_added_event.block_number));
 
@@ -270,7 +271,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 
 	fn try_append_account_level_updated_event(
 		&mut self,
-		account_level_updated_event: &AccountLevelUpdated,
+		account_level_updated_event: &MasterAccountLevelChanged,
 	) -> Result<(), FromByteSliceError> {
 		// enum prefix
 		self.push(FieldElement::from(10_u8));
@@ -315,10 +316,10 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				UniversalEvent::SettingsAdded(settings_added) => {
 					self.try_append_settings_added_event(settings_added)?;
 				},
-				UniversalEvent::ReferralAdded(referral_added) => {
+				UniversalEvent::ReferralDetailsAdded(referral_added) => {
 					self.try_append_referral_added_event(referral_added)?;
 				},
-				UniversalEvent::AccountLevelUpdated(account_level_updated) => {
+				UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
 					self.try_append_account_level_updated_event(account_level_updated)?;
 				},
 			}

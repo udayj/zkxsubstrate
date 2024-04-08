@@ -958,7 +958,7 @@ pub mod pallet {
 					UniversalEvent::SettingsAdded(settings_added) => {
 						Self::handle_settings(&settings_added.settings);
 					},
-					UniversalEvent::ReferralAdded(referral_added) => {
+					UniversalEvent::ReferralDetailsAdded(referral_added) => {
 						match T::TradingAccountPallet::add_referral_internal(
 							referral_added.referral_account_address,
 							ReferralDetails {
@@ -974,7 +974,7 @@ pub mod pallet {
 							true => (),
 						};
 					},
-					UniversalEvent::AccountLevelUpdated(account_level_updated) => {
+					UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
 						match T::TradingAccountPallet::is_registered_user(
 							account_level_updated.master_account_address,
 						) {
@@ -1068,9 +1068,9 @@ pub mod pallet {
 					(quorum_set.block_number, quorum_set.event_index),
 				UniversalEvent::SettingsAdded(settings_added) =>
 					(settings_added.block_number, settings_added.event_index),
-				UniversalEvent::ReferralAdded(referral_added) =>
+				UniversalEvent::ReferralDetailsAdded(referral_added) =>
 					(referral_added.block_number, referral_added.event_index),
-				UniversalEvent::AccountLevelUpdated(account_level_updated) =>
+				UniversalEvent::MasterAccountLevelChanged(account_level_updated) =>
 					(account_level_updated.block_number, account_level_updated.event_index),
 			}
 		}
