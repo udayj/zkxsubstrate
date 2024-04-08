@@ -101,7 +101,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_temp_fee_shares)]
-	// k1 - asset_id, v - FixedI28[]
+	// k1 - asset_id, k2 - (FeeShareSettingsType, Master Level), v - FixedI28[]
 	pub(super) type TempFeeSharesMap<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
@@ -115,7 +115,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn get_temp_fee_share_assets)]
 	// k1 - market_id/asset_id, v - bool
-	pub(super) type TempFeeSharesAssetsMap<T: Config> = StorageMap<_, Blake2_128Concat, u128, bool>;
+	pub(super) type TempFeeSharesAssetsMap<T: Config> = StorageMap<_, Twox64Concat, u128, bool>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
