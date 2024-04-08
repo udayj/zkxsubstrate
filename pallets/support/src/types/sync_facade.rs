@@ -29,8 +29,8 @@ pub enum UniversalEvent {
 	SignerRemoved(SignerRemoved),
 	QuorumSet(QuorumSet),
 	SettingsAdded(SettingsAdded),
-	ReferralAdded(ReferralAdded),
-	AccountLevelUpdated(AccountLevelUpdated),
+	ReferralDetailsAdded(ReferralDetailsAdded),
+	MasterAccountLevelChanged(MasterAccountLevelChanged),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -105,17 +105,17 @@ pub struct SettingsAdded {
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ReferralAdded {
+pub struct ReferralDetailsAdded {
 	pub event_index: u32,
 	pub master_account_address: U256,
 	pub referral_account_address: U256,
-	pub fee_discount: FixedI128,
 	pub referral_code: U256,
+	pub fee_discount: FixedI128,
 	pub block_number: u64,
 }
 
 #[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct AccountLevelUpdated {
+pub struct MasterAccountLevelChanged {
 	pub event_index: u32,
 	pub master_account_address: U256,
 	pub level: u8,

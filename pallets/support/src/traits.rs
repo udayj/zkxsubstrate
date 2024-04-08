@@ -1,10 +1,10 @@
 use crate::types::{
-	ABRDetails, AccountInfo, AccountLevelUpdated, Asset, AssetAddress, AssetRemoved, AssetUpdated,
-	BalanceChangeReason, BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates,
-	FeeShareDetails, ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved,
-	MarketUpdated, Order, OrderSide, Position, PositionExtended, QuorumSet, ReferralAdded,
-	ReferralDetails, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount,
-	TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
+	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
+	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, FeeShareDetails,
+	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
+	MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended, QuorumSet,
+	ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -269,11 +269,11 @@ pub trait FeltSerializedArrayExt {
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_referral_added_event(
 		&mut self,
-		referral_added_event: &ReferralAdded,
+		referral_added_event: &ReferralDetailsAdded,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_account_level_updated_event(
 		&mut self,
-		account_level_updated_event: &AccountLevelUpdated,
+		account_level_updated_event: &MasterAccountLevelChanged,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
