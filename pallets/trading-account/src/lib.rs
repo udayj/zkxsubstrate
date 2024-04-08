@@ -284,7 +284,7 @@ pub mod pallet {
 			fee_discount: FixedI128,
 			referral_code: U256,
 		},
-		FeeSharePaid {
+		FeeShareTransfer {
 			account_address: U256,
 			collateral_id: u128,
 			amount: FixedI128,
@@ -637,7 +637,7 @@ pub mod pallet {
 			// Reset fee share to 0
 			MasterAccountFeeShare::<T>::set(account_address, collateral_id, fee_share - amount);
 
-			Self::deposit_event(Event::FeeSharePaid {
+			Self::deposit_event(Event::FeeShareTransfer {
 				account_address,
 				collateral_id,
 				amount: fee_share,
