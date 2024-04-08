@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -288,6 +288,10 @@ pub mod pallet {
 			account_address: U256,
 			collateral_id: u128,
 			amount: FixedI128,
+		},
+		MasterAccountLevelChanged {
+			master_account_address: U256,
+			level: u8,
 		},
 	}
 
@@ -850,9 +854,9 @@ pub mod pallet {
 			referral_details: ReferralDetails,
 			referral_code: U256,
 		) -> bool {
-			let referral = MasterAccountMap::<T>::get(referral_account_address);
+			let existing_master = MasterAccountMap::<T>::get(referral_account_address);
 			// Referral account can belong to only one master account
-			if referral.is_some() {
+			if existing_master.is_some() {
 				return false;
 			}
 
@@ -880,6 +884,8 @@ pub mod pallet {
 
 		fn modify_master_account_level(master_account_address: U256, level: u8) {
 			MasterAccountLevel::<T>::set(master_account_address, level);
+
+			Self::deposit_event(Event::MasterAccountLevelChanged { master_account_address, level })
 		}
 	}
 

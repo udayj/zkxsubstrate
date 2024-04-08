@@ -5,9 +5,9 @@ use pallet_support::{
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
 		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate,
-		FeeShareDetails, Market, MarketRemoved, MarketUpdated, QuorumSet, Setting, SettingsAdded,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		FeeShareDetails, Market, MarketRemoved, MarketUpdated, MasterAccountLevelChanged,
+		QuorumSet, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -84,6 +84,26 @@ pub trait SettingsAddedTrait {
 	// fee share
 	fn get_usdc_fee_shares_settings() -> SettingsAdded;
 	fn get_usdt_fee_shares_settings() -> SettingsAdded;
+}
+
+pub trait ReferralDetailsAddedTrait {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		referral_account_address: U256,
+		referral_code: U256,
+		fee_discount: FixedI128,
+		block_number: u64,
+	) -> ReferralDetailsAdded;
+}
+
+pub trait MasterAccountLevelChangedTrait {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		level: u8,
+		block_number: u64,
+	) -> MasterAccountLevelChanged;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
@@ -581,6 +601,37 @@ impl QuorumSetTrait for QuorumSet {
 	}
 }
 
+impl MasterAccountLevelChangedTrait for MasterAccountLevelChanged {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		level: u8,
+		block_number: u64,
+	) -> MasterAccountLevelChanged {
+		MasterAccountLevelChanged { event_index, master_account_address, level, block_number }
+	}
+}
+
+impl ReferralDetailsAddedTrait for ReferralDetailsAdded {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		referral_account_address: U256,
+		referral_code: U256,
+		fee_discount: FixedI128,
+		block_number: u64,
+	) -> ReferralDetailsAdded {
+		ReferralDetailsAdded {
+			event_index,
+			master_account_address,
+			referral_account_address,
+			referral_code,
+			fee_discount,
+			block_number,
+		}
+	}
+}
+
 pub trait UniversalEventArray {
 	fn new() -> Vec<UniversalEvent>;
 	fn add_market_updated_event(&mut self, market_updated_event: MarketUpdated);
@@ -592,6 +643,11 @@ pub trait UniversalEventArray {
 	fn add_signer_removed_event(&mut self, signer_removed_event: SignerRemoved);
 	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet);
 	fn add_settings_event(&mut self, settings_added_event: SettingsAdded);
+	fn add_referral_added_event(&mut self, referral_added_event: ReferralDetailsAdded);
+	fn add_master_level_changed_event(
+		&mut self,
+		master_level_changed_event: MasterAccountLevelChanged,
+	);
 	fn compute_hash(&self) -> FieldElement;
 }
 
@@ -664,6 +720,17 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 
 	fn add_settings_event(&mut self, settings_added_event: SettingsAdded) {
 		self.push(UniversalEvent::SettingsAdded(settings_added_event));
+	}
+
+	fn add_referral_added_event(&mut self, referral_added_event: ReferralDetailsAdded) {
+		self.push(UniversalEvent::ReferralDetailsAdded(referral_added_event));
+	}
+
+	fn add_master_level_changed_event(
+		&mut self,
+		master_level_changed_event: MasterAccountLevelChanged,
+	) {
+		self.push(UniversalEvent::MasterAccountLevelChanged(master_level_changed_event));
 	}
 
 	fn compute_hash(&self) -> FieldElement {
