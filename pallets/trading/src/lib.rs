@@ -329,6 +329,12 @@ pub mod pallet {
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
 		},
+		FeeShareAdded {
+			master_account_address: U256,
+			referral_account_address: U256,
+			fee_share: FixedI128,
+			collateral_id: u128,
+		},
 	}
 
 	// Pallet callable functions
@@ -1470,7 +1476,7 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let (total_30day_volume, _) =
+			let (total_30day_volume, master_30day_volume) =
 				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
@@ -1491,6 +1497,17 @@ pub mod pallet {
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
+				// Update fee share for the master account
+				if master_30day_volume != FixedI128::zero() {
+					Self::update_fee_share(
+						order.account_id,
+						collateral_id,
+						master_30day_volume,
+						fee,
+						collateral_token_decimal,
+					);
+				}
+
 				T::TradingAccountPallet::transfer_from(
 					order.account_id,
 					collateral_id,
@@ -1765,7 +1782,7 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let (total_30day_volume, _) =
+			let (total_30day_volume, master_30day_volume) =
 				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
@@ -1787,6 +1804,17 @@ pub mod pallet {
 
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
+					// Update fee share for the master accoun
+					if master_30day_volume != FixedI128::zero() {
+						Self::update_fee_share(
+							order.account_id,
+							collateral_id,
+							master_30day_volume,
+							fee,
+							collateral_token_decimal,
+						);
+					}
+
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
@@ -1809,6 +1837,44 @@ pub mod pallet {
 				pnl,
 				fee,
 			))
+		}
+
+		fn update_fee_share(
+			account_id: U256,
+			collateral_id: u128,
+			master_30day_volume: FixedI128,
+			fee: FixedI128,
+			collateral_token_decimal: u8,
+		) {
+			if let Some(referral_details) =
+				T::TradingAccountPallet::get_account_address_and_referral_details(account_id)
+			{
+				let account_level = T::TradingAccountPallet::get_master_account_level(
+					referral_details.master_account_address,
+				);
+				let fee_share_rate = T::TradingFeesPallet::get_fee_share(
+					account_level,
+					collateral_id,
+					master_30day_volume,
+				);
+				let mut fee_share = fee * fee_share_rate;
+				fee_share = fee_share.round_to_precision(collateral_token_decimal.into());
+				T::TradingAccountPallet::update_master_fee_share(
+					referral_details.master_account_address,
+					collateral_id,
+					fee_share,
+				);
+
+				// This unwrap won't fail since user registration was checked
+				let referral_account_address =
+					T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
+				Self::deposit_event(Event::FeeShareAdded {
+					master_account_address: referral_details.master_account_address,
+					referral_account_address,
+					fee_share,
+					collateral_id,
+				});
+			}
 		}
 
 		fn get_maintenance_requirement(
