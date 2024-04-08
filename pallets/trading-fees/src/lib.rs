@@ -71,7 +71,13 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn fee_share)]
-	pub(super) type FeeShare<T: Config> = StorageValue<_, Vec<Vec<FeeShareDetails>>, OptionQuery>;
+	pub(super) type FeeShare<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		u128, // collateral_id
+		Vec<Vec<FeeShareDetails>>,
+		OptionQuery,
+	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -131,12 +137,13 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn update_fee_share(
 			origin: OriginFor<T>,
+			id: u128,
 			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			// Make sure the caller is root
 			ensure_root(origin)?;
 
-			Self::update_fee_shares_internal(fee_share_details)?;
+			Self::update_fee_shares_internal(id, fee_share_details)?;
 			Ok(())
 		}
 	}
@@ -175,6 +182,7 @@ pub mod pallet {
 		}
 
 		fn update_fee_shares_internal(
+			collateral_id: u128,
 			fee_share_details: Vec<Vec<FeeShareDetails>>,
 		) -> DispatchResult {
 			for level in 0..fee_share_details.len() {
@@ -183,18 +191,22 @@ pub mod pallet {
 			}
 
 			// Remove any fee share details if present
-			FeeShare::<T>::kill();
+			FeeShare::<T>::remove(collateral_id);
 
 			// Add it to storage
-			FeeShare::<T>::put(&fee_share_details);
+			FeeShare::<T>::insert(collateral_id, &fee_share_details);
 
 			Self::deposit_event(Event::FeeShareSet { fee_share: fee_share_details });
 
 			Ok(())
 		}
 
-		fn get_fee_share(account_level: u8, volume: FixedI128) -> FixedI128 {
-			let fee_share_details = FeeShare::<T>::get();
+		fn get_all_fee_shares(collateral_id: u128) -> Vec<Vec<FeeShareDetails>> {
+			FeeShare::<T>::get(collateral_id).unwrap_or_default()
+		}
+
+		fn get_fee_share(account_level: u8, collateral_id: u128, volume: FixedI128) -> FixedI128 {
+			let fee_share_details = FeeShare::<T>::get(collateral_id);
 
 			// If no fee share tiers are set, return 0 as fee share
 			if fee_share_details.is_none() {
@@ -291,8 +303,7 @@ pub mod pallet {
 				);
 				// Validate fee share is between 0 and 1
 				ensure!(
-					current_fee_share.fee_share >= FixedI128::zero() &&
-						current_fee_share.fee_share <= FixedI128::one(),
+					current_fee_share.fee_share <= FixedI128::one(),
 					Error::<T>::InvalidFeeShare
 				);
 			}

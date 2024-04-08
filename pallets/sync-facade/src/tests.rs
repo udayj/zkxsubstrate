@@ -9,15 +9,18 @@ use pallet_support::{
 	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
-		FeeSettingsType, MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, MarketRemoved, MarketUpdated,
+		OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
+		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_runtime::{traits::ConstU32, BoundedVec};
+use sp_runtime::{
+	traits::{ConstU32, Zero},
+	BoundedVec,
+};
 
 // declare test_helper module
 pub mod test_helper;
@@ -45,6 +48,31 @@ fn compare_base_fees(id: u128, expected_value: BaseFeeAggregate) {
 	let actual_fees = TradingFees::base_fees_all(id).unwrap_or_default();
 
 	assert!(actual_fees == expected_value, "Mismatch fees");
+}
+
+fn compare_fee_shares(id: u128, expected_value: Vec<Vec<FeeShareDetails>>) {
+	let actual_fees = TradingFees::fee_share(id).unwrap_or_default();
+
+	assert!(actual_fees == expected_value, "Mismatch fees");
+}
+
+fn check_fee_share_storage_empty(ids: Vec<u128>) {
+	for id in ids {
+		assert!(SyncFacade::get_temp_fee_share_assets(id) == None, "Id is not removed");
+		assert!(
+			SyncFacade::get_temp_fee_shares(id, (FeeShareSettingsType::Vols, 0)) == None,
+			"Fee share volume at index 0 not removed"
+		);
+
+		let mut index = 0;
+		while index < 6 {
+			assert!(
+				SyncFacade::get_temp_fee_shares(id, (FeeShareSettingsType::Fees, 0)) == None,
+				"Fee share fees at not removed"
+			);
+			index += 1;
+		}
+	}
 }
 
 fn check_fees_storage_empty(ids: Vec<u128>) {
@@ -1372,6 +1400,302 @@ fn sync_settings_event_usdc() {
 }
 
 #[test]
+fn sync_settings_event_fee_share_usdc() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id, get_usdc_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+
+		// Check the state by querying share data
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::from_float(0.15)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFees::get_fee_share(1, collateral_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFees::get_fee_share(1, collateral_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.5)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_no_volume_data() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings.remove(0);
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::InsufficientFeeData { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_no_fee_data() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings.pop();
+	usdc_fee_shares.settings.pop();
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::InsufficientFeeData { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_fee_length_mismatch() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings[2].values.pop();
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::FeeDataLengthMismatch { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdt().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id, get_usdt_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_multiple_fee_share_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id_1 = usdc().asset.id;
+	let collateral_id_2 = usdt().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	let usdt_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings();
+
+	for setting in usdt_fee_shares.settings {
+		usdc_fee_shares.settings.force_push(setting);
+	}
+
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id_1, get_usdc_fee_shares());
+		compare_fee_shares(collateral_id_2, get_usdt_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id_1, collateral_id_2]);
+	});
+}
+
+#[test]
 fn sync_settings_event_btc_usdc() {
 	// Get a test environment
 	let mut env = setup();
@@ -1524,12 +1848,22 @@ fn sync_settings_event_multiple_collaterals_markets() {
 	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
 	let usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
 	let btc_usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_btc_usdc_fees_settings();
+	let usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	let usdt_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings();
 
 	for setting in usdt_fees.settings {
 		usdc_fees.settings.force_push(setting);
 	}
 
 	for setting in btc_usdc_fees.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+
+	for setting in usdc_fee_shares.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+
+	for setting in usdt_fee_shares.settings {
 		usdc_fees.settings.force_push(setting);
 	}
 
@@ -1560,6 +1894,8 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		)
 		.expect("error while adding settings");
 
+		print!("Events: {:?}", System::events());
+
 		// Check if the fees were set successfully
 		// USDT
 		compare_base_fees(usdt().asset.id, get_usdt_aggregate_fees());
@@ -1570,8 +1906,15 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		// BTC USDC
 		compare_base_fees(btc_usdc().market.id, get_btc_usdc_aggregate_fees());
 
+		// USDC fee share
+		compare_fee_shares(usdc().asset.id, get_usdc_fee_shares());
+
+		// USDT fee share
+		compare_fee_shares(usdt().asset.id, get_usdt_fee_shares());
+
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdc().asset.id, usdt().asset.id, btc_usdc().market.id]);
+		check_fee_share_storage_empty(vec![usdc().asset.id, usdt().asset.id]);
 
 		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
 

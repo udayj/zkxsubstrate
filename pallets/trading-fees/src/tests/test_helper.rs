@@ -1,5 +1,5 @@
 use frame_support::dispatch::Vec;
-use pallet_support::types::{BaseFee, BaseFeeAggregate};
+use pallet_support::types::{BaseFee, BaseFeeAggregate, FeeShareDetails};
 use sp_arithmetic::fixed_point::FixedI128;
 
 pub fn get_usdc_aggregate_fees() -> BaseFeeAggregate {
@@ -9,6 +9,63 @@ pub fn get_usdc_aggregate_fees() -> BaseFeeAggregate {
 		taker_buy: get_usdc_taker_open_fees(),
 		taker_sell: get_usdc_taker_close_fees(),
 	}
+}
+
+pub fn get_usdc_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.1),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.12),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.15),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
 }
 
 pub fn get_btc_usdc_aggregate_fees() -> BaseFeeAggregate {
