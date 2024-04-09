@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: production-node
+  tag: sandbox-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -347,7 +347,7 @@ node:
 
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG' -l debug"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -574,7 +574,13 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources: {}
+  resources:
+    requests:
+      cpu: 1500m
+      memory: 3Gi
+    limits:
+      cpu: 1500m
+      memory: 6Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
@@ -680,13 +686,19 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector: {}
+nodeSelector:
+  role: substrate
+  topology.kubernetes.io/zone: eu-north-1a
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
 
 # -- Tolerations for use with node taints
-tolerations: []
+tolerations:
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: substrate
 
 # -- Assign custom affinity rules
 affinity: {}

@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: sandbox-node
+  tag: stage-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,7 +138,7 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3-node-3.sandbox.zkx.fi
+  - host: l3-node-3.stage.zkx.fi
     http:
       paths:
       - path: "/"
@@ -152,7 +152,7 @@ ingress:
   tls:
   - secretName: l3-tls-node-3
     hosts:
-      - l3-node-3.sandbox.zkx.fi
+      - l3-node-3.stage.zkx.fi
 
 
 # -- Deploy a substrate node.
@@ -181,7 +181,7 @@ node:
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
   customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox_customSpecRaw.json"
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/stage_customSpecRaw.json"
   # -- Replace chain spec if it already exists
   forceDownloadChainspec: false
 
@@ -347,7 +347,7 @@ node:
 
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' -l debug"]
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
