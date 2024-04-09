@@ -288,6 +288,7 @@ pub mod pallet {
 			account_address: U256,
 			collateral_id: u128,
 			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
 		},
 		MasterAccountLevelChanged {
 			master_account_address: U256,
@@ -645,6 +646,7 @@ pub mod pallet {
 				account_address,
 				collateral_id,
 				amount: fee_share,
+				block_number: <frame_system::Pallet<T>>::block_number(),
 			});
 
 			Ok(())

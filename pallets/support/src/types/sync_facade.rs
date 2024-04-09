@@ -109,6 +109,7 @@ pub struct ReferralDetailsAdded {
 	pub event_index: u32,
 	pub master_account_address: U256,
 	pub referral_account_address: U256,
+	pub level: u8,
 	pub referral_code: U256,
 	pub fee_discount: FixedI128,
 	pub block_number: u64,
