@@ -342,10 +342,10 @@ node:
       port: 9625
 
     # -- Flags to add to the Polkadot binary
-    flags: ["--bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
+    flags: []
 
   # -- Flags to add to the Polkadot binary
-  flags: []
+  flags: ["--bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys

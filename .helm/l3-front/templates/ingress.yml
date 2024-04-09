@@ -9,6 +9,8 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
     {{ else if eq .Values.env "sandbox-2" }}
     cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
+    {{ else if eq .Values.env "stage" }}
+    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
     {{ else }}
     cert-manager.io/cluster-issuer: letsencrypt-prod
     {{ end }}
@@ -23,6 +25,8 @@ spec:
     - "l3-front.sandbox.zkx.fi"
     {{ else if eq .Values.env "sandbox-2" }}
     - "l3-front.sandbox-2.zkx.fi"
+    {{ else if eq .Values.env "stage" }}
+    - "l3-front.stage.zkx.fi"
     {{ else }}
     - "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
     {{ end }}
@@ -32,6 +36,8 @@ spec:
   - host: "l3-front.sandbox.zkx.fi"
   {{ else if eq .Values.env "sandbox-2" }}
   - host: "l3-front.sandbox-2.zkx.fi"
+  {{ else if eq .Values.env "stage" }}
+  - host: "l3-front.stage.zkx.fi"
   {{ else }}
   - host: "l3-front.{{ .Values.env }}.k8s.ntwrkx.com"
   {{ end }}

@@ -12,7 +12,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: sandbox-node
+  tag: sandbox-2-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,21 +138,21 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3-node-3.sandbox.zkx.fi
+  - host: l3-node-4.sandbox-2.zkx.fi
     http:
       paths:
       - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: zkxl3-node-3-0
+            name: zkxl3-node-4-0
             port:
               number: 9944
   # -- Ingress TLS configuration
   tls:
-  - secretName: l3-tls-node-3
+  - secretName: l3-tls-node-4
     hosts:
-      - l3-node-3.sandbox.zkx.fi
+      - l3-node-4.sandbox-2.zkx.fi
 
 
 # -- Deploy a substrate node.
@@ -181,7 +181,7 @@ node:
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
   customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox_customSpecRaw.json"
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox2_customSpecRaw.json"
   # -- Replace chain spec if it already exists
   forceDownloadChainspec: false
 
@@ -347,17 +347,17 @@ node:
 
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' -l debug"]
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
   keys:
   - type: "aura"
     scheme: "Sr25519"
-    seed: "0xb1d81b947471e8f2bd60f520b5beb69ba7ca6f56392400d5cafd50d6bad0ef60"
+    seed: "0xe2daba619fd859a9a790835eee9ee1a0f799ed464f0c4f69573727aa7c41c017"
   - type: "gran"
     scheme: "Ed25519"
-    seed: "0xb1d81b947471e8f2bd60f520b5beb69ba7ca6f56392400d5cafd50d6bad0ef60"
+    seed: "0xe2daba619fd859a9a790835eee9ee1a0f799ed464f0c4f69573727aa7c41c017"
 
   # -- Inject keys from already existing Kubernetes secrets
   existingSecrets:
@@ -412,7 +412,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0xb1d81b947471e8f2bd60f520b5beb69ba7ca6f56392400d5cafd50d6bad0ef60"
+  customNodeKey: "0xe2daba619fd859a9a790835eee9ee1a0f799ed464f0c4f69573727aa7c41c017"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -576,11 +576,11 @@ node:
   # -- Resource limits & requests
   resources:
     requests:
-      cpu: 1500m
-      memory: 3Gi
+      cpu: 1000m
+      memory: 4Gi
     limits:
-      cpu: 1500m
-      memory: 6Gi
+      cpu: 3000m
+      memory: 10Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
@@ -686,19 +686,13 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector:
-  role: substrate
-  topology.kubernetes.io/zone: eu-north-1b
+nodeSelector: {}
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
 
 # -- Tolerations for use with node taints
-tolerations:
-  - effect: NoSchedule
-    key: role
-    operator: Equal
-    value: substrate
+tolerations: []
 
 # -- Assign custom affinity rules
 affinity: {}

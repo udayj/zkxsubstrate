@@ -26,6 +26,8 @@ spec:
           value: "wss://l3.{{ .Values.env }}.zkx.fi"
           {{ else if eq .Values.env "sandbox-2" }}
           value: "wss://l3.{{ .Values.env }}.zkx.fi"
+          {{ else if eq .Values.env "stage" }}
+          value: "wss://l3.{{ .Values.env }}.zkx.fi"
           {{ else }}
           value: "wss://l3.{{ .Values.env }}.k8s.ntwrkx.com"
           {{ end }}
