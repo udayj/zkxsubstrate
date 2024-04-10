@@ -207,6 +207,44 @@ fn test_add_balances_with_unknown_asset() {
 }
 
 #[test]
+#[should_panic(expected = "InsufficientFeeShare")]
+fn test_pay_fee_share_insufficeint_fee_share() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::pay_fee_share(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			trading_account_id,
+			usdc().asset.id,
+			FixedI128::from_float(1.0)
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFeeShareAmount")]
+fn test_pay_fee_share_invalid_amount() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::pay_fee_share(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			trading_account_id,
+			usdc().asset.id,
+			FixedI128::from_float(-1.0)
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "AssetNotCollateral")]
 fn test_add_balances_with_asset_not_marked_as_collateral() {
 	let mut env = setup();

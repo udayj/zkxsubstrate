@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -215,6 +215,8 @@ pub mod pallet {
 		DevOnlyCall,
 		/// Insufficient fee share to transfer
 		InsufficientFeeShare,
+		/// Invalid amount passed for withdrawal from fee share
+		InvalidFeeShareAmount,
 	}
 
 	#[pallet::event]
@@ -462,7 +464,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Call the internal function to add referral
-			Self::setup_referral(referral_account_address, referral_details, referral_code);
+			Self::add_referral_internal(referral_account_address, referral_details, referral_code);
 			Ok(())
 		}
 
@@ -638,8 +640,9 @@ pub mod pallet {
 
 			let fee_share = MasterAccountFeeShare::<T>::get(account_address, collateral_id);
 			ensure!(amount <= fee_share, Error::<T>::InsufficientFeeShare);
+			ensure!(amount > FixedI128::zero(), Error::<T>::InvalidFeeShareAmount);
 
-			// Reset fee share to 0
+			// Reduce the fee share
 			MasterAccountFeeShare::<T>::set(account_address, collateral_id, fee_share - amount);
 
 			Self::deposit_event(Event::FeeShareTransfer {
@@ -849,39 +852,6 @@ pub mod pallet {
 				return current_balance - max(total_maintenance_requirement, margin_locked) +
 					negative_unrealized_pnl_sum
 			}
-		}
-
-		fn setup_referral(
-			referral_account_address: U256,
-			referral_details: ReferralDetails,
-			referral_code: U256,
-		) -> bool {
-			let existing_master = MasterAccountMap::<T>::get(referral_account_address);
-			// Referral account can belong to only one master account
-			if existing_master.is_some() {
-				return false;
-			}
-
-			MasterAccountMap::<T>::insert(referral_account_address, referral_details);
-			let referrals_count =
-				ReferralsCountMap::<T>::get(referral_details.master_account_address);
-			ReferralAccountsMap::<T>::set(
-				(referral_details.master_account_address, referrals_count),
-				referral_account_address,
-			);
-			ReferralsCountMap::<T>::set(
-				referral_details.master_account_address,
-				referrals_count + 1,
-			);
-
-			Self::deposit_event(Event::ReferralDetailsAdded {
-				master_account_address: referral_details.master_account_address,
-				referral_account_address,
-				fee_discount: referral_details.fee_discount,
-				referral_code,
-			});
-
-			true
 		}
 
 		fn modify_master_account_level(master_account_address: U256, level: u8) {
@@ -1474,7 +1444,32 @@ pub mod pallet {
 			referral_details: ReferralDetails,
 			referral_code: U256,
 		) -> bool {
-			Self::setup_referral(referral_account_address, referral_details, referral_code)
+			let existing_master = MasterAccountMap::<T>::get(referral_account_address);
+			// Referral account can belong to only one master account
+			if existing_master.is_some() && referral_details.fee_discount >= FixedI128::zero() {
+				return false;
+			}
+
+			MasterAccountMap::<T>::insert(referral_account_address, referral_details);
+			let referrals_count =
+				ReferralsCountMap::<T>::get(referral_details.master_account_address);
+			ReferralAccountsMap::<T>::set(
+				(referral_details.master_account_address, referrals_count),
+				referral_account_address,
+			);
+			ReferralsCountMap::<T>::set(
+				referral_details.master_account_address,
+				referrals_count + 1,
+			);
+
+			Self::deposit_event(Event::ReferralDetailsAdded {
+				master_account_address: referral_details.master_account_address,
+				referral_account_address,
+				fee_discount: referral_details.fee_discount,
+				referral_code,
+			});
+
+			true
 		}
 
 		fn update_master_account_level_internal(master_account_address: U256, level: u8) {

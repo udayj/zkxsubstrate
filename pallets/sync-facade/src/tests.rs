@@ -1017,7 +1017,6 @@ fn sync_referral_added_event_duplicate() {
 		);
 	});
 }
-
 #[test]
 fn sync_multiple_referral_added_event() {
 	// Get a test environment
