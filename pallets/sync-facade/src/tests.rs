@@ -4,17 +4,20 @@ use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, get_trading_account_id},
 		asset_helper::{btc, eth, usdc, usdt},
+		bob, charlie,
 		market_helper::{btc_usdc, eth_usdc},
 	},
 	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
 		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, MarketRemoved, MarketUpdated,
-		OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		MasterAccountLevelChanged, OrderSide, QuorumSet, ReferralDetails, ReferralDetailsAdded,
+		SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
+use pallet_trading_account::Event as TradingAccountEvents;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{
@@ -838,6 +841,468 @@ fn sync_quorum_set_event_insufficient_signers() {
 
 		assert_eq!(SyncFacade::get_signers_quorum(), 1_u8);
 		System::assert_has_event(Event::QuorumSetError { quorum: 2_u8 }.into());
+	});
+}
+
+#[test]
+fn sync_referral_added_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let referral_account_address = bob().account_address;
+	let level = 0;
+	let fee_discount = FixedI128::from_float(0.5);
+	let referral_code = U256::from(6648936);
+
+	let referral_added_event = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address,
+		referral_account_address,
+		level,
+		referral_code,
+		fee_discount,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for bob is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount }
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 0_u64)),
+			referral_account_address
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address), 1);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address,
+				fee_discount,
+				referral_code,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_referral_added_event_duplicate() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address_1 = alice().account_address;
+	let master_account_address_2 = bob().account_address;
+	let referral_account_address = charlie().account_address;
+	let level_1 = 1;
+	let level_2 = 2;
+	let fee_discount_1 = FixedI128::from_float(0.5);
+	let fee_discount_2 = FixedI128::from_float(0.25);
+	let referral_code_1 = U256::from(6648936);
+	let referral_code_2 = U256::from(6452323);
+
+	let referral_added_event_1 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address_1,
+		referral_account_address,
+		level_1,
+		referral_code_1,
+		fee_discount_1,
+		1337,
+	);
+
+	let referral_added_event_2 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		2,
+		master_account_address_2,
+		referral_account_address,
+		level_2,
+		referral_code_2,
+		fee_discount_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event_1);
+	events_batch.add_referral_added_event(referral_added_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for charlie is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address).unwrap_or_default(),
+			ReferralDetails {
+				master_account_address: master_account_address_1,
+				fee_discount: fee_discount_1
+			}
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address_1, 0_u64)),
+			referral_account_address
+		);
+
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address_2, 0_u64)),
+			U256::zero()
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address_1), 1);
+		assert_eq!(TradingAccounts::referrals_count(master_account_address_2), 0);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address: master_account_address_1,
+				referral_account_address,
+				fee_discount: fee_discount_1,
+				referral_code: referral_code_1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			Event::AddReferralError {
+				master_account_address: master_account_address_2,
+				referral_account_address,
+			}
+			.into(),
+		);
+	});
+}
+#[test]
+fn sync_multiple_referral_added_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let referral_account_address_1 = bob().account_address;
+	let referral_account_address_2 = charlie().account_address;
+	let level = 2;
+	let fee_discount_1 = FixedI128::from_float(0.5);
+	let fee_discount_2 = FixedI128::from_float(0.2);
+	let referral_code = U256::from(6648936);
+
+	let referral_added_event_1 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address,
+		referral_account_address_1,
+		level,
+		referral_code,
+		fee_discount_1,
+		1337,
+	);
+
+	let referral_added_event_2 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		2,
+		master_account_address,
+		referral_account_address_2,
+		level,
+		referral_code,
+		fee_discount_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event_1);
+	events_batch.add_referral_added_event(referral_added_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for bob is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address_1).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount: fee_discount_1 }
+		);
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address_2).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount: fee_discount_2 }
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 0_u64)),
+			referral_account_address_1
+		);
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 1_u64)),
+			referral_account_address_2
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address: referral_account_address_1,
+				fee_discount: fee_discount_1,
+				referral_code,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address: referral_account_address_2,
+				fee_discount: fee_discount_2,
+				referral_code,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let level = 2;
+
+	let master_level_changed = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address,
+		level,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged { master_account_address, level }
+				.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_multiple_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address_1 = alice().account_address;
+	let master_account_address_2 = bob().account_address;
+	let level = 2;
+
+	let master_level_changed_1 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address_1,
+		level,
+		1337,
+	);
+
+	let master_level_changed_2 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address_2,
+		level,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed_1);
+	events_batch.add_master_level_changed_event(master_level_changed_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address_1), 2);
+
+		// check if the master level for bob is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address_2), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address: master_account_address_1,
+				level,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address: master_account_address_2,
+				level,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_duplicate_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let level_1 = 2;
+	let level_2 = 3;
+
+	let master_level_changed_1 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address,
+		level_1,
+		1337,
+	);
+
+	let master_level_changed_2 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		2,
+		master_account_address,
+		level_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed_1);
+	events_batch.add_master_level_changed_event(master_level_changed_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address), 3);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address,
+				level: level_1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address,
+				level: level_2,
+			}
+			.into(),
+		);
 	});
 }
 

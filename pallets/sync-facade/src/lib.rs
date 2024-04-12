@@ -975,18 +975,10 @@ pub mod pallet {
 						};
 					},
 					UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
-						match T::TradingAccountPallet::is_registered_user(
+						T::TradingAccountPallet::update_master_account_level_internal(
 							account_level_updated.master_account_address,
-						) {
-							true => T::TradingAccountPallet::update_master_account_level_internal(
-								account_level_updated.master_account_address,
-								account_level_updated.level,
-							),
-							false => Self::deposit_event(Event::UpdateAccountLevelError {
-								master_account_address: account_level_updated
-									.master_account_address,
-							}),
-						};
+							account_level_updated.level,
+						);
 					},
 				}
 			}

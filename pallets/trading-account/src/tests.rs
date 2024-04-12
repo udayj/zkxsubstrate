@@ -12,7 +12,7 @@ use pallet_support::{
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, FundModifyType, MonetaryAccountDetails, Order,
+		BalanceUpdate, FundModifyType, MonetaryAccountDetails, Order, ReferralDetails,
 	},
 };
 use primitive_types::U256;
@@ -41,6 +41,27 @@ fn setup() -> sp_io::TestExternalities {
 		assert_ok!(TradingAccountModule::add_accounts(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
+		));
+
+		// add alice and bob as referrals to master account charlie
+		assert_ok!(TradingAccountModule::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			alice().account_address,
+			ReferralDetails {
+				master_account_address: charlie().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
+		));
+
+		assert_ok!(TradingAccountModule::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			bob().account_address,
+			ReferralDetails {
+				master_account_address: charlie().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
 		));
 	});
 
@@ -181,6 +202,44 @@ fn test_add_balances_with_unknown_asset() {
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
 			vec![BalanceUpdate { asset_id: 1234567, balance_value: 1000.into() }]
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InsufficientFeeShare")]
+fn test_pay_fee_share_insufficeint_fee_share() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::pay_fee_share(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			trading_account_id,
+			usdc().asset.id,
+			FixedI128::from_float(1.0)
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFeeShareAmount")]
+fn test_pay_fee_share_invalid_amount() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Get trading account of Alice
+		let trading_account_id = get_trading_account_id(alice());
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::pay_fee_share(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			trading_account_id,
+			usdc().asset.id,
+			FixedI128::from_float(-1.0)
 		));
 	});
 }
@@ -532,6 +591,7 @@ fn test_volume_update_two_trades() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_account_address: U256 = charlie().account_address;
 
 		// market id
 		let market_id = btc_usdc().market.id;
@@ -548,6 +608,9 @@ fn test_volume_update_two_trades() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id);
 		// None type volume is returned in case of no prior trades
@@ -555,6 +618,7 @@ fn test_volume_update_two_trades() {
 		// Initial 30 day volume is 0 with no prior trades
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -577,9 +641,13 @@ fn test_volume_update_two_trades() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		// Check timestamp recorded for last trade
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
@@ -589,6 +657,14 @@ fn test_volume_update_two_trades() {
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
+		// Check timestamp recorded for last trade for master
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(charlie_master_tx_timestamp, 1699940367, "Error in master timestamp 1");
+
 		// Check volume vector stored
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
@@ -596,6 +672,17 @@ fn test_volume_update_two_trades() {
 		let mut alice_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
+
+		// Check volume vector stored master
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 1"
+		);
 
 		// new trade on same day
 		let alice_order =
@@ -626,9 +713,13 @@ fn test_volume_update_two_trades() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -637,6 +728,14 @@ fn test_volume_update_two_trades() {
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 2");
 
+		// Check timestamp recorded for last trade for master
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(charlie_master_tx_timestamp, 1699940367, "Error in master timestamp 2");
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
@@ -644,6 +743,17 @@ fn test_volume_update_two_trades() {
 
 		alice_volume_expected.insert(0, 200.into()); // trade volume should get added cumulatively to same day
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
+
+		// Check volume vector stored master
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 400.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 2"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,
@@ -662,6 +772,7 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_account_address: U256 = charlie().account_address;
 
 		let init_timestamp: u64 = 1699940367;
 		let one_day: u64 = 24 * 60 * 60;
@@ -680,9 +791,17 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume alice-1");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume bob-1");
+		assert_eq!(
+			charlie_30day_master_volume,
+			0.into(),
+			"Error in 30 day volume charlie-master-1"
+		);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -707,12 +826,30 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
+		// Check timestamp recorded for last trade for master
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(charlie_master_tx_timestamp, 1699940367, "Error in master timestamp 1");
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
 		let mut alice_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 1"
+		);
 
 		let alice_order =
 			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
@@ -730,10 +867,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// 30 day volume should now include previous day's trade volume
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-2");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-2");
+		assert_eq!(
+			charlie_30day_master_volume,
+			200.into(),
+			"Error in 30 day volume charlie-master-2"
+		);
 
 		// volume vector should also be the same since it is only updated when a trade is made
 		let alice_volume_actual =
@@ -742,6 +887,16 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		let mut alice_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 2"
+		);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -763,10 +918,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// 30 day volume should include previous day's trade volume
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-3");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-3");
+		assert_eq!(
+			charlie_30day_master_volume,
+			200.into(),
+			"Error in 30 day volume charlie-master-3"
+		);
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -774,6 +937,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		)
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + one_day, "Error in timestamp 2");
+
+		// Check timestamp recorded for last trade for master
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(
+			charlie_master_tx_timestamp,
+			init_timestamp + one_day,
+			"Error in master timestamp 1"
+		);
 
 		// Check volume vector
 		let alice_volume_actual =
@@ -784,6 +959,17 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		alice_volume_expected.insert(0, 100.into()); // previous day's trade
 		alice_volume_expected.insert(0, 100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 3");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 29]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 3"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,
@@ -822,10 +1008,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// 30 day volume should remain unchanged since it is still day 2
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume alice-4");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume bob-4");
+		assert_eq!(
+			charlie_30day_master_volume,
+			200.into(),
+			"Error in 30 day volume charlie-master-4"
+		);
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -838,6 +1032,17 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			"Error in timestamp 4"
 		);
 
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(
+			charlie_master_tx_timestamp,
+			init_timestamp + one_day + (one_day / 2),
+			"Error in master timestamp 4"
+		);
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
@@ -846,6 +1051,17 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		alice_volume_expected.insert(0, 100.into()); // previous day's trade volume
 		alice_volume_expected.insert(0, 200.into()); // current day's trade volume
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 4");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 29]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		charlie_master_volume_expected.insert(0, 400.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 4"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,
@@ -866,10 +1082,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// 30 day volume should now include previous 2 day's trade volume
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-5");
 		assert_eq!(bob_30day_volume, 300.into(), "Error in 30 day volume bob-5");
+		assert_eq!(
+			charlie_30day_master_volume,
+			600.into(),
+			"Error in 30 day volume charlie-master-5"
+		);
 
 		let alice_order =
 			Order::new(207.into(), alice_id).sign_order(get_private_key(alice().pub_key));
@@ -898,10 +1122,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// 30 day volume should now include day 1 and day 2 trade volumes
 		assert_eq!(alice_30day_volume, 300.into(), "Error in 30 day volume alice-6");
 		assert_eq!(bob_30day_volume, 300.into(), "Error in 30 day volume bob-6");
+		assert_eq!(
+			charlie_30day_master_volume,
+			600.into(),
+			"Error in 30 day volume charlie-master-6"
+		);
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -914,6 +1146,17 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 			"Error in timestamp 6"
 		);
 
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(
+			charlie_master_tx_timestamp,
+			init_timestamp + one_day + (one_day),
+			"Error in master timestamp 4"
+		);
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
@@ -923,6 +1166,18 @@ fn test_volume_update_multiple_trades_with_day_diff() {
 		alice_volume_expected.insert(0, 200.into()); // day 2 trade volume
 		alice_volume_expected.insert(0, 100.into()); // present day's trade volume
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 5");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 28]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		charlie_master_volume_expected.insert(0, 400.into());
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 5"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,
@@ -941,6 +1196,7 @@ fn test_volume_update_30_days_diff() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_account_address = charlie().account_address;
 
 		let init_timestamp: u64 = 1699940367;
 		let one_day: u64 = 24 * 60 * 60;
@@ -959,9 +1215,13 @@ fn test_volume_update_30_days_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -1008,9 +1268,13 @@ fn test_volume_update_30_days_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 100.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 100.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 200.into(), "Error in 30 day volume");
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -1018,6 +1282,17 @@ fn test_volume_update_30_days_diff() {
 		)
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + 30 * one_day, "Error in timestamp 2");
+
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(
+			charlie_master_tx_timestamp,
+			init_timestamp + 30 * one_day,
+			"Error in master timestamp 4"
+		);
 
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
@@ -1027,6 +1302,17 @@ fn test_volume_update_30_days_diff() {
 		alice_volume_expected.push(100.into()); // last day's trade (this should now be last element in the volume vector)
 		alice_volume_expected.insert(0, 100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 29]);
+		charlie_master_volume_expected.push(200.into()); // last day's trade (this should now be last element in the volume vector)
+		charlie_master_volume_expected.insert(0, 200.into()); // present day trade
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 2"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,
@@ -1045,6 +1331,7 @@ fn test_volume_update_31_days_diff() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_account_address: U256 = charlie().account_address;
 
 		let init_timestamp: u64 = 1699940367;
 		let one_day: u64 = 24 * 60 * 60;
@@ -1063,9 +1350,13 @@ fn test_volume_update_31_days_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
@@ -1089,12 +1380,29 @@ fn test_volume_update_31_days_diff() {
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, 1699940367, "Error in timestamp 1");
 
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(charlie_master_tx_timestamp, 1699940367, "Error in master timestamp 1");
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
 		let mut alice_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
 		alice_volume_expected.insert(0, 100.into());
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 1");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 1"
+		);
 
 		let alice_order =
 			Order::new(203.into(), alice_id).sign_order(get_private_key(alice().pub_key));
@@ -1110,10 +1418,14 @@ fn test_volume_update_31_days_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// last trade should not be included in 30 day trade volume since 31 days have gone by
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -1135,10 +1447,14 @@ fn test_volume_update_31_days_diff() {
 			TradingAccountModule::get_30day_user_volume(alice_id, market_id).unwrap();
 		let bob_30day_volume =
 			TradingAccountModule::get_30day_user_volume(bob_id, market_id).unwrap();
+		let charlie_30day_master_volume =
+			TradingAccountModule::get_30day_master_volume(charlie_account_address, market_id)
+				.unwrap();
 
 		// last trade should not be included in 30 day trade volume since 31 days have gone by
 		assert_eq!(alice_30day_volume, 0.into(), "Error in 30 day volume");
 		assert_eq!(bob_30day_volume, 0.into(), "Error in 30 day volume");
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
 
 		let alice_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			alice().account_address,
@@ -1147,6 +1463,17 @@ fn test_volume_update_31_days_diff() {
 		.unwrap();
 		assert_eq!(alice_tx_timestamp, init_timestamp + 31 * one_day, "Error in timestamp 2");
 
+		let charlie_master_tx_timestamp = TradingAccountModule::master_account_tx_timestamp(
+			charlie_account_address,
+			collateral_id,
+		)
+		.unwrap();
+		assert_eq!(
+			charlie_master_tx_timestamp,
+			init_timestamp + 31 * one_day,
+			"Error in master timestamp 2"
+		);
+
 		let alice_volume_actual =
 			TradingAccountModule::monetary_account_volume(alice().account_address, collateral_id)
 				.unwrap();
@@ -1154,6 +1481,16 @@ fn test_volume_update_31_days_diff() {
 
 		alice_volume_expected.insert(0, 100.into()); // present day trade
 		assert_eq!(alice_volume_actual, alice_volume_expected, "Error in volume 2");
+
+		let charlie_master_volume_actual =
+			TradingAccountModule::master_account_volume(charlie_account_address, collateral_id)
+				.unwrap();
+		let mut charlie_master_volume_expected: Vec<FixedI128> = Vec::from([0.into(); 30]);
+		charlie_master_volume_expected.insert(0, 200.into());
+		assert_eq!(
+			charlie_master_volume_actual, charlie_master_volume_expected,
+			"Error in master volume 2"
+		);
 
 		let bob_tx_timestamp = TradingAccountModule::monetary_account_tx_timestamp(
 			bob().account_address,

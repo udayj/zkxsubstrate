@@ -262,6 +262,7 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		self.push(FieldElement::from(referral_added_event.event_index));
 		self.try_append_u256(referral_added_event.master_account_address)?;
 		self.try_append_u256(referral_added_event.referral_account_address)?;
+		self.push(FieldElement::from(referral_added_event.level));
 		self.try_append_u256(referral_added_event.referral_code)?;
 		self.try_append_fixedi128(referral_added_event.fee_discount)?;
 		self.push(FieldElement::from(referral_added_event.block_number));
