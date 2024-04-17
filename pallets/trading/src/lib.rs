@@ -329,11 +329,12 @@ pub mod pallet {
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
 		},
-		FeeShareAdded {
+		MasterFeeShareUpdated {
 			master_account_address: U256,
 			referral_account_address: U256,
-			fee_share: FixedI128,
+			order_volume: FixedI128,
 			collateral_id: u128,
+			fee_share: FixedI128,
 		},
 	}
 
@@ -1503,6 +1504,7 @@ pub mod pallet {
 						order.account_id,
 						collateral_id,
 						master_30day_volume,
+						leveraged_order_value,
 						fee,
 						collateral_token_decimal,
 					);
@@ -1810,6 +1812,7 @@ pub mod pallet {
 							order.account_id,
 							collateral_id,
 							master_30day_volume,
+							leveraged_order_value,
 							fee,
 							collateral_token_decimal,
 						);
@@ -1843,6 +1846,7 @@ pub mod pallet {
 			account_id: U256,
 			collateral_id: u128,
 			master_30day_volume: FixedI128,
+			order_volume: FixedI128,
 			fee: FixedI128,
 			collateral_token_decimal: u8,
 		) {
@@ -1868,11 +1872,12 @@ pub mod pallet {
 				// This unwrap won't fail since user registration was checked
 				let referral_account_address =
 					T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
-				Self::deposit_event(Event::FeeShareAdded {
+				Self::deposit_event(Event::MasterFeeShareUpdated {
 					master_account_address: referral_details.master_account_address,
 					referral_account_address,
-					fee_share,
+					order_volume,
 					collateral_id,
+					fee_share,
 				});
 			}
 		}
