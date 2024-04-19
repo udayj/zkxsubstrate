@@ -3540,15 +3540,14 @@ fn test_fee_share_2() {
 			.into(),
 		]);
 
-		// Emit FeeShareTransfer event for Bob; invalid amount
-		// Emit FeeShareTransfer for Charlie
+		// Emit FeeShareTransfer for Bob and Charlie
 		assert_ok!(TradingAccounts::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![
 				FeeSharesInput {
 					master_account_address: bob_account_address,
 					collateral_id,
-					amount: bob_master_fee_share_5 + FixedI128::one()
+					amount: bob_master_fee_share_5
 				},
 				FeeSharesInput {
 					master_account_address: charlie_account_address,
@@ -3559,15 +3558,6 @@ fn test_fee_share_2() {
 		));
 
 		assert_has_events(vec![
-			TradingAccountEvent::InvalidFeeSharesAmount {
-				fee_shares_input: FeeSharesInput {
-					master_account_address: bob_account_address,
-					collateral_id,
-					amount: bob_master_fee_share_5 + FixedI128::one(),
-				},
-				block_number: 1,
-			}
-			.into(),
 			TradingAccountEvent::FeeShareTransfer {
 				master_account_address: charlie_account_address,
 				collateral_id,
@@ -3575,25 +3565,14 @@ fn test_fee_share_2() {
 				block_number: 1,
 			}
 			.into(),
-		]);
-
-		// Emit FeeShareTransfer event for Bob
-		assert_ok!(TradingAccounts::pay_fee_shares(
-			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			vec![FeeSharesInput {
+			TradingAccountEvent::FeeShareTransfer {
 				master_account_address: bob_account_address,
 				collateral_id,
-				amount: bob_master_fee_share_5
-			}]
-		));
-
-		assert_has_events(vec![TradingAccountEvent::FeeShareTransfer {
-			master_account_address: bob_account_address,
-			collateral_id,
-			amount: bob_master_fee_share_5,
-			block_number: 1,
-		}
-		.into()]);
+				amount: bob_master_fee_share_5,
+				block_number: 1,
+			}
+			.into(),
+		]);
 
 		assert!(
 			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==

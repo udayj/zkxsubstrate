@@ -213,6 +213,8 @@ pub mod pallet {
 		MarketDoesNotExist,
 		/// Invalid Call to dev mode only function
 		DevOnlyCall,
+		/// Invalid amount passed to pay_fee_shares fn
+		InvalidFeeSharesAmount { invalid_index: u16 },
 	}
 
 	#[pallet::event]
@@ -291,10 +293,6 @@ pub mod pallet {
 		MasterAccountLevelChanged {
 			master_account_address: U256,
 			level: u8,
-		},
-		InvalidFeeSharesAmount {
-			fee_shares_input: FeeSharesInput,
-			block_number: BlockNumberFor<T>,
 		},
 	}
 
@@ -636,21 +634,18 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			for fee_shares_input in fee_shares_inputs {
+			for (index, fee_shares_input) in fee_shares_inputs.iter().enumerate() {
 				let FeeSharesInput { master_account_address, collateral_id, amount } =
-					fee_shares_input;
+					*fee_shares_input;
 
 				let fee_share =
 					MasterAccountFeeShare::<T>::get(master_account_address, collateral_id);
 
 				// If the passed amount is invalid, we emit an event and skip the current iteration
-				if amount > fee_share || amount < FixedI128::zero() {
-					Self::deposit_event(Event::InvalidFeeSharesAmount {
-						fee_shares_input,
-						block_number: <frame_system::Pallet<T>>::block_number(),
-					});
-					continue;
-				}
+				ensure!(
+					amount <= fee_share && amount > FixedI128::zero(),
+					Error::<T>::InvalidFeeSharesAmount { invalid_index: index as u16 }
+				);
 
 				// Reduce the fee share
 				MasterAccountFeeShare::<T>::set(

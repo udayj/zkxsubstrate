@@ -208,6 +208,7 @@ fn test_add_balances_with_unknown_asset() {
 }
 
 #[test]
+#[should_panic(expected = "InvalidFeeSharesAmount")]
 fn test_pay_fee_share_insufficeint_fee_share() {
 	let mut env = setup();
 
@@ -225,19 +226,11 @@ fn test_pay_fee_share_insufficeint_fee_share() {
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice_fee_shares_input.clone()]
 		));
-
-		// Check the InsuranceFundChange event
-		System::assert_has_event(
-			Event::InvalidFeeSharesAmount {
-				fee_shares_input: alice_fee_shares_input,
-				block_number: 1_u64,
-			}
-			.into(),
-		);
 	});
 }
 
 #[test]
+#[should_panic(expected = "InvalidFeeSharesAmount")]
 fn test_pay_fee_share_invalid_amount() {
 	let mut env = setup();
 
@@ -255,15 +248,6 @@ fn test_pay_fee_share_invalid_amount() {
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice_fee_shares_input.clone()]
 		));
-
-		// Check the InsuranceFundChange event
-		System::assert_has_event(
-			Event::InvalidFeeSharesAmount {
-				fee_shares_input: alice_fee_shares_input,
-				block_number: 1_u64,
-			}
-			.into(),
-		);
 	});
 }
 
