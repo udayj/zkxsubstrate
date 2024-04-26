@@ -322,6 +322,7 @@ impl pallet_asset::Config for Runtime {
 impl pallet_market::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetPallet = Assets;
+	type PricesPallet = Prices;
 }
 
 impl pallet_prices::Config for Runtime {
