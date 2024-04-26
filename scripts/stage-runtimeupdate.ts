@@ -8,7 +8,7 @@ const fs = require("fs");
 
 async function main() {
   // Initialise the provider to connect to the local node
-  const provider = new WsProvider("wss://l3.stage.k8s.ntwrkx.com");
+  const provider = new WsProvider("wss://l3.stage.zkx.fi");
 
   // Create the API and wait until ready (optional provider passed through)
   const api = await ApiPromise.create({ provider });
