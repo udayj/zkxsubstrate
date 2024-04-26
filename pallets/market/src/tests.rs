@@ -5,8 +5,9 @@ use pallet_support::{
 		asset_helper::{eth, link, usdc},
 		market_helper::{eth_usdc, link_usdc},
 	},
-	types::ExtendedMarket,
+	types::{ExtendedMarket, MultiplePrices},
 };
+use sp_arithmetic::fixed_point::FixedI128;
 
 fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Create a new test environment
@@ -15,6 +16,7 @@ fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Set the block number in the environment
 	env.execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
 		assert_ok!(Assets::replace_all_assets(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link()]
@@ -315,6 +317,20 @@ fn test_update_market() {
 			eth_usdc_market.clone()
 		));
 
+		let interval: u64 = 1699940367000;
+		let mut prices: Vec<MultiplePrices> = Vec::new();
+		let price: MultiplePrices = MultiplePrices {
+			market_id: eth_usdc_market_updated.market.id,
+			index_price: FixedI128::from_inner(250000000000000000000),
+			mark_price: FixedI128::from_inner(260000000000000000000),
+		};
+		prices.push(price);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			interval
+		));
+
 		// Update the eth_usdc market
 		assert_ok!(MarketModule::update_market(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -324,6 +340,11 @@ fn test_update_market() {
 			MarketModule::markets(eth_usdc_market_updated.market.id).unwrap(),
 			eth_usdc_market_updated.clone()
 		);
+
+		// Since is_tradable flag for ETH-USDC is set to false
+		// Check whether the mark price for that market is set
+		let eth_usdc_mark_price = Prices::mark_price_for_ads(eth_usdc_market_updated.market.id);
+		assert_eq!(eth_usdc_mark_price, FixedI128::from_inner(260000000000000000000));
 	});
 }
 
