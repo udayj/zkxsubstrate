@@ -96,6 +96,12 @@ pub mod pallet {
 		StorageDoubleMap<_, Blake2_128Concat, U256, Blake2_128Concat, u128, Vec<u128>, ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn market_to_user)]
+	// k1 - (market_id, direction), k2 - account_id, v - account_id
+	pub(super) type MarketToUserMap<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, (u128, Direction), Twox64Concat, U256, U256, OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
 	// k1 - market id, v - open interest
 	pub(super) type OpenInterestMap<T: Config> =
@@ -646,7 +652,17 @@ pub mod pallet {
 
 					// If the user previously does not have any position in this market
 					// then add the market to CollateralToMarketMap
+					// Also add the entry in MarketToUser if user is opening a new position
+					// for a new market and direction
 					if position_details.size == FixedI128::zero() {
+						// Previous position size = 0 means that user does not have a position
+						// in this market and direction
+						MarketToUserMap::<T>::insert(
+							(market_id, element.direction),
+							element.account_id,
+							element.account_id,
+						);
+
 						let opposite_direction = Self::get_opposite_direction(element.direction);
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
@@ -809,7 +825,16 @@ pub mod pallet {
 
 					// If the user does not have any position in this market
 					// then remove the market from CollateralToMarketMap
+					// Remove the user from MarketToUserMap also if position is
+					// completely closed in a market and direction combination
 					if new_position_size == FixedI128::zero() {
+						// If the new position size is 0, it means that the position in a certain
+						// market and direction is completely closed
+						MarketToUserMap::<T>::remove(
+							(market_id, element.direction),
+							element.account_id,
+						);
+
 						let opposite_direction = Self::get_opposite_direction(element.direction);
 						let opposite_position = PositionsMap::<T>::get(
 							&element.account_id,
