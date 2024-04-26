@@ -344,7 +344,7 @@ fn test_update_market() {
 		// Since is_tradable flag for ETH-USDC is set to false
 		// Check whether the mark price for that market is set
 		let eth_usdc_mark_price = Prices::mark_price_for_ads(eth_usdc_market_updated.market.id);
-		assert_eq!(eth_usdc_mark_price, FixedI128::from_inner(260000000000000000000));
+		assert_eq!(eth_usdc_mark_price.unwrap(), FixedI128::from_inner(260000000000000000000));
 	});
 }
 

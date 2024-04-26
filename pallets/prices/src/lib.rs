@@ -223,9 +223,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn mark_price_for_ads)]
-	// k1 - market_id, v - Mark price for ADS (Automatic Deleveraging System)
+	// k1 - market_id, v - Mark price for Automatic Deleveraging System
 	pub(super) type MarkPriceForADS<T: Config> =
-		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
+		StorageMap<_, Twox64Concat, u128, FixedI128, OptionQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
