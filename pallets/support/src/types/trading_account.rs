@@ -77,6 +77,13 @@ impl TradingAccountMinimal {
 	}
 }
 
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct FeeSharesInput {
+	pub master_account_address: U256,
+	pub collateral_id: u128,
+	pub amount: FixedI128,
+}
+
 impl TradingAccount {
 	pub fn to_trading_account_minimal(&self) -> TradingAccountMinimal {
 		TradingAccountMinimal {

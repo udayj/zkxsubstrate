@@ -22,9 +22,9 @@ pub mod pallet {
 			PricesInterface, TradingAccountInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			BalanceChangeReason, BalanceUpdate, Direction, FundModifyType, MonetaryAccountDetails,
-			Position, ReferralDetails, TradingAccount, TradingAccountMinimal, VolumeType,
-			WithdrawalRequest,
+			BalanceChangeReason, BalanceUpdate, Direction, FeeSharesInput, FundModifyType,
+			MonetaryAccountDetails, Position, ReferralDetails, TradingAccount,
+			TradingAccountMinimal, VolumeType, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -213,10 +213,8 @@ pub mod pallet {
 		MarketDoesNotExist,
 		/// Invalid Call to dev mode only function
 		DevOnlyCall,
-		/// Insufficient fee share to transfer
-		InsufficientFeeShare,
-		/// Invalid amount passed for withdrawal from fee share
-		InvalidFeeShareAmount,
+		/// Invalid amount passed to pay_fee_shares fn
+		InvalidFeeSharesAmount { invalid_index: u16 },
 	}
 
 	#[pallet::event]
@@ -287,7 +285,7 @@ pub mod pallet {
 			referral_code: U256,
 		},
 		FeeShareTransfer {
-			account_address: U256,
+			master_account_address: U256,
 			collateral_id: u128,
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
@@ -630,27 +628,39 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn pay_fee_share(
+		pub fn pay_fee_shares(
 			origin: OriginFor<T>,
-			account_address: U256,
-			collateral_id: u128,
-			amount: FixedI128,
+			fee_shares_inputs: Vec<FeeSharesInput>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			let fee_share = MasterAccountFeeShare::<T>::get(account_address, collateral_id);
-			ensure!(amount <= fee_share, Error::<T>::InsufficientFeeShare);
-			ensure!(amount > FixedI128::zero(), Error::<T>::InvalidFeeShareAmount);
+			for (index, fee_shares_input) in fee_shares_inputs.iter().enumerate() {
+				let FeeSharesInput { master_account_address, collateral_id, amount } =
+					*fee_shares_input;
 
-			// Reduce the fee share
-			MasterAccountFeeShare::<T>::set(account_address, collateral_id, fee_share - amount);
+				let fee_share =
+					MasterAccountFeeShare::<T>::get(master_account_address, collateral_id);
 
-			Self::deposit_event(Event::FeeShareTransfer {
-				account_address,
-				collateral_id,
-				amount: fee_share,
-				block_number: <frame_system::Pallet<T>>::block_number(),
-			});
+				// If the passed amount is invalid, we emit an event and skip the current iteration
+				ensure!(
+					amount <= fee_share && amount > FixedI128::zero(),
+					Error::<T>::InvalidFeeSharesAmount { invalid_index: index as u16 }
+				);
+
+				// Reduce the fee share
+				MasterAccountFeeShare::<T>::set(
+					master_account_address,
+					collateral_id,
+					fee_share - amount,
+				);
+
+				Self::deposit_event(Event::FeeShareTransfer {
+					master_account_address,
+					collateral_id,
+					amount: fee_share,
+					block_number: <frame_system::Pallet<T>>::block_number(),
+				});
+			}
 
 			Ok(())
 		}

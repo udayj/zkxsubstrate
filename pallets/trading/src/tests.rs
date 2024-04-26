@@ -9,10 +9,11 @@ use pallet_support::{
 	},
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
-		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, Order, OrderType,
-		Position, ReferralDetails, Side,
+		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput, Order,
+		OrderType, Position, ReferralDetails, Side,
 	},
 };
+use pallet_trading_account::Event as TradingAccountEvent;
 use primitive_types::U256;
 use sp_arithmetic::{
 	traits::{One, Zero},
@@ -3000,13 +3001,23 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
-		// Emit FeeShareTransfer event
-		assert_ok!(TradingAccounts::pay_fee_share(
+		// Emit FeeShareTransfer for Charlie
+		assert_ok!(TradingAccounts::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			charlie_account_address,
-			collateral_id,
-			master_fee_share_6
+			vec![FeeSharesInput {
+				master_account_address: charlie_account_address,
+				collateral_id,
+				amount: master_fee_share_6,
+			},]
 		));
+
+		assert_has_events(vec![TradingAccountEvent::FeeShareTransfer {
+			master_account_address: charlie_account_address,
+			collateral_id,
+			amount: master_fee_share_6,
+			block_number: 1,
+		}
+		.into()]);
 
 		assert!(
 			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==
@@ -3300,6 +3311,26 @@ fn test_fee_share_2() {
 			"wrong master fee share"
 		);
 
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_3 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
 		////////////////////
 		// Day 2: Batch 2 //
 		////////////////////
@@ -3382,6 +3413,26 @@ fn test_fee_share_2() {
 					.round_to_precision(6),
 			"wrong master fee share"
 		);
+
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_4 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
 
 		// ////////////////////
 		// // Day 3: Batch 1 //
@@ -3469,21 +3520,59 @@ fn test_fee_share_2() {
 			"wrong master fee share"
 		);
 
-		// Emit FeeShareTransfer event for Bob
-		assert_ok!(TradingAccounts::pay_fee_share(
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_5 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_5 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
+		// Emit FeeShareTransfer for Bob and Charlie
+		assert_ok!(TradingAccounts::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			bob_account_address,
-			collateral_id,
-			bob_master_fee_share_5
+			vec![
+				FeeSharesInput {
+					master_account_address: bob_account_address,
+					collateral_id,
+					amount: bob_master_fee_share_5
+				},
+				FeeSharesInput {
+					master_account_address: charlie_account_address,
+					collateral_id,
+					amount: charlie_master_fee_share_5
+				},
+			]
 		));
 
-		// Emit FeeShareTransfer event for Charlie
-		assert_ok!(TradingAccounts::pay_fee_share(
-			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			charlie_account_address,
-			collateral_id,
-			charlie_master_fee_share_5
-		));
+		assert_has_events(vec![
+			TradingAccountEvent::FeeShareTransfer {
+				master_account_address: charlie_account_address,
+				collateral_id,
+				amount: charlie_master_fee_share_5,
+				block_number: 1,
+			}
+			.into(),
+			TradingAccountEvent::FeeShareTransfer {
+				master_account_address: bob_account_address,
+				collateral_id,
+				amount: bob_master_fee_share_5,
+				block_number: 1,
+			}
+			.into(),
+		]);
 
 		assert!(
 			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==

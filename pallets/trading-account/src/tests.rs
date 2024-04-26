@@ -12,7 +12,8 @@ use pallet_support::{
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, FundModifyType, MonetaryAccountDetails, Order, ReferralDetails,
+		BalanceUpdate, FeeSharesInput, FundModifyType, MonetaryAccountDetails, Order,
+		ReferralDetails,
 	},
 };
 use primitive_types::U256;
@@ -207,39 +208,45 @@ fn test_add_balances_with_unknown_asset() {
 }
 
 #[test]
-#[should_panic(expected = "InsufficientFeeShare")]
+#[should_panic(expected = "InvalidFeeSharesAmount")]
 fn test_pay_fee_share_insufficeint_fee_share() {
 	let mut env = setup();
 
-	env.execute_with(|| {
-		// Get trading account of Alice
-		let trading_account_id = get_trading_account_id(alice());
+	// Get addres of Alice
+	let master_account_address = alice().account_address;
+	let alice_fee_shares_input = FeeSharesInput {
+		master_account_address,
+		collateral_id: usdc().asset.id,
+		amount: FixedI128::from_float(12.0),
+	};
 
+	env.execute_with(|| {
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::pay_fee_share(
+		assert_ok!(TradingAccountModule::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			trading_account_id,
-			usdc().asset.id,
-			FixedI128::from_float(1.0)
+			vec![alice_fee_shares_input.clone()]
 		));
 	});
 }
 
 #[test]
-#[should_panic(expected = "InvalidFeeShareAmount")]
+#[should_panic(expected = "InvalidFeeSharesAmount")]
 fn test_pay_fee_share_invalid_amount() {
 	let mut env = setup();
 
-	env.execute_with(|| {
-		// Get trading account of Alice
-		let trading_account_id = get_trading_account_id(alice());
+	// Get addres of Alice
+	let master_account_address = alice().account_address;
+	let alice_fee_shares_input = FeeSharesInput {
+		master_account_address,
+		collateral_id: usdc().asset.id,
+		amount: FixedI128::from_float(-1.0),
+	};
 
+	env.execute_with(|| {
 		// Dispatch a signed extrinsic.
-		assert_ok!(TradingAccountModule::pay_fee_share(
+		assert_ok!(TradingAccountModule::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			trading_account_id,
-			usdc().asset.id,
-			FixedI128::from_float(-1.0)
+			vec![alice_fee_shares_input.clone()]
 		));
 	});
 }
