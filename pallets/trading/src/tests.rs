@@ -326,6 +326,15 @@ fn it_works_for_open_trade_simple() {
 		let open_interest = Trading::open_interest(market_id);
 		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
 
+		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		assert_eq!(account_id.unwrap(), alice_id);
+		let account_id = Trading::market_to_user((market_id, Direction::Short), alice_id);
+		assert_eq!(account_id, None);
+		let account_id = Trading::market_to_user((market_id, Direction::Long), bob_id);
+		assert_eq!(account_id, None);
+		let account_id = Trading::market_to_user((market_id, Direction::Short), bob_id);
+		assert_eq!(account_id.unwrap(), bob_id);
+
 		// Check for events
 		assert_has_events(vec![
 			Event::TradeExecuted {
@@ -580,6 +589,9 @@ fn it_works_for_close_trade_simple() {
 			1699940367000,
 		));
 
+		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		assert_eq!(account_id.unwrap(), alice_id);
+
 		// Close close orders
 		let alice_close_order = Order::new(U256::from(203), alice_id)
 			.set_side(Side::Sell)
@@ -608,6 +620,9 @@ fn it_works_for_close_trade_simple() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		assert_eq!(account_id, None);
 
 		// Check for open interest
 		let open_interest = Trading::open_interest(market_id);
