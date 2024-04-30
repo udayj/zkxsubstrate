@@ -37,9 +37,8 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{
-		fixed_point::FixedI128,
 		traits::{One, Zero},
-		FixedPointNumber,
+		FixedI128, FixedPointNumber,
 	};
 	use sp_runtime::traits::SaturatedConversion;
 
@@ -2052,6 +2051,143 @@ pub mod pallet {
 			});
 			maker_error_codes.push(Self::get_error_code(&e));
 		}
+
+		fn close_position(
+			account_id: U256,
+			market_id: u128,
+			collateral_id: u128,
+			collateral_token_decimal: u8,
+			position_details: Position,
+			price_diff: FixedI128,
+			execution_price: FixedI128,
+			market_fees: &BaseFeeAggregate,
+		) -> DispatchResult {
+			let order_size: FixedI128 = position_details.size;
+			// Total value of asset at current price
+			let leveraged_order_value = order_size * execution_price;
+
+			let borrowed_amount_to_return = position_details.borrowed_amount;
+			let margin_amount_to_reduce = position_details.margin_amount;
+
+			// Calculate pnl
+			let mut pnl = order_size * price_diff;
+			pnl = pnl.round_to_precision(collateral_token_decimal.into());
+			let margin_plus_pnl = margin_amount_to_reduce + pnl;
+
+			let balance = T::TradingAccountPallet::get_balance(account_id, collateral_id);
+			// Get the Liquidation fee
+			let current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
+
+			// Check if user is under water
+			if pnl.is_negative() {
+				let pnl_abs = pnl.saturating_abs();
+
+				// Check if user's balance can cover the deficit
+				if pnl_abs > balance {
+					if balance.is_negative() {
+						// Complete funds lost by user should be taken from insurance fund
+						T::TradingAccountPallet::emit_insurance_fund_change_event(
+							collateral_id,
+							pnl_abs,
+							FundModifyType::Decrease,
+						);
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - pnl_abs,
+						);
+						Self::deposit_event(Event::LiquidationPNL {
+							account_id,
+							order_id: U256::zero(),
+							market_id,
+							amount: pnl,
+							block_number: <frame_system::Pallet<T>>::block_number(),
+						});
+					} else {
+						// Some amount of lost funds can be taken from user available balance
+						// Rest of the funds should be taken from insurance fund
+						T::TradingAccountPallet::emit_insurance_fund_change_event(
+							collateral_id,
+							pnl_abs - balance,
+							FundModifyType::Decrease,
+						);
+
+						LiquidationFeeMap::<T>::insert(
+							collateral_id,
+							current_liquidation_fee - (pnl_abs - balance),
+						);
+						Self::deposit_event(Event::LiquidationPNL {
+							account_id,
+							order_id: U256::zero(),
+							market_id,
+							amount: balance + pnl,
+							block_number: <frame_system::Pallet<T>>::block_number(),
+						});
+					}
+				}
+				// Deduct loss from user
+				T::TradingAccountPallet::transfer_from(
+					account_id,
+					collateral_id,
+					pnl_abs,
+					BalanceChangeReason::PnlRealization,
+				);
+			} else {
+				// User is in profit
+				// Transfer the profit to user
+				T::TradingAccountPallet::transfer(
+					account_id,
+					collateral_id,
+					pnl,
+					BalanceChangeReason::PnlRealization,
+				);
+			}
+
+			let current_volume =
+				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
+			let (total_30day_volume, master_30day_volume) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
+					account_id,
+					market_id,
+					current_volume,
+				)
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
+
+			// OrderSide::Maker is hardcoded, becuase all open positions of delisted market
+			// are considered as Maker orders for closing
+			let (fee_rate, _) = Self::get_fee_rate(
+				account_id,
+				&market_fees,
+				Side::Sell,
+				OrderSide::Maker,
+				total_30day_volume,
+			);
+
+			let mut fee = fee_rate * leveraged_order_value;
+			fee = fee.round_to_precision(collateral_token_decimal.into());
+
+			// Deduct fee while closing a position
+			if fee != FixedI128::zero() {
+				// Update fee share for the master account
+				if master_30day_volume != FixedI128::zero() {
+					Self::update_fee_share(
+						account_id,
+						collateral_id,
+						master_30day_volume,
+						leveraged_order_value,
+						fee,
+						collateral_token_decimal,
+					);
+				}
+
+				T::TradingAccountPallet::transfer_from(
+					account_id,
+					collateral_id,
+					fee,
+					BalanceChangeReason::Fee,
+				);
+			}
+			Ok(())
+		}
 	}
 
 	impl<T: Config> TradingInterface for Pallet<T> {
@@ -2353,6 +2489,48 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+
+		fn close_delisted_market_positions(
+			market_id: u128,
+			execution_price: FixedI128,
+		) -> DispatchResult {
+			// Validate market
+			let market = T::MarketPallet::get_market(market_id);
+			ensure!(market.is_some(), Error::<T>::TradeBatchError509);
+			let market = market.unwrap();
+			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError509);
+
+			// Get collateral_token_decimal
+			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+
+			// Get collateral id
+			let collateral_id: u128 = market.asset_collateral;
+
+			// Get all fees
+			let market_fees: BaseFeeAggregate =
+				T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
+
+			// Iterate through all long users who have open positions in a delisted market
+			for long_user in MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
+			{
+				let position_details =
+					PositionsMap::<T>::get(&long_user, (market_id, Direction::Long));
+				let price_diff: FixedI128 = execution_price - position_details.avg_execution_price;
+
+				let _ = Self::close_position(
+					long_user,
+					market_id,
+					collateral_id,
+					collateral_token_decimal,
+					position_details,
+					price_diff,
+					execution_price,
+					&market_fees,
+				);
+			}
+			Ok(())
 		}
 	}
 
