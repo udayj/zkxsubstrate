@@ -2064,6 +2064,7 @@ pub mod pallet {
 			price_diff: FixedI128,
 			execution_price: FixedI128,
 			market_fees: &BaseFeeAggregate,
+			current_liquidation_fee: &mut FixedI128,
 		) -> Result<FixedI128, Error<T>> {
 			let order_size: FixedI128 = position_details.size;
 			// Total value of asset at current price
@@ -2074,8 +2075,6 @@ pub mod pallet {
 			pnl = pnl.round_to_precision(collateral_token_decimal.into());
 
 			let balance = T::TradingAccountPallet::get_balance(account_id, collateral_id);
-			// Get the Liquidation fee
-			let current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
 			// Check if user is under water
 			if pnl.is_negative() {
@@ -2092,7 +2091,7 @@ pub mod pallet {
 						);
 						LiquidationFeeMap::<T>::insert(
 							collateral_id,
-							current_liquidation_fee - pnl_abs,
+							*current_liquidation_fee - pnl_abs,
 						);
 						Self::deposit_event(Event::LiquidationPNL {
 							account_id,
@@ -2112,7 +2111,7 @@ pub mod pallet {
 
 						LiquidationFeeMap::<T>::insert(
 							collateral_id,
-							current_liquidation_fee - (pnl_abs - balance),
+							*current_liquidation_fee - (pnl_abs - balance),
 						);
 						Self::deposit_event(Event::LiquidationPNL {
 							account_id,
@@ -2549,6 +2548,7 @@ pub mod pallet {
 				InitialMarginMap::<T>::get((market_id, Direction::Short));
 			let mut current_open_interest = OpenInterestMap::<T>::get(market_id);
 			let mut current_trading_fee = TradingFeeMap::<T>::get(collateral_id);
+			let mut current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
 			// Iterate through all long users who have open positions in a delisted market
 			for long_user in MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
@@ -2568,6 +2568,7 @@ pub mod pallet {
 					price_diff,
 					execution_price,
 					&market_fees,
+					&mut current_liquidation_fee,
 				);
 				match response {
 					Ok(trading_fee) => {
@@ -2600,6 +2601,7 @@ pub mod pallet {
 					price_diff,
 					execution_price,
 					&market_fees,
+					&mut current_liquidation_fee,
 				);
 				match response {
 					Ok(trading_fee) => {

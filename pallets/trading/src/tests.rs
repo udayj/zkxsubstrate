@@ -9,8 +9,8 @@ use pallet_support::{
 	},
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
-		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput, Order,
-		OrderType, Position, ReferralDetails, Side,
+		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput,
+		MultiplePrices, Order, OrderType, Position, ReferralDetails, Side,
 	},
 };
 use pallet_trading_account::Event as TradingAccountEvent;
@@ -4473,6 +4473,7 @@ fn test_closing_positions_of_delisted_market() {
 
 		// market id
 		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
 
 		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
 			.set_price(105.into())
@@ -4528,39 +4529,77 @@ fn test_closing_positions_of_delisted_market() {
 		}
 		.into()]);
 
+		// Set price
+		let timestamp: u64 = 1699940367000;
+		let mut prices: Vec<MultiplePrices> = Vec::new();
+		let price: MultiplePrices = MultiplePrices {
+			market_id,
+			index_price: FixedI128::from_inner(150000000000000000000),
+			mark_price: FixedI128::from_inner(160000000000000000000),
+		};
+		prices.push(price);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			timestamp
+		));
+
 		// Make market non tradable
+		let btc_usdc_market_updated = btc_usdc().set_is_tradable(false);
+		assert_ok!(Markets::update_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc_market_updated.clone()
+		));
+
 		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(market_id));
+
 		// Check position existence
-		// Positions
 		let alice_position =
 			Trading::positions(alice_id, (market_id, alice_open_order_1.direction));
 		let expected_position: Position = Position {
-			market_id,
-			avg_execution_price: 100.into(),
+			market_id: 0,
+			avg_execution_price: 0.into(),
 			size: 0.into(),
 			direction: Direction::Long,
 			margin_amount: 0.into(),
 			borrowed_amount: 0.into(),
-			leverage: 1.into(),
-			created_timestamp: 1699940367,
-			modified_timestamp: 1699940367,
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
 			realized_pnl: 0.into(),
 		};
 		assert_eq!(expected_position, alice_position);
 
-		// let bob_position = Trading::positions(bob_id, (market_id, bob_open_order_1.direction));
-		// let expected_position: Position = Position {
-		// 	market_id,
-		// 	avg_execution_price: 100.into(),
-		// 	size: 1.into(),
-		// 	direction: Direction::Short,
-		// 	margin_amount: 100.into(),
-		// 	borrowed_amount: 0.into(),
-		// 	leverage: 1.into(),
-		// 	created_timestamp: 1699940367,
-		// 	modified_timestamp: 1699940367,
-		// 	realized_pnl: 0.into(),
-		// };
-		// assert_eq!(expected_position, bob_position);
+		let bob_position = Trading::positions(bob_id, (market_id, bob_open_order_1.direction));
+		assert_eq!(expected_position, bob_position);
+
+		let charlie_position =
+			Trading::positions(bob_id, (market_id, charlie_open_order_1.direction));
+		assert_eq!(expected_position, charlie_position);
+
+		let dave_position = Trading::positions(bob_id, (market_id, dave_open_order_1.direction));
+		assert_eq!(expected_position, dave_position);
+
+		// Since is_tradable flag for BTC-USDC is set to false
+		// Check whether the mark price for that market is set
+		let btc_usdc_mark_price = Prices::mark_price_for_ads(market_id);
+		assert_eq!(btc_usdc_mark_price.unwrap(), FixedI128::from_inner(160000000000000000000));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::zero());
+
+		// Check for balances
+		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 9945.into());
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9939.into());
+		assert_eq!(TradingAccounts::balances(charlie_id, collateral_id), 9942.into());
+		assert_eq!(TradingAccounts::balances(dave_id, collateral_id), 10174.into());
+
+		// Check for locked margin
+		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(bob_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(charlie_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(dave_id, collateral_id), 0.into());
 	});
 }
