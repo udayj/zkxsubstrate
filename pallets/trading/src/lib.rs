@@ -350,6 +350,20 @@ pub mod pallet {
 	// Pallet callable functions
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// External function to populate market to user map
+		#[pallet::weight(0)]
+		pub fn update_market_to_user_map(origin: OriginFor<T>, market_id: u128) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			for (k1, (k2, k3), _) in PositionsMap::<T>::iter() {
+				if market_id == k2 {
+					MarketToUserMap::<T>::set((k2, k3), k1, Some(k1));
+				}
+			}
+
+			Ok(())
+		}
+
 		/// External function to be called for trade execution
 		#[pallet::weight(0)]
 		pub fn execute_trade(
