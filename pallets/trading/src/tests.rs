@@ -4458,3 +4458,109 @@ fn test_discounted_fee_rate_for_referral() {
 		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9996.into());
 	});
 }
+
+#[test]
+// test closing of open positions of a delisted market
+fn test_closing_positions_of_delisted_market() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(105.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_price(99.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.set_size(2.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.set_size(3.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(dave().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![
+				alice_open_order_1.clone(),
+				bob_open_order_1.clone(),
+				charlie_open_order_1.clone(),
+				dave_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Check for events
+		assert_has_events(vec![Event::TradeExecuted {
+			batch_id: U256::from(1_u8),
+			market_id,
+			size: 3.into(),
+			execution_price: 102.into(),
+			direction: dave_open_order_1.direction.into(),
+			side: dave_open_order_1.side.into(),
+		}
+		.into()]);
+
+		// Make market non tradable
+		// Call extrinsic to close positions
+		// Check position existence
+		// Positions
+		let alice_position =
+			Trading::positions(alice_id, (market_id, alice_open_order_1.direction));
+		let expected_position: Position = Position {
+			market_id,
+			avg_execution_price: 100.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 1.into(),
+			created_timestamp: 1699940367,
+			modified_timestamp: 1699940367,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		// let bob_position = Trading::positions(bob_id, (market_id, bob_open_order_1.direction));
+		// let expected_position: Position = Position {
+		// 	market_id,
+		// 	avg_execution_price: 100.into(),
+		// 	size: 1.into(),
+		// 	direction: Direction::Short,
+		// 	margin_amount: 100.into(),
+		// 	borrowed_amount: 0.into(),
+		// 	leverage: 1.into(),
+		// 	created_timestamp: 1699940367,
+		// 	modified_timestamp: 1699940367,
+		// 	realized_pnl: 0.into(),
+		// };
+		// assert_eq!(expected_position, bob_position);
+	});
+}

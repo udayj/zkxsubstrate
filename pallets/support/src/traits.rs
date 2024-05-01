@@ -127,10 +127,7 @@ pub trait TradingInterface {
 		collateral_id: u128,
 		volume: FixedI128,
 	) -> FeeRates;
-	fn close_delisted_market_positions(
-		market_id: u128,
-		execution_price: FixedI128,
-	) -> DispatchResult;
+	fn close_delisted_market_positions(market_id: u128) -> DispatchResult;
 }
 
 pub trait AssetInterface {
@@ -188,6 +185,7 @@ pub trait PricesInterface {
 	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
 	fn get_remaining_prices_cleanup_calls() -> u64;
 	fn set_mark_price_for_ads(market_id: u128);
+	fn get_mark_price_for_ads(market_id: u128) -> Option<FixedI128>;
 }
 
 pub trait FixedI128Ext {

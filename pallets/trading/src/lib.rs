@@ -287,6 +287,8 @@ pub mod pallet {
 		ZeroOrderId,
 		/// Start timestamp is not set
 		StartTimestampEmpty,
+		/// When mark price for ADS is not available
+		ADSPriceNotAvailable,
 	}
 
 	#[pallet::event]
@@ -2055,24 +2057,21 @@ pub mod pallet {
 		fn close_position(
 			account_id: U256,
 			market_id: u128,
+			direction: Direction,
 			collateral_id: u128,
 			collateral_token_decimal: u8,
-			position_details: Position,
+			position_details: &Position,
 			price_diff: FixedI128,
 			execution_price: FixedI128,
 			market_fees: &BaseFeeAggregate,
-		) -> DispatchResult {
+		) -> Result<FixedI128, Error<T>> {
 			let order_size: FixedI128 = position_details.size;
 			// Total value of asset at current price
 			let leveraged_order_value = order_size * execution_price;
 
-			let borrowed_amount_to_return = position_details.borrowed_amount;
-			let margin_amount_to_reduce = position_details.margin_amount;
-
 			// Calculate pnl
 			let mut pnl = order_size * price_diff;
 			pnl = pnl.round_to_precision(collateral_token_decimal.into());
-			let margin_plus_pnl = margin_amount_to_reduce + pnl;
 
 			let balance = T::TradingAccountPallet::get_balance(account_id, collateral_id);
 			// Get the Liquidation fee
@@ -2186,7 +2185,35 @@ pub mod pallet {
 					BalanceChangeReason::Fee,
 				);
 			}
-			Ok(())
+
+			// Since new position size is 0, it means that the position in a certain
+			// market and direction is completely closed
+			MarketToUserMap::<T>::remove((market_id, direction), account_id);
+
+			let opposite_direction = Self::get_opposite_direction(direction);
+			let opposite_position =
+				PositionsMap::<T>::get(&account_id, (market_id, opposite_direction));
+			if opposite_position.size == FixedI128::zero() {
+				let mut markets = CollateralToMarketMap::<T>::get(&account_id, collateral_id);
+
+				markets.retain(|&market| market != market_id);
+
+				CollateralToMarketMap::<T>::insert(&account_id, collateral_id, &markets);
+			}
+			PositionsMap::<T>::remove(account_id, (market_id, direction));
+
+			// Update locked margin for an account
+			let current_margin_locked =
+				T::TradingAccountPallet::get_locked_margin(account_id, collateral_id);
+			let new_margin_lock_amount: FixedI128 =
+				current_margin_locked - position_details.margin_amount;
+			T::TradingAccountPallet::set_locked_margin(
+				account_id,
+				collateral_id,
+				new_margin_lock_amount,
+			);
+
+			Ok(fee)
 		}
 	}
 
@@ -2491,15 +2518,13 @@ pub mod pallet {
 			0_u64
 		}
 
-		fn close_delisted_market_positions(
-			market_id: u128,
-			execution_price: FixedI128,
-		) -> DispatchResult {
+		fn close_delisted_market_positions(market_id: u128) -> DispatchResult {
 			// Validate market
 			let market = T::MarketPallet::get_market(market_id);
 			ensure!(market.is_some(), Error::<T>::TradeBatchError509);
 			let market = market.unwrap();
-			ensure!(market.is_tradable == true, Error::<T>::TradeBatchError509);
+			// Market should be non tradable
+			ensure!(market.is_tradable == false, Error::<T>::TradeBatchError509);
 
 			// Get collateral_token_decimal
 			let collateral_asset = T::AssetPallet::get_asset(market.asset_collateral).unwrap();
@@ -2512,24 +2537,97 @@ pub mod pallet {
 			let market_fees: BaseFeeAggregate =
 				T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
+			// Fetch execution price
+			let execution_price = match T::PricesPallet::get_mark_price_for_ads(market_id) {
+				Some(price) => price,
+				None => return Err(Error::<T>::ADSPriceNotAvailable.into()),
+			};
+
+			let mut initial_margin_locked_long: FixedI128 =
+				InitialMarginMap::<T>::get((market_id, Direction::Long));
+			let mut initial_margin_locked_short: FixedI128 =
+				InitialMarginMap::<T>::get((market_id, Direction::Short));
+			let mut current_open_interest = OpenInterestMap::<T>::get(market_id);
+			let mut current_trading_fee = TradingFeeMap::<T>::get(collateral_id);
+
 			// Iterate through all long users who have open positions in a delisted market
 			for long_user in MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
 			{
 				let position_details =
 					PositionsMap::<T>::get(&long_user, (market_id, Direction::Long));
 				let price_diff: FixedI128 = execution_price - position_details.avg_execution_price;
+				let fee: FixedI128;
 
-				let _ = Self::close_position(
+				let response = Self::close_position(
 					long_user,
 					market_id,
+					Direction::Long,
 					collateral_id,
 					collateral_token_decimal,
-					position_details,
+					&position_details,
 					price_diff,
 					execution_price,
 					&market_fees,
 				);
+				match response {
+					Ok(trading_fee) => {
+						fee = trading_fee;
+					},
+					Err(e) => return Err(e.into()),
+				}
+				initial_margin_locked_long =
+					initial_margin_locked_long - position_details.margin_amount;
+				current_open_interest = current_open_interest - position_details.size;
+				current_trading_fee = current_trading_fee + fee;
 			}
+
+			// Iterate through all short users who have open positions in a delisted market
+			for short_user in
+				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
+			{
+				let position_details =
+					PositionsMap::<T>::get(&short_user, (market_id, Direction::Short));
+				let price_diff: FixedI128 = position_details.avg_execution_price - execution_price;
+				let fee: FixedI128;
+
+				let response = Self::close_position(
+					short_user,
+					market_id,
+					Direction::Short,
+					collateral_id,
+					collateral_token_decimal,
+					&position_details,
+					price_diff,
+					execution_price,
+					&market_fees,
+				);
+				match response {
+					Ok(trading_fee) => {
+						fee = trading_fee;
+					},
+					Err(e) => return Err(e.into()),
+				}
+				initial_margin_locked_short =
+					initial_margin_locked_short - position_details.margin_amount;
+				current_open_interest = current_open_interest - position_details.size;
+				current_trading_fee = current_trading_fee + fee;
+			}
+
+			// Update trading fee for a collateral
+			TradingFeeMap::<T>::insert(collateral_id, current_trading_fee);
+
+			// Update open interest for a market
+			OpenInterestMap::<T>::insert(market_id, current_open_interest);
+
+			// Update initial margin locked for a market with Long direction
+			InitialMarginMap::<T>::insert((market_id, Direction::Long), initial_margin_locked_long);
+
+			// Update initial margin locked for a market with Short direction
+			InitialMarginMap::<T>::insert(
+				(market_id, Direction::Short),
+				initial_margin_locked_short,
+			);
+
 			Ok(())
 		}
 	}
