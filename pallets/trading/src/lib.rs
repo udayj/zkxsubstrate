@@ -2212,6 +2212,22 @@ pub mod pallet {
 				new_margin_lock_amount,
 			);
 
+			// Emit order executed event
+			Self::deposit_event(Event::OrderExecuted {
+				account_id,
+				order_id: U256::zero(),
+				market_id,
+				size: order_size,
+				direction: direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price,
+				pnl,
+				fee,
+				is_final: true,
+				is_maker: true,
+			});
+
 			Ok(fee)
 		}
 	}

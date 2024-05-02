@@ -78,6 +78,7 @@ pub enum OrderType {
 	Limit,
 	Market,
 	Forced,
+	ADS,
 }
 
 #[derive(Clone, Copy, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
@@ -218,6 +219,7 @@ impl From<OrderType> for u8 {
 			OrderType::Limit => 0_u8,
 			OrderType::Market => 1_u8,
 			OrderType::Forced => 2_u8,
+			OrderType::ADS => 3_u8,
 		}
 	}
 }
@@ -256,6 +258,7 @@ impl From<OrderType> for &str {
 			OrderType::Market => "MARKET",
 			OrderType::Limit => "LIMIT",
 			OrderType::Forced => "FORCED",
+			OrderType::ADS => "ADS",
 		}
 	}
 }

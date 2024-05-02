@@ -4601,5 +4601,69 @@ fn test_closing_positions_of_delisted_market() {
 		assert_eq!(TradingAccounts::locked_margin(bob_id, collateral_id), 0.into());
 		assert_eq!(TradingAccounts::locked_margin(charlie_id, collateral_id), 0.into());
 		assert_eq!(TradingAccounts::locked_margin(dave_id, collateral_id), 0.into());
+
+		// Check for events
+		assert_has_events(vec![
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-55000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-61000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: charlie_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: charlie_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-58000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: dave_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 3.into(),
+				direction: dave_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(174000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+		]);
 	});
 }
