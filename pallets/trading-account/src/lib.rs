@@ -176,6 +176,23 @@ pub mod pallet {
 	pub(super) type MasterAccountFeeShare<T: Config> =
 		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, FixedI128, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn insurance_fund_balance)]
+	// Stores balance of Insurance Funds
+	pub(super) type InsuranceFundBalances<T: Config> =
+		StorageMap<_, Twox64Concat, U256, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn market_to_insurance_fund)]
+	// Stores balance of Insurance Funds
+	pub(super) type MarketToFeeSplitMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, (U256, FixedI128), OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn default_insurance_fund)]
+	// It stores no.of accounts
+	pub(super) type DefaultInsuranceFund<T: Config> = StorageValue<_, U256, OptionQuery>;
+
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
@@ -293,6 +310,23 @@ pub mod pallet {
 		MasterAccountLevelChanged {
 			master_account_address: U256,
 			level: u8,
+		},
+		/// Event to be synced by L2, for pnl changes
+		UserBalanceChangeV2 {
+			trading_account: TradingAccountMinimal,
+			market_id: u128,
+			amount: FixedI128,
+			revenue_amount: FixedI128,
+			modify_type: FundModifyType,
+			reason: u8,
+			block_number: BlockNumberFor<T>,
+		},
+		/// Insurance fund updation event
+		InsuranceFundChangeV2 {
+			market_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			block_number: BlockNumberFor<T>,
 		},
 	}
 
@@ -869,6 +903,16 @@ pub mod pallet {
 
 			Self::deposit_event(Event::MasterAccountLevelChanged { master_account_address, level })
 		}
+
+		fn get_fee_split_details(market_id: u128) -> (U256, FixedI128) {
+			match MarketToFeeSplitMap::<T>::get(market_id) {
+				Some((insurance_fund, fee_split)) => (insurance_fund, fee_split),
+				None => match DefaultInsuranceFund::<T>::get() {
+					Some(insurance_fund) => (insurance_fund, FixedI128::zero()),
+					None => panic!("No default insurance fund set"),
+				},
+			}
+		}
 	}
 
 	impl<T: Config> TradingAccountInterface for Pallet<T> {
@@ -969,15 +1013,17 @@ pub mod pallet {
 				block_number,
 			});
 
-			// Event to be synced by L2
-			Self::deposit_event(Event::UserBalanceChange {
-				trading_account: account,
-				collateral_id,
-				amount,
-				modify_type: FundModifyType::Decrease,
-				reason: reason.into(),
-				block_number,
-			});
+			if reason != BalanceChangeReason::Fee {
+				// Event to be synced by L2
+				Self::deposit_event(Event::UserBalanceChange {
+					trading_account: account,
+					collateral_id,
+					amount,
+					modify_type: FundModifyType::Decrease,
+					reason: reason.into(),
+					block_number,
+				});
+			}
 		}
 
 		fn is_registered_user(account_id: U256) -> bool {
@@ -1069,6 +1115,14 @@ pub mod pallet {
 			)
 		}
 
+		fn update_fee_split_details_internal(
+			market_id: u128,
+			insurance_fund: U256,
+			fee_split: FixedI128,
+		) {
+			MarketToFeeSplitMap::<T>::set(market_id, Some((insurance_fund, fee_split)));
+		}
+
 		fn deposit_internal(
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
@@ -1122,7 +1176,7 @@ pub mod pallet {
 			} else if current_balance.is_negative() {
 				let absolute_amount = min(-current_balance, amount);
 
-				Self::emit_insurance_fund_change_event(
+				Self::handle_insurance_fund_update(
 					collateral_id,
 					absolute_amount,
 					FundModifyType::Increase.into(),
@@ -1150,17 +1204,58 @@ pub mod pallet {
 			});
 		}
 
-		fn emit_insurance_fund_change_event(
-			collateral_id: u128,
+		fn handle_fee_split(account_id: U256, market_id: u128, amount: FixedI128) {
+			// Get the insurance fund and fee split details
+			let (insurance_fund, fee_split) = Self::get_fee_split_details(market_id);
+			let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(insurance_fund);
+			let revenue_amount = amount * fee_split;
+			let remaining_amount = amount - revenue_amount;
+
+			// Increment the local balance of insurance fund
+			InsuranceFundBalances::<T>::set(
+				insurance_fund,
+				current_insurance_fund_balance + remaining_amount,
+			);
+
+			// Emit the event to be picked up by the Synchronizer
+			Self::deposit_event(Event::UserBalanceChangeV2 {
+				trading_account: AccountMap::<T>::get(&account_id)
+					.unwrap()
+					.to_trading_account_minimal(),
+				market_id,
+				amount: remaining_amount,
+				revenue_amount,
+				modify_type: FundModifyType::Decrease,
+				reason: BalanceChangeReason::Fee.into(),
+				block_number: <frame_system::Pallet<T>>::block_number(),
+			});
+		}
+
+		fn handle_insurance_fund_update(
+			market_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
 		) {
-			let block_number = <frame_system::Pallet<T>>::block_number();
-			Self::deposit_event(Event::InsuranceFundChange {
-				collateral_id,
+			// Get the insurance fund and update the value
+			let (insurance_fund, _) = Self::get_fee_split_details(market_id);
+			let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(insurance_fund);
+
+			match modify_type {
+				FundModifyType::Increase => InsuranceFundBalances::<T>::set(
+					insurance_fund,
+					current_insurance_fund_balance + amount,
+				),
+				FundModifyType::Decrease => InsuranceFundBalances::<T>::set(
+					insurance_fund,
+					current_insurance_fund_balance - amount,
+				),
+			}
+
+			Self::deposit_event(Event::InsuranceFundChangeV2 {
+				market_id,
 				amount,
 				modify_type,
-				block_number,
+				block_number: <frame_system::Pallet<T>>::block_number(),
 			});
 		}
 

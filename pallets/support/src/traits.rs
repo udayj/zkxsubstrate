@@ -2,8 +2,8 @@ use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
 	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, FeeShareDetails,
 	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended, QuorumSet,
-	ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
+	MarketUpdatedV2, MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended,
+	QuorumSet, ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
 	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
@@ -18,11 +18,6 @@ pub trait TradingAccountInterface {
 		trading_account: TradingAccountMinimal,
 		collateral_id: u128,
 		amount: FixedI128,
-	);
-	fn emit_insurance_fund_change_event(
-		collateral_id: u128,
-		amount: FixedI128,
-		modify_type: FundModifyType,
 	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -93,6 +88,17 @@ pub trait TradingAccountInterface {
 		account_address: U256,
 		collateral_id: u128,
 		current_fee_share: FixedI128,
+	);
+	fn handle_fee_split(account_id: U256, market_id: u128, amount: FixedI128);
+	fn handle_insurance_fund_update(
+		market_id: u128,
+		amount: FixedI128,
+		modify_type: FundModifyType,
+	);
+	fn update_fee_split_details_internal(
+		market_id: u128,
+		insurance_fund: U256,
+		fee_split: FixedI128,
 	);
 }
 
@@ -288,6 +294,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_account_level_updated_event(
 		&mut self,
 		account_level_updated_event: &MasterAccountLevelChanged,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_market_updated_v2_event(
+		&mut self,
+		market_updated_v2_event: &MarketUpdatedV2,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,

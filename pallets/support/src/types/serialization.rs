@@ -2,8 +2,8 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		MarketUpdated, MarketUpdatedV2, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded,
+		SignerRemoved, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 };
 use frame_support::dispatch::Vec;
@@ -284,6 +284,23 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		Ok(())
 	}
 
+	fn try_append_market_updated_v2_event(
+		&mut self,
+		market_updated_v2_event: &MarketUpdatedV2,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(11_u8));
+		self.push(FieldElement::from(market_updated_v2_event.event_index));
+		self.push(FieldElement::from(market_updated_v2_event.id));
+		self.try_append_market(&market_updated_v2_event.market)?;
+		self.append_bounded_vec_u8(&market_updated_v2_event.metadata_url);
+		self.try_append_u256(market_updated_v2_event.fee_split_details.0)?;
+		self.try_append_fixedi128(market_updated_v2_event.fee_split_details.1)?;
+		self.push(FieldElement::from(market_updated_v2_event.block_number));
+
+		Ok(())
+	}
+
 	fn try_append_universal_event_array(
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
@@ -322,6 +339,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				},
 				UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
 					self.try_append_account_level_updated_event(account_level_updated)?;
+				},
+				UniversalEvent::MarketUpdatedV2(market_updated_v2) => {
+					self.try_append_market_updated_v2_event(market_updated_v2)?;
 				},
 			}
 		}
