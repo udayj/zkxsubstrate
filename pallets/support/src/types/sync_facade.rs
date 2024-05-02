@@ -31,6 +31,7 @@ pub enum UniversalEvent {
 	SettingsAdded(SettingsAdded),
 	ReferralDetailsAdded(ReferralDetailsAdded),
 	MasterAccountLevelChanged(MasterAccountLevelChanged),
+	MarketUpdatedV2(MarketUpdatedV2),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -151,4 +152,14 @@ pub enum FeeSettingsType {
 pub enum ABRSettingsType {
 	MaxDefault,
 	MaxPerMarket,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MarketUpdatedV2 {
+	pub event_index: u32,
+	pub id: u128,
+	pub market: Market,
+	pub metadata_url: BoundedVec<u8, ConstU32<256>>,
+	pub fee_split_details: (U256, FixedI128),
+	pub block_number: u64,
 }

@@ -1541,6 +1541,8 @@ pub mod pallet {
 					fee,
 					BalanceChangeReason::Fee,
 				);
+
+				T::TradingAccountPallet::handle_fee_split(order.account_id, order.market_id, fee);
 			}
 
 			Ok((
@@ -1625,7 +1627,7 @@ pub mod pallet {
 					if pnl_abs > balance {
 						if balance.is_negative() {
 							// Complete funds lost by user should be taken from insurance fund
-							T::TradingAccountPallet::emit_insurance_fund_change_event(
+							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
 								pnl_abs,
 								FundModifyType::Decrease,
@@ -1644,7 +1646,7 @@ pub mod pallet {
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
-							T::TradingAccountPallet::emit_insurance_fund_change_event(
+							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
 								pnl_abs - balance,
 								FundModifyType::Decrease,
@@ -1684,7 +1686,7 @@ pub mod pallet {
 							// if balance >= margin amount, deposit remaining margin in insurance
 							if margin_amount_to_reduce <= balance {
 								// Deposit margin_plus_pnl to insurance fund
-								T::TradingAccountPallet::emit_insurance_fund_change_event(
+								T::TradingAccountPallet::handle_insurance_fund_update(
 									collateral_id,
 									margin_plus_pnl,
 									FundModifyType::Increase,
@@ -1704,7 +1706,7 @@ pub mod pallet {
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
-									T::TradingAccountPallet::emit_insurance_fund_change_event(
+									T::TradingAccountPallet::handle_insurance_fund_update(
 										collateral_id,
 										margin_amount_to_reduce,
 										FundModifyType::Decrease,
@@ -1727,7 +1729,7 @@ pub mod pallet {
 									let pnl_abs = pnl.saturating_abs();
 									if balance <= pnl_abs {
 										// Deduct (pnl_abs -  balance) from insurance fund
-										T::TradingAccountPallet::emit_insurance_fund_change_event(
+										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
 											pnl_abs - balance,
 											FundModifyType::Decrease,
@@ -1747,7 +1749,7 @@ pub mod pallet {
 										});
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
-										T::TradingAccountPallet::emit_insurance_fund_change_event(
+										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
 											balance - pnl_abs,
 											FundModifyType::Increase,
@@ -1848,6 +1850,12 @@ pub mod pallet {
 						collateral_id,
 						fee,
 						BalanceChangeReason::Fee,
+					);
+
+					T::TradingAccountPallet::handle_fee_split(
+						order.account_id,
+						order.market_id,
+						fee,
 					);
 				}
 

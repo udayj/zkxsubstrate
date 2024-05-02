@@ -31,7 +31,7 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use scale_info::prelude::vec;
-	use sp_arithmetic::fixed_point::FixedI128;
+	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
 
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
@@ -166,6 +166,8 @@ pub mod pallet {
 		AddReferralError { master_account_address: U256, referral_account_address: U256 },
 		/// Account is not regisered for account level update
 		UpdateAccountLevelError { master_account_address: U256 },
+		/// A Deprecated event was passed in the batch
+		DeprecatedEvent { event_index: u32, block_number: u64 },
 	}
 
 	#[pallet::error]
@@ -795,33 +797,10 @@ pub mod pallet {
 			for event in events_batch.iter() {
 				match event {
 					UniversalEvent::MarketUpdated(market_updated) => {
-						// Check if the Market already exists
-						match T::MarketPallet::get_market(market_updated.id) {
-							// If yes, update it
-							Some(_) => {
-								match T::MarketPallet::update_market_internal(ExtendedMarket {
-									market: market_updated.market.clone(),
-									metadata_url: market_updated.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::UpdateMarketError {
-										id: market_updated.id,
-									}),
-								}
-							},
-							// If not, add a new market
-							None => {
-								match T::MarketPallet::add_market_internal(ExtendedMarket {
-									market: market_updated.market.clone(),
-									metadata_url: market_updated.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::AddMarketError {
-										id: market_updated.id,
-									}),
-								}
-							},
-						}
+						Self::deposit_event(Event::DeprecatedEvent {
+							event_index: market_updated.event_index,
+							block_number: market_updated.block_number,
+						});
 					},
 					UniversalEvent::AssetUpdated(asset_updated) => {
 						// Check if the Asset already exists
@@ -980,6 +959,47 @@ pub mod pallet {
 							account_level_updated.level,
 						);
 					},
+					UniversalEvent::MarketUpdatedV2(market_updated_v2) => {
+						// Check if the Market already exists
+						match T::MarketPallet::get_market(market_updated_v2.id) {
+							// If yes, update it
+							Some(_) => {
+								match T::MarketPallet::update_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::UpdateMarketError {
+										id: market_updated_v2.id,
+									}),
+								}
+							},
+							// If not, add a new market
+							None => {
+								match T::MarketPallet::add_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								}) {
+									Ok(_) => (),
+									Err(_) => Self::deposit_event(Event::AddMarketError {
+										id: market_updated_v2.id,
+									}),
+								}
+							},
+						}
+
+						// Update the fee split details
+						let (insurance_fund, fee_split) = market_updated_v2.fee_split_details;
+						if insurance_fund == U256::zero() || fee_split == FixedI128::zero() {
+							// emit event
+						} else {
+							T::TradingAccountPallet::update_fee_split_details_internal(
+								market_updated_v2.market.id,
+								insurance_fund,
+								fee_split,
+							);
+						}
+					},
 				}
 			}
 		}
@@ -1064,6 +1084,8 @@ pub mod pallet {
 					(referral_added.block_number, referral_added.event_index),
 				UniversalEvent::MasterAccountLevelChanged(account_level_updated) =>
 					(account_level_updated.block_number, account_level_updated.event_index),
+				UniversalEvent::MarketUpdatedV2(market_updated_v2) =>
+					(market_updated_v2.block_number, market_updated_v2.event_index),
 			}
 		}
 	}
