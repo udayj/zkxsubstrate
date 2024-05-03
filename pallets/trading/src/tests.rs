@@ -4552,7 +4552,10 @@ fn test_closing_positions_of_delisted_market() {
 		));
 
 		// Call extrinsic to close positions
-		assert_ok!(Trading::close_delisted_market_positions(market_id));
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id
+		));
 
 		// Check position existence
 		let alice_position =
