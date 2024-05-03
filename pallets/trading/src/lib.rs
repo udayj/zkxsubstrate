@@ -355,9 +355,9 @@ pub mod pallet {
 		pub fn update_market_to_user_map(origin: OriginFor<T>, market_id: u128) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			for (k1, (k2, k3), _) in PositionsMap::<T>::iter() {
-				if market_id == k2 {
-					MarketToUserMap::<T>::set((k2, k3), k1, Some(k1));
+			for (account_id, (market, direction), _) in PositionsMap::<T>::iter() {
+				if market_id == market {
+					MarketToUserMap::<T>::set((market_id, direction), account_id, Some(account_id));
 				}
 			}
 
