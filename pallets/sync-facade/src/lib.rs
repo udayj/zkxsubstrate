@@ -168,6 +168,8 @@ pub mod pallet {
 		UpdateAccountLevelError { master_account_address: U256 },
 		/// A Deprecated event was passed in the batch
 		DeprecatedEvent { event_index: u32, block_number: u64 },
+		/// An invalid fee split data associated with update market event
+		InvalidFeeSplitData { event_index: u32, block_number: u64 },
 	}
 
 	#[pallet::error]
@@ -960,44 +962,43 @@ pub mod pallet {
 						);
 					},
 					UniversalEvent::MarketUpdatedV2(market_updated_v2) => {
-						// Check if the Market already exists
-						match T::MarketPallet::get_market(market_updated_v2.id) {
-							// If yes, update it
-							Some(_) => {
-								match T::MarketPallet::update_market_internal(ExtendedMarket {
-									market: market_updated_v2.market.clone(),
-									metadata_url: market_updated_v2.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::UpdateMarketError {
-										id: market_updated_v2.id,
-									}),
-								}
-							},
-							// If not, add a new market
-							None => {
-								match T::MarketPallet::add_market_internal(ExtendedMarket {
-									market: market_updated_v2.market.clone(),
-									metadata_url: market_updated_v2.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::AddMarketError {
-										id: market_updated_v2.id,
-									}),
-								}
-							},
-						}
-
-						// Update the fee split details
 						let (insurance_fund, fee_split) = market_updated_v2.fee_split_details;
-						if insurance_fund == U256::zero() || fee_split == FixedI128::zero() {
-							// emit event
-						} else {
-							T::TradingAccountPallet::update_fee_split_details_internal(
-								market_updated_v2.market.id,
-								insurance_fund,
-								fee_split,
-							);
+						let result =
+							if let Some(_) = T::MarketPallet::get_market(market_updated_v2.id) {
+								// Update existing market
+								T::MarketPallet::update_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								})
+							} else {
+								// Add new market
+								T::MarketPallet::add_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								})
+							};
+
+						match result {
+							Ok(_) => {
+								if insurance_fund != U256::zero() && fee_split != FixedI128::zero()
+								{
+									T::TradingAccountPallet::update_fee_split_details_internal(
+										market_updated_v2.market.id,
+										insurance_fund,
+										fee_split,
+									);
+								} else {
+									Self::deposit_event(Event::InvalidFeeSplitData {
+										event_index: market_updated_v2.event_index,
+										block_number: market_updated_v2.block_number,
+									});
+								}
+							},
+							Err(_) => {
+								Self::deposit_event(Event::AddMarketError {
+									id: market_updated_v2.id,
+								});
+							},
 						}
 					},
 				}

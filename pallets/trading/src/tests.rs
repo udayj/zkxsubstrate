@@ -149,6 +149,12 @@ fn setup() -> sp_io::TestExternalities {
 			RuntimeOrigin::root(),
 			2419200 //4 weeks
 		));
+
+		// Set default insurance fund
+		assert_ok!(TradingAccounts::set_default_insurance_fund(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(1_u8),
+		));
 	});
 
 	env

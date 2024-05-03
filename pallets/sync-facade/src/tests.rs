@@ -1,5 +1,5 @@
 use crate::{mock::*, Event};
-use frame_support::{assert_ok, dispatch::Vec};
+use frame_support::{assert_noop, assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, get_trading_account_id},
@@ -7,13 +7,13 @@ use pallet_support::{
 		bob, charlie,
 		market_helper::{btc_usdc, eth_usdc},
 	},
-	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
+	traits::{FieldElementExt, TradingAccountInterface, TradingFeesInterface, TradingInterface},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
 		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, MarketRemoved, MarketUpdated,
-		MasterAccountLevelChanged, OrderSide, QuorumSet, ReferralDetails, ReferralDetailsAdded,
-		SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
-		UniversalEvent, UserDeposit,
+		MarketUpdatedV2, MasterAccountLevelChanged, OrderSide, QuorumSet, ReferralDetails,
+		ReferralDetailsAdded, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
+		TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -563,6 +563,159 @@ fn sync_asset_event_add_asset_remove_asset() {
 fn sync_update_market_event_add_market() {
 	// Get a test environment
 	let mut env = setup();
+	let fee_split_details = (U256::one(), FixedI128::from_float(0.1));
+
+	let update_market_event_1 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
+		1,
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
+		fee_split_details,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_updated_v2_event(update_market_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// add assets
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
+
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
+
+		assert_eq!(Markets::markets_count(), 2);
+		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+
+		// Get Fee Split data
+		assert_eq!(TradingAccounts::get_fee_split_details(eth_usdc().market.id), fee_split_details);
+	});
+}
+
+#[test]
+#[should_panic]
+fn sync_update_market_event_add_market_invalid_input_fee_split() {
+	// Get a test environment
+	let mut env = setup();
+	let fee_split_details = (U256::zero(), FixedI128::from_float(0.1));
+
+	let update_market_event_1 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
+		1,
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
+		fee_split_details,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_updated_v2_event(update_market_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// add assets
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
+
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
+
+		System::assert_has_event(
+			Event::InvalidFeeSplitData { event_index: 1, block_number: 1337 }.into(),
+		);
+
+		// Next line should panic
+		let _ = TradingAccounts::get_fee_split_details(eth_usdc().market.id);
+	});
+}
+
+#[test]
+#[should_panic]
+fn sync_update_market_event_add_market_invalid_input_market() {
+	// Get a test environment
+	let mut env = setup();
+	let fee_split_details = (U256::zero(), FixedI128::from_float(0.1));
+
+	let update_market_event_1 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
+		1,
+		eth_usdc().market.id,
+		eth_usdc().market,
+		eth_usdc().metadata_url.clone(),
+		fee_split_details,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_market_updated_v2_event(update_market_event_1);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// add assets
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
+
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
+
+		System::assert_has_event(Event::AddMarketError { id: eth_usdc().market.id }.into());
+
+		// Next line should panic
+		let _ = TradingAccounts::get_fee_split_details(eth_usdc().market.id);
+	});
+}
+
+#[test]
+#[should_panic]
+fn sync_update_market_deprecated_event_add_market() {
+	// Get a test environment
+	let mut env = setup();
 
 	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
 		1,
@@ -599,8 +752,14 @@ fn sync_update_market_event_add_market() {
 		)
 		.expect("error while updating market");
 
-		assert_eq!(Markets::markets_count(), 2);
-		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
+		assert_eq!(Markets::markets_count(), 1);
+
+		System::assert_has_event(
+			Event::DeprecatedEvent { event_index: 1, block_number: 1337 }.into(),
+		);
+
+		// Next line should panic
+		let _ = TradingAccounts::get_fee_split_details(eth_usdc().market.id);
 	});
 }
 
@@ -608,26 +767,30 @@ fn sync_update_market_event_add_market() {
 fn sync_update_market_event_multiple_add_market() {
 	// Get a test environment
 	let mut env = setup();
+	let eth_fee_split_details = (U256::one(), FixedI128::from_float(0.1));
+	let btc_fee_split_details = (U256::from(2_u8), FixedI128::from_float(0.1));
 
-	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
+	let update_market_event_1 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
 		1,
 		eth_usdc().market.id,
 		eth_usdc().market,
 		eth_usdc().metadata_url.clone(),
+		eth_fee_split_details,
 		1337,
 	);
 
-	let update_market_event_2 = <MarketUpdated as MarketUpdatedTrait>::new(
+	let update_market_event_2 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
 		2,
 		btc_usdc().market.id,
 		btc_usdc().market,
 		btc_usdc().metadata_url.clone(),
+		btc_fee_split_details,
 		1337,
 	);
 
 	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
-	events_batch.add_market_updated_event(update_market_event_1);
-	events_batch.add_market_updated_event(update_market_event_2);
+	events_batch.add_market_updated_v2_event(update_market_event_1);
+	events_batch.add_market_updated_v2_event(update_market_event_2);
 
 	let events_batch_hash = events_batch.compute_hash();
 
@@ -655,6 +818,16 @@ fn sync_update_market_event_multiple_add_market() {
 		assert_eq!(Markets::markets_count(), 2);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
 		assert_eq!(Markets::markets(btc_usdc().market.id).unwrap(), btc_usdc());
+
+		// Get Fee Split data
+		assert_eq!(
+			TradingAccounts::get_fee_split_details(eth_usdc().market.id),
+			eth_fee_split_details
+		);
+		assert_eq!(
+			TradingAccounts::get_fee_split_details(btc_usdc().market.id),
+			btc_fee_split_details
+		);
 	});
 }
 
@@ -662,20 +835,22 @@ fn sync_update_market_event_multiple_add_market() {
 fn sync_update_market_event_update_market() {
 	// Get a test environment
 	let mut env = setup();
+	let eth_fee_split_details = (U256::one(), FixedI128::from_float(0.1));
 
 	let mut updated_market = eth_usdc();
 	updated_market.market.is_archived = true;
 
-	let update_market_event_1 = <MarketUpdated as MarketUpdatedTrait>::new(
+	let update_market_event_1 = <MarketUpdatedV2 as MarketUpdatedTraitV2>::new(
 		1,
 		updated_market.market.id,
 		updated_market.market.clone(),
 		updated_market.metadata_url.clone(),
+		eth_fee_split_details,
 		1337,
 	);
 
 	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
-	events_batch.add_market_updated_event(update_market_event_1);
+	events_batch.add_market_updated_v2_event(update_market_event_1);
 
 	let events_batch_hash = events_batch.compute_hash();
 
@@ -707,6 +882,12 @@ fn sync_update_market_event_update_market() {
 
 		assert_eq!(Markets::markets_count(), 1);
 		assert_eq!(Markets::markets(updated_market.market.id).unwrap(), updated_market);
+
+		// Get Fee Split data
+		assert_eq!(
+			TradingAccounts::get_fee_split_details(eth_usdc().market.id),
+			eth_fee_split_details
+		);
 	});
 }
 
@@ -1017,6 +1198,7 @@ fn sync_referral_added_event_duplicate() {
 		);
 	});
 }
+
 #[test]
 fn sync_multiple_referral_added_event() {
 	// Get a test environment
