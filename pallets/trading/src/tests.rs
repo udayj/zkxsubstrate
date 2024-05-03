@@ -9,8 +9,8 @@ use pallet_support::{
 	},
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
-		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput, Order,
-		OrderType, Position, ReferralDetails, Side,
+		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput,
+		MultiplePrices, Order, OrderType, Position, ReferralDetails, Side,
 	},
 };
 use pallet_trading_account::Event as TradingAccountEvent;
@@ -4456,5 +4456,217 @@ fn test_discounted_fee_rate_for_referral() {
 		// Check for balances
 		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 9998.into());
 		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9996.into());
+	});
+}
+
+#[test]
+// test closing of open positions of a delisted market
+fn test_closing_positions_of_delisted_market() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+		let dave_id: U256 = get_trading_account_id(dave());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(105.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(202), bob_id)
+			.set_price(99.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		let charlie_open_order_1 = Order::new(U256::from(203), charlie_id)
+			.set_price(102.into())
+			.set_size(2.into())
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let dave_open_order_1 = Order::new(U256::from(204), dave_id)
+			.set_price(100.into())
+			.set_size(3.into())
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(dave().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			3.into(),
+			// market_id
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![
+				alice_open_order_1.clone(),
+				bob_open_order_1.clone(),
+				charlie_open_order_1.clone(),
+				dave_open_order_1.clone()
+			],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Check for events
+		assert_has_events(vec![Event::TradeExecuted {
+			batch_id: U256::from(1_u8),
+			market_id,
+			size: 3.into(),
+			execution_price: 102.into(),
+			direction: dave_open_order_1.direction.into(),
+			side: dave_open_order_1.side.into(),
+		}
+		.into()]);
+
+		// Set price
+		let timestamp: u64 = 1699940367000;
+		let mut prices: Vec<MultiplePrices> = Vec::new();
+		let price: MultiplePrices = MultiplePrices {
+			market_id,
+			index_price: FixedI128::from_inner(150000000000000000000),
+			mark_price: FixedI128::from_inner(160000000000000000000),
+		};
+		prices.push(price);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			timestamp
+		));
+
+		// Make market non tradable
+		let btc_usdc_market_updated = btc_usdc().set_is_tradable(false);
+		assert_ok!(Markets::update_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc_market_updated.clone()
+		));
+
+		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id
+		));
+
+		// Check position existence
+		let alice_position =
+			Trading::positions(alice_id, (market_id, alice_open_order_1.direction));
+		let expected_position: Position = Position {
+			market_id: 0,
+			avg_execution_price: 0.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		let bob_position = Trading::positions(bob_id, (market_id, bob_open_order_1.direction));
+		assert_eq!(expected_position, bob_position);
+
+		let charlie_position =
+			Trading::positions(bob_id, (market_id, charlie_open_order_1.direction));
+		assert_eq!(expected_position, charlie_position);
+
+		let dave_position = Trading::positions(bob_id, (market_id, dave_open_order_1.direction));
+		assert_eq!(expected_position, dave_position);
+
+		// Since is_tradable flag for BTC-USDC is set to false
+		// Check whether the mark price for that market is set
+		let btc_usdc_mark_price = Prices::mark_price_for_ads(market_id);
+		assert_eq!(btc_usdc_mark_price.unwrap(), FixedI128::from_inner(160000000000000000000));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::zero());
+
+		// Check for balances
+		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 9945.into());
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9939.into());
+		assert_eq!(TradingAccounts::balances(charlie_id, collateral_id), 9942.into());
+		assert_eq!(TradingAccounts::balances(dave_id, collateral_id), 10174.into());
+
+		// Check for locked margin
+		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(bob_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(charlie_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(dave_id, collateral_id), 0.into());
+
+		// Check for events
+		assert_has_events(vec![
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-55000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-61000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: charlie_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 1.into(),
+				direction: charlie_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(-58000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: dave_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 3.into(),
+				direction: dave_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 160.into(),
+				pnl: FixedI128::from_inner(174000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+		]);
 	});
 }

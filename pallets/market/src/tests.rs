@@ -317,7 +317,7 @@ fn test_update_market() {
 			eth_usdc_market.clone()
 		));
 
-		let interval: u64 = 1699940367000;
+		let timestamp: u64 = 1699940367000;
 		let mut prices: Vec<MultiplePrices> = Vec::new();
 		let price: MultiplePrices = MultiplePrices {
 			market_id: eth_usdc_market_updated.market.id,
@@ -328,7 +328,7 @@ fn test_update_market() {
 		assert_ok!(Prices::update_prices(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			prices,
-			interval
+			timestamp
 		));
 
 		// Update the eth_usdc market

@@ -1286,6 +1286,10 @@ pub mod pallet {
 			Self::get_price(market_id, price.timestamp, price.index_price)
 		}
 
+		fn get_mark_price_for_ads(market_id: u128) -> Option<FixedI128> {
+			MarkPriceForADS::<T>::get(market_id)
+		}
+
 		fn update_last_oracle_price(market_id: u128, price: FixedI128) {
 			// Get the current timestamp
 			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
