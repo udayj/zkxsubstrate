@@ -330,6 +330,12 @@ fn test_deposit_when_negative() {
 	let mut env = setup();
 
 	env.execute_with(|| {
+		// Set default insurance fund
+		assert_ok!(TradingAccountModule::set_default_insurance_fund(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(1_u8),
+		));
+
 		// Get the trading account of Alice
 		let trading_account_id = get_trading_account_id(alice());
 

@@ -374,6 +374,41 @@ pub mod pallet {
 		}
 
 		// TODO(merkle-groot): To be removed in production
+		/// To test setting of insurance funds
+		#[pallet::weight(0)]
+		pub fn update_fee_split_details(
+			origin: OriginFor<T>,
+			market_id: u128,
+			insurance_fund: U256,
+			fee_split: FixedI128,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			Self::update_fee_split_details_internal(market_id, insurance_fund, fee_split);
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
+		/// To test setting of default insurance funds
+		#[pallet::weight(0)]
+		pub fn set_default_insurance_fund(
+			origin: OriginFor<T>,
+			insurance_fund: U256,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			DefaultInsuranceFund::<T>::set(Some(insurance_fund));
+
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
 		/// Add several accounts together
 		#[pallet::weight(0)]
 		pub fn add_accounts(
@@ -902,16 +937,6 @@ pub mod pallet {
 			MasterAccountLevel::<T>::set(master_account_address, level);
 
 			Self::deposit_event(Event::MasterAccountLevelChanged { master_account_address, level })
-		}
-
-		fn get_fee_split_details(market_id: u128) -> (U256, FixedI128) {
-			match MarketToFeeSplitMap::<T>::get(market_id) {
-				Some((insurance_fund, fee_split)) => (insurance_fund, fee_split),
-				None => match DefaultInsuranceFund::<T>::get() {
-					Some(insurance_fund) => (insurance_fund, FixedI128::zero()),
-					None => panic!("No default insurance fund set"),
-				},
-			}
 		}
 	}
 
@@ -1621,6 +1646,16 @@ pub mod pallet {
 			let new_fee_share =
 				MasterAccountFeeShare::<T>::get(account_address, collateral_id) + current_fee_share;
 			MasterAccountFeeShare::<T>::set(account_address, collateral_id, new_fee_share);
+		}
+
+		fn get_fee_split_details(market_id: u128) -> (U256, FixedI128) {
+			match MarketToFeeSplitMap::<T>::get(market_id) {
+				Some((insurance_fund, fee_split)) => (insurance_fund, fee_split),
+				None => match DefaultInsuranceFund::<T>::get() {
+					Some(insurance_fund) => (insurance_fund, FixedI128::zero()),
+					None => panic!("No default insurance fund set"),
+				},
+			}
 		}
 	}
 }

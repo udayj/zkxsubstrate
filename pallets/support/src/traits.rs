@@ -100,6 +100,7 @@ pub trait TradingAccountInterface {
 		insurance_fund: U256,
 		fee_split: FixedI128,
 	);
+	fn get_fee_split_details(market_id: u128) -> (U256, FixedI128);
 }
 
 pub trait TradingInterface {
