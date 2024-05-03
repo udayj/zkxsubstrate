@@ -4670,3 +4670,105 @@ fn test_closing_positions_of_delisted_market() {
 		]);
 	});
 }
+
+#[test]
+fn test_update_market_to_user_map() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// Open BTCUSDC position
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_size(9.into())
+			.set_leverage(8.into())
+			.set_price(8500.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_size(9.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_price(8500.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(1_u8),
+			// size
+			9.into(),
+			// market
+			market_id,
+			// price
+			8500.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		// Open ETHUSDC position
+		let market_id = eth_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_size(32.into())
+			.set_leverage(8.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_size(32.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_market_id(market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(3_u8),
+			// size
+			32.into(),
+			// market
+			market_id,
+			// price
+			100.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		// Invoke extrinsic to populate market to user map
+		assert_ok!(Trading::update_market_to_user_map(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc().market.id
+		));
+		assert_ok!(Trading::update_market_to_user_map(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc().market.id
+		));
+
+		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Long), alice_id);
+		assert_eq!(result.unwrap(), alice_id);
+		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Short), bob_id);
+		assert_eq!(result.unwrap(), bob_id);
+		let result = Trading::market_to_user((eth_usdc().market.id, Direction::Long), alice_id);
+		assert_eq!(result.unwrap(), alice_id);
+		let result = Trading::market_to_user((eth_usdc().market.id, Direction::Short), bob_id);
+		assert_eq!(result.unwrap(), bob_id);
+
+		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Short), alice_id);
+		assert_eq!(result, None);
+	})
+}
