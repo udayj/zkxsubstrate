@@ -4679,7 +4679,6 @@ fn test_update_market_to_user_map() {
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
-		let charlie_id: U256 = get_trading_account_id(charlie());
 
 		// Open BTCUSDC position
 		let market_id = btc_usdc().market.id;
