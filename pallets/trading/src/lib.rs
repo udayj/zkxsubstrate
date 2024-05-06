@@ -47,6 +47,8 @@ pub mod pallet {
 	static CLEANUP_COUNT: u64 = 120;
 	// Block interval at which offchain workers will be executed
 	const BLOCK_INTERVAL: u32 = 120;
+	// No.of positions to be closed for a delisted market
+	static POSITIONS_CLOSE_COUNT: u32 = 100;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -1184,69 +1186,93 @@ pub mod pallet {
 			let mut current_trading_fee = TradingFeeMap::<T>::get(collateral_id);
 			let mut current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
-			// Iterate through all long users who have open positions in a delisted market
-			for long_user in MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
-			{
-				let position_details =
-					PositionsMap::<T>::get(&long_user, (market_id, Direction::Long));
-				let price_diff: FixedI128 = execution_price - position_details.avg_execution_price;
-				let fee: FixedI128;
+			let mut positions_close_count = POSITIONS_CLOSE_COUNT;
+			let long_user_length =
+				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count();
 
-				let response = Self::close_position(
-					long_user,
-					market_id,
-					Direction::Long,
-					collateral_id,
-					collateral_token_decimal,
-					&position_details,
-					price_diff,
-					execution_price,
-					&market_fees,
-					&mut current_liquidation_fee,
-				);
-				match response {
-					Ok(trading_fee) => {
-						fee = trading_fee;
-					},
-					Err(e) => return Err(e.into()),
+			if long_user_length != 0 {
+				// Iterate through all long users who have open positions in a delisted market
+				for long_user in
+					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
+				{
+					if positions_close_count == 0 {
+						break;
+					}
+					let position_details =
+						PositionsMap::<T>::get(&long_user, (market_id, Direction::Long));
+					let price_diff: FixedI128 =
+						execution_price - position_details.avg_execution_price;
+					let fee: FixedI128;
+
+					let response = Self::close_position(
+						long_user,
+						market_id,
+						Direction::Long,
+						collateral_id,
+						collateral_token_decimal,
+						&position_details,
+						price_diff,
+						execution_price,
+						&market_fees,
+						&mut current_liquidation_fee,
+					);
+					match response {
+						Ok(trading_fee) => {
+							fee = trading_fee;
+						},
+						Err(e) => return Err(e.into()),
+					}
+					initial_margin_locked_long =
+						initial_margin_locked_long - position_details.margin_amount;
+					current_open_interest = current_open_interest - position_details.size;
+					current_trading_fee = current_trading_fee + fee;
+
+					positions_close_count -= 1;
 				}
-				initial_margin_locked_long =
-					initial_margin_locked_long - position_details.margin_amount;
-				current_open_interest = current_open_interest - position_details.size;
-				current_trading_fee = current_trading_fee + fee;
 			}
 
-			// Iterate through all short users who have open positions in a delisted market
-			for short_user in
-				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
-			{
-				let position_details =
-					PositionsMap::<T>::get(&short_user, (market_id, Direction::Short));
-				let price_diff: FixedI128 = position_details.avg_execution_price - execution_price;
-				let fee: FixedI128;
+			let short_user_length =
+				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count();
 
-				let response = Self::close_position(
-					short_user,
-					market_id,
-					Direction::Short,
-					collateral_id,
-					collateral_token_decimal,
-					&position_details,
-					price_diff,
-					execution_price,
-					&market_fees,
-					&mut current_liquidation_fee,
-				);
-				match response {
-					Ok(trading_fee) => {
-						fee = trading_fee;
-					},
-					Err(e) => return Err(e.into()),
+			if short_user_length != 0 && positions_close_count != 0 {
+				// Iterate through all short users who have open positions in a delisted market
+				for short_user in
+					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
+				{
+					if positions_close_count == 0 {
+						break;
+					}
+					let position_details =
+						PositionsMap::<T>::get(&short_user, (market_id, Direction::Short));
+					let price_diff: FixedI128 =
+						position_details.avg_execution_price - execution_price;
+					let fee: FixedI128;
+
+					let response = Self::close_position(
+						short_user,
+						market_id,
+						Direction::Short,
+						collateral_id,
+						collateral_token_decimal,
+						&position_details,
+						price_diff,
+						execution_price,
+						&market_fees,
+						&mut current_liquidation_fee,
+					);
+					match response {
+						Ok(trading_fee) => {
+							fee = trading_fee;
+						},
+						Err(e) => return Err(e.into()),
+					}
+					initial_margin_locked_short =
+						initial_margin_locked_short - position_details.margin_amount;
+					current_open_interest = current_open_interest - position_details.size;
+					current_trading_fee = current_trading_fee + fee;
+
+					positions_close_count -= 1;
 				}
-				initial_margin_locked_short =
-					initial_margin_locked_short - position_details.margin_amount;
-				current_open_interest = current_open_interest - position_details.size;
-				current_trading_fee = current_trading_fee + fee;
 			}
 
 			// Update trading fee for a collateral
