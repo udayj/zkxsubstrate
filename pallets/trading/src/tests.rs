@@ -10,7 +10,8 @@ use pallet_support::{
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
 		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput,
-		FundModifyType, MultiplePrices, Order, OrderType, Position, ReferralDetails, Side,
+		FundModifyType, MultiplePrices, Order, OrderSide, OrderType, Position, ReferralDetails,
+		Side, TradingAccount,
 	},
 };
 use pallet_trading_account::Event as TradingAccountEvent;
@@ -19,6 +20,7 @@ use sp_arithmetic::{
 	traits::{One, Zero},
 	FixedI128,
 };
+use sp_runtime::print;
 
 fn assert_has_events(expected_events: Vec<RuntimeEvent>) {
 	for expected_event in &expected_events {
@@ -3044,6 +3046,859 @@ fn test_fee_share_1() {
 			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==
 				FixedI128::zero(),
 			"wrong master fee share"
+		);
+	});
+}
+
+#[test]
+#[should_panic(expected = "No default insurance fund set")]
+fn test_trade_without_default_insurance_fund() {
+	// Create a new test environment
+	let mut env = new_test_ext();
+
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	let init_timestamp: u64 = 1699940367;
+
+	// market id
+	let btc_market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	env.execute_with(|| {
+		// Set the block number
+		System::set_block_number(1);
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
+
+		// Set the assets in the system
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![eth(), usdc(), link(), btc()]
+		));
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![btc_usdc(), link_usdc(), eth_usdc()]
+		));
+
+		// Add accounts to the system
+		assert_ok!(TradingAccounts::add_accounts(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![alice(), bob(), charlie(), dave()]
+		));
+
+		// Set matching_time_limit
+		assert_ok!(Trading::set_matching_time_limit(
+			RuntimeOrigin::root(),
+			2419200 //4 weeks
+		));
+
+		// Add fee data
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_aggregate_fees()
+		));
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			1.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		print!("Events: {:?}", System::events());
+	});
+}
+
+#[test]
+fn test_insurance_fund_replacement() {
+	let mut env = setup();
+
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	let init_timestamp: u64 = 1699940367;
+
+	// market id
+	let btc_market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	// Insurance funds
+	let btc_insurnace_fund_1: U256 = 2.into();
+	let btc_fee_split_1 = FixedI128::from_float(0.1_f64);
+	let btc_insurnace_fund_2: U256 = 3.into();
+	let btc_fee_split_2 = FixedI128::from_float(0.8_f64);
+
+	env.execute_with(|| {
+		// Add fee data
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_aggregate_fees()
+		));
+
+		///////////////////////////////
+		// Isolated 1: BTC-USDC Open //
+		///////////////////////////////
+
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+			btc_insurnace_fund_1,
+			btc_fee_split_1
+		));
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) == FixedI128::zero(),
+			"Invalid balance for isolated insurance balance 1 before trade"
+		);
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			1.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_1 = alice_fees_1 * (FixedI128::one() - btc_fee_split_1);
+		let bob_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_1 = bob_fees_1 * (FixedI128::one() - btc_fee_split_1);
+
+		let expected_btc_insurance_fund_balance_1 =
+			alice_fees_contribution_1 + bob_fees_contribution_1;
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) ==
+				expected_btc_insurance_fund_balance_1,
+			"Invalid balance for isolated insurance balance 1 after trade"
+		);
+
+		//////////////////////////////
+		// Isolated: BTC-USDC Close //
+		//////////////////////////////
+		// Create orders
+		let alice_order = Order::new(203.into(), alice_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(204.into(), bob_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			2.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_2 = alice_fees_2 * (FixedI128::one() - btc_fee_split_1);
+		let bob_fees_2: FixedI128 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_2 = bob_fees_2 * (FixedI128::one() - btc_fee_split_1);
+
+		let expected_btc_insurance_fund_balance_2 = expected_btc_insurance_fund_balance_1 +
+			alice_fees_contribution_2 +
+			bob_fees_contribution_2;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) ==
+				expected_btc_insurance_fund_balance_2,
+			"Invalid balance for btc insurance balance"
+		);
+
+		///////////////////////////////
+		// Isolated 2: BTC-USDC Open //
+		///////////////////////////////
+
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+			btc_insurnace_fund_2,
+			btc_fee_split_2
+		));
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) == FixedI128::zero(),
+			"Invalid balance for isolated insurance balance 2 before trade"
+		);
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			3.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_1 = alice_fees_1 * (FixedI128::one() - btc_fee_split_2);
+		let bob_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_1 = bob_fees_1 * (FixedI128::one() - btc_fee_split_2);
+
+		let expected_default_insurance_fund_balance_1 =
+			alice_fees_contribution_1 + bob_fees_contribution_1;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) ==
+				expected_default_insurance_fund_balance_1,
+			"Invalid balance for isolated insurance balance 2 after trade"
+		);
+
+		////////////////////////////////
+		// Isolated 2: BTC-USDC Close //
+		////////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(207.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(208.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			4.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_2 = alice_fees_2 * (FixedI128::one() - btc_fee_split_2);
+		let bob_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_2 = bob_fees_2 * (FixedI128::one() - btc_fee_split_2);
+
+		let expected_default_insurance_fund_balance_2 = expected_default_insurance_fund_balance_1 +
+			alice_fees_contribution_2 +
+			bob_fees_contribution_2;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) ==
+				expected_default_insurance_fund_balance_2,
+			"Invalid balance for isolated insurance balance 2 after trade"
+		);
+	});
+}
+
+#[test]
+fn test_insurance_fund_update() {
+	let mut env = setup();
+
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	let init_timestamp: u64 = 1699940367;
+
+	// market id
+	let btc_market_id = btc_usdc().market.id;
+	let eth_market_id = eth_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	// Insurance funds
+	let default_insurance_fund: U256 = 1.into();
+	let btc_insurnace_fund: U256 = 2.into();
+	let btc_fee_split = FixedI128::from_float(0.1_f64);
+	let eth_insurnace_fund: U256 = 3.into();
+	let eth_fee_split = FixedI128::from_float(0.5_f64);
+
+	env.execute_with(|| {
+		// Add fee data
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_aggregate_fees()
+		));
+
+		// Set default insurance fund
+		assert_ok!(TradingAccounts::set_default_insurance_fund(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+		));
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) == FixedI128::zero(),
+			"Invalid balance for default insurance balance"
+		);
+
+		////////////////////////////
+		// Default: BTC-USDC Open //
+		////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			1.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_1 = alice_fees_1 + bob_fees_1;
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_1,
+			"Invalid balance for default insurance balance"
+		);
+
+		/////////////////////////////
+		// Default: BTC-USDC Close //
+		/////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(203.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_side(Side::Sell)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(204.into(), bob_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			2.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_2 =
+			expected_default_insurance_fund_balance_1 + alice_fees_2 + bob_fees_2;
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_2,
+			"Invalid balance for default insurance balance"
+		);
+
+		////////////////////////////
+		// Default: ETH-USDC Open //
+		////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			3.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_3 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_3 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_3 =
+			expected_default_insurance_fund_balance_2 + alice_fees_3 + bob_fees_3;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_3,
+			"Invalid balance for default insurance balance"
+		);
+
+		/////////////////////////////
+		// Default: ETH-USDC Close //
+		/////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(207.into(), alice_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_side(Side::Sell)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(208.into(), bob_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_side(Side::Sell)
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			4.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_4 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_4 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_4 =
+			expected_default_insurance_fund_balance_3 + alice_fees_4 + bob_fees_4;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_4,
+			"Invalid balance for default insurance balance"
+		);
+
+		/////////////////////////////
+		// Isolated: BTC-USDC Open //
+		/////////////////////////////
+
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+			btc_insurnace_fund,
+			btc_fee_split
+		));
+
+		// Create orders
+		let alice_order = Order::new(209.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(210.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			5.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_1 = alice_fees_1 * (FixedI128::one() - btc_fee_split);
+		let bob_fees_1 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_1 = bob_fees_1 * (FixedI128::one() - btc_fee_split);
+
+		let expected_btc_insurance_fund_balance_1 =
+			alice_fees_contribution_1 + bob_fees_contribution_1;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund) ==
+				expected_btc_insurance_fund_balance_1,
+			"Invalid balance for btc insurance balance"
+		);
+
+		/////////////////////////////
+		// Isolated: BTC-USDC Close //
+		/////////////////////////////
+
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_market_id,
+			btc_insurnace_fund,
+			btc_fee_split
+		));
+
+		// Create orders
+		let alice_order = Order::new(211.into(), alice_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(212.into(), bob_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			6.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			btc_market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_2 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_2 = alice_fees_2 * (FixedI128::one() - btc_fee_split);
+		let bob_fees_2: FixedI128 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_2 = bob_fees_2 * (FixedI128::one() - btc_fee_split);
+
+		let expected_btc_insurance_fund_balance_2 = expected_btc_insurance_fund_balance_1 +
+			alice_fees_contribution_2 +
+			bob_fees_contribution_2;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(btc_insurnace_fund) ==
+				expected_btc_insurance_fund_balance_2,
+			"Invalid balance for btc insurance balance"
+		);
+
+		////////////////////////////
+		// Default: ETH-USDC Open //
+		////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(213.into(), alice_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(214.into(), bob_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			7.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_5 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_5 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_5 =
+			expected_default_insurance_fund_balance_4 + alice_fees_5 + bob_fees_5;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_5,
+			"Invalid balance for default insurance balance"
+		);
+
+		/////////////////////////////
+		// Default: ETH-USDC Close //
+		/////////////////////////////
+
+		// Create orders
+		let alice_order = Order::new(215.into(), alice_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(101.0))
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(216.into(), bob_id)
+			.set_side(Side::Sell)
+			.set_price(FixedI128::from_float(101.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			8.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_6 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_6 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+
+		let expected_default_insurance_fund_balance_6 =
+			expected_default_insurance_fund_balance_5 + alice_fees_6 + bob_fees_6;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+				expected_default_insurance_fund_balance_6,
+			"Invalid balance for default insurance balance"
+		);
+
+		/////////////////////////////
+		// Isolated: ETH-USDC Open //
+		/////////////////////////////
+
+		// Set insurance fund for ETH
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id,
+			eth_insurnace_fund,
+			eth_fee_split
+		));
+
+		// Create orders
+		let alice_order = Order::new(217.into(), alice_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(218.into(), bob_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			9.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_1 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_1 = alice_fees_1 * (FixedI128::one() - eth_fee_split);
+		let bob_fees_1 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_1 = bob_fees_1 * (FixedI128::one() - eth_fee_split);
+
+		let expected_eth_insurance_fund_balance_1 =
+			alice_fees_contribution_1 + bob_fees_contribution_1;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(eth_insurnace_fund) ==
+				expected_eth_insurance_fund_balance_1,
+			"Invalid balance for eth insurance balance"
+		);
+
+		//////////////////////////////
+		// Isolated: ETH-USDC Close //
+		//////////////////////////////
+
+		// Set insurance fund for ETH
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_market_id,
+			eth_insurnace_fund,
+			eth_fee_split
+		));
+
+		// Create orders
+		let alice_order = Order::new(219.into(), alice_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(220.into(), bob_id)
+			.set_price(FixedI128::from_float(101.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.set_market_id(eth_market_id)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			10.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			eth_market_id,
+			// oracle_price
+			101.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let alice_fees_2 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let alice_fees_contribution_2 = alice_fees_2 * (FixedI128::one() - eth_fee_split);
+		let bob_fees_2 = FixedI128::from_float(101.0) * FixedI128::from_float(0.001);
+		let bob_fees_contribution_2 = bob_fees_2 * (FixedI128::one() - eth_fee_split);
+
+		let expected_eth_insurance_fund_balance_2 = expected_eth_insurance_fund_balance_1 +
+			alice_fees_contribution_2 +
+			bob_fees_contribution_2;
+
+		// balance check
+		assert!(
+			TradingAccounts::insurance_fund_balance(eth_insurnace_fund) ==
+				expected_eth_insurance_fund_balance_2,
+			"Invalid balance for eth insurance balance"
 		);
 	});
 }
