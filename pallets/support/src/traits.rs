@@ -127,6 +127,7 @@ pub trait TradingInterface {
 		collateral_id: u128,
 		volume: FixedI128,
 	) -> FeeRates;
+	fn get_no_of_delisted_market_positions(market_id: u128) -> u32;
 }
 
 pub trait AssetInterface {
