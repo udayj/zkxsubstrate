@@ -1190,10 +1190,10 @@ pub mod pallet {
 			let mut current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
 			let mut positions_close_count = POSITIONS_CLOSE_COUNT;
-			let long_user_length =
+			let long_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count();
 
-			if long_user_length != 0 {
+			if long_users_count != 0 {
 				// Iterate through all long users who have open positions in a delisted market
 				for long_user in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
@@ -1234,10 +1234,10 @@ pub mod pallet {
 				}
 			}
 
-			let short_user_length =
+			let short_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count();
 
-			if short_user_length != 0 && positions_close_count != 0 {
+			if short_users_count != 0 && positions_close_count != 0 {
 				// Iterate through all short users who have open positions in a delisted market
 				for short_user in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
@@ -2718,13 +2718,13 @@ pub mod pallet {
 		}
 
 		fn get_no_of_delisted_market_positions(market_id: u128) -> u32 {
-			let long_user_length =
+			let long_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count()
 					as u32;
-			let short_user_length =
+			let short_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count()
 					as u32;
-			return long_user_length + short_user_length;
+			return long_users_count + short_users_count;
 		}
 	}
 
