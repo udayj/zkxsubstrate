@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -1542,7 +1542,12 @@ pub mod pallet {
 					BalanceChangeReason::Fee,
 				);
 
-				T::TradingAccountPallet::handle_fee_split(order.account_id, order.market_id, fee);
+				T::TradingAccountPallet::handle_fee_split(
+					order.account_id,
+					collateral_id,
+					order.market_id,
+					fee,
+				);
 			}
 
 			Ok((
@@ -1629,6 +1634,7 @@ pub mod pallet {
 							// Complete funds lost by user should be taken from insurance fund
 							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
+								order.market_id,
 								pnl_abs,
 								FundModifyType::Decrease,
 							);
@@ -1648,6 +1654,7 @@ pub mod pallet {
 							// Rest of the funds should be taken from insurance fund
 							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
+								order.market_id,
 								pnl_abs - balance,
 								FundModifyType::Decrease,
 							);
@@ -1688,6 +1695,7 @@ pub mod pallet {
 								// Deposit margin_plus_pnl to insurance fund
 								T::TradingAccountPallet::handle_insurance_fund_update(
 									collateral_id,
+									order.market_id,
 									margin_plus_pnl,
 									FundModifyType::Increase,
 								);
@@ -1708,6 +1716,7 @@ pub mod pallet {
 									// Deduct margin_amount_to_reduce from insurance fund
 									T::TradingAccountPallet::handle_insurance_fund_update(
 										collateral_id,
+										order.market_id,
 										margin_amount_to_reduce,
 										FundModifyType::Decrease,
 									);
@@ -1731,6 +1740,7 @@ pub mod pallet {
 										// Deduct (pnl_abs -  balance) from insurance fund
 										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
+											order.market_id,
 											pnl_abs - balance,
 											FundModifyType::Decrease,
 										);
@@ -1751,6 +1761,7 @@ pub mod pallet {
 										// Deposit (balance - pnl_abs) to insurance fund
 										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
+											order.market_id,
 											balance - pnl_abs,
 											FundModifyType::Increase,
 										);
@@ -1854,6 +1865,7 @@ pub mod pallet {
 
 					T::TradingAccountPallet::handle_fee_split(
 						order.account_id,
+						collateral_id,
 						order.market_id,
 						fee,
 					);

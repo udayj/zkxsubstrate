@@ -3144,9 +3144,9 @@ fn test_insurance_fund_replacement() {
 	let collateral_id = usdc().asset.id;
 
 	// Insurance funds
-	let btc_insurnace_fund_1: U256 = 2.into();
+	let btc_insurance_fund_1: U256 = 2.into();
 	let btc_fee_split_1 = FixedI128::from_float(0.1_f64);
-	let btc_insurnace_fund_2: U256 = 3.into();
+	let btc_insurance_fund_2: U256 = 3.into();
 	let btc_fee_split_2 = FixedI128::from_float(0.8_f64);
 
 	env.execute_with(|| {
@@ -3165,13 +3165,13 @@ fn test_insurance_fund_replacement() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_market_id,
-			btc_insurnace_fund_1,
+			btc_insurance_fund_1,
 			btc_fee_split_1
 		));
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) == FixedI128::zero(),
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) == FixedI128::zero(),
 			"Invalid balance for isolated insurance balance 1 before trade"
 		);
 
@@ -3210,7 +3210,7 @@ fn test_insurance_fund_replacement() {
 			alice_fees_contribution_1 + bob_fees_contribution_1;
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) ==
 				expected_btc_insurance_fund_balance_1,
 			"Invalid balance for isolated insurance balance 1 after trade"
 		);
@@ -3257,7 +3257,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_1) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) ==
 				expected_btc_insurance_fund_balance_2,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3270,13 +3270,13 @@ fn test_insurance_fund_replacement() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_market_id,
-			btc_insurnace_fund_2,
+			btc_insurance_fund_2,
 			btc_fee_split_2
 		));
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) == FixedI128::zero(),
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) == FixedI128::zero(),
 			"Invalid balance for isolated insurance balance 2 before trade"
 		);
 
@@ -3316,7 +3316,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) ==
 				expected_default_insurance_fund_balance_1,
 			"Invalid balance for isolated insurance balance 2 after trade"
 		);
@@ -3362,7 +3362,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund_2) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) ==
 				expected_default_insurance_fund_balance_2,
 			"Invalid balance for isolated insurance balance 2 after trade"
 		);
@@ -3386,9 +3386,9 @@ fn test_insurance_fund_update() {
 
 	// Insurance funds
 	let default_insurance_fund: U256 = 1.into();
-	let btc_insurnace_fund: U256 = 2.into();
+	let btc_insurance_fund: U256 = 2.into();
 	let btc_fee_split = FixedI128::from_float(0.1_f64);
-	let eth_insurnace_fund: U256 = 3.into();
+	let eth_insurance_fund: U256 = 3.into();
 	let eth_fee_split = FixedI128::from_float(0.5_f64);
 
 	env.execute_with(|| {
@@ -3596,7 +3596,7 @@ fn test_insurance_fund_update() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_market_id,
-			btc_insurnace_fund,
+			btc_insurance_fund,
 			btc_fee_split
 		));
 
@@ -3636,7 +3636,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund) ==
 				expected_btc_insurance_fund_balance_1,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3649,7 +3649,7 @@ fn test_insurance_fund_update() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_market_id,
-			btc_insurnace_fund,
+			btc_insurance_fund,
 			btc_fee_split
 		));
 
@@ -3692,7 +3692,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurnace_fund) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund) ==
 				expected_btc_insurance_fund_balance_2,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3797,7 +3797,7 @@ fn test_insurance_fund_update() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_market_id,
-			eth_insurnace_fund,
+			eth_insurance_fund,
 			eth_fee_split
 		));
 
@@ -3839,7 +3839,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(eth_insurnace_fund) ==
+			TradingAccounts::insurance_fund_balance(eth_insurance_fund) ==
 				expected_eth_insurance_fund_balance_1,
 			"Invalid balance for eth insurance balance"
 		);
@@ -3852,7 +3852,7 @@ fn test_insurance_fund_update() {
 		assert_ok!(TradingAccounts::update_fee_split_details(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_market_id,
-			eth_insurnace_fund,
+			eth_insurance_fund,
 			eth_fee_split
 		));
 
@@ -3895,7 +3895,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(eth_insurnace_fund) ==
+			TradingAccounts::insurance_fund_balance(eth_insurance_fund) ==
 				expected_eth_insurance_fund_balance_2,
 			"Invalid balance for eth insurance balance"
 		);

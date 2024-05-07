@@ -10,10 +10,10 @@ use pallet_support::{
 	traits::{FieldElementExt, TradingAccountInterface, TradingFeesInterface, TradingInterface},
 	types::{
 		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
-		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, MarketRemoved, MarketUpdated,
-		MarketUpdatedV2, MasterAccountLevelChanged, OrderSide, QuorumSet, ReferralDetails,
-		ReferralDetailsAdded, SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, InsuranceFundDeposited,
+		MarketRemoved, MarketUpdated, MarketUpdatedV2, MasterAccountLevelChanged, OrderSide,
+		QuorumSet, ReferralDetails, ReferralDetailsAdded, SettingsAdded, Side, SignerAdded,
+		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -1345,6 +1345,131 @@ fn sync_master_level_changed_event() {
 		System::assert_has_event(
 			TradingAccountEvents::MasterAccountLevelChanged { master_account_address, level }
 				.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_insurance_fund_updated_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let insurance_fund: U256 = 2.into();
+
+	// Batch 1
+	let mut events_batch_1: Vec<UniversalEvent> =
+		<Vec<UniversalEvent> as UniversalEventArray>::new();
+	let insurance_fund_deposited_1 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
+		1,
+		insurance_fund,
+		FixedI128::from_u32(100000),
+		1337,
+	);
+	events_batch_1.add_insurance_fund_deposited(insurance_fund_deposited_1);
+	let events_batch_hash_1 = events_batch_1.compute_hash();
+
+	let mut signature_array_1 = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array_1.add_new_signature(
+		events_batch_hash_1,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	// Batch 2
+	let mut events_batch_2: Vec<UniversalEvent> =
+		<Vec<UniversalEvent> as UniversalEventArray>::new();
+	let insurance_fund_deposited_2 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
+		1,
+		insurance_fund,
+		FixedI128::from_u32(50),
+		1337,
+	);
+	events_batch_2.add_insurance_fund_deposited(insurance_fund_deposited_2);
+	let events_batch_hash_2 = events_batch_2.compute_hash();
+
+	let mut signature_array_2 = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array_2.add_new_signature(
+		events_batch_hash_2,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		let balance_before_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		assert!(balance_before_sync_1 == FixedI128::zero(), "invalid insurance fund balance");
+
+		// synchronize the events batch 1
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch_1,
+			signature_array_1,
+		)
+		.expect("error while updating insurance fund balance");
+
+		let balance_after_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		assert!(
+			balance_after_sync_1 == FixedI128::from_u32(100000),
+			"invalid insurance fund balance"
+		);
+
+		// synchronize the events batch 2
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch_2,
+			signature_array_2,
+		)
+		.expect("error while updating insurance fund balance");
+
+		let balance_after_sync_2 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		assert!(
+			balance_after_sync_2 == FixedI128::from_u32(100050),
+			"invalid insurance fund balance"
+		);
+	});
+}
+
+#[test]
+fn sync_insurance_fund_updated_event_invalid_data() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let insurance_fund: U256 = 0.into();
+
+	// Batch 1
+	let mut events_batch_1: Vec<UniversalEvent> =
+		<Vec<UniversalEvent> as UniversalEventArray>::new();
+	let insurance_fund_deposited_1 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
+		1,
+		insurance_fund,
+		FixedI128::from_u32(1),
+		1337,
+	);
+	events_batch_1.add_insurance_fund_deposited(insurance_fund_deposited_1);
+	let events_batch_hash_1 = events_batch_1.compute_hash();
+
+	let mut signature_array_1 = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array_1.add_new_signature(
+		events_batch_hash_1,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		let balance_before_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		assert!(balance_before_sync_1 == FixedI128::zero(), "invalid insurance fund balance");
+
+		// synchronize the events batch 1
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch_1,
+			signature_array_1,
+		)
+		.expect("error while updating insurance fund balance");
+
+		System::assert_has_event(
+			Event::InvalidInsuranceData { event_index: 1, block_number: 1337 }.into(),
 		);
 	});
 }

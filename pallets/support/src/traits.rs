@@ -1,10 +1,11 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
 	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, FeeShareDetails,
-	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	MarketUpdatedV2, MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended,
-	QuorumSet, ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
-	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
+	ForceClosureFlag, FundModifyType, HashType, InsuranceFundDeposited, MarginInfo, Market,
+	MarketRemoved, MarketUpdated, MarketUpdatedV2, MasterAccountLevelChanged, Order, OrderSide,
+	Position, PositionExtended, QuorumSet, ReferralDetails, ReferralDetailsAdded, Setting,
+	SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal,
+	UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -89,8 +90,9 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		current_fee_share: FixedI128,
 	);
-	fn handle_fee_split(account_id: U256, market_id: u128, amount: FixedI128);
+	fn handle_fee_split(account_id: U256, collateral_id: u128, market_id: u128, amount: FixedI128);
 	fn handle_insurance_fund_update(
+		collateral_id: u128,
 		market_id: u128,
 		amount: FixedI128,
 		modify_type: FundModifyType,
@@ -101,6 +103,7 @@ pub trait TradingAccountInterface {
 		fee_split: FixedI128,
 	);
 	fn get_fee_split_details(market_id: u128) -> (U256, FixedI128);
+	fn update_insurance_fund_balance_internal(insurance_fund: U256, amount: FixedI128);
 }
 
 pub trait TradingInterface {
@@ -297,6 +300,10 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_market_updated_v2_event(
 		&mut self,
 		market_updated_v2_event: &MarketUpdatedV2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited: &InsuranceFundDeposited,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
