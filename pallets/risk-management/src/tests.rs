@@ -11,7 +11,7 @@ use pallet_support::{
 	},
 	types::{
 		BalanceUpdate, BaseFee, BaseFeeAggregate, Direction, FundModifyType, MultiplePrices, Order,
-		OrderType, Position, Side,
+		OrderType, Position, Side, TradingAccount,
 	},
 };
 use pallet_trading::Event as TradingEvent;
@@ -63,16 +63,30 @@ fn setup() -> sp_io::TestExternalities {
 		// Add liquidator
 		Trading::add_liquidator_signer(RuntimeOrigin::root(), eduard().pub_key)
 			.expect("error while adding signer");
+
+		// Set default insurance fund
+		assert_ok!(TradingAccounts::set_default_insurance_fund(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(1_u8)
+		));
 	});
 
 	env
 }
 
 #[test]
-fn test_liquidation() {
+fn test_liquidation_default_insurance_fund() {
 	let mut env = setup();
+	let default_insurance_fund = U256::from(1_u8);
 
 	env.execute_with(|| {
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccounts::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			FixedI128::from_u32(1000000),
+		));
+
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -138,6 +152,9 @@ fn test_liquidation() {
 			.set_side(Side::Sell)
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
+		let insurance_fund_balance_before =
+			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
@@ -153,6 +170,14 @@ fn test_liquidation() {
 			// batch_timestamp
 			1699940278000,
 		));
+
+		let insurance_fund_balance_after =
+			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+		assert!(
+			insurance_fund_balance_after ==
+				insurance_fund_balance_before - FixedI128::from_u32(15000),
+			"Invalid balance of insurance fund"
+		);
 
 		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
 
@@ -174,8 +199,161 @@ fn test_liquidation() {
 		assert_eq!(flag.is_none(), true);
 
 		assert_has_events(vec![
-			Event::InsuranceFundChange {
-				collateral_id: 1431520323,
+			Event::InsuranceFundChangeV2 {
+				market_id,
+				amount: FixedI128::from_u32(15000),
+				modify_type: FundModifyType::Decrease,
+				block_number: 1,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id,
+				amount: FixedI128::from_inner(-15000000000000000000000),
+				block_number: 1,
+			}
+			.into(),
+		]);
+	});
+}
+
+#[test]
+fn test_liquidation_isolated_insurance_fund() {
+	let mut env = setup();
+	let market_id = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccounts::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			FixedI128::from_u32(1000000),
+		));
+
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_size(5.into())
+			.set_leverage(5.into())
+			.set_price(10000.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_size(5.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(5.into())
+			.set_price(10000.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(1_u8),
+			// size
+			5.into(),
+			// market
+			market_id,
+			// price
+			10000.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		// Decrease the price of the asset
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 5000.into(), mark_price: 5000.into() };
+		index_prices.push(index_price1);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
+
+		// Place Forced order for liquidation
+		let charlie_order = Order::new(204.into(), charlie_id)
+			.set_size(5.into())
+			.set_price(5000.into())
+			.set_leverage(5.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let alice_forced_order = Order::new(203.into(), alice_id)
+			.set_size(5.into())
+			.set_price(5000.into())
+			.set_order_type(OrderType::Forced)
+			.set_direction(Direction::Long)
+			.set_side(Side::Sell)
+			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
+
+		let insurance_fund_balance_before =
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(2_u8),
+			// size
+			5.into(),
+			// market
+			market_id,
+			// price
+			5000.into(),
+			// orders
+			vec![charlie_order, alice_forced_order],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		let insurance_fund_balance_after =
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+		assert!(
+			insurance_fund_balance_after ==
+				insurance_fund_balance_before - FixedI128::from_u32(15000),
+			"Invalid balance of insurance fund"
+		);
+
+		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
+
+		let expected_position: Position = Position {
+			market_id: 0,
+			avg_execution_price: 0.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_none(), true);
+
+		assert_has_events(vec![
+			Event::InsuranceFundChangeV2 {
+				market_id,
 				amount: FixedI128::from_u32(15000),
 				modify_type: FundModifyType::Decrease,
 				block_number: 1,
@@ -805,10 +983,18 @@ fn test_liquidation_multiple_positions() {
 }
 
 #[test]
-fn test_liquidation_on_time() {
+fn test_liquidation_on_time_default_insurance_fund() {
 	let mut env = setup();
+	let default_insurance_fund = U256::from(1_u8);
 
 	env.execute_with(|| {
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccounts::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			FixedI128::from_u32(1000000),
+		));
+
 		// Generate account_ids
 		let alice_id: U256 = get_trading_account_id(alice());
 		let bob_id: U256 = get_trading_account_id(bob());
@@ -831,6 +1017,9 @@ fn test_liquidation_on_time() {
 			.set_leverage(5.into())
 			.set_price(10000.into())
 			.sign_order(get_private_key(bob().pub_key));
+
+		let insurance_fund_balance_before =
+			TradingAccounts::insurance_fund_balance(default_insurance_fund);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -890,6 +1079,14 @@ fn test_liquidation_on_time() {
 			1699940278000,
 		));
 
+		let insurance_fund_balance_after =
+			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+		assert!(
+			insurance_fund_balance_after ==
+				insurance_fund_balance_before + FixedI128::from_u32(1000),
+			"Invalid balance of insurance fund"
+		);
+
 		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
 
 		let expected_position: Position = Position {
@@ -910,9 +1107,9 @@ fn test_liquidation_on_time() {
 		assert_eq!(flag.is_none(), true);
 
 		assert_has_events(vec![
-			Event::InsuranceFundChange {
-				collateral_id: 1431520323,
-				amount: FixedI128::from_u32(1000),
+			Event::InsuranceFundChangeV2 {
+				market_id,
+				amount: FixedI128::from_float(1000.0),
 				modify_type: FundModifyType::Increase,
 				block_number: 1,
 			}
@@ -921,7 +1118,160 @@ fn test_liquidation_on_time() {
 				account_id: alice_id,
 				order_id: U256::from(203),
 				market_id,
-				amount: FixedI128::from_inner(1000000000000000000000),
+				amount: FixedI128::from_float(1000.0),
+				block_number: 1,
+			}
+			.into(),
+		]);
+	});
+}
+
+#[test]
+fn test_liquidation_on_time_isolated_insurance_fund() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccounts::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccounts::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			FixedI128::from_u32(1000000),
+		));
+
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+		let charlie_id: U256 = get_trading_account_id(charlie());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_size(5.into())
+			.set_leverage(5.into())
+			.set_price(10000.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_size(5.into())
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.set_leverage(5.into())
+			.set_price(10000.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		let insurance_fund_balance_before =
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(1_u8),
+			// size
+			5.into(),
+			// market
+			market_id,
+			// price
+			10000.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		// Decrease the price of the asset
+		let mut index_prices: Vec<MultiplePrices> = Vec::new();
+		let index_price1 =
+			MultiplePrices { market_id, index_price: 8200.into(), mark_price: 8200.into() };
+		index_prices.push(index_price1);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			index_prices,
+			1699940278000
+		));
+
+		// Place Forced order for liquidation
+		let charlie_order = Order::new(204.into(), charlie_id)
+			.set_size(5.into())
+			.set_price(8200.into())
+			.set_leverage(5.into())
+			.sign_order(get_private_key(charlie().pub_key));
+
+		let alice_forced_order = Order::new(203.into(), alice_id)
+			.set_size(5.into())
+			.set_price(8200.into())
+			.set_order_type(OrderType::Forced)
+			.set_direction(Direction::Long)
+			.set_side(Side::Sell)
+			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch id
+			U256::from(2_u8),
+			// size
+			5.into(),
+			// market
+			market_id,
+			// price
+			8200.into(),
+			// orders
+			vec![charlie_order, alice_forced_order],
+			// batch_timestamp
+			1699940278000,
+		));
+
+		let insurance_fund_balance_after =
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+		assert!(
+			insurance_fund_balance_after ==
+				insurance_fund_balance_before + FixedI128::from_u32(1000),
+			"Invalid balance of insurance fund"
+		);
+
+		let alice_position = Trading::positions(alice_id, (market_id, alice_order.direction));
+
+		let expected_position: Position = Position {
+			market_id: 0,
+			avg_execution_price: 0.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		let flag = Trading::force_closure_flag(alice_id, btc_usdc().market.asset_collateral);
+		assert_eq!(flag.is_none(), true);
+
+		assert_has_events(vec![
+			Event::InsuranceFundChangeV2 {
+				market_id,
+				amount: FixedI128::from_float(1000.0),
+				modify_type: FundModifyType::Increase,
+				block_number: 1,
+			}
+			.into(),
+			TradingEvent::LiquidationPNL {
+				account_id: alice_id,
+				order_id: U256::from(203),
+				market_id,
+				amount: FixedI128::from_float(1000.0),
 				block_number: 1,
 			}
 			.into(),

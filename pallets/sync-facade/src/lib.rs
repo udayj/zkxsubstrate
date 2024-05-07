@@ -5,8 +5,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -24,8 +24,8 @@ pub mod pallet {
 		},
 		types::{
 			ABRSettingsType, BaseFee, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
-			FeeSettingsType, FeeShareDetails, FeeShareSettingsType, ReferralDetails, Setting,
-			SettingsType, SyncSignature, UniversalEvent,
+			FeeSettingsType, FeeShareDetails, FeeShareSettingsType, InsuranceFundDeposited,
+			ReferralDetails, Setting, SettingsType, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
@@ -170,6 +170,8 @@ pub mod pallet {
 		DeprecatedEvent { event_index: u32, block_number: u64 },
 		/// An invalid fee split data associated with update market event
 		InvalidFeeSplitData { event_index: u32, block_number: u64 },
+		/// An invalid insurance fund event data
+		InvalidInsuranceData { event_index: u32, block_number: u64 },
 	}
 
 	#[pallet::error]
@@ -1001,6 +1003,18 @@ pub mod pallet {
 							},
 						}
 					},
+					UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited) =>
+						if insurance_fund_deposited.insurance_fund > U256::zero() {
+							T::TradingAccountPallet::update_insurance_fund_balance_internal(
+								insurance_fund_deposited.insurance_fund,
+								insurance_fund_deposited.amount,
+							);
+						} else {
+							Self::deposit_event(Event::InvalidInsuranceData {
+								event_index: insurance_fund_deposited.event_index,
+								block_number: insurance_fund_deposited.block_number,
+							});
+						},
 				}
 			}
 		}
@@ -1087,6 +1101,8 @@ pub mod pallet {
 					(account_level_updated.block_number, account_level_updated.event_index),
 				UniversalEvent::MarketUpdatedV2(market_updated_v2) =>
 					(market_updated_v2.block_number, market_updated_v2.event_index),
+				UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited) =>
+					(insurance_fund_deposited.block_number, insurance_fund_deposited.event_index),
 			}
 		}
 	}

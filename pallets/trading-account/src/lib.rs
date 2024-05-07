@@ -328,6 +328,12 @@ pub mod pallet {
 			modify_type: FundModifyType,
 			block_number: BlockNumberFor<T>,
 		},
+		FeeShareTransferV2 {
+			master_account_address: U256,
+			market_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
 	}
 
 	#[pallet::call]
@@ -405,6 +411,23 @@ pub mod pallet {
 
 			DefaultInsuranceFund::<T>::set(Some(insurance_fund));
 
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
+		/// To test setting of default insurance funds
+		#[pallet::weight(0)]
+		pub fn update_insurance_fund_balance(
+			origin: OriginFor<T>,
+			insurance_fund: U256,
+			amount: FixedI128,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			Self::update_insurance_fund_balance_internal(insurance_fund, amount);
 			Ok(())
 		}
 
@@ -1201,11 +1224,12 @@ pub mod pallet {
 			} else if current_balance.is_negative() {
 				let absolute_amount = min(-current_balance, amount);
 
-				Self::handle_insurance_fund_update(
-					collateral_id,
-					absolute_amount,
-					FundModifyType::Increase.into(),
-				);
+				// TODO_IMP(merkle-groot)
+				// Self::handle_insurance_fund_update(
+				// 	collateral_id,
+				// 	absolute_amount,
+				// 	FundModifyType::Increase.into(),
+				// );
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;
@@ -1229,11 +1253,20 @@ pub mod pallet {
 			});
 		}
 
-		fn handle_fee_split(account_id: U256, market_id: u128, amount: FixedI128) {
+		fn handle_fee_split(
+			account_id: U256,
+			collateral_id: u128,
+			market_id: u128,
+			amount: FixedI128,
+		) {
 			// Get the insurance fund and fee split details
+			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+
 			let (insurance_fund, fee_split) = Self::get_fee_split_details(market_id);
 			let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(insurance_fund);
-			let revenue_amount = amount * fee_split;
+			let revenue_amount =
+				(amount * fee_split).round_to_precision(collateral_token_decimal.into());
 			let remaining_amount = amount - revenue_amount;
 
 			// Increment the local balance of insurance fund
@@ -1257,28 +1290,33 @@ pub mod pallet {
 		}
 
 		fn handle_insurance_fund_update(
+			collateral_id: u128,
 			market_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
 		) {
 			// Get the insurance fund and update the value
+			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+			let rounded_amount = amount.round_to_precision(collateral_token_decimal.into());
+
 			let (insurance_fund, _) = Self::get_fee_split_details(market_id);
 			let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(insurance_fund);
 
 			match modify_type {
 				FundModifyType::Increase => InsuranceFundBalances::<T>::set(
 					insurance_fund,
-					current_insurance_fund_balance + amount,
+					current_insurance_fund_balance + rounded_amount,
 				),
 				FundModifyType::Decrease => InsuranceFundBalances::<T>::set(
 					insurance_fund,
-					current_insurance_fund_balance - amount,
+					current_insurance_fund_balance - rounded_amount,
 				),
 			}
 
 			Self::deposit_event(Event::InsuranceFundChangeV2 {
 				market_id,
-				amount,
+				amount: rounded_amount,
 				modify_type,
 				block_number: <frame_system::Pallet<T>>::block_number(),
 			});
@@ -1604,6 +1642,11 @@ pub mod pallet {
 
 		fn update_master_account_level_internal(master_account_address: U256, level: u8) {
 			Self::modify_master_account_level(master_account_address, level);
+		}
+
+		fn update_insurance_fund_balance_internal(insurance_fund: U256, amount: FixedI128) {
+			let current_balance = InsuranceFundBalances::<T>::get(insurance_fund);
+			InsuranceFundBalances::<T>::set(insurance_fund, current_balance + amount)
 		}
 
 		fn get_fee_discount(trading_account_id: U256) -> FixedI128 {

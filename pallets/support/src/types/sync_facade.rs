@@ -32,6 +32,7 @@ pub enum UniversalEvent {
 	ReferralDetailsAdded(ReferralDetailsAdded),
 	MasterAccountLevelChanged(MasterAccountLevelChanged),
 	MarketUpdatedV2(MarketUpdatedV2),
+	InsuranceFundDeposited(InsuranceFundDeposited),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -121,6 +122,14 @@ pub struct MasterAccountLevelChanged {
 	pub event_index: u32,
 	pub master_account_address: U256,
 	pub level: u8,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct InsuranceFundDeposited {
+	pub event_index: u32,
+	pub insurance_fund: U256,
+	pub amount: FixedI128,
 	pub block_number: u64,
 }
 

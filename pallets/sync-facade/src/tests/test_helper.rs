@@ -5,10 +5,10 @@ use pallet_support::{
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
 		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate,
-		FeeShareDetails, Market, MarketRemoved, MarketUpdated, MarketUpdatedV2,
-		MasterAccountLevelChanged, QuorumSet, ReferralDetailsAdded, Setting, SettingsAdded,
-		SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent,
-		UserDeposit,
+		FeeShareDetails, InsuranceFundDeposited, Market, MarketRemoved, MarketUpdated,
+		MarketUpdatedV2, MasterAccountLevelChanged, QuorumSet, ReferralDetailsAdded, Setting,
+		SettingsAdded, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -119,6 +119,15 @@ pub trait MasterAccountLevelChangedTrait {
 	) -> MasterAccountLevelChanged;
 }
 
+pub trait InsuranceFundDepositedTrait {
+	fn new(
+		event_index: u32,
+		insurance_fund: U256,
+		amount: FixedI128,
+		block_number: u64,
+	) -> InsuranceFundDeposited;
+}
+
 impl MarketUpdatedTrait for MarketUpdated {
 	fn new(
 		event_index: u32,
@@ -154,6 +163,17 @@ impl AssetUpdatedTrait for AssetUpdated {
 		block_number: u64,
 	) -> AssetUpdated {
 		AssetUpdated { event_index, id, asset, asset_addresses, metadata_url, block_number }
+	}
+}
+
+impl InsuranceFundDepositedTrait for InsuranceFundDeposited {
+	fn new(
+		event_index: u32,
+		insurance_fund: U256,
+		amount: FixedI128,
+		block_number: u64,
+	) -> InsuranceFundDeposited {
+		InsuranceFundDeposited { event_index, insurance_fund, amount, block_number }
 	}
 }
 
@@ -677,6 +697,10 @@ pub trait UniversalEventArray {
 		&mut self,
 		master_level_changed_event: MasterAccountLevelChanged,
 	);
+	fn add_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited_event: InsuranceFundDeposited,
+	);
 	fn compute_hash(&self) -> FieldElement;
 }
 
@@ -764,6 +788,13 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		master_level_changed_event: MasterAccountLevelChanged,
 	) {
 		self.push(UniversalEvent::MasterAccountLevelChanged(master_level_changed_event));
+	}
+
+	fn add_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited_event: InsuranceFundDeposited,
+	) {
+		self.push(UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited_event));
 	}
 
 	fn compute_hash(&self) -> FieldElement {
