@@ -63,6 +63,17 @@ pub struct WithdrawalRequest {
 	pub hash_type: HashType,
 }
 
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct InsuranceWithdrawalRequest {
+	pub insurance_fund: U256,
+	pub collateral_id: u128,
+	pub amount: FixedI128,
+	pub timestamp: u64,
+	pub sig_r: U256,
+	pub sig_s: U256,
+	pub hash_type: HashType,
+}
+
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
 )]
@@ -91,6 +102,30 @@ impl TradingAccount {
 			pub_key: self.pub_key,
 			index: self.index,
 		}
+	}
+}
+
+impl Hashable for InsuranceWithdrawalRequest {
+	// No error apart from error during conversion from U256 to FieldElement should happen
+	// Hence associated type is defined to be exactly that error i.e.
+	// starknet_ff::FromByteSliceError
+	type ConversionError = FromByteSliceError;
+
+	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
+		let (insurance_fund_low, insurance_fund_high) = convert_to_u128_pair(self.insurance_fund)?;
+		let mut elements = Vec::<FieldElement>::new();
+		elements.push(insurance_fund_low);
+		elements.push(insurance_fund_high);
+		elements.push(FieldElement::from(self.collateral_id));
+		elements.push(self.amount.to_u256().try_to_felt()?);
+		elements.push(FieldElement::from(self.timestamp));
+
+		let result = match hash_type {
+			HashType::Pedersen => compute_hash_on_elements(&elements),
+			HashType::Poseidon => poseidon_hash_many(&elements),
+		};
+
+		Ok(result)
 	}
 }
 

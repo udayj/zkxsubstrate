@@ -1356,6 +1356,7 @@ fn sync_insurance_fund_updated_event() {
 
 	// Referral Details
 	let insurance_fund: U256 = 2.into();
+	let collateral_id = usdc().asset.id;
 
 	// Batch 1
 	let mut events_batch_1: Vec<UniversalEvent> =
@@ -1363,6 +1364,7 @@ fn sync_insurance_fund_updated_event() {
 	let insurance_fund_deposited_1 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
 		1,
 		insurance_fund,
+		collateral_id,
 		FixedI128::from_u32(100000),
 		1337,
 	);
@@ -1382,6 +1384,7 @@ fn sync_insurance_fund_updated_event() {
 	let insurance_fund_deposited_2 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
 		1,
 		insurance_fund,
+		collateral_id,
 		FixedI128::from_u32(50),
 		1337,
 	);
@@ -1396,7 +1399,8 @@ fn sync_insurance_fund_updated_event() {
 	);
 
 	env.execute_with(|| {
-		let balance_before_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		let balance_before_sync_1 =
+			TradingAccounts::insurance_fund_balance(insurance_fund, collateral_id);
 		assert!(balance_before_sync_1 == FixedI128::zero(), "invalid insurance fund balance");
 
 		// synchronize the events batch 1
@@ -1407,7 +1411,8 @@ fn sync_insurance_fund_updated_event() {
 		)
 		.expect("error while updating insurance fund balance");
 
-		let balance_after_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		let balance_after_sync_1 =
+			TradingAccounts::insurance_fund_balance(insurance_fund, collateral_id);
 		assert!(
 			balance_after_sync_1 == FixedI128::from_u32(100000),
 			"invalid insurance fund balance"
@@ -1421,7 +1426,8 @@ fn sync_insurance_fund_updated_event() {
 		)
 		.expect("error while updating insurance fund balance");
 
-		let balance_after_sync_2 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		let balance_after_sync_2 =
+			TradingAccounts::insurance_fund_balance(insurance_fund, collateral_id);
 		assert!(
 			balance_after_sync_2 == FixedI128::from_u32(100050),
 			"invalid insurance fund balance"
@@ -1436,6 +1442,7 @@ fn sync_insurance_fund_updated_event_invalid_data() {
 
 	// Referral Details
 	let insurance_fund: U256 = 0.into();
+	let collateral_id = usdc().asset.id;
 
 	// Batch 1
 	let mut events_batch_1: Vec<UniversalEvent> =
@@ -1443,6 +1450,7 @@ fn sync_insurance_fund_updated_event_invalid_data() {
 	let insurance_fund_deposited_1 = <InsuranceFundDeposited as InsuranceFundDepositedTrait>::new(
 		1,
 		insurance_fund,
+		collateral_id,
 		FixedI128::from_u32(1),
 		1337,
 	);
@@ -1457,7 +1465,8 @@ fn sync_insurance_fund_updated_event_invalid_data() {
 	);
 
 	env.execute_with(|| {
-		let balance_before_sync_1 = TradingAccounts::insurance_fund_balance(insurance_fund);
+		let balance_before_sync_1 =
+			TradingAccounts::insurance_fund_balance(insurance_fund, collateral_id);
 		assert!(balance_before_sync_1 == FixedI128::zero(), "invalid insurance fund balance");
 
 		// synchronize the events batch 1

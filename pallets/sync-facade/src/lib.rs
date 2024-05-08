@@ -1007,6 +1007,7 @@ pub mod pallet {
 						if insurance_fund_deposited.insurance_fund > U256::zero() {
 							T::TradingAccountPallet::update_insurance_fund_balance_internal(
 								insurance_fund_deposited.insurance_fund,
+								insurance_fund_deposited.collateral_id,
 								insurance_fund_deposited.amount,
 							);
 						} else {

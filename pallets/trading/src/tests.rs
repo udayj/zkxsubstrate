@@ -3172,7 +3172,8 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) == FixedI128::zero(),
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1, collateral_id) ==
+				FixedI128::zero(),
 			"Invalid balance for isolated insurance balance 1 before trade"
 		);
 
@@ -3211,7 +3212,7 @@ fn test_insurance_fund_replacement() {
 			alice_fees_contribution_1 + bob_fees_contribution_1;
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1, collateral_id) ==
 				expected_btc_insurance_fund_balance_1,
 			"Invalid balance for isolated insurance balance 1 after trade"
 		);
@@ -3258,7 +3259,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_1, collateral_id) ==
 				expected_btc_insurance_fund_balance_2,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3277,7 +3278,8 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) == FixedI128::zero(),
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2, collateral_id) ==
+				FixedI128::zero(),
 			"Invalid balance for isolated insurance balance 2 before trade"
 		);
 
@@ -3317,7 +3319,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2, collateral_id) ==
 				expected_default_insurance_fund_balance_1,
 			"Invalid balance for isolated insurance balance 2 after trade"
 		);
@@ -3363,7 +3365,7 @@ fn test_insurance_fund_replacement() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund_2, collateral_id) ==
 				expected_default_insurance_fund_balance_2,
 			"Invalid balance for isolated insurance balance 2 after trade"
 		);
@@ -3408,7 +3410,8 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) == FixedI128::zero(),
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
+				FixedI128::zero(),
 			"Invalid balance for default insurance balance"
 		);
 
@@ -3448,7 +3451,7 @@ fn test_insurance_fund_update() {
 		let expected_default_insurance_fund_balance_1 = alice_fees_1 + bob_fees_1;
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_1,
 			"Invalid balance for default insurance balance"
 		);
@@ -3492,7 +3495,7 @@ fn test_insurance_fund_update() {
 			expected_default_insurance_fund_balance_1 + alice_fees_2 + bob_fees_2;
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_2,
 			"Invalid balance for default insurance balance"
 		);
@@ -3537,7 +3540,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_3,
 			"Invalid balance for default insurance balance"
 		);
@@ -3584,7 +3587,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_4,
 			"Invalid balance for default insurance balance"
 		);
@@ -3637,7 +3640,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id) ==
 				expected_btc_insurance_fund_balance_1,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3693,7 +3696,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id) ==
 				expected_btc_insurance_fund_balance_2,
 			"Invalid balance for btc insurance balance"
 		);
@@ -3738,7 +3741,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_5,
 			"Invalid balance for default insurance balance"
 		);
@@ -3785,7 +3788,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(default_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id) ==
 				expected_default_insurance_fund_balance_6,
 			"Invalid balance for default insurance balance"
 		);
@@ -3840,7 +3843,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(eth_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(eth_insurance_fund, collateral_id) ==
 				expected_eth_insurance_fund_balance_1,
 			"Invalid balance for eth insurance balance"
 		);
@@ -3896,7 +3899,7 @@ fn test_insurance_fund_update() {
 
 		// balance check
 		assert!(
-			TradingAccounts::insurance_fund_balance(eth_insurance_fund) ==
+			TradingAccounts::insurance_fund_balance(eth_insurance_fund, collateral_id) ==
 				expected_eth_insurance_fund_balance_2,
 			"Invalid balance for eth insurance balance"
 		);
