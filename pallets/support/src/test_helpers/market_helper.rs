@@ -184,7 +184,7 @@ pub fn btc_usdc() -> ExtendedMarket {
 			incremental_initial_margin_fraction: 1.into(),
 			incremental_position_size: 1.into(),
 			baseline_position_size: 1.into(),
-			maximum_position_size: 25.into(),
+			maximum_position_size: 250.into(),
 		},
 		metadata_url: metadata_url.clone(),
 	}

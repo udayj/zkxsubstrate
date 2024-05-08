@@ -226,7 +226,7 @@ pub mod pallet {
 			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
 
 			if extended_market.market.is_tradable == false {
-				T::PricesPallet::set_mark_price_for_ads(extended_market.market.id);
+				T::PricesPallet::set_mark_price_for_ads(extended_market.market.id)?;
 			}
 
 			// Emit the market updated event

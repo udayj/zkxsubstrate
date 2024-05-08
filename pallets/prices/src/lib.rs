@@ -288,6 +288,8 @@ pub mod pallet {
 		FutureTimestampPriceUpdate,
 		/// Prices Start timestamp is not set
 		PricesStartTimestampEmpty,
+		/// Mark price is not available
+		MarkPriceNotAvailable,
 	}
 
 	#[pallet::event]
@@ -1472,15 +1474,19 @@ pub mod pallet {
 			0_u64
 		}
 
-		fn set_mark_price_for_ads(market_id: u128) {
+		fn set_mark_price_for_ads(market_id: u128) -> DispatchResult {
 			// Get mark price for the given market
 			let mark_price: FixedI128 = Self::get_mark_price(market_id);
+
+			ensure!(mark_price > FixedI128::zero(), Error::<T>::MarkPriceNotAvailable);
 
 			// Set the mark price for the given market
 			MarkPriceForADS::<T>::insert(market_id, mark_price);
 
 			// Emit mark price set event
 			Self::deposit_event(Event::MarkPriceForDelistedMarketSet { market_id, mark_price });
+
+			Ok(())
 		}
 	}
 
