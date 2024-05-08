@@ -324,8 +324,9 @@ pub mod pallet {
 		UserBalanceChangeV2 {
 			trading_account: TradingAccountMinimal,
 			market_id: u128,
-			amount: FixedI128,
+			fee_amount: FixedI128,
 			revenue_amount: FixedI128,
+			fee_share_amount: FixedI128,
 			modify_type: FundModifyType,
 			reason: u8,
 			block_number: BlockNumberFor<T>,
@@ -1380,6 +1381,7 @@ pub mod pallet {
 			collateral_id: u128,
 			market_id: u128,
 			amount: FixedI128,
+			fee_share_amount: FixedI128,
 		) {
 			// Get the insurance fund and fee split details
 			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
@@ -1388,15 +1390,16 @@ pub mod pallet {
 			let (insurance_fund, fee_split) = Self::get_fee_split_details(market_id);
 			let current_insurance_fund_balance =
 				InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
-			let revenue_amount =
-				(amount * fee_split).round_to_precision(collateral_token_decimal.into());
-			let remaining_amount = amount - revenue_amount;
+			let amount_after_fee_share = amount - fee_share_amount;
+			let revenue_amount = (amount_after_fee_share * fee_split)
+				.round_to_precision(collateral_token_decimal.into());
+			let fee_amount = amount_after_fee_share - revenue_amount;
 
 			// Increment the local balance of insurance fund
 			InsuranceFundBalances::<T>::set(
 				insurance_fund,
 				collateral_id,
-				current_insurance_fund_balance + remaining_amount,
+				current_insurance_fund_balance + fee_amount,
 			);
 
 			// Emit the event to be picked up by the Synchronizer
@@ -1405,8 +1408,9 @@ pub mod pallet {
 					.unwrap()
 					.to_trading_account_minimal(),
 				market_id,
-				amount: remaining_amount,
+				fee_amount,
 				revenue_amount,
+				fee_share_amount,
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: <frame_system::Pallet<T>>::block_number(),

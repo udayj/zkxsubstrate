@@ -90,7 +90,13 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		current_fee_share: FixedI128,
 	);
-	fn handle_fee_split(account_id: U256, collateral_id: u128, market_id: u128, amount: FixedI128);
+	fn handle_fee_split(
+		account_id: U256,
+		collateral_id: u128,
+		market_id: u128,
+		amount: FixedI128,
+		fee_share_amount: FixedI128,
+	);
 	fn handle_insurance_fund_update(
 		collateral_id: u128,
 		market_id: u128,

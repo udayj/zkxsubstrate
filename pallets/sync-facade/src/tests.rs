@@ -1,5 +1,5 @@
 use crate::{mock::*, Event};
-use frame_support::{assert_noop, assert_ok, dispatch::Vec};
+use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
 		accounts_helper::{alice, get_trading_account_id},
