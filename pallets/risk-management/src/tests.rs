@@ -78,12 +78,14 @@ fn setup() -> sp_io::TestExternalities {
 fn test_liquidation_default_insurance_fund() {
 	let mut env = setup();
 	let default_insurance_fund = U256::from(1_u8);
+	let collateral_id = usdc().asset.id;
 
 	env.execute_with(|| {
 		// Set balance of default insurance fund
 		assert_ok!(TradingAccounts::update_insurance_fund_balance(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			default_insurance_fund,
+			collateral_id,
 			FixedI128::from_u32(1000000),
 		));
 
@@ -223,6 +225,7 @@ fn test_liquidation_isolated_insurance_fund() {
 	let mut env = setup();
 	let market_id = btc_usdc().market.id;
 	let btc_insurance_fund = U256::from(2_u8);
+	let collateral_id = usdc().asset.id;
 
 	env.execute_with(|| {
 		// Set insurance fund for BTC
@@ -237,6 +240,7 @@ fn test_liquidation_isolated_insurance_fund() {
 		assert_ok!(TradingAccounts::update_insurance_fund_balance(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_insurance_fund,
+			collateral_id,
 			FixedI128::from_u32(1000000),
 		));
 
@@ -986,12 +990,14 @@ fn test_liquidation_multiple_positions() {
 fn test_liquidation_on_time_default_insurance_fund() {
 	let mut env = setup();
 	let default_insurance_fund = U256::from(1_u8);
+	let collateral_id = usdc().asset.id;
 
 	env.execute_with(|| {
 		// Set balance of default insurance fund
 		assert_ok!(TradingAccounts::update_insurance_fund_balance(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			default_insurance_fund,
+			collateral_id,
 			FixedI128::from_u32(1000000),
 		));
 
@@ -1131,6 +1137,7 @@ fn test_liquidation_on_time_isolated_insurance_fund() {
 	let mut env = setup();
 	let market_id: u128 = btc_usdc().market.id;
 	let btc_insurance_fund = U256::from(2_u8);
+	let collateral_id = usdc().asset.id;
 
 	env.execute_with(|| {
 		// Set insurance fund for BTC
@@ -1145,6 +1152,7 @@ fn test_liquidation_on_time_isolated_insurance_fund() {
 		assert_ok!(TradingAccounts::update_insurance_fund_balance(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			btc_insurance_fund,
+			collateral_id,
 			FixedI128::from_u32(1000000),
 		));
 

@@ -129,6 +129,7 @@ pub struct MasterAccountLevelChanged {
 pub struct InsuranceFundDeposited {
 	pub event_index: u32,
 	pub insurance_fund: U256,
+	pub collateral_id: u128,
 	pub amount: FixedI128,
 	pub block_number: u64,
 }

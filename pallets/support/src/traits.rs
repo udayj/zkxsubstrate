@@ -103,7 +103,11 @@ pub trait TradingAccountInterface {
 		fee_split: FixedI128,
 	);
 	fn get_fee_split_details(market_id: u128) -> (U256, FixedI128);
-	fn update_insurance_fund_balance_internal(insurance_fund: U256, amount: FixedI128);
+	fn update_insurance_fund_balance_internal(
+		insurance_fund: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+	);
 }
 
 pub trait TradingInterface {

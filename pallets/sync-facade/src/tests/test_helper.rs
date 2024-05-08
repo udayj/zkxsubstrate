@@ -123,6 +123,7 @@ pub trait InsuranceFundDepositedTrait {
 	fn new(
 		event_index: u32,
 		insurance_fund: U256,
+		collateral_id: u128,
 		amount: FixedI128,
 		block_number: u64,
 	) -> InsuranceFundDeposited;
@@ -170,10 +171,11 @@ impl InsuranceFundDepositedTrait for InsuranceFundDeposited {
 	fn new(
 		event_index: u32,
 		insurance_fund: U256,
+		collateral_id: u128,
 		amount: FixedI128,
 		block_number: u64,
 	) -> InsuranceFundDeposited {
-		InsuranceFundDeposited { event_index, insurance_fund, amount, block_number }
+		InsuranceFundDeposited { event_index, insurance_fund, collateral_id, amount, block_number }
 	}
 }
 

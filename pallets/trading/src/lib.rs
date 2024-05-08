@@ -2,11 +2,11 @@
 
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
@@ -179,6 +179,11 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn matching_time_limit)]
 	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn withdrawal_signer)]
+	// Array of U256 signers
+	pub(super) type WithdrawalSigner<T: Config> = StorageValue<_, U256, ValueQuery>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
