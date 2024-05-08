@@ -349,6 +349,12 @@ pub mod pallet {
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
 		},
+		UserBalanceDeficit {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
 	}
 
 	#[pallet::call]
@@ -1340,12 +1346,12 @@ pub mod pallet {
 			} else if current_balance.is_negative() {
 				let absolute_amount = min(-current_balance, amount);
 
-				// TODO_IMP(merkle-groot)
-				// Self::handle_insurance_fund_update(
-				// 	collateral_id,
-				// 	absolute_amount,
-				// 	FundModifyType::Increase.into(),
-				// );
+				Self::deposit_event(Event::UserBalanceDeficit {
+					trading_account,
+					collateral_id,
+					amount: absolute_amount,
+					block_number,
+				});
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;
