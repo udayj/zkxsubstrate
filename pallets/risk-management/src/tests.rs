@@ -11,7 +11,7 @@ use pallet_support::{
 	},
 	types::{
 		BalanceUpdate, BaseFee, BaseFeeAggregate, Direction, FundModifyType, MultiplePrices, Order,
-		OrderType, Position, Side, TradingAccount,
+		OrderType, Position, Side,
 	},
 };
 use pallet_trading::Event as TradingEvent;
@@ -155,7 +155,7 @@ fn test_liquidation_default_insurance_fund() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		let insurance_fund_balance_before =
-			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -174,7 +174,7 @@ fn test_liquidation_default_insurance_fund() {
 		));
 
 		let insurance_fund_balance_after =
-			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id);
 		assert!(
 			insurance_fund_balance_after ==
 				insurance_fund_balance_before - FixedI128::from_u32(15000),
@@ -310,7 +310,7 @@ fn test_liquidation_isolated_insurance_fund() {
 			.sign_order_liquidator(get_private_key(eduard().pub_key), eduard().pub_key);
 
 		let insurance_fund_balance_before =
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -329,7 +329,7 @@ fn test_liquidation_isolated_insurance_fund() {
 		));
 
 		let insurance_fund_balance_after =
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id);
 		assert!(
 			insurance_fund_balance_after ==
 				insurance_fund_balance_before - FixedI128::from_u32(15000),
@@ -1025,7 +1025,7 @@ fn test_liquidation_on_time_default_insurance_fund() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let insurance_fund_balance_before =
-			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -1086,7 +1086,7 @@ fn test_liquidation_on_time_default_insurance_fund() {
 		));
 
 		let insurance_fund_balance_after =
-			TradingAccounts::insurance_fund_balance(default_insurance_fund);
+			TradingAccounts::insurance_fund_balance(default_insurance_fund, collateral_id);
 		assert!(
 			insurance_fund_balance_after ==
 				insurance_fund_balance_before + FixedI128::from_u32(1000),
@@ -1180,7 +1180,7 @@ fn test_liquidation_on_time_isolated_insurance_fund() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		let insurance_fund_balance_before =
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id);
 
 		assert_ok!(Trading::execute_trade(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -1241,7 +1241,7 @@ fn test_liquidation_on_time_isolated_insurance_fund() {
 		));
 
 		let insurance_fund_balance_after =
-			TradingAccounts::insurance_fund_balance(btc_insurance_fund);
+			TradingAccounts::insurance_fund_balance(btc_insurance_fund, collateral_id);
 		assert!(
 			insurance_fund_balance_after ==
 				insurance_fund_balance_before + FixedI128::from_u32(1000),

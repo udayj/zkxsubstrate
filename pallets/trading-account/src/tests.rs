@@ -7,14 +7,13 @@ use pallet_support::{
 			get_trading_account_id,
 		},
 		asset_helper::{btc, eth, link, usdc, usdt},
-		create_insurance_withdrawal_request, eth_usdc,
+		create_insurance_withdrawal_request,
 		market_helper::{btc_usdc, link_usdc},
 	},
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, FeeSharesInput, FundModifyType, MonetaryAccountDetails, Order,
-		ReferralDetails,
+		BalanceUpdate, FeeSharesInput, MonetaryAccountDetails, Order, ReferralDetails,
 	},
 };
 use primitive_types::U256;

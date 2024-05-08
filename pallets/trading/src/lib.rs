@@ -1698,8 +1698,9 @@ pub mod pallet {
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
 				// Update fee share for the master account
+				let mut fee_share_amount = FixedI128::zero();
 				if master_30day_volume != FixedI128::zero() {
-					Self::update_fee_share(
+					fee_share_amount = Self::update_and_get_fee_share(
 						order.account_id,
 						collateral_id,
 						master_30day_volume,
@@ -1721,6 +1722,7 @@ pub mod pallet {
 					collateral_id,
 					order.market_id,
 					fee,
+					fee_share_amount,
 				);
 			}
 
@@ -2019,8 +2021,9 @@ pub mod pallet {
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
 					// Update fee share for the master accoun
+					let mut fee_share_amount = FixedI128::zero();
 					if master_30day_volume != FixedI128::zero() {
-						Self::update_fee_share(
+						fee_share_amount = Self::update_and_get_fee_share(
 							order.account_id,
 							collateral_id,
 							master_30day_volume,
@@ -2042,6 +2045,7 @@ pub mod pallet {
 						collateral_id,
 						order.market_id,
 						fee,
+						fee_share_amount,
 					);
 				}
 
@@ -2061,14 +2065,15 @@ pub mod pallet {
 			))
 		}
 
-		fn update_fee_share(
+		fn update_and_get_fee_share(
 			account_id: U256,
 			collateral_id: u128,
 			master_30day_volume: FixedI128,
 			order_volume: FixedI128,
 			fee: FixedI128,
 			collateral_token_decimal: u8,
-		) {
+		) -> FixedI128 {
+			let mut fee_share = FixedI128::zero();
 			if let Some(referral_details) =
 				T::TradingAccountPallet::get_account_address_and_referral_details(account_id)
 			{
@@ -2080,8 +2085,8 @@ pub mod pallet {
 					collateral_id,
 					master_30day_volume,
 				);
-				let mut fee_share = fee * fee_share_rate;
-				fee_share = fee_share.round_to_precision(collateral_token_decimal.into());
+				fee_share =
+					(fee * fee_share_rate).round_to_precision(collateral_token_decimal.into());
 				T::TradingAccountPallet::update_master_fee_share(
 					referral_details.master_account_address,
 					collateral_id,
@@ -2099,6 +2104,7 @@ pub mod pallet {
 					fee_share,
 				});
 			}
+			return fee_share;
 		}
 
 		fn get_maintenance_requirement(
