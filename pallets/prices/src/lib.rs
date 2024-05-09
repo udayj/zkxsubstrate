@@ -1175,6 +1175,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer_from(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
@@ -1203,6 +1204,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);

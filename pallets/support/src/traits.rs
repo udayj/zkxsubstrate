@@ -29,12 +29,14 @@ pub trait TradingAccountInterface {
 	fn transfer(
 		account_id: U256,
 		collateral_id: u128,
+		market_id: u128,
 		amount: FixedI128,
 		reason: BalanceChangeReason,
 	);
 	fn transfer_from(
 		account_id: U256,
 		collateral_id: u128,
+		market_id: u128,
 		amount: FixedI128,
 		reason: BalanceChangeReason,
 	);

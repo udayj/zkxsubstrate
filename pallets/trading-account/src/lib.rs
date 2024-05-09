@@ -321,10 +321,10 @@ pub mod pallet {
 			level: u8,
 		},
 		/// Event to be synced by L2, for pnl changes
-		UserBalanceChangeFee {
+		UserBalanceChangeV2 {
 			trading_account: TradingAccountMinimal,
 			market_id: u128,
-			fee_amount: FixedI128,
+			amount: FixedI128,
 			revenue_amount: FixedI128,
 			fee_share_amount: FixedI128,
 			modify_type: FundModifyType,
@@ -351,6 +351,12 @@ pub mod pallet {
 			block_number: BlockNumberFor<T>,
 		},
 		UserBalanceDeficit {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
+		UserWithdrawalFee {
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
 			amount: FixedI128,
@@ -721,9 +727,6 @@ pub mod pallet {
 				withdrawal_request.collateral_id,
 			);
 
-			// Get the new balance of the user
-			let new_balance = current_balance - withdrawal_fee;
-
 			// Get the account struct
 			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
 				.ok_or(Error::<T>::AccountDoesNotExist)?
@@ -732,6 +735,8 @@ pub mod pallet {
 			// Get the current block number
 			let block_number = <frame_system::Pallet<T>>::block_number();
 
+			// Get the new balance of the user
+			let new_balance = current_balance - withdrawal_fee;
 			// Update the balance, after deducting fees
 			BalancesMap::<T>::set(
 				withdrawal_request.account_id,
@@ -740,6 +745,13 @@ pub mod pallet {
 			);
 
 			if withdrawal_fee != FixedI128::zero() {
+				Self::deposit_event(Event::UserWithdrawalFee {
+					trading_account: account,
+					collateral_id: withdrawal_request.collateral_id,
+					amount: withdrawal_fee,
+					block_number,
+				});
+
 				// BalanceUpdated event is emitted for reducing the withdrawal fee
 				Self::deposit_event(Event::BalanceUpdated {
 					account_id: withdrawal_request.account_id,
@@ -1110,6 +1122,7 @@ pub mod pallet {
 		fn transfer(
 			account_id: U256,
 			collateral_id: u128,
+			market_id: u128,
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
@@ -1141,10 +1154,12 @@ pub mod pallet {
 			});
 
 			// Event to be synced by L2
-			Self::deposit_event(Event::UserBalanceChange {
+			Self::deposit_event(Event::UserBalanceChangeV2 {
 				trading_account: account,
-				collateral_id,
+				market_id,
 				amount,
+				revenue_amount: FixedI128::zero(),
+				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Increase,
 				reason: reason.into(),
 				block_number,
@@ -1154,6 +1169,7 @@ pub mod pallet {
 		fn transfer_from(
 			account_id: U256,
 			collateral_id: u128,
+			market_id: u128,
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
@@ -1185,12 +1201,13 @@ pub mod pallet {
 			});
 
 			if reason != BalanceChangeReason::Fee {
-				// Event to be synced by L2
-				Self::deposit_event(Event::UserBalanceChange {
+				Self::deposit_event(Event::UserBalanceChangeV2 {
 					trading_account: account,
-					collateral_id,
+					market_id,
 					amount,
-					modify_type: FundModifyType::Decrease,
+					revenue_amount: FixedI128::zero(),
+					fee_share_amount: FixedI128::zero(),
+					modify_type: FundModifyType::Decrease.into(),
 					reason: reason.into(),
 					block_number,
 				});
@@ -1403,12 +1420,12 @@ pub mod pallet {
 			);
 
 			// Emit the event to be picked up by the Synchronizer
-			Self::deposit_event(Event::UserBalanceChangeFee {
+			Self::deposit_event(Event::UserBalanceChangeV2 {
 				trading_account: AccountMap::<T>::get(&account_id)
 					.unwrap()
 					.to_trading_account_minimal(),
 				market_id,
-				fee_amount,
+				amount,
 				revenue_amount,
 				fee_share_amount,
 				modify_type: FundModifyType::Decrease,
