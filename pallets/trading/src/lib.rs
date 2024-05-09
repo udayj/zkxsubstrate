@@ -2786,6 +2786,9 @@ pub mod pallet {
 									),
 								}
 							}
+							// Breaking the loop, so that multiple markets if delisted won't be
+							// called at the same time
+							break;
 						}
 					}
 				}
