@@ -321,7 +321,7 @@ pub mod pallet {
 			level: u8,
 		},
 		/// Event to be synced by L2, for pnl changes
-		UserBalanceChangeV2 {
+		UserBalanceChangeFee {
 			trading_account: TradingAccountMinimal,
 			market_id: u128,
 			fee_amount: FixedI128,
@@ -1403,7 +1403,7 @@ pub mod pallet {
 			);
 
 			// Emit the event to be picked up by the Synchronizer
-			Self::deposit_event(Event::UserBalanceChangeV2 {
+			Self::deposit_event(Event::UserBalanceChangeFee {
 				trading_account: AccountMap::<T>::get(&account_id)
 					.unwrap()
 					.to_trading_account_minimal(),
