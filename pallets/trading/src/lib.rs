@@ -45,8 +45,11 @@ pub mod pallet {
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
 	static CLEANUP_COUNT: u64 = 120;
-	// Block interval at which offchain workers will be executed
-	const BLOCK_INTERVAL: u32 = 120;
+	// Block interval at which offchain workers will be executed for clearing order details
+	const BLOCK_INTERVAL: u32 = 130;
+	// Block interval at which offchain workers will be executed for closing delisted market
+	// positions
+	const BLOCK_INTERVAL_FOR_DELISTING: u32 = 120;
 	// No.of positions to be closed for a delisted market
 	static POSITIONS_CLOSE_COUNT: u32 = 100;
 
@@ -1187,10 +1190,10 @@ pub mod pallet {
 			let mut current_liquidation_fee = LiquidationFeeMap::<T>::get(collateral_id);
 
 			let mut positions_close_count = POSITIONS_CLOSE_COUNT;
-			let long_user_length =
+			let long_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count();
 
-			if long_user_length != 0 {
+			if long_users_count != 0 {
 				// Iterate through all long users who have open positions in a delisted market
 				for long_user in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
@@ -1231,10 +1234,10 @@ pub mod pallet {
 				}
 			}
 
-			let short_user_length =
+			let short_users_count =
 				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count();
 
-			if short_user_length != 0 && positions_close_count != 0 {
+			if short_users_count != 0 && positions_close_count != 0 {
 				// Iterate through all short users who have open positions in a delisted market
 				for short_user in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
@@ -2713,6 +2716,16 @@ pub mod pallet {
 
 			0_u64
 		}
+
+		fn get_no_of_delisted_market_positions(market_id: u128) -> u32 {
+			let long_users_count =
+				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count()
+					as u32;
+			let short_users_count =
+				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count()
+					as u32;
+			return long_users_count + short_users_count;
+		}
 	}
 
 	#[pallet::hooks]
@@ -2728,7 +2741,7 @@ pub mod pallet {
 
 			// Converts block number to u32 format
 			let block_number = block_number.saturated_into::<u32>();
-			// Calls extrinsic after every block interval
+			// Calls perform_cleanup extrinsic after every block interval
 			if block_number % BLOCK_INTERVAL == 0 {
 				// Call perform trading clean up only when there are orders to clean up
 				let cleanup_calls = Self::get_remaining_trading_cleanup_calls();
@@ -2743,6 +2756,39 @@ pub mod pallet {
 								acc.id,
 								e
 							),
+						}
+					}
+				}
+			}
+
+			// Calls close_delisted_market_positions extrinsic after every
+			// BLOCK_INTERVAL_FOR_DELISTING
+			if block_number % BLOCK_INTERVAL_FOR_DELISTING == 0 {
+				// Get all markets which are non tradable
+				let markets = T::MarketPallet::get_all_markets_by_state(false, false);
+				if markets.len() != 0 {
+					for market_id in markets {
+						// Get no.of open positions of a delisted market
+						let delisted_market_positions_count =
+							Self::get_no_of_delisted_market_positions(market_id);
+						if delisted_market_positions_count != 0 {
+							let results = signer.send_signed_transaction(|_account| {
+								Call::close_delisted_market_positions { market_id }
+							});
+							for (acc, res) in &results {
+								match res {
+									Ok(()) =>
+										log::info!("[{:?}]: Submit transaction success.", acc.id),
+									Err(e) => log::info!(
+										"[{:?}]: Submit transaction failure. Reason: {:?}",
+										acc.id,
+										e
+									),
+								}
+							}
+							// Breaking the loop, so that multiple markets if delisted won't be
+							// called at the same time
+							break;
 						}
 					}
 				}
