@@ -1713,6 +1713,7 @@ pub mod pallet {
 				T::TradingAccountPallet::transfer_from(
 					order.account_id,
 					collateral_id,
+					order.market_id,
 					fee,
 					BalanceChangeReason::Fee,
 				);
@@ -1853,6 +1854,7 @@ pub mod pallet {
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						pnl.saturating_abs(),
 						BalanceChangeReason::PnlRealization,
 					);
@@ -1960,6 +1962,7 @@ pub mod pallet {
 							T::TradingAccountPallet::transfer_from(
 								order.account_id,
 								collateral_id,
+								order.market_id,
 								margin_amount_to_reduce,
 								BalanceChangeReason::Liquidation,
 							);
@@ -1980,6 +1983,7 @@ pub mod pallet {
 						T::TradingAccountPallet::transfer_from(
 							order.account_id,
 							collateral_id,
+							order.market_id,
 							pnl.saturating_abs(),
 							BalanceChangeReason::PnlRealization,
 						);
@@ -1990,6 +1994,7 @@ pub mod pallet {
 					T::TradingAccountPallet::transfer(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						pnl,
 						BalanceChangeReason::PnlRealization,
 					);
@@ -2036,6 +2041,7 @@ pub mod pallet {
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						fee,
 						BalanceChangeReason::Fee,
 					);

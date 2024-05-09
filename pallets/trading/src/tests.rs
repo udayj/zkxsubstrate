@@ -2677,12 +2677,12 @@ fn test_fee_share_1() {
 			"Invalid fee rate for Bob day 1 batch 1"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_1,
+				amount: alice_fee_1,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -2690,10 +2690,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_1,
+				amount: bob_fee_1,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -2765,12 +2765,12 @@ fn test_fee_share_1() {
 			"Invalid fee rate for Bob day 1 batch 2"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_2,
+				amount: alice_fee_2,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -2778,10 +2778,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_2,
+				amount: bob_fee_2,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -2865,12 +2865,12 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_3 - alice_fee_share_3,
+				amount: alice_fee_3,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -2878,10 +2878,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_3 - bob_fee_share_3,
+				amount: bob_fee_3,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -2962,12 +2962,12 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_4 - alice_fee_share_4,
+				amount: alice_fee_4,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -2975,10 +2975,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_4 - bob_fee_share_4,
+				amount: bob_fee_4,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -3062,12 +3062,12 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_5 - alice_fee_share_5,
+				amount: alice_fee_5,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -3075,10 +3075,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_5 - bob_fee_share_5,
+				amount: bob_fee_5,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -3167,12 +3167,12 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_6 - alice_fee_share_6,
+				amount: alice_fee_6,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_6,
 				modify_type: FundModifyType::Decrease,
@@ -3180,10 +3180,10 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_6 - bob_fee_share_6,
+				amount: bob_fee_6,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_6,
 				modify_type: FundModifyType::Decrease,
@@ -4207,12 +4207,12 @@ fn test_fee_share_2() {
 			"Invalid fee rate for Bob day 1 batch 1"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_1,
+				amount: alice_fee_1,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -4220,10 +4220,10 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_1,
+				amount: bob_fee_1,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -4303,12 +4303,12 @@ fn test_fee_share_2() {
 			"Invalid fee rate for Bob day 1 batch 2"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_2,
+				amount: alice_fee_2,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -4316,10 +4316,10 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_2,
+				amount: bob_fee_2,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Decrease,
@@ -4434,10 +4434,10 @@ fn test_fee_share_2() {
 				fee_share: (bob_fee_3 * FixedI128::from_float(0.5)).round_to_precision(6),
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_3 - alice_fee_share_3,
+				amount: alice_fee_3,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -4445,10 +4445,10 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_3 - bob_fee_share_3,
+				amount: bob_fee_3,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -4563,10 +4563,10 @@ fn test_fee_share_2() {
 				fee_share: (bob_fee_4 * FixedI128::from_float(0.5)).round_to_precision(6),
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_4 - alice_fee_share_4,
+				amount: alice_fee_4,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -4574,10 +4574,10 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_4 - bob_fee_share_4,
+				amount: bob_fee_4,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -4695,10 +4695,10 @@ fn test_fee_share_2() {
 				fee_share: (bob_fee_5 * FixedI128::from_float(0.5)).round_to_precision(6),
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_5 - alice_fee_share_5,
+				amount: alice_fee_5,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: alice_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -4706,10 +4706,10 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_5 - bob_fee_share_5,
+				amount: bob_fee_5,
 				revenue_amount: FixedI128::zero(),
 				fee_share_amount: bob_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -4898,12 +4898,12 @@ fn test_fee_share_with_revenue_split() {
 			"Invalid fee rate for Bob day 1 batch 1"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_1 - bob_fee_share_1 - bob_revenue_share_1,
+				amount: alice_fee_1,
 				revenue_amount: alice_revenue_share_1,
 				fee_share_amount: alice_fee_share_1,
 				modify_type: FundModifyType::Decrease,
@@ -4911,10 +4911,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_1 - bob_fee_share_1 - bob_revenue_share_1,
+				amount: bob_fee_1,
 				revenue_amount: bob_revenue_share_1,
 				fee_share_amount: bob_fee_share_1,
 				modify_type: FundModifyType::Decrease,
@@ -4990,12 +4990,12 @@ fn test_fee_share_with_revenue_split() {
 			"Invalid fee rate for Bob day 1 batch 2"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_2 - bob_fee_share_2 - bob_revenue_share_2,
+				amount: alice_fee_2,
 				revenue_amount: alice_revenue_share_2,
 				fee_share_amount: alice_fee_share_2,
 				modify_type: FundModifyType::Decrease,
@@ -5003,10 +5003,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_2 - bob_fee_share_2 - bob_revenue_share_2,
+				amount: bob_fee_2,
 				revenue_amount: bob_revenue_share_2,
 				fee_share_amount: bob_fee_share_2,
 				modify_type: FundModifyType::Decrease,
@@ -5095,12 +5095,12 @@ fn test_fee_share_with_revenue_split() {
 
 		print!("System events: {:?}", System::events());
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_3 - alice_fee_share_3 - alice_revenue_share_3,
+				amount: alice_fee_3,
 				revenue_amount: alice_revenue_share_3,
 				fee_share_amount: alice_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -5108,10 +5108,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_3 - bob_fee_share_3 - bob_revenue_share_3,
+				amount: bob_fee_3,
 				revenue_amount: bob_revenue_share_3,
 				fee_share_amount: bob_fee_share_3,
 				modify_type: FundModifyType::Decrease,
@@ -5196,12 +5196,12 @@ fn test_fee_share_with_revenue_split() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_4 - alice_fee_share_4 - alice_revenue_share_4,
+				amount: alice_fee_4,
 				revenue_amount: alice_revenue_share_4,
 				fee_share_amount: alice_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -5209,10 +5209,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_4 - bob_fee_share_4 - bob_revenue_share_4,
+				amount: bob_fee_4,
 				revenue_amount: bob_revenue_share_4,
 				fee_share_amount: bob_fee_share_4,
 				modify_type: FundModifyType::Decrease,
@@ -5300,12 +5300,12 @@ fn test_fee_share_with_revenue_split() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_5 - alice_fee_share_5 - alice_revenue_share_5,
+				amount: alice_fee_5,
 				revenue_amount: alice_revenue_share_5,
 				fee_share_amount: alice_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -5313,10 +5313,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_5 - bob_fee_share_5 - bob_revenue_share_5,
+				amount: bob_fee_5,
 				revenue_amount: bob_revenue_share_5,
 				fee_share_amount: bob_fee_share_5,
 				modify_type: FundModifyType::Decrease,
@@ -5409,12 +5409,12 @@ fn test_fee_share_with_revenue_split() {
 			"wrong master fee share"
 		);
 
-		// Check for UserBalanceChangeFee event
+		// Check for UserBalanceChangeV2 event
 		assert_has_events(vec![
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: alice(),
 				market_id,
-				fee_amount: alice_fee_6 - alice_fee_share_6 - alice_revenue_share_6,
+				amount: alice_fee_6,
 				revenue_amount: alice_revenue_share_6,
 				fee_share_amount: alice_fee_share_6,
 				modify_type: FundModifyType::Decrease,
@@ -5422,10 +5422,10 @@ fn test_fee_share_with_revenue_split() {
 				block_number: 1_u64,
 			}
 			.into(),
-			TradingAccountEvent::UserBalanceChangeFee {
+			TradingAccountEvent::UserBalanceChangeV2 {
 				trading_account: bob(),
 				market_id,
-				fee_amount: bob_fee_6 - bob_fee_share_6 - bob_revenue_share_6,
+				amount: bob_fee_6,
 				revenue_amount: bob_revenue_share_6,
 				fee_share_amount: bob_fee_share_6,
 				modify_type: FundModifyType::Decrease,

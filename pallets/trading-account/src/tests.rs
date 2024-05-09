@@ -405,14 +405,16 @@ fn test_deposit_when_negative() {
 #[test]
 fn test_withdraw() {
 	let mut env = setup();
+	let collateral_id = usdc().asset.id;
+	let withdrawal_amount = 1000.into();
 
 	env.execute_with(|| {
 		// Get the trading account of Alice and create a withdrawal request
 		let trading_account_id = get_trading_account_id(alice());
 		let withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().asset.id,
-			1000.into(),
+			collateral_id,
+			withdrawal_amount,
 			1697733033397,
 			get_private_key(alice().pub_key),
 		)
@@ -428,8 +430,16 @@ fn test_withdraw() {
 			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
 			9000.into()
 		);
-		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-		println!("Events: {:?}", event_record);
+
+		System::assert_has_event(
+			Event::UserWithdrawal {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
 	});
 }
 
