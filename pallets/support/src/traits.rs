@@ -184,7 +184,7 @@ pub trait PricesInterface {
 	fn get_remaining_pay_abr_calls() -> u64;
 	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
 	fn get_remaining_prices_cleanup_calls() -> u64;
-	fn set_mark_price_for_ads(market_id: u128);
+	fn set_mark_price_for_ads(market_id: u128) -> DispatchResult;
 	fn get_mark_price_for_ads(market_id: u128) -> Option<FixedI128>;
 }
 

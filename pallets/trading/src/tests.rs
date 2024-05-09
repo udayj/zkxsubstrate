@@ -10,7 +10,7 @@ use pallet_support::{
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
 		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput,
-		MultiplePrices, Order, OrderType, Position, ReferralDetails, Side,
+		FundModifyType, MultiplePrices, Order, OrderType, Position, ReferralDetails, Side,
 	},
 };
 use pallet_trading_account::Event as TradingAccountEvent;
@@ -4770,4 +4770,211 @@ fn test_update_market_to_user_map() {
 		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Short), alice_id);
 		assert_eq!(result, None);
 	})
+}
+
+#[test]
+// test closing of open positions of a delisted market when one user is underwater
+fn test_closing_positions_of_delisted_market_user_underwater() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Generate account_ids
+		let alice_id: U256 = get_trading_account_id(alice());
+		let bob_id: U256 = get_trading_account_id(bob());
+
+		// market id
+		let market_id = btc_usdc().market.id;
+		let collateral_id = usdc().asset.id;
+
+		let alice_open_order_1 = Order::new(U256::from(201), alice_id)
+			.set_price(1000.into())
+			.set_direction(Direction::Short)
+			.set_leverage(8.into())
+			.set_size(70.into())
+			.sign_order(get_private_key(alice().pub_key));
+
+		let bob_open_order_1 = Order::new(U256::from(204), bob_id)
+			.set_price(1000.into())
+			.set_leverage(8.into())
+			.set_order_type(OrderType::Market)
+			.set_size(70.into())
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			U256::from(1_u8),
+			// size
+			70.into(),
+			// market_id
+			market_id,
+			// price
+			1000.into(),
+			// orders
+			vec![alice_open_order_1.clone(), bob_open_order_1.clone(),],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Set price
+		let timestamp: u64 = 1699940367000;
+		let mut prices: Vec<MultiplePrices> = Vec::new();
+		let price: MultiplePrices = MultiplePrices {
+			market_id,
+			index_price: FixedI128::from_inner(1200000000000000000000),
+			mark_price: FixedI128::from_inner(1200000000000000000000),
+		};
+		prices.push(price);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			timestamp
+		));
+
+		// Make market non tradable
+		let btc_usdc_market_updated = btc_usdc().set_is_tradable(false);
+		assert_ok!(Markets::update_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc_market_updated.clone()
+		));
+
+		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id
+		));
+
+		// Check position existence
+		let alice_position =
+			Trading::positions(alice_id, (market_id, alice_open_order_1.direction));
+		let expected_position: Position = Position {
+			market_id: 0,
+			avg_execution_price: 0.into(),
+			size: 0.into(),
+			direction: Direction::Long,
+			margin_amount: 0.into(),
+			borrowed_amount: 0.into(),
+			leverage: 0.into(),
+			created_timestamp: 0,
+			modified_timestamp: 0,
+			realized_pnl: 0.into(),
+		};
+		assert_eq!(expected_position, alice_position);
+
+		let bob_position = Trading::positions(bob_id, (market_id, bob_open_order_1.direction));
+		assert_eq!(expected_position, bob_position);
+
+		// Since is_tradable flag for BTC-USDC is set to false
+		// Check whether the mark price for that market is set
+		let btc_usdc_mark_price = Prices::mark_price_for_ads(market_id);
+		assert_eq!(btc_usdc_mark_price.unwrap(), FixedI128::from_inner(1200000000000000000000));
+
+		// Check for open interest
+		let open_interest = Trading::open_interest(market_id);
+		assert_eq!(open_interest, FixedI128::zero());
+
+		// Check for balances
+		assert_eq!(
+			TradingAccounts::balances(alice_id, collateral_id),
+			FixedI128::from_inner(-4000000000000000000000)
+		);
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 24000.into());
+
+		// Check for locked margin
+		assert_eq!(TradingAccounts::locked_margin(alice_id, collateral_id), 0.into());
+		assert_eq!(TradingAccounts::locked_margin(bob_id, collateral_id), 0.into());
+
+		// Check for events
+		assert_has_events(vec![
+			Event::OrderExecuted {
+				account_id: alice_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 70.into(),
+				direction: alice_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 1200.into(),
+				pnl: FixedI128::from_inner(-14000000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			Event::OrderExecuted {
+				account_id: bob_id,
+				order_id: U256::zero(),
+				market_id,
+				size: 70.into(),
+				direction: bob_open_order_1.direction.into(),
+				side: Side::Sell.into(),
+				order_type: OrderType::ADS.into(),
+				execution_price: 1200.into(),
+				pnl: FixedI128::from_inner(14000000000000000000000),
+				fee: 0.into(),
+				is_final: true,
+				is_maker: true,
+			}
+			.into(),
+			TradingAccountEvent::InsuranceFundChange {
+				collateral_id,
+				amount: 4000.into(),
+				modify_type: FundModifyType::Decrease,
+				block_number: 1,
+			}
+			.into(),
+		]);
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError509")]
+// trying to delist a non existing market
+fn test_delisting_non_existing_market() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			123_u128
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "TradeBatchError509")]
+// trying to close positions of a market using ADS which is still tradable
+fn test_closing_positions_of_tradable_market() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc().market.id
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "MarkPriceNotAvailable")]
+// trying to delist a market when current mark price is not available
+fn test_delist_market_when_price_not_available() {
+	let mut env = setup();
+
+	env.execute_with(|| {
+		// Make market non tradable
+		let btc_usdc_market_updated = btc_usdc().set_is_tradable(false);
+		assert_ok!(Markets::update_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc_market_updated
+		));
+
+		// Call extrinsic to close positions
+		assert_ok!(Trading::close_delisted_market_positions(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_usdc().market.id
+		));
+	});
 }
