@@ -982,7 +982,9 @@ pub mod pallet {
 
 						match result {
 							Ok(_) => {
-								if insurance_fund != U256::zero() && fee_split != FixedI128::zero()
+								if insurance_fund != U256::zero() &&
+									fee_split >= FixedI128::zero() && fee_split <=
+									FixedI128::from_u32(1)
 								{
 									T::TradingAccountPallet::update_fee_split_details_internal(
 										market_updated_v2.market.id,
