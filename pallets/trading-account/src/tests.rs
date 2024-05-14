@@ -574,6 +574,7 @@ fn test_default_insurance_withdraw() {
 	let default_insurance_fund = U256::from(1_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 
 	env.execute_with(|| {
@@ -594,6 +595,7 @@ fn test_default_insurance_withdraw() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			default_insurance_fund,
+			recipient,
 			collateral_id,
 			deposit_amount,
 			1697733033397,
@@ -625,6 +627,7 @@ fn test_default_insurance_withdraw() {
 		System::assert_has_event(
 			Event::InsuranceFundWithdrawal {
 				insurance_fund: default_insurance_fund,
+				recipient,
 				collateral_id,
 				amount: deposit_amount,
 				block_number: 1,
@@ -641,6 +644,7 @@ fn test_isolated_insurance_withdraw() {
 	let btc_insurance_fund = U256::from(2_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 
 	env.execute_with(|| {
@@ -669,6 +673,7 @@ fn test_isolated_insurance_withdraw() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			deposit_amount,
 			1697733033397,
@@ -700,6 +705,7 @@ fn test_isolated_insurance_withdraw() {
 		System::assert_has_event(
 			Event::InsuranceFundWithdrawal {
 				insurance_fund: btc_insurance_fund,
+				recipient,
 				collateral_id,
 				amount: deposit_amount,
 				block_number: 1,
@@ -716,6 +722,7 @@ fn test_isolated_insurance_withdraw_twice() {
 	let btc_insurance_fund = U256::from(2_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 	let withdrawal_amount = FixedI128::from_u32(10000);
 
@@ -745,6 +752,7 @@ fn test_isolated_insurance_withdraw_twice() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			withdrawal_amount,
 			1697733033397,
@@ -776,6 +784,7 @@ fn test_isolated_insurance_withdraw_twice() {
 		System::assert_has_event(
 			Event::InsuranceFundWithdrawal {
 				insurance_fund: btc_insurance_fund,
+				recipient,
 				collateral_id,
 				amount: withdrawal_amount,
 				block_number: 1,
@@ -785,6 +794,7 @@ fn test_isolated_insurance_withdraw_twice() {
 
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			withdrawal_amount,
 			1697733033398,
@@ -809,6 +819,7 @@ fn test_isolated_insurance_withdraw_twice() {
 		System::assert_has_event(
 			Event::InsuranceFundWithdrawal {
 				insurance_fund: btc_insurance_fund,
+				recipient,
 				collateral_id,
 				amount: withdrawal_amount,
 				block_number: 1,
@@ -910,6 +921,7 @@ fn test_isolated_insurance_withdraw_duplicate() {
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
 	let deposit_amount = FixedI128::from_u32(1000000);
+	let recipient = U256::from(123_u8);
 	let withdrawal_amount = FixedI128::from_u32(10000);
 
 	env.execute_with(|| {
@@ -938,6 +950,7 @@ fn test_isolated_insurance_withdraw_duplicate() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			withdrawal_amount,
 			1697733033397,
@@ -1000,6 +1013,7 @@ fn test_isolated_insurance_withdraw_no_pub_key() {
 	let btc_insurance_fund = U256::from(2_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 
 	env.execute_with(|| {
@@ -1022,6 +1036,7 @@ fn test_isolated_insurance_withdraw_no_pub_key() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			deposit_amount,
 			1697733033397,
@@ -1073,6 +1088,7 @@ fn test_isolated_insurance_withdraw_invalid_sig() {
 	let btc_insurance_fund = U256::from(2_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 
 	env.execute_with(|| {
@@ -1101,6 +1117,7 @@ fn test_isolated_insurance_withdraw_invalid_sig() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			deposit_amount,
 			1697733033397,
@@ -1150,6 +1167,7 @@ fn test_isolated_insurance_withdraw_insufficient_balance() {
 	let btc_insurance_fund = U256::from(2_u8);
 	let withdrawal_signer = eduard().pub_key;
 	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
 	let deposit_amount = FixedI128::from_u32(1000000);
 	let withdrawal_amount = FixedI128::from_u32(1000001);
 
@@ -1179,6 +1197,61 @@ fn test_isolated_insurance_withdraw_insufficient_balance() {
 		// Create an insurance withdrawal request
 		let insurance_withdrawal_request = create_insurance_withdrawal_request(
 			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "ZeroRecipient")]
+fn test_isolated_insurance_withdraw_zero_recipient() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(0_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+	let withdrawal_amount = FixedI128::from_u32(1000001);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
 			collateral_id,
 			withdrawal_amount,
 			1697733033397,
