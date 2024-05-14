@@ -12,7 +12,12 @@ mod tests;
 pub mod pallet {
 	use super::*;
 	use core::cmp::{max, min};
-	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime, Blake2_128Concat};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{OptionQuery, *},
+		traits::UnixTime,
+		Blake2_128Concat,
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
@@ -153,6 +158,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn master_account_level)]
 	// It stores master account level
+	// Here, key1 is the master account address and the values is the level
 	pub(super) type MasterAccountLevel<T: Config> =
 		StorageMap<_, Twox64Concat, U256, u8, ValueQuery>;
 
@@ -179,24 +185,37 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn insurance_fund_balance)]
 	// Stores balance of Insurance Funds
+	// Here, key1 is the insurance fund address, key2 is the collateral_id and the value is the
+	// balance
 	pub(super) type InsuranceFundBalances<T: Config> =
 		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn market_to_insurance_fund)]
 	// Stores balance of Insurance Funds
+	// Here, key1 is market_id, the value is the insurance_fund address and the revenue split
+	// fraction
 	pub(super) type MarketToFeeSplitMap<T: Config> =
 		StorageMap<_, Twox64Concat, u128, (U256, FixedI128), OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn default_insurance_fund)]
 	// Stores the default insurance fund
+	// Here, the value is the Starknet address of the default Insurance fund
 	pub(super) type DefaultInsuranceFund<T: Config> = StorageValue<_, U256, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn insurance_withdrawal_signer)]
 	// Stores the signer that is authorized to do withdrawals
+	// Here, the value is the pubkey of the signer
 	pub(super) type InsuranceWithdrawalSigner<T: Config> = StorageValue<_, U256, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn standard_withdrawal_fee_v2)]
+	// It stores the standard withdrawal fee
+	// Here, the key_1 is the collateral_id and the value is the fee
+	pub(super) type StandardWithdrawalFeeV2<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -662,11 +681,12 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_standard_withdrawal_fee(
 			origin: OriginFor<T>,
+			collateral_id: u128,
 			withdrawal_fee: FixedI128,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			ensure!(withdrawal_fee >= FixedI128::zero(), Error::<T>::InvalidWithdrawalFee);
-			StandardWithdrawalFee::<T>::put(withdrawal_fee);
+			StandardWithdrawalFeeV2::<T>::set(collateral_id, withdrawal_fee);
 			Ok(())
 		}
 
@@ -719,7 +739,8 @@ pub mod pallet {
 			Self::verify_signature(&withdrawal_request)?;
 
 			// Get the standard fee for a withdrawal tx
-			let withdrawal_fee = StandardWithdrawalFee::<T>::get();
+			let withdrawal_fee =
+				StandardWithdrawalFeeV2::<T>::get(withdrawal_request.collateral_id);
 
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(
@@ -764,6 +785,20 @@ pub mod pallet {
 					new_balance,
 					block_number,
 				});
+
+				if let Some(insurance_fund) = DefaultInsuranceFund::<T>::get() {
+					let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(
+						insurance_fund,
+						withdrawal_request.collateral_id,
+					);
+
+					// Increment the local balance of insurance fund
+					InsuranceFundBalances::<T>::set(
+						insurance_fund,
+						withdrawal_request.collateral_id,
+						current_insurance_fund_balance + withdrawal_fee,
+					);
+				}
 			}
 
 			// Get withdrawal amount before withdrawal leads to the position to be liquidatable or
@@ -1370,6 +1405,19 @@ pub mod pallet {
 					amount: absolute_amount,
 					block_number,
 				});
+
+				// Add amount to Default InsuranceFund
+				if let Some(insurance_fund) = DefaultInsuranceFund::<T>::get() {
+					let current_insurance_fund_balance =
+						InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
+
+					// Increment the local balance of insurance fund
+					InsuranceFundBalances::<T>::set(
+						insurance_fund,
+						collateral_id,
+						current_insurance_fund_balance + absolute_amount,
+					);
+				}
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;

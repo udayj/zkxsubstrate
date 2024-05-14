@@ -332,12 +332,22 @@ fn test_deposit_when_negative() {
 	// Get the trading account of Alice
 	let trading_account_id = get_trading_account_id(alice());
 	let collateral_id = usdc().asset.id;
+	let initial_fund_balance = 1000000.into();
+	let default_insurance_fund = U256::from(1_u8);
 
 	env.execute_with(|| {
 		// Set default insurance fund
 		assert_ok!(TradingAccountModule::set_default_insurance_fund(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
-			U256::from(1_u8),
+			default_insurance_fund,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			initial_fund_balance,
 		));
 
 		// Dispatch a signed extrinsic.
@@ -353,6 +363,13 @@ fn test_deposit_when_negative() {
 			(-250).into()
 		);
 
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == initial_fund_balance,
+			"Invalid balance of default insurance balance"
+		);
+
 		// Desposit 100 USDC
 		assert_ok!(TradingAccountModule::deposit(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -360,6 +377,14 @@ fn test_deposit_when_negative() {
 			collateral_id,
 			100.into(),
 		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + 100.into(),
+			"Invalid balance of default insurance balance"
+		);
 
 		// Check the state
 		assert_eq!(
@@ -385,6 +410,14 @@ fn test_deposit_when_negative() {
 			usdc().asset.id,
 			160.into(),
 		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + 250.into(),
+			"Invalid balance of default insurance balance"
+		);
 
 		// Check the state
 		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().asset.id), 10.into());
@@ -436,6 +469,98 @@ fn test_withdraw() {
 				trading_account: alice(),
 				collateral_id,
 				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_withdraw_with_fees() {
+	let mut env = setup();
+	let collateral_id = usdc().asset.id;
+	let default_insurance_fund = U256::from(1_u8);
+	let initial_fund_balance = 1000000.into();
+	let initial_user_balance: FixedI128 = 10000.into();
+	let withdrawal_amount = 1000.into();
+	let withdrawal_fee = FixedI128::from_float(0.5);
+
+	env.execute_with(|| {
+		// Set default insurance fund
+		assert_ok!(TradingAccountModule::set_default_insurance_fund(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(1_u8),
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			initial_fund_balance,
+		));
+
+		// Set standard withdrawal fee
+		assert_ok!(TradingAccountModule::set_standard_withdrawal_fee(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			collateral_id,
+			withdrawal_fee
+		));
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == initial_fund_balance,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(alice());
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + withdrawal_fee,
+			"Invalid balance of default insurance balance"
+		);
+
+		assert!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id) ==
+				initial_user_balance - withdrawal_amount - withdrawal_fee,
+			"Wrong balance of user"
+		);
+
+		System::assert_has_event(
+			Event::UserWithdrawal {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			Event::UserWithdrawalFee {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_fee,
 				block_number: 1,
 			}
 			.into(),
