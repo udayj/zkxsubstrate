@@ -16,15 +16,19 @@ type ConversionError = FromByteSliceError;
 
 pub fn create_insurance_withdrawal_request(
 	insurance_fund: U256,
+	recipient: U256,
 	collateral_id: u128,
 	amount: FixedI128,
 	timestamp: u64,
 	private_key: FieldElement,
 ) -> Result<InsuranceWithdrawalRequest, ConversionError> {
 	let (insurance_fund_low, insurance_fund_high) = convert_to_u128_pair(insurance_fund)?;
+	let (recipient_low, recipient_high) = convert_to_u128_pair(recipient)?;
 	let mut elements = Vec::<FieldElement>::new();
 	elements.push(insurance_fund_low);
 	elements.push(insurance_fund_high);
+	elements.push(recipient_low);
+	elements.push(recipient_high);
 	elements.push(FieldElement::from(collateral_id));
 	elements.push(amount.to_u256().try_to_felt()?);
 	elements.push(FieldElement::from(timestamp));
@@ -36,6 +40,7 @@ pub fn create_insurance_withdrawal_request(
 
 	Ok(InsuranceWithdrawalRequest {
 		insurance_fund,
+		recipient,
 		collateral_id,
 		amount,
 		timestamp,

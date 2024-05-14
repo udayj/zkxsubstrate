@@ -66,6 +66,7 @@ pub struct WithdrawalRequest {
 #[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InsuranceWithdrawalRequest {
 	pub insurance_fund: U256,
+	pub recipient: U256,
 	pub collateral_id: u128,
 	pub amount: FixedI128,
 	pub timestamp: u64,
@@ -113,9 +114,12 @@ impl Hashable for InsuranceWithdrawalRequest {
 
 	fn hash(&self, hash_type: &HashType) -> Result<FieldElement, Self::ConversionError> {
 		let (insurance_fund_low, insurance_fund_high) = convert_to_u128_pair(self.insurance_fund)?;
+		let (recipient_low, recipient_high) = convert_to_u128_pair(self.recipient)?;
 		let mut elements = Vec::<FieldElement>::new();
 		elements.push(insurance_fund_low);
 		elements.push(insurance_fund_high);
+		elements.push(recipient_low);
+		elements.push(recipient_high);
 		elements.push(FieldElement::from(self.collateral_id));
 		elements.push(self.amount.to_u256().try_to_felt()?);
 		elements.push(FieldElement::from(self.timestamp));

@@ -260,6 +260,8 @@ pub mod pallet {
 		ZeroWithdrawalSigner,
 		/// Zero pub key sent
 		ZeroSigner,
+		/// Zero address passed for insurance withdrawal
+		ZeroRecipient,
 	}
 
 	#[pallet::event]
@@ -365,6 +367,7 @@ pub mod pallet {
 		},
 		InsuranceFundWithdrawal {
 			insurance_fund: U256,
+			recipient: U256,
 			collateral_id: u128,
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
@@ -612,6 +615,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
+			ensure!(
+				insurance_withdrawal_request.recipient != U256::zero(),
+				Error::<T>::ZeroRecipient
+			);
+
 			// Check if the signature is valid
 			Self::verify_insurance_withdrawal_signature(&insurance_withdrawal_request)?;
 
@@ -634,6 +642,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::InsuranceFundWithdrawal {
 				insurance_fund: insurance_withdrawal_request.insurance_fund,
+				recipient: insurance_withdrawal_request.recipient,
 				collateral_id: insurance_withdrawal_request.collateral_id,
 				amount: insurance_withdrawal_request.amount,
 				block_number: <frame_system::Pallet<T>>::block_number(),
