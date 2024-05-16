@@ -57,7 +57,11 @@ Selector labels
 {{- define "node.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: substrate-node
+{{ if eq .Values.validatorNode true }}
+app.kubernetes.io/component: validator-node
+{{ else if eq .Values.validatorNode false }}
+app.kubernetes.io/component: rpc-node
+{{ end }}
 {{- end }}
 
 {{/*
@@ -65,8 +69,8 @@ Service labels
 */}}
 {{- define "node.serviceLabels" -}}
 chain: {{ .Values.node.chain }}
-release: {{ .Release.Name }}
 role: {{ .Values.node.role }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- with .Values.extraLabels }}
 {{ toYaml . }}
 {{- end }}

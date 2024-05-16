@@ -1,3 +1,4 @@
+validatorNode: true
 # -- Provide a name in place of node for `app:` labels
 nameOverride: ""
 
@@ -578,11 +579,11 @@ node:
   # -- Resource limits & requests
   resources:
     requests:
-      cpu: 1500m
-      memory: 3Gi
+      cpu: 1000m
+      memory: 4Gi
     limits:
-      cpu: 1500m
-      memory: 6Gi
+      cpu: 1000m
+      memory: 4Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
