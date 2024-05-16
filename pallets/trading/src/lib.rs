@@ -2280,9 +2280,13 @@ pub mod pallet {
 				return (FeeRates::new(zero, zero, zero, zero), 0)
 			}
 
+			// Get monetary address from account_id
+			// Unwrap won't fail here as user is valid
+			let monetary_address =
+				T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
 			let last_30day_volume: FixedI128;
 			match T::TradingAccountPallet::get_30day_volume(
-				account_id,
+				monetary_address,
 				market_id,
 				VolumeType::UserVolume,
 			) {
