@@ -1,3 +1,5 @@
+validatorNode: false
+
 # -- Provide a name in place of node for `app:` labels
 nameOverride: ""
 
@@ -12,7 +14,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: sandbox-node
+  tag: stage-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,21 +140,22 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3.sandbox.zkx.fi
+  - host: l3-node-rpc-2.stage.zkx.fi
     http:
       paths:
       - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: zkxl3-node-1-0
+            name: zkxl3-node-rpc-2-0
             port:
               number: 9944
   # -- Ingress TLS configuration
   tls:
-  - secretName: l3-tls-node-1
+  - secretName: l3-tls-node-rpc-2
     hosts:
-      - l3.sandbox.zkx.fi
+      - l3-node-rpc-2.stage.zkx.fi
+
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -180,9 +183,9 @@ node:
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
   customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox_customSpecRaw.json"
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/stage_customSpecRaw.json"
   # -- Replace chain spec if it already exists
-  forceDownloadChainspec: true
+  forceDownloadChainspec: false
 
   chainData:
     # -- Database backend engine to use
@@ -190,13 +193,13 @@ node:
     # -- Set the amount of blocks to retain. If set to 0 archive node will be run
     pruning: 0
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it to store chain data
-    kubernetesVolumeSnapshot:
+    kubernetesVolumeSnapshot: "chain-data-zkxl3-node-1-0-snapshot"
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it to store chain data
     kubernetesVolumeToClone:
     # -- (string) Path on the volume to store chain data
     chainPath:
     # -- Storage class to use for persistent volume
-    storageClass: ""
+    storageClass: "gp2"
     # -- Size of the volume for chain data
     volumeSize: 100Gi
     # -- Annotations to add to the volumeClaimTemplates
@@ -289,9 +292,9 @@ node:
       # -- (string) Path on the volume to store chain data
       chainPath: ""
       # -- Storage class to use for persistent volume
-      storageClass: ""
+      storageClass: "gp3"
       # -- Size of the volume
-      volumeSize: 100Gi
+      volumeSize: 50Gi
       # -- Annotations to add to the volumeClaimTemplates
       annotations: {}
 
@@ -321,7 +324,7 @@ node:
       # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it for the keystore
       kubernetesVolumeSnapshot:
       # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it for the keystore
-      kubernetesVolumeToClone:
+      kubernetesVolumeToClone: 
       # -- Storage class to use for persistent volume
       storageClass: ""
       # -- Size of the volume
@@ -344,22 +347,19 @@ node:
     # -- Flags to add to the Polkadot binary
     flags: []
 
+
   # -- Flags to add to the Polkadot binary
-  flags: ["--bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG' -l debug"]
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG' --bootnodes '/dns4/zkxl3-node-4-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWGm4jysWftNcfMnMBVVfK16PVZzJNWjGbQsukkgYS1bkK'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
   keys:
   - type: "aura"
     scheme: "Sr25519"
-    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
+    seed: "0xf61f5e9b3d4e1a08e4f03420a62552ec77763b2647656aaa18a5f5981a1ad456"
   - type: "gran"
     scheme: "Ed25519"
-    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
-  # - type: "babe"
-  #   scheme: "sr25519"
-  #   seed: "//Alice"
-  #   extraDerivation: //babe
+    seed: "0xf61f5e9b3d4e1a08e4f03420a62552ec77763b2647656aaa18a5f5981a1ad456"
 
   # -- Inject keys from already existing Kubernetes secrets
   existingSecrets:
@@ -414,7 +414,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
+  customNodeKey: "0xf61f5e9b3d4e1a08e4f03420a62552ec77763b2647656aaa18a5f5981a1ad456"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -578,11 +578,11 @@ node:
   # -- Resource limits & requests
   resources:
     requests:
-      cpu: 1500m
-      memory: 3Gi
+      cpu: 1000m
+      memory: 4Gi
     limits:
-      cpu: 1500m
-      memory: 6Gi
+      cpu: 1000m
+      memory: 4Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
@@ -690,7 +690,7 @@ podAnnotations: {}
 # -- Define which Nodes the Pods are scheduled on
 nodeSelector:
   role: substrate
-  topology.kubernetes.io/zone: eu-north-1a
+  topology.kubernetes.io/zone: eu-north-1b
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
