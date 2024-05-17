@@ -29,6 +29,8 @@ pub enum UniversalEvent {
 	SignerRemoved(SignerRemoved),
 	QuorumSet(QuorumSet),
 	SettingsAdded(SettingsAdded),
+	ReferralDetailsAdded(ReferralDetailsAdded),
+	MasterAccountLevelChanged(MasterAccountLevelChanged),
 }
 
 #[derive(Clone, Copy, Decode, Default, Encode, PartialEq, RuntimeDebug, TypeInfo)]
@@ -102,11 +104,37 @@ pub struct SettingsAdded {
 	pub block_number: u64,
 }
 
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct ReferralDetailsAdded {
+	pub event_index: u32,
+	pub master_account_address: U256,
+	pub referral_account_address: U256,
+	pub level: u8,
+	pub referral_code: U256,
+	pub fee_discount: FixedI128,
+	pub block_number: u64,
+}
+
+#[derive(Clone, Decode, Encode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct MasterAccountLevelChanged {
+	pub event_index: u32,
+	pub master_account_address: U256,
+	pub level: u8,
+	pub block_number: u64,
+}
+
 #[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
 pub enum SettingsType {
 	FeeSettings(FeeSettingsType),
 	ABRSettings(ABRSettingsType),
+	FeeShareSettings(FeeShareSettingsType),
 	GeneralSettings,
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]
+pub enum FeeShareSettingsType {
+	Vols,
+	Fees,
 }
 
 #[derive(Clone, Copy, Debug, Decode, Encode, Eq, Hash, PartialEq, TypeInfo)]

@@ -16,33 +16,44 @@ pub mod pallet {
 		pallet_prelude::{OptionQuery, ValueQuery, *},
 		traits::UnixTime,
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{
+		offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
+		pallet_prelude::*,
+	};
 	use pallet_support::{
 		ecdsa_verify,
-		helpers::{sig_u256_to_sig_felt, TIMESTAMP_START},
+		helpers::{get_expiry_timestamp, sig_u256_to_sig_felt},
 		traits::{
 			AssetInterface, FieldElementExt, FixedI128Ext, Hashable, MarketInterface,
 			PricesInterface, RiskManagementInterface, TradingAccountInterface,
 			TradingFeesInterface, TradingInterface, U256Ext,
 		},
 		types::{
-			AccountInfo, BalanceChangeReason, Direction, FeeRates, ForceClosureFlag,
-			FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType, Position,
-			PositionExtended, Side, SignatureInfo, TimeInForce,
+			AccountInfo, BalanceChangeReason, BaseFeeAggregate, Direction, FeeRates,
+			ForceClosureFlag, FundModifyType, MarginInfo, Market, Order, OrderSide, OrderType,
+			Position, PositionExtended, Side, SignatureInfo, TimeInForce, VolumeType,
 		},
 		Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_arithmetic::{
+		fixed_point::FixedI128,
+		traits::{One, Zero},
+		FixedPointNumber,
+	};
+	use sp_runtime::traits::SaturatedConversion;
+
 	static LEVERAGE_ONE: FixedI128 = FixedI128::from_inner(1000000000000000000);
 	static FOUR_WEEKS: u64 = 2419200;
-	static CLEANUP_COUNT: u64 = 10;
+	static CLEANUP_COUNT: u64 = 120;
+	// Block interval at which offchain workers will be executed
+	const BLOCK_INTERVAL: u32 = 120;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
@@ -51,6 +62,7 @@ pub mod pallet {
 		type PricesPallet: PricesInterface;
 		type RiskManagementPallet: RiskManagementInterface;
 		type TimeProvider: UnixTime;
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
 
 	#[pallet::storage]
@@ -309,6 +321,21 @@ pub mod pallet {
 		LiquidatorSignerAdded { signer: U256 },
 		/// Liquidator signer removed
 		LiquidatorSignerRemoved { signer: U256 },
+		/// Liquidation pnl for the system
+		LiquidationPNL {
+			account_id: U256,
+			order_id: U256,
+			market_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
+		MasterFeeShareUpdated {
+			master_account_address: U256,
+			referral_account_address: U256,
+			order_volume: FixedI128,
+			collateral_id: u128,
+			fee_share: FixedI128,
+		},
 	}
 
 	// Pallet callable functions
@@ -385,6 +412,9 @@ pub mod pallet {
 				Ok(quantity) => initial_taker_locked_quantity = quantity,
 				Err(e) => return Err(e.into()),
 			}
+
+			let market_fees: BaseFeeAggregate =
+				T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
 
 			let mut quantity_executed: FixedI128 = FixedI128::zero();
 			let mut total_order_volume: FixedI128 = FixedI128::zero();
@@ -565,6 +595,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -693,6 +724,7 @@ pub mod pallet {
 						collateral_id,
 						collateral_token_decimal,
 						&position_details,
+						&market_fees,
 					);
 					match response {
 						Ok((
@@ -1402,6 +1434,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128), Error<T>> {
 			let margin_amount: FixedI128;
 			let borrowed_amount: FixedI128;
@@ -1444,30 +1477,46 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume = T::TradingAccountPallet::update_and_get_cumulative_volume(
-				order.account_id,
-				order.market_id,
-				current_volume,
-			)
-			.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
+			let (total_30day_volume, master_30day_volume) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
+					order.account_id,
+					order.market_id,
+					current_volume,
+				)
+				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
-			let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-				collateral_id,
-				market_id,
+			let (fee_rate, _) = Self::get_fee_rate(
+				order.account_id,
+				&market_fees,
 				Side::Buy,
 				order_side,
 				total_30day_volume,
 			);
+
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
-			T::TradingAccountPallet::transfer_from(
-				order.account_id,
-				collateral_id,
-				fee,
-				BalanceChangeReason::Fee,
-			);
+			if fee != FixedI128::zero() {
+				// Update fee share for the master account
+				if master_30day_volume != FixedI128::zero() {
+					Self::update_fee_share(
+						order.account_id,
+						collateral_id,
+						master_30day_volume,
+						leveraged_order_value,
+						fee,
+						collateral_token_decimal,
+					);
+				}
+
+				T::TradingAccountPallet::transfer_from(
+					order.account_id,
+					collateral_id,
+					fee,
+					BalanceChangeReason::Fee,
+				);
+			}
 
 			Ok((
 				margin_amount,
@@ -1487,6 +1536,7 @@ pub mod pallet {
 			collateral_id: u128,
 			collateral_token_decimal: u8,
 			position_details: &Position,
+			market_fees: &BaseFeeAggregate,
 		) -> Result<
 			(FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128, FixedI128),
 			Error<T>,
@@ -1559,6 +1609,13 @@ pub mod pallet {
 								collateral_id,
 								current_liquidation_fee - pnl_abs,
 							);
+							Self::deposit_event(Event::LiquidationPNL {
+								account_id: order.account_id,
+								order_id: order.order_id,
+								market_id: order.market_id,
+								amount: pnl,
+								block_number: <frame_system::Pallet<T>>::block_number(),
+							});
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
@@ -1572,6 +1629,13 @@ pub mod pallet {
 								collateral_id,
 								current_liquidation_fee - (pnl_abs - balance),
 							);
+							Self::deposit_event(Event::LiquidationPNL {
+								account_id: order.account_id,
+								order_id: order.order_id,
+								market_id: order.market_id,
+								amount: balance + pnl,
+								block_number: <frame_system::Pallet<T>>::block_number(),
+							});
 						}
 					}
 
@@ -1604,6 +1668,14 @@ pub mod pallet {
 									collateral_id,
 									current_liquidation_fee + margin_plus_pnl,
 								);
+
+								Self::deposit_event(Event::LiquidationPNL {
+									account_id: order.account_id,
+									order_id: order.order_id,
+									market_id: order.market_id,
+									amount: margin_plus_pnl,
+									block_number: <frame_system::Pallet<T>>::block_number(),
+								});
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
@@ -1617,6 +1689,14 @@ pub mod pallet {
 										collateral_id,
 										current_liquidation_fee - margin_amount_to_reduce,
 									);
+
+									Self::deposit_event(Event::LiquidationPNL {
+										account_id: order.account_id,
+										order_id: order.order_id,
+										market_id: order.market_id,
+										amount: -margin_amount_to_reduce,
+										block_number: <frame_system::Pallet<T>>::block_number(),
+									});
 								} else {
 									// if user has some balance
 									let pnl_abs = pnl.saturating_abs();
@@ -1632,6 +1712,14 @@ pub mod pallet {
 											collateral_id,
 											current_liquidation_fee - (pnl_abs - balance),
 										);
+
+										Self::deposit_event(Event::LiquidationPNL {
+											account_id: order.account_id,
+											order_id: order.order_id,
+											market_id: order.market_id,
+											amount: balance + pnl,
+											block_number: <frame_system::Pallet<T>>::block_number(),
+										});
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
 										T::TradingAccountPallet::emit_insurance_fund_change_event(
@@ -1643,6 +1731,14 @@ pub mod pallet {
 											collateral_id,
 											current_liquidation_fee + (balance - pnl_abs),
 										);
+
+										Self::deposit_event(Event::LiquidationPNL {
+											account_id: order.account_id,
+											order_id: order.order_id,
+											market_id: order.market_id,
+											amount: balance + pnl,
+											block_number: <frame_system::Pallet<T>>::block_number(),
+										});
 									}
 								}
 							}
@@ -1688,8 +1784,8 @@ pub mod pallet {
 
 			let current_volume =
 				(order_size * execution_price).round_to_precision(collateral_token_decimal.into());
-			let total_30day_volume: FixedI128 =
-				T::TradingAccountPallet::update_and_get_cumulative_volume(
+			let (total_30day_volume, master_30day_volume) =
+				T::TradingAccountPallet::update_and_get_user_and_master_volume(
 					order.account_id,
 					order.market_id,
 					current_volume,
@@ -1697,9 +1793,9 @@ pub mod pallet {
 				.or_else(|_| Err(Error::<T>::TradeBatchError546))?;
 
 			let fee = if order.order_type != OrderType::Forced {
-				let (fee_rate, _) = T::TradingFeesPallet::get_fee_rate(
-					collateral_id,
-					order.market_id,
+				let (fee_rate, _) = Self::get_fee_rate(
+					order.account_id,
+					&market_fees,
 					Side::Sell,
 					order_side,
 					total_30day_volume,
@@ -1709,12 +1805,26 @@ pub mod pallet {
 				fee = fee.round_to_precision(collateral_token_decimal.into());
 
 				// Deduct fee while closing a position
-				T::TradingAccountPallet::transfer_from(
-					order.account_id,
-					collateral_id,
-					fee,
-					BalanceChangeReason::Fee,
-				);
+				if fee != FixedI128::zero() {
+					// Update fee share for the master accoun
+					if master_30day_volume != FixedI128::zero() {
+						Self::update_fee_share(
+							order.account_id,
+							collateral_id,
+							master_30day_volume,
+							leveraged_order_value,
+							fee,
+							collateral_token_decimal,
+						);
+					}
+
+					T::TradingAccountPallet::transfer_from(
+						order.account_id,
+						collateral_id,
+						fee,
+						BalanceChangeReason::Fee,
+					);
+				}
 
 				fee
 			} else {
@@ -1730,6 +1840,46 @@ pub mod pallet {
 				pnl,
 				fee,
 			))
+		}
+
+		fn update_fee_share(
+			account_id: U256,
+			collateral_id: u128,
+			master_30day_volume: FixedI128,
+			order_volume: FixedI128,
+			fee: FixedI128,
+			collateral_token_decimal: u8,
+		) {
+			if let Some(referral_details) =
+				T::TradingAccountPallet::get_account_address_and_referral_details(account_id)
+			{
+				let account_level = T::TradingAccountPallet::get_master_account_level(
+					referral_details.master_account_address,
+				);
+				let fee_share_rate = T::TradingFeesPallet::get_fee_share(
+					account_level,
+					collateral_id,
+					master_30day_volume,
+				);
+				let mut fee_share = fee * fee_share_rate;
+				fee_share = fee_share.round_to_precision(collateral_token_decimal.into());
+				T::TradingAccountPallet::update_master_fee_share(
+					referral_details.master_account_address,
+					collateral_id,
+					fee_share,
+				);
+
+				// This unwrap won't fail since user registration was checked
+				let referral_account_address =
+					T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
+				Self::deposit_event(Event::MasterFeeShareUpdated {
+					master_account_address: referral_details.master_account_address,
+					referral_account_address,
+					order_volume,
+					collateral_id,
+					fee_share,
+				});
+			}
 		}
 
 		fn get_maintenance_requirement(
@@ -2037,6 +2187,92 @@ pub mod pallet {
 			ForceClosureFlagMap::<T>::get(account_id, collateral_id)
 		}
 
+		fn get_all_fee_rates(
+			account_id: U256,
+			market_id: u128,
+			collateral_id: u128,
+			volume: FixedI128,
+		) -> FeeRates {
+			let fees_details = T::TradingFeesPallet::get_all_fees(market_id, collateral_id);
+
+			FeeRates {
+				maker_buy: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Buy,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				maker_sell: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Sell,
+					OrderSide::Maker,
+					volume,
+				)
+				.0,
+				taker_buy: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Buy,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
+				taker_sell: Self::get_fee_rate(
+					account_id,
+					&fees_details,
+					Side::Sell,
+					OrderSide::Taker,
+					volume,
+				)
+				.0,
+			}
+		}
+
+		fn get_fee_rate(
+			account_id: U256,
+			base_fees: &BaseFeeAggregate,
+			side: Side,
+			order_side: OrderSide,
+			volume: FixedI128,
+		) -> (FixedI128, u8) {
+			// Get fee data for given side and orderside
+			let fee_details = match (order_side, side) {
+				(OrderSide::Maker, Side::Buy) => &base_fees.maker_buy,
+				(OrderSide::Maker, Side::Sell) => &base_fees.maker_sell,
+				(OrderSide::Taker, Side::Buy) => &base_fees.taker_buy,
+				(OrderSide::Taker, Side::Sell) => &base_fees.taker_sell,
+			};
+
+			// If no fee_tiers are set, return 0 as fees and tier as 0
+			if fee_details.is_empty() {
+				return (FixedI128::zero(), 0);
+			}
+
+			// Get fee dicsount
+			let fee_discount = T::TradingAccountPallet::get_fee_discount(account_id);
+
+			// Get tier one fee details
+			let tier_1_fee_details = &fee_details[0];
+			let mut fee = tier_1_fee_details.fee;
+			let mut fee_tier: u8 = 1_u8;
+
+			// Find the appropriate fee tier for the user
+			for (index, tier) in fee_details.iter().enumerate().rev() {
+				if volume >= tier.volume {
+					fee = tier.fee;
+					fee_tier = (index + 1) as u8;
+					break;
+				}
+			}
+
+			let fee = fee * (FixedI128::one() - fee_discount);
+
+			(fee, fee_tier)
+		}
+
 		fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64) {
 			let zero = FixedI128::zero();
 			let is_registered = T::TradingAccountPallet::is_registered_user(account_id);
@@ -2045,22 +2281,25 @@ pub mod pallet {
 			}
 
 			let last_30day_volume: FixedI128;
-			match T::TradingAccountPallet::get_30day_volume(account_id, market_id) {
+			match T::TradingAccountPallet::get_30day_volume(
+				account_id,
+				market_id,
+				VolumeType::UserVolume,
+			) {
 				Ok(value) => last_30day_volume = value,
 				Err(_) => return (FeeRates::new(zero, zero, zero, zero), 0),
 			}
 
 			let market = T::MarketPallet::get_market(market_id).unwrap();
 
-			let fee_rates =
-				T::TradingFeesPallet::get_all_fee_rates(market.asset_collateral, last_30day_volume);
+			let fee_rates = Self::get_all_fee_rates(
+				account_id,
+				market_id,
+				market.asset_collateral,
+				last_30day_volume,
+			);
 
-			let one_day = 24 * 60 * 60;
-			let current_timestamp: u64 = T::TimeProvider::now().as_secs();
-			let diff = current_timestamp - TIMESTAMP_START;
-			let seconds_to_expiry = one_day - (diff % one_day);
-			let expires_at = current_timestamp + seconds_to_expiry;
-
+			let expires_at: u64 = get_expiry_timestamp(T::TimeProvider::now().as_secs());
 			(fee_rates, expires_at)
 		}
 
@@ -2089,6 +2328,41 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// Offchain worker entry point
+		fn offchain_worker(block_number: BlockNumberFor<T>) {
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			if !signer.can_sign() {
+				log::info!(
+					"No local accounts available. Consider adding one via `author_insertKey` RPC."
+				);
+			}
+
+			// Converts block number to u32 format
+			let block_number = block_number.saturated_into::<u32>();
+			// Calls extrinsic after every block interval
+			if block_number % BLOCK_INTERVAL == 0 {
+				// Call perform trading clean up only when there are orders to clean up
+				let cleanup_calls = Self::get_remaining_trading_cleanup_calls();
+				if cleanup_calls != 0 {
+					let results =
+						signer.send_signed_transaction(|_account| Call::perform_cleanup {});
+					for (acc, res) in &results {
+						match res {
+							Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
+							Err(e) => log::info!(
+								"[{:?}]: Submit transaction failure. Reason: {:?}",
+								acc.id,
+								e
+							),
+						}
+					}
+				}
+			}
 		}
 	}
 }

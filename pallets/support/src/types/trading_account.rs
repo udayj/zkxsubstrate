@@ -15,6 +15,15 @@ use starknet_ff::{FieldElement, FromByteSliceError};
 #[derive(
 	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
 )]
+pub enum VolumeType {
+	#[default]
+	UserVolume,
+	MasterVolume,
+}
+
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
 pub struct TradingAccount {
 	pub account_id: U256,
 	pub account_address: U256,
@@ -54,10 +63,25 @@ pub struct WithdrawalRequest {
 	pub hash_type: HashType,
 }
 
+#[derive(
+	Encode, Decode, Default, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen, RuntimeDebug,
+)]
+pub struct ReferralDetails {
+	pub master_account_address: U256,
+	pub fee_discount: FixedI128,
+}
+
 impl TradingAccountMinimal {
 	pub fn new(account_address: U256, pub_key: U256, index: u8) -> TradingAccountMinimal {
 		TradingAccountMinimal { account_address, pub_key, index }
 	}
+}
+
+#[derive(Clone, Encode, Decode, Default, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct FeeSharesInput {
+	pub master_account_address: U256,
+	pub collateral_id: u128,
+	pub amount: FixedI128,
 }
 
 impl TradingAccount {

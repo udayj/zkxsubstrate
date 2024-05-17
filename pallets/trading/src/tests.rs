@@ -7,8 +7,13 @@ use pallet_support::{
 		market_helper::{btc_usdc, eth_usdc, link_usdc},
 		setup_fee,
 	},
-	types::{Direction, Order, OrderSide, OrderType, Position, Side},
+	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
+	types::{
+		BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails, FeeSharesInput, Order,
+		OrderType, Position, ReferralDetails, Side,
+	},
 };
+use pallet_trading_account::Event as TradingAccountEvent;
 use primitive_types::U256;
 use sp_arithmetic::{
 	traits::{One, Zero},
@@ -20,6 +25,96 @@ fn assert_has_events(expected_events: Vec<RuntimeEvent>) {
 		if !System::events().iter().any(|event| event.event == *expected_event) {
 			panic!("Expected event not found: {:?}", expected_event);
 		}
+	}
+}
+
+pub fn get_usdc_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(2000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(6000),
+				fee_share: FixedI128::from_float(0.1),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000),
+				fee_share: FixedI128::from_float(0.12),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000),
+				fee_share: FixedI128::from_float(0.15),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(2000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(6000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
+}
+
+pub fn get_usdc_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: vec![
+			BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.001) },
+			BaseFee { volume: FixedI128::from_u32(1000), fee: FixedI128::from_float(0.00050) },
+			BaseFee { volume: FixedI128::from_u32(4000), fee: FixedI128::from_float(0.00020) },
+			BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.00010) },
+			BaseFee { volume: FixedI128::from_u32(50000), fee: FixedI128::from_float(0.0) },
+		],
+		maker_sell: vec![
+			BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.001) },
+			BaseFee { volume: FixedI128::from_u32(1000), fee: FixedI128::from_float(0.00050) },
+			BaseFee { volume: FixedI128::from_u32(4000), fee: FixedI128::from_float(0.00020) },
+			BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.00010) },
+			BaseFee { volume: FixedI128::from_u32(50000), fee: FixedI128::from_float(0.0) },
+		],
+		taker_buy: vec![
+			BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.001) },
+			BaseFee { volume: FixedI128::from_u32(1000), fee: FixedI128::from_float(0.00080) },
+			BaseFee { volume: FixedI128::from_u32(4000), fee: FixedI128::from_float(0.00050) },
+			BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.00040) },
+			BaseFee { volume: FixedI128::from_u32(50000), fee: FixedI128::from_float(0.00020) },
+		],
+		taker_sell: vec![
+			BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.001) },
+			BaseFee { volume: FixedI128::from_u32(1000), fee: FixedI128::from_float(0.00080) },
+			BaseFee { volume: FixedI128::from_u32(4000), fee: FixedI128::from_float(0.00050) },
+			BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.00040) },
+			BaseFee { volume: FixedI128::from_u32(50000), fee: FixedI128::from_float(0.00020) },
+		],
 	}
 }
 
@@ -35,17 +130,17 @@ fn setup() -> sp_io::TestExternalities {
 
 		// Set the assets in the system
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link(), btc()]
 		));
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![btc_usdc(), link_usdc(), eth_usdc()]
 		));
 
 		// Add accounts to the system
 		assert_ok!(TradingAccounts::add_accounts(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![alice(), bob(), charlie(), dave()]
 		));
 
@@ -179,7 +274,7 @@ fn it_works_for_open_trade_simple() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -284,7 +379,7 @@ fn it_reverts_for_more_than_max_size() {
 	env.execute_with(|| {
 		let modified_btc_usdc = btc_usdc().set_maximum_position_size(2.into());
 		assert_ok!(Markets::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![modified_btc_usdc, link_usdc()]
 		));
 
@@ -306,7 +401,7 @@ fn it_reverts_for_more_than_max_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -355,7 +450,7 @@ fn it_works_for_open_trade_with_leverage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -470,7 +565,7 @@ fn it_works_for_close_trade_simple() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -499,7 +594,7 @@ fn it_works_for_close_trade_simple() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -603,7 +698,7 @@ fn it_works_for_open_trade_partial_open() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -623,7 +718,7 @@ fn it_works_for_open_trade_partial_open() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -761,7 +856,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -789,7 +884,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(2_u8),
 			// size
@@ -814,7 +909,7 @@ fn it_works_for_close_trade_partial_close() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// size
@@ -930,7 +1025,7 @@ fn it_works_for_open_trade_multiple_makers() {
 			.sign_order(get_private_key(dave().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -989,7 +1084,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1016,7 +1111,7 @@ fn it_reverts_for_trade_with_same_batch_id() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1056,7 +1151,7 @@ fn it_reverts_for_trade_with_invalid_market() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1092,7 +1187,7 @@ fn it_reverts_for_trade_with_insufficient_orders_1_order() {
 			.sign_order(get_private_key(alice().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1120,7 +1215,7 @@ fn it_reverts_for_trade_with_insufficient_orders_0_orders() {
 		let market_id = btc_usdc().market.id;
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1163,7 +1258,7 @@ fn it_reverts_for_trade_with_quantity_locked_zero() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1208,7 +1303,7 @@ fn it_reverts_for_trade_with_quantity_locked_is_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1252,7 +1347,7 @@ fn it_reverts_for_trade_with_taker_order_size_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1295,7 +1390,7 @@ fn it_emits_event_for_trade_with_maker_order_size_not_multiple_of_step_size() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1341,7 +1436,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -1370,7 +1465,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// size
@@ -1396,7 +1491,7 @@ fn it_reverts_when_taker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// size
@@ -1437,7 +1532,7 @@ fn it_produces_error_when_user_not_registered() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1484,7 +1579,7 @@ fn it_produces_error_when_size_too_small() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1529,7 +1624,7 @@ fn it_produces_error_when_market_id_is_different() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1574,7 +1669,7 @@ fn it_produces_error_when_leverage_is_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1618,7 +1713,7 @@ fn it_produces_error_when_signature_is_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1670,7 +1765,7 @@ fn it_produces_error_for_maker_when_side_and_direction_is_invalid() {
 			.sign_order(get_private_key(charlie().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1719,7 +1814,7 @@ fn it_produces_error_when_maker_is_market_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -1765,7 +1860,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -1793,7 +1888,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -1817,7 +1912,7 @@ fn it_reverts_when_maker_tries_to_close_already_closed_position() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// quantity_locked
@@ -1871,7 +1966,7 @@ fn it_produces_error_for_taker_when_side_and_direction_is_invalid() {
 			.sign_order(get_private_key(charlie().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1923,7 +2018,7 @@ fn it_produces_error_when_taker_long_buy_limit_price_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -1967,7 +2062,7 @@ fn it_produces_error_when_taker_short_buy_limit_price_invalid() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2014,7 +2109,7 @@ fn it_produces_error_when_taker_long_buy_price_not_within_slippage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2055,7 +2150,7 @@ fn it_works_when_taker_long_buy_price_very_low() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2090,16 +2185,12 @@ fn test_fee_while_opening_order() {
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::root(),
 			collateral_id,
-			Side::Buy,
-			OrderSide::Maker,
-			fee_details_maker.clone(),
-		));
-		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::root(),
-			collateral_id,
-			Side::Buy,
-			OrderSide::Taker,
-			fee_details_taker.clone(),
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+			}
 		));
 
 		// Create orders
@@ -2111,7 +2202,7 @@ fn test_fee_while_opening_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2191,7 +2282,7 @@ fn test_fee_while_opening_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2237,7 +2328,7 @@ fn test_fee_while_opening_order() {
 				order_type: alice_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: 5.into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: true,
 			}
@@ -2252,7 +2343,7 @@ fn test_fee_while_opening_order() {
 				order_type: bob_close_order_1.order_type.into(),
 				execution_price: 105.into(),
 				pnl: (-5).into(),
-				fee: 0.into(),
+				fee: FixedI128::from_inner(0),
 				is_final: true,
 				is_maker: false,
 			}
@@ -2279,16 +2370,12 @@ fn test_fee_while_closing_order() {
 		assert_ok!(TradingFees::update_base_fees(
 			RuntimeOrigin::root(),
 			collateral_id,
-			Side::Sell,
-			OrderSide::Maker,
-			fee_details_maker.clone(),
-		));
-		assert_ok!(TradingFees::update_base_fees(
-			RuntimeOrigin::root(),
-			collateral_id,
-			Side::Sell,
-			OrderSide::Taker,
-			fee_details_taker.clone(),
+			BaseFeeAggregate {
+				maker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				maker_sell: fee_details_maker.clone(),
+				taker_buy: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_sell: fee_details_taker.clone(),
+			}
 		));
 
 		// Create orders
@@ -2300,7 +2387,7 @@ fn test_fee_while_closing_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2380,7 +2467,7 @@ fn test_fee_while_closing_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2394,6 +2481,8 @@ fn test_fee_while_closing_order() {
 			// batch_timestamp
 			1699940367000,
 		));
+
+		print!("Events: {:?}", System::events());
 
 		// Check for events
 		assert_has_events(vec![
@@ -2451,6 +2540,1055 @@ fn test_fee_while_closing_order() {
 }
 
 #[test]
+fn test_fee_share_1() {
+	let mut env = setup();
+
+	// test env
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+	let charlie_account_address = charlie().account_address;
+
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	let init_timestamp: u64 = 1699940367;
+	let one_day: u64 = 24 * 60 * 60;
+
+	let initial_balance = FixedI128::from_float(10000.0);
+
+	env.execute_with(|| {
+		// Add referral data
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			alice().account_address,
+			ReferralDetails {
+				master_account_address: charlie().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
+		));
+
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			bob().account_address,
+			ReferralDetails {
+				master_account_address: charlie().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
+		));
+
+		// Add fee data
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_aggregate_fees()
+		));
+
+		// Add fee_share_data
+		assert_ok!(TradingFees::update_fee_share(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_fee_shares()
+		));
+
+		////////////////////
+		// Day 1: Batch 1 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			2.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
+
+		let master_fee_share_1 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		assert!(master_fee_share_1 == FixedI128::zero(), "wrong master fee share");
+
+		// Alice's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let alice_balance_1 = TradingAccounts::balances(alice_id, collateral_id);
+		assert!(
+			alice_balance_1 ==
+				initial_balance -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Alice day 1 batch 1"
+		);
+
+		// Bob's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let bob_balance_1 = TradingAccounts::balances(bob_id, collateral_id);
+		assert!(
+			bob_balance_1 ==
+				initial_balance -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Bob day 1 batch 1"
+		);
+
+		////////////////////
+		// Day 1: Batch 2 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(203.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(204.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			3.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 0.into(), "Error in 30 day volume");
+
+		let master_fee_share_2 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		assert!(master_fee_share_2 == FixedI128::zero(), "wrong master fee share");
+
+		// Alice's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let alice_balance_2 = TradingAccounts::balances(alice_id, collateral_id);
+		assert!(
+			alice_balance_2 ==
+				alice_balance_1 -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Alice day 1 batch 2"
+		);
+
+		// Bob's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let bob_balance_2 = TradingAccounts::balances(bob_id, collateral_id);
+		assert!(
+			bob_balance_2 ==
+				bob_balance_1 - (FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Bob day 1 batch 2"
+		);
+
+		////////////////////
+		// Day 2: Batch 1 //
+		////////////////////
+
+		// next trade on next day i.e. day 2
+		Timestamp::set_timestamp((init_timestamp + one_day + 1) * 1000);
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			4.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 4004.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 2
+		// fee_rate = 0.00050 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00050 * (1-0.1)
+		let alice_balance_3 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_3 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			alice_balance_3 == alice_balance_2 - alice_fee_3,
+			"Invalid fee rate for Alice day 2 batch 1"
+		);
+
+		// Bob's current tier is 2
+		// fee_rate = 0.0008 (0.08%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0008 * (1-0.1)
+		let bob_balance_3 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_3 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00072);
+		assert!(
+			bob_balance_3 == bob_balance_2 - bob_fee_3,
+			"Invalid fee rate for Bob day 2 batch 1"
+		);
+
+		// Charlie's master's current tier is 3
+		// fee_share_rate = 0.08 (8%)
+		let master_fee_share_3 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_master_fee_share_3 =
+			alice_fee_3 * FixedI128::from_float(0.08) + bob_fee_3 * FixedI128::from_float(0.08);
+		assert!(
+			master_fee_share_3 == expected_master_fee_share_3.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		////////////////////
+		// Day 2: Batch 2 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(207.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(208.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			5.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 4004.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 2
+		// fee_rate = 0.00050 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00050 * (1-0.1)
+		let alice_balance_4 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_4 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			alice_balance_4 == alice_balance_3 - alice_fee_4,
+			"Invalid fee rate for Alice day 2 batch 2"
+		);
+
+		// Bob's current tier is 2
+		// fee_rate = 0.0008 (0.08%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0008 * (1-0.1)
+		let bob_balance_4 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_4 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00072);
+		assert!(
+			bob_balance_4 == bob_balance_3 - bob_fee_4,
+			"Invalid fee rate for Bob day 2 batch 2"
+		);
+
+		// Charlie's master's current tier is 3
+		// fee_share_rate = 0.08 (8%)
+		let master_fee_share_4 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_master_fee_share_4 =
+			alice_fee_4 * FixedI128::from_float(0.08) + bob_fee_4 * FixedI128::from_float(0.08);
+		assert!(
+			master_fee_share_4 ==
+				master_fee_share_3 + expected_master_fee_share_4.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		////////////////////
+		// Day 3: Batch 1 //
+		////////////////////
+
+		// next trade on next day i.e. day 2
+		Timestamp::set_timestamp((init_timestamp + one_day * 2 + 1) * 1000);
+
+		// Create orders
+		let alice_order = Order::new(209.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(210.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			6.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 8008.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 3
+		// fee_rate = 0.00020 (0.02%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00020 * (1-0.1)
+		let alice_balance_5 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_5 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00018);
+		assert!(
+			alice_balance_5 == alice_balance_4 - alice_fee_5,
+			"Invalid fee rate for Alice day 3 batch 1"
+		);
+
+		// Bob's current tier is 3
+		// fee_rate = 0.0005 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0005 * (1-0.1)
+		let bob_balance_5 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_5 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			bob_balance_5 == bob_balance_4 - bob_fee_5,
+			"Invalid fee rate for Bob day 3 batch 1"
+		);
+
+		// Charlie's master's current tier is 4
+		// fee_share_rate = 0.1 (10%)
+		let master_fee_share_5 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_master_fee_share_5 =
+			alice_fee_5 * FixedI128::from_float(0.1) + bob_fee_5 * FixedI128::from_float(0.1);
+		assert!(
+			master_fee_share_5 ==
+				master_fee_share_4 + expected_master_fee_share_5.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		////////////////////
+		// Day 3: Batch 2 //
+		////////////////////
+
+		// Upgrade charlie to level 1
+		assert_ok!(TradingAccounts::update_master_account_level(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			charlie_account_address,
+			1
+		));
+
+		// Create orders
+		let alice_order = Order::new(211.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(212.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			7.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let charlie_30day_master_volume =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume, 8008.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 3
+		// fee_rate = 0.00020 (0.02%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00020 * (1-0.1)
+		let alice_balance_6 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_6 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00018);
+		assert!(
+			alice_balance_6 == alice_balance_5 - alice_fee_6,
+			"Invalid fee rate for Alice day 3 batch 1"
+		);
+
+		// Bob's current tier is 3
+		// fee_rate = 0.0005 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0005 * (1-0.1)
+		let bob_balance_6 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_6 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			bob_balance_6 == bob_balance_5 - bob_fee_6,
+			"Invalid fee rate for Bob day 3 batch 1"
+		);
+
+		// Charlie's master's current tier is 4
+		// but level 1
+		// fee_share_rate = 0.5 (50%)
+		let master_fee_share_6 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_master_fee_share_6 =
+			alice_fee_6 * FixedI128::from_float(0.5) + bob_fee_6 * FixedI128::from_float(0.5);
+		assert!(
+			master_fee_share_6 ==
+				master_fee_share_5 + expected_master_fee_share_6.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Emit FeeShareTransfer for Charlie
+		assert_ok!(TradingAccounts::pay_fee_shares(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![FeeSharesInput {
+				master_account_address: charlie_account_address,
+				collateral_id,
+				amount: master_fee_share_6,
+			},]
+		));
+
+		assert_has_events(vec![TradingAccountEvent::FeeShareTransfer {
+			master_account_address: charlie_account_address,
+			collateral_id,
+			amount: master_fee_share_6,
+			block_number: 1,
+		}
+		.into()]);
+
+		assert!(
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==
+				FixedI128::zero(),
+			"wrong master fee share"
+		);
+	});
+}
+
+#[test]
+fn test_fee_share_2() {
+	let mut env = setup();
+
+	// test env
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+	let charlie_account_address = charlie().account_address;
+	let bob_account_address = bob().account_address;
+
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	let init_timestamp: u64 = 1699940367;
+	let one_day: u64 = 24 * 60 * 60;
+
+	let initial_balance = FixedI128::from_float(10000.0);
+
+	env.execute_with(|| {
+		// Add referral data
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			alice().account_address,
+			ReferralDetails {
+				master_account_address: bob().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
+		));
+
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			bob().account_address,
+			ReferralDetails {
+				master_account_address: charlie().account_address,
+				fee_discount: FixedI128::from_float(0.1),
+			},
+			U256::from(123),
+		));
+
+		// Set Charlie's level as 1
+		assert_ok!(TradingAccounts::update_master_account_level(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			charlie_account_address,
+			1
+		));
+
+		// Add fee data
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_aggregate_fees()
+		));
+
+		// Add fee_share_data
+		assert_ok!(TradingFees::update_fee_share(
+			RuntimeOrigin::root(),
+			collateral_id,
+			get_usdc_fee_shares()
+		));
+
+		////////////////////
+		// Day 1: Batch 1 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(201.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(202.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			2.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let bob_30day_master_volume_1 =
+			TradingAccounts::get_30day_master_volume(bob_account_address, market_id).unwrap();
+		assert_eq!(bob_30day_master_volume_1, FixedI128::zero(), "Error in 30 day volume");
+
+		let bob_master_fee_share_1 =
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id);
+		assert!(bob_master_fee_share_1 == FixedI128::zero(), "wrong master fee share");
+
+		let chalie_30day_master_volume_1 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(chalie_30day_master_volume_1, FixedI128::zero(), "Error in 30 day volume");
+
+		let charlie_master_fee_share_1 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		assert!(charlie_master_fee_share_1 == FixedI128::zero(), "wrong master fee share");
+
+		// Alice's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let alice_balance_1 = TradingAccounts::balances(alice_id, collateral_id);
+		assert!(
+			alice_balance_1 ==
+				initial_balance -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Alice day 1 batch 1"
+		);
+
+		// Bob's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let bob_balance_1 = TradingAccounts::balances(bob_id, collateral_id);
+		assert!(
+			bob_balance_1 ==
+				initial_balance -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Bob day 1 batch 1"
+		);
+
+		////////////////////
+		// Day 1: Batch 2 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(203.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(204.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			3.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			init_timestamp * 1000,
+		));
+
+		let bob_30day_master_volume_2 =
+			TradingAccounts::get_30day_master_volume(bob_account_address, market_id).unwrap();
+		assert_eq!(bob_30day_master_volume_2, FixedI128::zero(), "Error in 30 day volume");
+
+		let bob_master_fee_share_2 =
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id);
+		assert!(bob_master_fee_share_2 == FixedI128::zero(), "wrong master fee share");
+
+		let chalie_30day_master_volume_2 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(chalie_30day_master_volume_2, FixedI128::zero(), "Error in 30 day volume");
+
+		let charlie_master_fee_share_2 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		assert!(charlie_master_fee_share_2 == FixedI128::zero(), "wrong master fee share");
+
+		// Alice's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let alice_balance_2 = TradingAccounts::balances(alice_id, collateral_id);
+		assert!(
+			alice_balance_2 ==
+				alice_balance_1 -
+					(FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Alice day 1 batch 2"
+		);
+
+		// Bob's current tier is 1
+		// fee_rate = 0.001 (0.1%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.001 * (1-0.1)
+		let bob_balance_2 = TradingAccounts::balances(bob_id, collateral_id);
+		assert!(
+			bob_balance_2 ==
+				bob_balance_1 - (FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
+			"Invalid fee rate for Bob day 1 batch 2"
+		);
+
+		////////////////////
+		// Day 2: Batch 1 //
+		////////////////////
+
+		// next trade on next day i.e. day 2
+		Timestamp::set_timestamp((init_timestamp + one_day + 1) * 1000);
+
+		// Create orders
+		let alice_order = Order::new(205.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(206.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			4.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let bob_30day_master_volume_3 =
+			TradingAccounts::get_30day_master_volume(bob_account_address, market_id).unwrap();
+		assert_eq!(bob_30day_master_volume_3, 2002.into(), "Error in 30 day volume");
+
+		let chalie_30day_master_volume_3 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(chalie_30day_master_volume_3, 2002.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 2
+		// fee_rate = 0.00050 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00050 * (1-0.1)
+		let alice_balance_3 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_3 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			alice_balance_3 == alice_balance_2 - alice_fee_3,
+			"Invalid fee rate for Alice day 2 batch 1"
+		);
+
+		// Bob's current tier is 2
+		// fee_rate = 0.0008 (0.08%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0008 * (1-0.1)
+		let bob_balance_3 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_3 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00072);
+		assert!(
+			bob_balance_3 == bob_balance_2 - bob_fee_3,
+			"Invalid fee rate for Bob day 2 batch 1"
+		);
+
+		// Bob's master's current tier is 3
+		// fee_share_rate = 0.08 (8%)
+		let bob_master_fee_share_3 =
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id);
+		let expected_bob_master_fee_share_3 = alice_fee_3 * FixedI128::from_float(0.08);
+		assert!(
+			bob_master_fee_share_3 == expected_bob_master_fee_share_3.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Charlie's master's current tier is 3
+		// And level is 1
+		let charlie_master_fee_share_3 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_charlie_master_fee_share_3 = bob_fee_3 * FixedI128::from_float(0.5);
+		assert!(
+			charlie_master_fee_share_3 == expected_charlie_master_fee_share_3.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_3 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
+		////////////////////
+		// Day 2: Batch 2 //
+		////////////////////
+
+		// Create orders
+		let alice_order = Order::new(207.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(208.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			5.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let bob_30day_master_volume_4 =
+			TradingAccounts::get_30day_master_volume(bob_account_address, market_id).unwrap();
+		assert_eq!(bob_30day_master_volume_4, 2002.into(), "Error in 30 day volume");
+
+		let chalie_30day_master_volume_4 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(chalie_30day_master_volume_4, 2002.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 2
+		// fee_rate = 0.00050 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00050 * (1-0.1)
+		let alice_balance_4 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_4 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			alice_balance_4 == alice_balance_3 - alice_fee_4,
+			"Invalid fee rate for Alice day 2 batch 2"
+		);
+
+		// Bob's current tier is 2
+		// fee_rate = 0.0008 (0.08%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0008 * (1-0.1)
+		let bob_balance_4 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_4 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00072);
+		assert!(
+			bob_balance_4 == bob_balance_3 - bob_fee_4,
+			"Invalid fee rate for Bob day 2 batch 2"
+		);
+
+		// Bob's master's current tier is 3
+		// fee_share_rate = 0.08 (8%)
+		let bob_master_fee_share_4 =
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id);
+		let expected_bob_master_fee_share_4 = alice_fee_4 * FixedI128::from_float(0.08);
+		assert!(
+			bob_master_fee_share_4 ==
+				(bob_master_fee_share_3 + expected_bob_master_fee_share_4).round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Charlie's master's current tier is 3
+		// And level is 1
+		let charlie_master_fee_share_4 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_charlie_master_fee_share_4 = bob_fee_4 * FixedI128::from_float(0.5);
+		assert!(
+			charlie_master_fee_share_4 ==
+				(charlie_master_fee_share_3 + expected_charlie_master_fee_share_4)
+					.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_4 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
+		// ////////////////////
+		// // Day 3: Batch 1 //
+		// ////////////////////
+
+		// next trade on next day i.e. day 2
+		Timestamp::set_timestamp((init_timestamp + one_day * 2 + 1) * 1000);
+
+		// Create orders
+		let alice_order = Order::new(209.into(), alice_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.sign_order(get_private_key(alice().pub_key));
+		let bob_order = Order::new(210.into(), bob_id)
+			.set_price(FixedI128::from_float(1001.0))
+			.set_direction(Direction::Short)
+			.set_order_type(OrderType::Market)
+			.sign_order(get_private_key(bob().pub_key));
+
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			6.into(),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			1001.into(),
+			// orders
+			vec![alice_order.clone(), bob_order.clone()],
+			// batch_timestamp
+			(init_timestamp + one_day) * 1000,
+		));
+
+		let bob_30day_master_volume_4 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(bob_30day_master_volume_4, 4004.into(), "Error in 30 day volume");
+
+		let charlie_30day_master_volume_4 =
+			TradingAccounts::get_30day_master_volume(charlie_account_address, market_id).unwrap();
+		assert_eq!(charlie_30day_master_volume_4, 4004.into(), "Error in 30 day volume");
+
+		// Alice's current tier is 3
+		// fee_rate = 0.00020 (0.02%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.00020 * (1-0.1)
+		let alice_balance_5 = TradingAccounts::balances(alice_id, collateral_id);
+		let alice_fee_5 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00018);
+		assert!(
+			alice_balance_5 == alice_balance_4 - alice_fee_5,
+			"Invalid fee rate for Alice day 3 batch 1"
+		);
+
+		// Bob's current tier is 3
+		// fee_rate = 0.0005 (0.05%)
+		// fee_discount = 0.1 (10%)
+		// effective_fee_rate = 0.0005 * (1-0.1)
+		let bob_balance_5 = TradingAccounts::balances(bob_id, collateral_id);
+		let bob_fee_5 = FixedI128::from_float(1001.0) * FixedI128::from_float(0.00045);
+		assert!(
+			bob_balance_5 == bob_balance_4 - bob_fee_5,
+			"Invalid fee rate for Bob day 3 batch 1"
+		);
+
+		// Bob's master's current tier is 3
+		// fee_share_rate = 0.08 (8%)
+		let bob_master_fee_share_5 =
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id);
+		let expected_bob_master_fee_share_5 = alice_fee_5 * FixedI128::from_float(0.08);
+		assert!(
+			bob_master_fee_share_5 ==
+				(bob_master_fee_share_4 + expected_bob_master_fee_share_5).round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Charlie's master's current tier is 3
+		// And level is 1
+		let charlie_master_fee_share_5 =
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id);
+		let expected_charlie_master_fee_share_5 = bob_fee_5 * FixedI128::from_float(0.5);
+		assert!(
+			charlie_master_fee_share_5 ==
+				(charlie_master_fee_share_4 + expected_charlie_master_fee_share_5)
+					.round_to_precision(6),
+			"wrong master fee share"
+		);
+
+		// Check MasterFeeShareUpdated event
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (alice_fee_5 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob().account_address,
+				order_volume: 1001.into(),
+				collateral_id,
+				fee_share: (bob_fee_5 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
+		// Emit FeeShareTransfer for Bob and Charlie
+		assert_ok!(TradingAccounts::pay_fee_shares(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![
+				FeeSharesInput {
+					master_account_address: bob_account_address,
+					collateral_id,
+					amount: bob_master_fee_share_5
+				},
+				FeeSharesInput {
+					master_account_address: charlie_account_address,
+					collateral_id,
+					amount: charlie_master_fee_share_5
+				},
+			]
+		));
+
+		assert_has_events(vec![
+			TradingAccountEvent::FeeShareTransfer {
+				master_account_address: charlie_account_address,
+				collateral_id,
+				amount: charlie_master_fee_share_5,
+				block_number: 1,
+			}
+			.into(),
+			TradingAccountEvent::FeeShareTransfer {
+				master_account_address: bob_account_address,
+				collateral_id,
+				amount: bob_master_fee_share_5,
+				block_number: 1,
+			}
+			.into(),
+		]);
+
+		assert!(
+			TradingAccounts::master_account_fee_share(charlie_account_address, collateral_id) ==
+				FixedI128::zero(),
+			"wrong master fee share"
+		);
+
+		assert!(
+			TradingAccounts::master_account_fee_share(bob_account_address, collateral_id) ==
+				FixedI128::zero(),
+			"wrong master fee share"
+		);
+	});
+}
+
+#[test]
 // cleanup of order and batch details
 fn it_works_for_cleanup() {
 	let mut env = setup();
@@ -2472,7 +3610,7 @@ fn it_works_for_cleanup() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2488,8 +3626,6 @@ fn it_works_for_cleanup() {
 		));
 
 		Timestamp::set_timestamp(1702359600000);
-		let b = Timestamp::now();
-		print!("Block time {:?}", b);
 
 		// Create order 2
 		let alice_order = Order::new(U256::from(203), alice_id)
@@ -2502,7 +3638,7 @@ fn it_works_for_cleanup() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -2517,8 +3653,11 @@ fn it_works_for_cleanup() {
 			1702359550000,
 		));
 
-		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(1)));
+		assert_ok!(Trading::perform_cleanup(RuntimeOrigin::signed(
+			sp_core::sr25519::Public::from_raw([1u8; 32])
+		)));
 
+		// Check for portion executed
 		let order1 = Trading::order_state(U256::from(201));
 		assert_eq!(order1.0, FixedI128::zero());
 		let order2 = Trading::order_state(U256::from(202));
@@ -2528,6 +3667,7 @@ fn it_works_for_cleanup() {
 		let order4 = Trading::order_state(U256::from(204));
 		assert_eq!(order4.0, FixedI128::one());
 
+		// Check for order hash
 		let order1 = Trading::order_hash(U256::from(201));
 		assert_eq!(order1, U256::zero());
 		let order2 = Trading::order_hash(U256::from(202));
@@ -2538,12 +3678,12 @@ fn it_works_for_cleanup() {
 		assert_ne!(order4, U256::zero());
 
 		let batch1 = Trading::batch_status(U256::from(1_u8));
-		assert_eq!(batch1, true);
+		assert_eq!(batch1, false);
 		let batch2 = Trading::batch_status(U256::from(2_u8));
 		assert_eq!(batch2, true);
 
 		let start_timestamp = Trading::start_timestamp();
-		assert_eq!(1699940288, start_timestamp.unwrap());
+		assert_eq!(1699940398, start_timestamp.unwrap());
 
 		let timestamp1 = Trading::orders(1699940278);
 		assert_eq!(false, timestamp1.is_some());
@@ -2553,7 +3693,7 @@ fn it_works_for_cleanup() {
 		assert_eq!(vec![U256::from(204)], timestamp3.unwrap());
 
 		let timestamp1 = Trading::batches(1699940360);
-		assert_eq!(false, timestamp1.is_none());
+		assert_eq!(true, timestamp1.is_none());
 		let timestamp2 = Trading::batches(1702359550);
 		assert_eq!(vec![U256::from(2_u8)], timestamp2.unwrap());
 	});
@@ -2582,7 +3722,7 @@ fn it_does_not_work_for_old_batch() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2623,7 +3763,7 @@ fn it_does_not_work_for_old_order() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -2673,7 +3813,7 @@ fn it_does_not_work_for_not_enough_balance() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch id
 			U256::from(1_u8),
 			// size
@@ -2729,7 +3869,7 @@ fn it_works_when_one_maker_price_is_valid_for_taker() {
 			.sign_order(get_private_key(dave().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2774,7 +3914,7 @@ fn it_works_when_taker_limit_order_has_0_slippage() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2816,7 +3956,7 @@ fn it_emits_error_for_taker_for_slippage_validation() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2869,7 +4009,7 @@ fn it_makes_taker_is_final_as_false() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -2942,7 +4082,7 @@ fn it_makes_taker_is_final_as_true() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// size
@@ -3003,7 +4143,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -3034,7 +4174,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(3_u8),
 			// quantity_locked
@@ -3065,7 +4205,7 @@ fn it_works_for_multiple_open_and_single_close_trade() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -3115,7 +4255,7 @@ fn it_reverts_when_user_cant_cover_losses() {
 
 		// Execute the trade
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(1_u8),
 			// quantity_locked
@@ -3146,7 +4286,7 @@ fn it_reverts_when_user_cant_cover_losses() {
 			.sign_order(get_private_key(bob().pub_key));
 
 		assert_ok!(Trading::execute_trade(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			// batch_id
 			U256::from(2_u8),
 			// quantity_locked
@@ -3160,5 +4300,146 @@ fn it_reverts_when_user_cant_cover_losses() {
 			// batch_timestamp
 			1699940367000,
 		));
+	});
+}
+
+#[test]
+fn test_fee_rates() {
+	// Get a test environment
+	let mut env = setup();
+
+	// User accounts
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	// market id
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	// Initial timestamp
+	let init_timestamp = 1698796800;
+	let one_day = 60 * 60 * 24;
+
+	// Get the fees
+	let (fee_details_maker, fee_details_taker) = setup_fee();
+
+	env.execute_with(|| {
+		// Set the init timestamp
+		Timestamp::set_timestamp(init_timestamp * 1000);
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: fee_details_maker.clone(),
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: fee_details_taker.clone(),
+			}
+		));
+
+		// Check for get_fee function
+		let common_fee_rates = FeeRates {
+			maker_buy: FixedI128::from_inner(20000000000000000),
+			maker_sell: FixedI128::from_inner(20000000000000000),
+			taker_buy: FixedI128::from_inner(50000000000000000),
+			taker_sell: FixedI128::from_inner(50000000000000000),
+		};
+		let alice_fee = Trading::get_fee(alice_id, market_id);
+		let bob_fee = Trading::get_fee(bob_id, market_id);
+
+		assert_eq!(alice_fee, (common_fee_rates, init_timestamp + one_day));
+		assert_eq!(bob_fee, (common_fee_rates, init_timestamp + one_day));
+	});
+}
+
+#[test]
+fn test_discounted_fee_rate_for_referral() {
+	// Get a test environment
+	let mut env = setup();
+
+	// User accounts
+	// Generate account_ids
+	let alice_id: U256 = get_trading_account_id(alice());
+	let bob_id: U256 = get_trading_account_id(bob());
+
+	// market id
+	let market_id = btc_usdc().market.id;
+	let collateral_id = usdc().asset.id;
+
+	env.execute_with(|| {
+		// Get the fees
+		let (fee_details_maker, fee_details_taker) = setup_fee();
+		assert_ok!(TradingFees::update_base_fees(
+			RuntimeOrigin::root(),
+			collateral_id,
+			BaseFeeAggregate {
+				maker_buy: fee_details_maker.clone(),
+				maker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+				taker_buy: fee_details_taker.clone(),
+				taker_sell: vec![BaseFee { volume: FixedI128::zero(), fee: FixedI128::zero() }],
+			}
+		));
+
+		// Get Trading Account details
+		let alice_account_details = TradingAccounts::get_account(&alice_id).unwrap();
+		let bob_account_details = TradingAccounts::get_account(&bob_id).unwrap();
+		let referral_details = ReferralDetails {
+			master_account_address: alice_account_details.account_address,
+			fee_discount: FixedI128::from_inner(200000000000000000),
+		};
+		// Add referral to the system
+		assert_ok!(TradingAccounts::add_referral(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			bob_account_details.account_address,
+			referral_details,
+			U256::one()
+		));
+
+		let event_record = System::events();
+		println!("Events: {:?}", event_record);
+
+		let master_account =
+			TradingAccounts::master_account(bob_account_details.account_address).unwrap();
+		assert_eq!(master_account.master_account_address, referral_details.master_account_address);
+		assert_eq!(master_account.fee_discount, FixedI128::from_inner(200000000000000000));
+
+		let referral_monetary_address =
+			TradingAccounts::referral_accounts((alice_account_details.account_address, 0));
+		assert_eq!(referral_monetary_address, bob_account_details.account_address);
+
+		let referral_count =
+			TradingAccounts::referrals_count(alice_account_details.account_address);
+		assert_eq!(referral_count, 1_u64);
+
+		// Create open orders
+		let alice_open_order =
+			Order::new(U256::from(201), alice_id).sign_order(get_private_key(alice().pub_key));
+		let bob_open_order = Order::new(U256::from(202), bob_id)
+			.set_order_type(OrderType::Market)
+			.set_direction(Direction::Short)
+			.sign_order(get_private_key(bob().pub_key));
+
+		// Execute the trade
+		assert_ok!(Trading::execute_trade(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			// batch_id
+			U256::from(1_u8),
+			// quantity_locked
+			1.into(),
+			// market_id
+			market_id,
+			// oracle_price
+			100.into(),
+			// orders
+			vec![alice_open_order.clone(), bob_open_order.clone()],
+			// batch_timestamp
+			1699940367000,
+		));
+
+		// Check for balances
+		assert_eq!(TradingAccounts::balances(alice_id, collateral_id), 9998.into());
+		assert_eq!(TradingAccounts::balances(bob_id, collateral_id), 9996.into());
 	});
 }

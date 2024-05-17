@@ -2,99 +2,414 @@ use crate::{mock::*, Event};
 use frame_support::assert_ok;
 use pallet_support::{
 	test_helpers::{asset_helper::usdc, btc, btc_usdc, eth_usdc, link},
-	types::{BaseFee, OrderSide, Side},
+	traits::TradingFeesInterface,
+	types::{BaseFeeAggregate, FeeShareDetails},
 };
+
+// declare test_helper module
+pub mod test_helper;
 use sp_arithmetic::FixedI128;
+use sp_runtime::traits::Zero;
+use test_helper::*;
 
-fn setup() -> (Vec<BaseFee>, Vec<BaseFee>) {
+fn setup() {
 	// Set the assets in the system
-	assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), btc()]));
-	assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![btc_usdc()]));
-
-	let mut fee_details_maker: Vec<BaseFee> = Vec::new();
-	let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(200000000000000) };
-	let base_fee2 = BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(150000000000000) };
-	let base_fee3 = BaseFee { volume: 5000.into(), fee: FixedI128::from_inner(100000000000000) };
-	fee_details_maker.push(base_fee1);
-	fee_details_maker.push(base_fee2);
-	fee_details_maker.push(base_fee3);
-
-	let mut fee_details_taker: Vec<BaseFee> = Vec::new();
-	let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(500000000000000) };
-	let base_fee2 = BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(400000000000000) };
-	let base_fee3 = BaseFee { volume: 5000.into(), fee: FixedI128::from_inner(350000000000000) };
-	fee_details_taker.push(base_fee1);
-	fee_details_taker.push(base_fee2);
-	fee_details_taker.push(base_fee3);
-
-	(fee_details_maker, fee_details_taker)
+	assert_ok!(Assets::replace_all_assets(
+		RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+		vec![usdc(), btc(), link()]
+	));
+	assert_ok!(Markets::replace_all_markets(
+		RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+		vec![btc_usdc()]
+	));
 }
 
 #[test]
 fn test_update_fees() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
+		let expected_fees = get_usdc_aggregate_fees();
+
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			expected_fees.clone()
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
-		let base_fee0 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, side, OrderSide::Maker));
-		assert_eq!(base_fee0, fee_details_maker[0]);
-		let base_fee1 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (2, side, OrderSide::Maker));
-		assert_eq!(base_fee1, fee_details_maker[1]);
-		let base_fee2 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (3, side, OrderSide::Maker));
-		assert_eq!(base_fee2, fee_details_maker[2]);
+		// Check the state
+		assert_eq!(TradingFeesModule::get_all_fees(0_u128, usdc().asset.id), expected_fees);
 
 		// Assert that the correct event was deposited
-		System::assert_last_event(Event::BaseFeesUpdated { fee_tiers: 3 }.into());
+		System::assert_last_event(
+			Event::BaseFeeAggregateSet { id: usdc().asset.id, base_fee_aggregate: expected_fees }
+				.into(),
+		);
+	});
+}
+
+#[test]
+fn test_update_fee_shares() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		// Before setting the fee share values
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		let expected_fees = get_usdc_fee_shares();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc().asset.id,
+			expected_fees.clone()
+		));
+
+		// Check the state
+		assert_eq!(TradingFeesModule::get_all_fee_shares(usdc().asset.id), expected_fees);
+
+		// Assert that the correct event was deposited
+		System::assert_last_event(Event::FeeShareSet { fee_share: expected_fees }.into());
+
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::from_float(0.15)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(0, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.5)
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(1, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		// fetch fees_shares for user level > fee share level
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::from_u32(200001)) ==
+				FixedI128::zero()
+		);
+		assert!(
+			TradingFeesModule::get_fee_share(2, usdc_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidVolume")]
+fn test_update_fee_shares_invalid_volume() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(100000000),
+			fee_share: FixedI128::from_float(0.123),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidVolume")]
+fn test_update_fee_shares_non_increasing_volume() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_float(0.2),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(500),
+				fee_share: FixedI128::from_float(0.3),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_non_increasing_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_float(0.122),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFeeShare")]
+fn test_update_fee_shares_large_non_zero_index_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.123),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(1000000),
+				fee_share: FixedI128::from_u32(2),
+			},
+		]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_negative_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(0),
+			fee_share: FixedI128::from_float(-0.123),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_update_fee_shares_large_fees() {
+	let usdc_id = usdc().asset.id;
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = vec![vec![FeeShareDetails {
+			volume: FixedI128::from_u32(0),
+			fee_share: FixedI128::from_float(1.2),
+		}]];
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_fee_share(
+			RuntimeOrigin::root(),
+			usdc_id,
+			expected_fees.clone()
+		));
 	});
 }
 
 #[test]
 fn test_update_market_fees() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
+		let expected_fees = get_btc_usdc_aggregate_fees();
+
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			btc_usdc().market.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			expected_fees.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(btc_usdc().market.id, order_side), 3);
-		let base_fee0 =
-			TradingFeesModule::base_fee_tier(btc_usdc().market.id, (1, side, OrderSide::Maker));
-		assert_eq!(base_fee0, fee_details_maker[0]);
-		let base_fee1 =
-			TradingFeesModule::base_fee_tier(btc_usdc().market.id, (2, side, OrderSide::Maker));
-		assert_eq!(base_fee1, fee_details_maker[1]);
-		let base_fee2 =
-			TradingFeesModule::base_fee_tier(btc_usdc().market.id, (3, side, OrderSide::Maker));
-		assert_eq!(base_fee2, fee_details_maker[2]);
+		// Check the state
+		assert_eq!(
+			TradingFeesModule::get_all_fees(btc_usdc().market.id, usdc().asset.id),
+			expected_fees
+		);
 
 		// Assert that the correct event was deposited
-		System::assert_last_event(Event::BaseFeesUpdated { fee_tiers: 3 }.into());
+		System::assert_last_event(
+			Event::BaseFeeAggregateSet {
+				id: btc_usdc().market.id,
+				base_fee_aggregate: expected_fees,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_update_market_fees_0() {
+	new_test_ext().execute_with(|| {
+		setup();
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
+
+		let expected_fees = get_0_aggregate_fees();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingFeesModule::update_base_fees(
+			RuntimeOrigin::root(),
+			btc_usdc().market.id,
+			expected_fees.clone(),
+		));
+
+		// Check the state
+		assert_eq!(
+			TradingFeesModule::get_all_fees(btc_usdc().market.id, usdc().asset.id),
+			expected_fees
+		);
+
+		// Assert that the correct event was deposited
+		System::assert_last_event(
+			Event::BaseFeeAggregateSet {
+				id: btc_usdc().market.id,
+				base_fee_aggregate: expected_fees,
+			}
+			.into(),
+		);
 	});
 }
 
@@ -102,40 +417,15 @@ fn test_update_market_fees() {
 #[should_panic(expected = "MarketNotFound")]
 fn test_update_market_fees_invalid_market() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			eth_usdc().market.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
-		));
-	});
-}
-
-#[test]
-#[should_panic(expected = "MarketNotFound")]
-fn test_update_fees_invalid_asset() {
-	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::root(),
-			link().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			get_btc_usdc_aggregate_fees(),
 		));
 	});
 }
@@ -144,19 +434,15 @@ fn test_update_fees_invalid_asset() {
 #[should_panic(expected = "AssetNotCollateral")]
 fn test_update_fees_invalid_collateral() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
-			btc().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			link().asset.id,
+			get_usdc_aggregate_fees()
 		));
 	});
 }
@@ -165,29 +451,15 @@ fn test_update_fees_invalid_collateral() {
 #[should_panic(expected = "InvalidVolume")]
 fn test_update_fees_with_invalid_volume() {
 	new_test_ext().execute_with(|| {
-		let (_, _) = setup();
-
-		let mut fee_details_maker: Vec<BaseFee> = Vec::new();
-		let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(200000000000000) };
-		let base_fee2 =
-			BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(150000000000000) };
-		let base_fee3 = BaseFee { volume: 500.into(), fee: FixedI128::from_inner(100000000000000) };
-		fee_details_maker.push(base_fee1);
-		fee_details_maker.push(base_fee2);
-		fee_details_maker.push(base_fee3);
-
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			get_invalid_aggregate_volume()
 		));
 	});
 }
@@ -196,30 +468,15 @@ fn test_update_fees_with_invalid_volume() {
 #[should_panic(expected = "InvalidFee")]
 fn test_update_fees_with_invalid_fee() {
 	new_test_ext().execute_with(|| {
-		let (_, _) = setup();
-
-		let mut fee_details_maker: Vec<BaseFee> = Vec::new();
-		let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(200000000000000) };
-		let base_fee2 =
-			BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(150000000000000) };
-		let base_fee3 =
-			BaseFee { volume: 5000.into(), fee: FixedI128::from_inner(160000000000000) };
-		fee_details_maker.push(base_fee1);
-		fee_details_maker.push(base_fee2);
-		fee_details_maker.push(base_fee3);
-
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
+			get_invalid_aggregate_fee()
 		));
 	});
 }
@@ -228,137 +485,67 @@ fn test_update_fees_with_invalid_fee() {
 #[should_panic(expected = "ZeroFeeTiers")]
 fn test_update_fees_with_zero_fee_tiers() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
-
+		setup();
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::root(),
-			usdc().asset.id,
-			side,
-			order_side.clone(),
-			fee_details_maker.clone(),
-		));
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
-
-		let fee_details: Vec<BaseFee> = Vec::new();
+		// Get usdc fees
+		let fees = get_usdc_aggregate_fees();
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details.clone(),
+			BaseFeeAggregate {
+				maker_buy: fees.maker_buy,
+				maker_sell: fees.maker_sell,
+				taker_buy: vec![],
+				taker_sell: fees.taker_sell
+			},
 		));
-
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 0);
 	});
 }
 
 #[test]
 fn test_update_fees_with_multiple_calls() {
 	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
+		setup();
 
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::root(),
-			usdc().asset.id,
-			side,
-			order_side.clone(),
-			fee_details_maker.clone(),
-		));
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
-
-		let mut fee_details: Vec<BaseFee> = Vec::new();
-		let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(200000000000000) };
-		let base_fee2 =
-			BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(150000000000000) };
-		let base_fee3 =
-			BaseFee { volume: 3000.into(), fee: FixedI128::from_inner(120000000000000) };
-		fee_details.push(base_fee1);
-		fee_details.push(base_fee2);
-		fee_details.push(base_fee3);
+		// Expect fees
+		let fees_1 = get_btc_usdc_aggregate_fees();
+		let fees_2: BaseFeeAggregate = get_0_aggregate_fees();
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details.clone(),
+			fees_1.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, order_side), 3);
-	});
-}
-
-#[test]
-fn test_update_fees_both_sides() {
-	new_test_ext().execute_with(|| {
-		let (fee_details_maker, _) = setup();
-		// Go past genesis block so events get deposited
-		System::set_block_number(1);
-
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Maker;
-		// Dispatch a signed extrinsic.
-		assert_ok!(TradingFeesModule::update_base_fees(
-			RuntimeOrigin::root(),
-			usdc().asset.id,
-			side,
-			order_side,
-			fee_details_maker.clone(),
-		));
+		// Check the state
+		assert_eq!(TradingFeesModule::get_all_fees(0_u128, usdc().asset.id), fees_1);
 
 		// Assert that the correct event was deposited
-		System::assert_last_event(Event::BaseFeesUpdated { fee_tiers: 3 }.into());
+		System::assert_last_event(
+			Event::BaseFeeAggregateSet { id: usdc().asset.id, base_fee_aggregate: fees_1 }.into(),
+		);
 
-		let mut fee_details_sell: Vec<BaseFee> = Vec::new();
-		let base_fee1 = BaseFee { volume: 0.into(), fee: FixedI128::from_inner(250000000000000) };
-		let base_fee2 =
-			BaseFee { volume: 1000.into(), fee: FixedI128::from_inner(160000000000000) };
-		fee_details_sell.push(base_fee1);
-		fee_details_sell.push(base_fee2);
-
-		let side: Side = Side::Buy;
-		let order_side: OrderSide = OrderSide::Taker;
-		// Dispatch a signed extrinsic.
+		// Dispatch a signed extrinsic to replace the previously set fees
 		assert_ok!(TradingFeesModule::update_base_fees(
 			RuntimeOrigin::root(),
 			usdc().asset.id,
-			side,
-			order_side,
-			fee_details_sell.clone(),
+			fees_2.clone(),
 		));
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, OrderSide::Maker), 3);
-		let base_fee0 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy, OrderSide::Maker));
-		assert_eq!(base_fee0, fee_details_maker[0]);
-		let base_fee1 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Buy, OrderSide::Maker));
-		assert_eq!(base_fee1, fee_details_maker[1]);
-		let base_fee2 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (3, Side::Buy, OrderSide::Maker));
-		assert_eq!(base_fee2, fee_details_maker[2]);
+		// Check the state
+		assert_eq!(TradingFeesModule::get_all_fees(0_u128, usdc().asset.id), fees_2);
 
-		assert_eq!(TradingFeesModule::max_base_fee_tier(usdc().asset.id, OrderSide::Taker), 2);
-		let base_fee0 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (1, Side::Buy, OrderSide::Taker));
-		assert_eq!(base_fee0, fee_details_sell[0]);
-		let base_fee1 =
-			TradingFeesModule::base_fee_tier(usdc().asset.id, (2, Side::Buy, OrderSide::Taker));
-		assert_eq!(base_fee1, fee_details_sell[1]);
+		// Assert that the correct event was deposited
+		System::assert_last_event(
+			Event::BaseFeeAggregateSet { id: usdc().asset.id, base_fee_aggregate: fees_2 }.into(),
+		);
 	});
 }

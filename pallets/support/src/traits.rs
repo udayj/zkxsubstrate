@@ -1,9 +1,10 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
-	BaseFee, Direction, ExtendedAsset, ExtendedMarket, FeeRates, ForceClosureFlag, FundModifyType,
-	HashType, MarginInfo, Market, MarketRemoved, MarketUpdated, Order, OrderSide, Position,
-	PositionExtended, QuorumSet, Setting, SettingsAdded, Side, SignerAdded, SignerRemoved,
-	TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit,
+	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, FeeShareDetails,
+	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
+	MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended, QuorumSet,
+	ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
+	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -55,11 +56,44 @@ pub trait TradingAccountInterface {
 	fn get_collaterals_of_user(account_id: U256) -> Vec<u128>;
 	fn get_amount_to_withdraw(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn update_and_get_cumulative_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+		new_volume: FixedI128,
+		volume_update_type: VolumeType,
+	) -> Result<FixedI128, Self::VolumeError>;
+
+	fn update_and_get_user_and_master_volume(
 		account_id: U256,
 		market_id: u128,
 		new_volume: FixedI128,
+	) -> Result<(FixedI128, FixedI128), Self::VolumeError>;
+	fn get_30day_user_volume(
+		account_id: U256,
+		market_id: u128,
 	) -> Result<FixedI128, Self::VolumeError>;
-	fn get_30day_volume(account_id: U256, market_id: u128) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_master_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+	) -> Result<FixedI128, Self::VolumeError>;
+	fn get_30day_volume(
+		monetary_account_address: U256,
+		market_id: u128,
+		volume_type: VolumeType,
+	) -> Result<FixedI128, Self::VolumeError>;
+	fn add_referral_internal(
+		referral_account_address: U256,
+		referral_details: ReferralDetails,
+		referral_code: U256,
+	) -> bool;
+	fn update_master_account_level_internal(master_account_address: U256, level: u8);
+	fn get_fee_discount(trading_account_id: U256) -> FixedI128;
+	fn get_account_address_and_referral_details(account_id: U256) -> Option<ReferralDetails>;
+	fn get_master_account_level(account_address: U256) -> u8;
+	fn update_master_fee_share(
+		account_address: U256,
+		collateral_id: u128,
+		current_fee_share: FixedI128,
+	);
 }
 
 pub trait TradingInterface {
@@ -80,6 +114,19 @@ pub trait TradingInterface {
 	fn get_fee(account_id: U256, market_id: u128) -> (FeeRates, u64);
 	fn get_withdrawable_amount(account_id: U256, collateral_id: u128) -> FixedI128;
 	fn get_remaining_trading_cleanup_calls() -> u64;
+	fn get_fee_rate(
+		account_id: U256,
+		base_fees: &BaseFeeAggregate,
+		side: Side,
+		order_side: OrderSide,
+		volume: FixedI128,
+	) -> (FixedI128, u8);
+	fn get_all_fee_rates(
+		account_id: U256,
+		market_id: u128,
+		collateral_id: u128,
+		volume: FixedI128,
+	) -> FeeRates;
 }
 
 pub trait AssetInterface {
@@ -157,21 +204,14 @@ pub trait FieldElementExt {
 }
 
 pub trait TradingFeesInterface {
-	fn remove_base_fees_internal(id: u128);
-	fn update_base_fees_internal(
-		collateral_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		fee_details: Vec<BaseFee>,
+	fn get_all_fees(market_id: u128, collateral_id: u128) -> BaseFeeAggregate;
+	fn update_base_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> DispatchResult;
+	fn update_fee_shares_internal(
+		id: u128,
+		fee_share_details: Vec<Vec<FeeShareDetails>>,
 	) -> DispatchResult;
-	fn get_fee_rate(
-		collateral_id: u128,
-		market_id: u128,
-		side: Side,
-		order_side: OrderSide,
-		volume: FixedI128,
-	) -> (FixedI128, u8);
-	fn get_all_fee_rates(collateral_id: u128, volume: FixedI128) -> FeeRates;
+	fn get_fee_share(account_level: u8, collateral_id: u128, volume: FixedI128) -> FixedI128;
+	fn get_all_fee_shares(collateral_id: u128) -> Vec<Vec<FeeShareDetails>>;
 }
 
 // This trait needs to be implemented by every type that can be hashed (pedersen or poseidon) and
@@ -237,6 +277,14 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_settings_added_event(
 		&mut self,
 		settings_added: &SettingsAdded,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_referral_added_event(
+		&mut self,
+		referral_added_event: &ReferralDetailsAdded,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_account_level_updated_event(
+		&mut self,
+		account_level_updated_event: &MasterAccountLevelChanged,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,

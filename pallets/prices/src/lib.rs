@@ -16,7 +16,11 @@ pub mod pallet {
 		pallet_prelude::{DispatchResult, *},
 		traits::UnixTime,
 	};
-	use frame_system::{ensure_signed, pallet_prelude::*};
+	use frame_system::{
+		ensure_signed,
+		offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
+		pallet_prelude::*,
+	};
 	use pallet_support::{
 		helpers::{fixed_pow, ln},
 		traits::{
@@ -30,6 +34,8 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero, FixedPointNumber};
+	use sp_core::crypto::KeyTypeId;
+	use sp_runtime::traits::SaturatedConversion;
 
 	// ////////////
 	// Constants //
@@ -53,19 +59,54 @@ pub mod pallet {
 	// Duration for which price data is available
 	static FOUR_WEEKS: u64 = 2419200;
 	// Number of deletions for cleanup
-	static CLEANUP_COUNT: u64 = 10;
+	static CLEANUP_COUNT: u64 = 120;
+	// Block interval at which offchain workers will be executed
+	const BLOCK_INTERVAL: u32 = 120;
+
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"ofcw");
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
+	pub mod crypto {
+		use super::KEY_TYPE;
+		use sp_runtime::{
+			app_crypto::{app_crypto, sr25519},
+			traits::Verify,
+			MultiSignature, MultiSigner,
+		};
+		app_crypto!(sr25519, KEY_TYPE);
+		use sp_core::sr25519::Signature as Sr25519Signature;
+		pub struct AuthId;
+
+		// implemented for runtime
+		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for AuthId {
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+
+		impl
+			frame_system::offchain::AppCrypto<
+				<Sr25519Signature as Verify>::Signer,
+				Sr25519Signature,
+			> for AuthId
+		{
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
+
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type AssetPallet: AssetInterface;
 		type MarketPallet: MarketInterface;
 		type TradingAccountPallet: TradingAccountInterface;
 		type TradingPallet: TradingInterface;
 		type TimeProvider: UnixTime;
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
 
 	#[pallet::storage]
@@ -1417,6 +1458,41 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// Offchain worker entry point
+		fn offchain_worker(block_number: BlockNumberFor<T>) {
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			if !signer.can_sign() {
+				log::info!(
+					"No local accounts available. Consider adding one via `author_insertKey` RPC."
+				);
+			}
+
+			// Converts block number to u32 format
+			let block_number = block_number.saturated_into::<u32>();
+			// Calls extrinsic after every block interval
+			if block_number % BLOCK_INTERVAL == 0 {
+				// Call perform prices clean up only when there are prices to clean up
+				let cleanup_calls = Self::get_remaining_prices_cleanup_calls();
+				if cleanup_calls != 0 {
+					let results =
+						signer.send_signed_transaction(|_account| Call::perform_prices_cleanup {});
+					for (acc, res) in &results {
+						match res {
+							Ok(()) => log::info!("[{:?}]: Submit transaction success.", acc.id),
+							Err(e) => log::info!(
+								"[{:?}]: Submit transaction failure. Reason: {:?}",
+								acc.id,
+								e
+							),
+						}
+					}
+				}
+			}
 		}
 	}
 }
