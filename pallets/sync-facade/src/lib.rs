@@ -31,14 +31,10 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use scale_info::prelude::vec;
-<<<<<<< HEAD
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
-=======
 	use sp_arithmetic::{
 		fixed_point::FixedI128,
 		traits::{One, Zero},
 	};
->>>>>>> 151a5f1 (Added bug fix)
 
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
@@ -173,17 +169,14 @@ pub mod pallet {
 		AddReferralError { master_account_address: U256, referral_account_address: U256 },
 		/// Account is not regisered for account level update
 		UpdateAccountLevelError { master_account_address: U256 },
-<<<<<<< HEAD
 		/// A Deprecated event was passed in the batch
 		DeprecatedEvent { event_index: u32, block_number: u64 },
 		/// An invalid fee split data associated with update market event
 		InvalidFeeSplitData { event_index: u32, block_number: u64 },
 		/// An invalid insurance fund event data
 		InvalidInsuranceData { event_index: u32, block_number: u64 },
-=======
 		/// Invalid fee discount value
 		InvalidFeeDiscount { event_index: u32, block_number: u64 },
->>>>>>> 151a5f1 (Added bug fix)
 	}
 
 	#[pallet::error]

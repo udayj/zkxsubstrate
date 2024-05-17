@@ -2569,6 +2569,8 @@ fn test_fee_share_1() {
 	// Generate account_ids
 	let alice_id: U256 = get_trading_account_id(alice());
 	let bob_id: U256 = get_trading_account_id(bob());
+	let alice_account_address = alice().account_address;
+	let bob_account_address = bob().account_address;
 	let charlie_account_address = charlie().account_address;
 
 	let market_id = btc_usdc().market.id;
@@ -2701,6 +2703,22 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
 		]);
 
 		////////////////////
@@ -2787,6 +2805,22 @@ fn test_fee_share_1() {
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: 1_u64,
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
 			}
 			.into(),
 		]);
@@ -2889,6 +2923,22 @@ fn test_fee_share_1() {
 				block_number: 1_u64,
 			}
 			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
 		]);
 
 		////////////////////
@@ -2984,6 +3034,22 @@ fn test_fee_share_1() {
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: 1_u64,
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
 			}
 			.into(),
 		]);
@@ -3084,6 +3150,22 @@ fn test_fee_share_1() {
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: 1_u64,
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_5 * FixedI128::from_float(0.1)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_5 * FixedI128::from_float(0.1)).round_to_precision(6),
 			}
 			.into(),
 		]);
@@ -3189,6 +3271,22 @@ fn test_fee_share_1() {
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: 1_u64,
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_6 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_6 * FixedI128::from_float(0.5)).round_to_precision(6),
 			}
 			.into(),
 		]);
@@ -4083,8 +4181,9 @@ fn test_fee_share_2() {
 	// Generate account_ids
 	let alice_id: U256 = get_trading_account_id(alice());
 	let bob_id: U256 = get_trading_account_id(bob());
-	let charlie_account_address = charlie().account_address;
+	let alice_account_address = alice().account_address;
 	let bob_account_address = bob().account_address;
+	let charlie_account_address = charlie().account_address;
 
 	let market_id = btc_usdc().market.id;
 	let collateral_id = usdc().asset.id;
@@ -4231,6 +4330,22 @@ fn test_fee_share_2() {
 				block_number: 1_u64,
 			}
 			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
 		]);
 
 		////////////////////
@@ -4325,6 +4440,22 @@ fn test_fee_share_2() {
 				modify_type: FundModifyType::Decrease,
 				reason: BalanceChangeReason::Fee.into(),
 				block_number: 1_u64,
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
 			}
 			.into(),
 		]);

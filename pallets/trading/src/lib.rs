@@ -1695,21 +1695,17 @@ pub mod pallet {
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
+			let fee_share_amount = Self::update_and_get_fee_share(
+				order.account_id,
+				collateral_id,
+				master_30day_volume,
+				current_volume,
+				fee,
+				collateral_token_decimal,
+			);
+
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
-				// Update fee share for the master account
-				let mut fee_share_amount = FixedI128::zero();
-				if master_30day_volume != FixedI128::zero() {
-					fee_share_amount = Self::update_and_get_fee_share(
-						order.account_id,
-						collateral_id,
-						master_30day_volume,
-						leveraged_order_value,
-						fee,
-						collateral_token_decimal,
-					);
-				}
-
 				T::TradingAccountPallet::transfer_from(
 					order.account_id,
 					collateral_id,
@@ -2023,21 +2019,17 @@ pub mod pallet {
 				let mut fee = fee_rate * leveraged_order_value;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
 
+				let fee_share_amount = Self::update_and_get_fee_share(
+					order.account_id,
+					collateral_id,
+					master_30day_volume,
+					current_volume,
+					fee,
+					collateral_token_decimal,
+				);
+
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
-					// Update fee share for the master accoun
-					let mut fee_share_amount = FixedI128::zero();
-					if master_30day_volume != FixedI128::zero() {
-						fee_share_amount = Self::update_and_get_fee_share(
-							order.account_id,
-							collateral_id,
-							master_30day_volume,
-							leveraged_order_value,
-							fee,
-							collateral_token_decimal,
-						);
-					}
-
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
@@ -2368,25 +2360,31 @@ pub mod pallet {
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
+			let fee_share_amount = Self::update_and_get_fee_share(
+				order.account_id,
+				collateral_id,
+				master_30day_volume,
+				current_volume,
+				fee,
+				collateral_token_decimal,
+			);
+
 			// Deduct fee while closing a position
 			if fee != FixedI128::zero() {
-				// Update fee share for the master account
-				if master_30day_volume != FixedI128::zero() {
-					Self::update_fee_share(
-						account_id,
-						collateral_id,
-						master_30day_volume,
-						leveraged_order_value,
-						fee,
-						collateral_token_decimal,
-					);
-				}
-
 				T::TradingAccountPallet::transfer_from(
 					account_id,
 					collateral_id,
+					market_id,
 					fee,
 					BalanceChangeReason::Fee,
+				);
+
+				T::TradingAccountPallet::handle_fee_split(
+					order.account_id,
+					collateral_id,
+					order.market_id,
+					fee,
+					fee_share_amount,
 				);
 			}
 
