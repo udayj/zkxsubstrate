@@ -2547,6 +2547,8 @@ fn test_fee_share_1() {
 	// Generate account_ids
 	let alice_id: U256 = get_trading_account_id(alice());
 	let bob_id: U256 = get_trading_account_id(bob());
+	let alice_account_address = alice().account_address;
+	let bob_account_address = bob().account_address;
 	let charlie_account_address = charlie().account_address;
 
 	let market_id = btc_usdc().market.id;
@@ -2655,6 +2657,27 @@ fn test_fee_share_1() {
 			"Invalid fee rate for Bob day 1 batch 1"
 		);
 
+		print!("events: {:?}", System::events());
+		// Check for 0 amount FeeShare
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+		]);
+
 		////////////////////
 		// Day 1: Batch 2 //
 		////////////////////
@@ -2715,6 +2738,26 @@ fn test_fee_share_1() {
 				bob_balance_1 - (FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
 			"Invalid fee rate for Bob day 1 batch 2"
 		);
+
+		// Check for 0 amount FeeShare
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+		]);
 
 		////////////////////
 		// Day 2: Batch 1 //
@@ -2786,6 +2829,25 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_3 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
 		////////////////////
 		// Day 2: Batch 2 //
 		////////////////////
@@ -2853,6 +2915,25 @@ fn test_fee_share_1() {
 				master_fee_share_3 + expected_master_fee_share_4.round_to_precision(6),
 			"wrong master fee share"
 		);
+
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_4 * FixedI128::from_float(0.08)).round_to_precision(6),
+			}
+			.into(),
+		]);
 
 		////////////////////
 		// Day 3: Batch 1 //
@@ -2924,6 +3005,25 @@ fn test_fee_share_1() {
 				master_fee_share_4 + expected_master_fee_share_5.round_to_precision(6),
 			"wrong master fee share"
 		);
+
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_5 * FixedI128::from_float(0.1)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_5 * FixedI128::from_float(0.1)).round_to_precision(6),
+			}
+			.into(),
+		]);
 
 		////////////////////
 		// Day 3: Batch 2 //
@@ -3001,6 +3101,25 @@ fn test_fee_share_1() {
 			"wrong master fee share"
 		);
 
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (alice_fee_6 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: (bob_fee_6 * FixedI128::from_float(0.5)).round_to_precision(6),
+			}
+			.into(),
+		]);
+
 		// Emit FeeShareTransfer for Charlie
 		assert_ok!(TradingAccounts::pay_fee_shares(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
@@ -3035,8 +3154,9 @@ fn test_fee_share_2() {
 	// Generate account_ids
 	let alice_id: U256 = get_trading_account_id(alice());
 	let bob_id: U256 = get_trading_account_id(bob());
-	let charlie_account_address = charlie().account_address;
+	let alice_account_address = alice().account_address;
 	let bob_account_address = bob().account_address;
+	let charlie_account_address = charlie().account_address;
 
 	let market_id = btc_usdc().market.id;
 	let collateral_id = usdc().asset.id;
@@ -3159,6 +3279,26 @@ fn test_fee_share_2() {
 			"Invalid fee rate for Bob day 1 batch 1"
 		);
 
+		// Check for 0 amount FeeShare
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+		]);
+
 		////////////////////
 		// Day 1: Batch 2 //
 		////////////////////
@@ -3227,6 +3367,25 @@ fn test_fee_share_2() {
 				bob_balance_1 - (FixedI128::from_float(1001.0) * FixedI128::from_float(0.0009)),
 			"Invalid fee rate for Bob day 1 batch 2"
 		);
+
+		assert_has_events(vec![
+			Event::MasterFeeShareUpdated {
+				master_account_address: bob_account_address,
+				referral_account_address: alice_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+			Event::MasterFeeShareUpdated {
+				master_account_address: charlie_account_address,
+				referral_account_address: bob_account_address,
+				order_volume: FixedI128::from_float(1001.0),
+				collateral_id,
+				fee_share: FixedI128::zero(),
+			}
+			.into(),
+		]);
 
 		////////////////////
 		// Day 2: Batch 1 //
