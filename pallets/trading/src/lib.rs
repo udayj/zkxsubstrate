@@ -1493,14 +1493,14 @@ pub mod pallet {
 				total_30day_volume,
 			);
 
-			let mut fee = fee_rate * leveraged_order_value;
+			let mut fee = fee_rate * current_volume;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			Self::update_fee_share(
 				order.account_id,
 				collateral_id,
 				master_30day_volume,
-				leveraged_order_value,
+				current_volume,
 				fee,
 				collateral_token_decimal,
 			);
@@ -1798,14 +1798,14 @@ pub mod pallet {
 					total_30day_volume,
 				);
 
-				let mut fee = fee_rate * leveraged_order_value;
+				let mut fee = fee_rate * current_volume;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
 
 				Self::update_fee_share(
 					order.account_id,
 					collateral_id,
 					master_30day_volume,
-					leveraged_order_value,
+					current_volume,
 					fee,
 					collateral_token_decimal,
 				);
