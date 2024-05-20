@@ -2016,7 +2016,7 @@ pub mod pallet {
 					total_30day_volume,
 				);
 
-				let mut fee = fee_rate * leveraged_order_value;
+				let mut fee = fee_rate * current_volume;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
 
 				let fee_share_amount = Self::update_and_get_fee_share(
