@@ -866,7 +866,7 @@ pub mod pallet {
 				let fee_share =
 					MasterAccountFeeShare::<T>::get(master_account_address, collateral_id);
 
-				// If the passed amount is invalid, we emit an event and skip the current iteration
+				// If the passed amount is invalid, we return an error
 				ensure!(
 					amount <= fee_share && amount > FixedI128::zero(),
 					Error::<T>::InvalidFeeSharesAmount { invalid_index: index as u16 }
@@ -882,7 +882,7 @@ pub mod pallet {
 				Self::deposit_event(Event::FeeShareTransfer {
 					master_account_address,
 					collateral_id,
-					amount: fee_share,
+					amount,
 					block_number: <frame_system::Pallet<T>>::block_number(),
 				});
 			}

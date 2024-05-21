@@ -31,7 +31,10 @@ pub mod pallet {
 	};
 	use primitive_types::U256;
 	use scale_info::prelude::vec;
-	use sp_arithmetic::{fixed_point::FixedI128, traits::Zero};
+	use sp_arithmetic::{
+		fixed_point::FixedI128,
+		traits::{One, Zero},
+	};
 
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
@@ -172,6 +175,8 @@ pub mod pallet {
 		InvalidFeeSplitData { event_index: u32, block_number: u64 },
 		/// An invalid insurance fund event data
 		InvalidInsuranceData { event_index: u32, block_number: u64 },
+		/// Invalid fee discount value
+		InvalidFeeDiscount { event_index: u32, block_number: u64 },
 	}
 
 	#[pallet::error]
@@ -942,6 +947,17 @@ pub mod pallet {
 						Self::handle_settings(&settings_added.settings);
 					},
 					UniversalEvent::ReferralDetailsAdded(referral_added) => {
+						if referral_added.fee_discount > FixedI128::one() ||
+							referral_added.fee_discount < FixedI128::zero()
+						{
+							Self::deposit_event(Event::InvalidFeeDiscount {
+								event_index: referral_added.event_index,
+								block_number: referral_added.block_number,
+							});
+
+							continue;
+						}
+
 						match T::TradingAccountPallet::add_referral_internal(
 							referral_added.referral_account_address,
 							ReferralDetails {

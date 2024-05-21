@@ -1523,24 +1523,20 @@ pub mod pallet {
 				total_30day_volume,
 			);
 
-			let mut fee = fee_rate * leveraged_order_value;
+			let mut fee = fee_rate * current_volume;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
+
+			let fee_share_amount = Self::update_and_get_fee_share(
+				order.account_id,
+				collateral_id,
+				master_30day_volume,
+				current_volume,
+				fee,
+				collateral_token_decimal,
+			);
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
-				// Update fee share for the master account
-				let mut fee_share_amount = FixedI128::zero();
-				if master_30day_volume != FixedI128::zero() {
-					fee_share_amount = Self::update_and_get_fee_share(
-						order.account_id,
-						collateral_id,
-						master_30day_volume,
-						leveraged_order_value,
-						fee,
-						collateral_token_decimal,
-					);
-				}
-
 				T::TradingAccountPallet::transfer_from(
 					order.account_id,
 					collateral_id,
@@ -1851,24 +1847,21 @@ pub mod pallet {
 					total_30day_volume,
 				);
 
-				let mut fee = fee_rate * leveraged_order_value;
+				let mut fee = fee_rate * current_volume;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
+
+				let fee_share_amount = Self::update_and_get_fee_share(
+					order.account_id,
+					collateral_id,
+					master_30day_volume,
+					current_volume,
+					fee,
+					collateral_token_decimal,
+				);
 
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
-					// Update fee share for the master accoun
-					let mut fee_share_amount = FixedI128::zero();
-					if master_30day_volume != FixedI128::zero() {
-						fee_share_amount = Self::update_and_get_fee_share(
-							order.account_id,
-							collateral_id,
-							master_30day_volume,
-							leveraged_order_value,
-							fee,
-							collateral_token_decimal,
-						);
-					}
-
+					// Transfer fee from the user
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
@@ -2342,9 +2335,13 @@ pub mod pallet {
 				return (FeeRates::new(zero, zero, zero, zero), 0)
 			}
 
+			// Get monetary address from account_id
+			// Unwrap won't fail here as user is valid
+			let monetary_address =
+				T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
 			let last_30day_volume: FixedI128;
 			match T::TradingAccountPallet::get_30day_volume(
-				account_id,
+				monetary_address,
 				market_id,
 				VolumeType::UserVolume,
 			) {
