@@ -454,10 +454,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			insurance_fund: U256,
 		) -> DispatchResult {
-			if !IS_DEV_ENABLED {
-				return Err(Error::<T>::DevOnlyCall.into())
-			}
-			ensure_signed(origin)?;
+			ensure_root(origin)?;
 
 			DefaultInsuranceFund::<T>::set(Some(insurance_fund));
 
