@@ -1,3 +1,4 @@
+validatorNode: true
 # -- Provide a name in place of node for `app:` labels
 nameOverride: ""
 

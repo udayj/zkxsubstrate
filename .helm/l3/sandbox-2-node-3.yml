@@ -192,7 +192,7 @@ node:
     # -- Set the amount of blocks to retain. If set to 0 archive node will be run
     pruning: 0
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.VolumeSnapshot) and use it to store chain data
-    kubernetesVolumeSnapshot:
+    kubernetesVolumeSnapshot: 
     # -- (string) If set, create a clone of the volume (using volumeClaimTemplates.dataSource.PersistentVolumeClaim) and use it to store chain data
     kubernetesVolumeToClone:
     # -- (string) Path on the volume to store chain data
@@ -200,7 +200,7 @@ node:
     # -- Storage class to use for persistent volume
     storageClass: ""
     # -- Size of the volume for chain data
-    volumeSize: 100Gi
+    volumeSize: 200Gi
     # -- Annotations to add to the volumeClaimTemplates
     annotations: {}
 
@@ -348,7 +348,7 @@ node:
 
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg'"]
+  flags: ["-l debug --bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
@@ -687,13 +687,18 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector: {}
+nodeSelector:
+  role: substrate-spot
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
 
 # -- Tolerations for use with node taints
-tolerations: []
+tolerations:
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: substrate-spot
 
 # -- Assign custom affinity rules
 affinity: {}

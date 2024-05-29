@@ -1,3 +1,4 @@
+validatorNode: true
 # -- Provide a name in place of node for `app:` labels
 nameOverride: ""
 
@@ -346,7 +347,7 @@ node:
     flags: []
 
   # -- Flags to add to the Polkadot binary
-  flags: ["--alice -l debug"]
+  flags: ["--alice --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZgUriHhKust' -l debug"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
