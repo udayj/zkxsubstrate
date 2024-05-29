@@ -10,8 +10,8 @@ use pallet_support::{
 	traits::{FixedI128Ext, TradingAccountInterface, TradingInterface},
 	types::{
 		BalanceChangeReason, BaseFee, BaseFeeAggregate, Direction, FeeRates, FeeShareDetails,
-		FeeSharesInput, FundModifyType, MultiplePrices, Order, OrderSide, OrderType, Position,
-		ReferralDetails, Side, TradingAccount,
+		FeeSharesInput, FundModifyType, MultiplePrices, Order, OrderType, Position,
+		ReferralDetails, Side,
 	},
 };
 use pallet_trading_account::Event as TradingAccountEvent;
@@ -7002,8 +7002,8 @@ fn test_closing_positions_of_delisted_market_user_underwater() {
 				is_maker: true,
 			}
 			.into(),
-			TradingAccountEvent::InsuranceFundChange {
-				collateral_id,
+			TradingAccountEvent::InsuranceFundChangeV2 {
+				market_id,
 				amount: 4000.into(),
 				modify_type: FundModifyType::Decrease,
 				block_number: 1,

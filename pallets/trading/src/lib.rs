@@ -2281,8 +2281,9 @@ pub mod pallet {
 				if pnl_abs > balance {
 					if balance.is_negative() {
 						// Complete funds lost by user should be taken from insurance fund
-						T::TradingAccountPallet::emit_insurance_fund_change_event(
+						T::TradingAccountPallet::handle_insurance_fund_update(
 							collateral_id,
+							market_id,
 							pnl_abs,
 							FundModifyType::Decrease,
 						);
@@ -2298,10 +2299,11 @@ pub mod pallet {
 							block_number: <frame_system::Pallet<T>>::block_number(),
 						});
 					} else {
-						// Some amount of lost funds can be taken from users available balance
+						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
-						T::TradingAccountPallet::emit_insurance_fund_change_event(
+						T::TradingAccountPallet::handle_insurance_fund_update(
 							collateral_id,
+							market_id,
 							pnl_abs - balance,
 							FundModifyType::Decrease,
 						);
@@ -2323,6 +2325,7 @@ pub mod pallet {
 				T::TradingAccountPallet::transfer_from(
 					account_id,
 					collateral_id,
+					market_id,
 					pnl_abs,
 					BalanceChangeReason::PnlRealization,
 				);
@@ -2332,6 +2335,7 @@ pub mod pallet {
 				T::TradingAccountPallet::transfer(
 					account_id,
 					collateral_id,
+					market_id,
 					pnl,
 					BalanceChangeReason::PnlRealization,
 				);
@@ -2361,7 +2365,7 @@ pub mod pallet {
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
 			let fee_share_amount = Self::update_and_get_fee_share(
-				order.account_id,
+				account_id,
 				collateral_id,
 				master_30day_volume,
 				current_volume,
@@ -2380,9 +2384,9 @@ pub mod pallet {
 				);
 
 				T::TradingAccountPallet::handle_fee_split(
-					order.account_id,
+					account_id,
 					collateral_id,
-					order.market_id,
+					market_id,
 					fee,
 					fee_share_amount,
 				);
