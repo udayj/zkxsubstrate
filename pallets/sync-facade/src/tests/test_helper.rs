@@ -4,8 +4,9 @@ use pallet_support::{
 	helpers::compute_hash_on_elements,
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
-		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, Market, MarketRemoved,
-		MarketUpdated, QuorumSet, Setting, SettingsAdded, SignerAdded, SignerRemoved,
+		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate,
+		FeeShareDetails, Market, MarketRemoved, MarketUpdated, MasterAccountLevelChanged,
+		QuorumSet, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
 		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 	FieldElement,
@@ -80,6 +81,30 @@ pub trait SettingsAddedTrait {
 	fn get_max_default_settings() -> SettingsAdded;
 	fn get_max_btc_usdc_settings() -> SettingsAdded;
 	fn get_max_eth_usdc_settings() -> SettingsAdded;
+	// fee share
+	fn get_usdc_fee_shares_settings() -> SettingsAdded;
+	fn get_usdt_fee_shares_settings() -> SettingsAdded;
+}
+
+pub trait ReferralDetailsAddedTrait {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		referral_account_address: U256,
+		level: u8,
+		referral_code: U256,
+		fee_discount: FixedI128,
+		block_number: u64,
+	) -> ReferralDetailsAdded;
+}
+
+pub trait MasterAccountLevelChangedTrait {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		level: u8,
+		block_number: u64,
+	) -> MasterAccountLevelChanged;
 }
 
 impl MarketUpdatedTrait for MarketUpdated {
@@ -452,6 +477,110 @@ impl SettingsAddedTrait for SettingsAdded {
 
 		SettingsAdded { event_index: 1, settings, block_number: 1337 }
 	}
+
+	fn get_usdc_fee_shares_settings() -> SettingsAdded {
+		let settings = bounded_vec![
+			Setting {
+				// R_USDC_V_0
+				key: U256::from(388992640615285758779184_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(200000),
+					FixedI128::from_u32(5000000),
+					FixedI128::from_u32(10000000),
+					FixedI128::from_u32(25000000),
+					FixedI128::from_u32(50000000)
+				]
+			},
+			Setting {
+				// R_USDC_F_0
+				key: U256::from(388992640615285757730608_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.05),
+					FixedI128::from_float(0.08),
+					FixedI128::from_float(0.1),
+					FixedI128::from_float(0.12),
+					FixedI128::from_float(0.15)
+				]
+			},
+			Setting {
+				// R_USDC_F_1
+				key: U256::from(388992640615285757730609_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5)
+				]
+			}
+		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
+
+	fn get_usdt_fee_shares_settings() -> SettingsAdded {
+		let settings = bounded_vec![
+			Setting {
+				// R_USDT_V_0
+				key: U256::from(388992640615358773223216_i128),
+				values: bounded_vec![
+					FixedI128::from_u32(0),
+					FixedI128::from_u32(200000),
+					FixedI128::from_u32(5000000),
+				]
+			},
+			Setting {
+				// R_USDT_F_0
+				key: U256::from(388992640615358772174640_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.05),
+					FixedI128::from_float(0.08),
+				]
+			},
+			Setting {
+				// R_USDT_F_1
+				key: U256::from(388992640615358772174641_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_2
+				key: U256::from(388992640615358772174642_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_3
+				key: U256::from(388992640615358772174643_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			},
+			Setting {
+				// R_USDT_F_4
+				key: U256::from(388992640615358772174644_i128),
+				values: bounded_vec![
+					FixedI128::from_float(0.0),
+					FixedI128::from_float(0.5),
+					FixedI128::from_float(0.5),
+				]
+			}
+		];
+
+		SettingsAdded { event_index: 1, settings, block_number: 1337 }
+	}
 }
 
 impl UserDepositTrait for UserDeposit {
@@ -473,6 +602,39 @@ impl QuorumSetTrait for QuorumSet {
 	}
 }
 
+impl MasterAccountLevelChangedTrait for MasterAccountLevelChanged {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		level: u8,
+		block_number: u64,
+	) -> MasterAccountLevelChanged {
+		MasterAccountLevelChanged { event_index, master_account_address, level, block_number }
+	}
+}
+
+impl ReferralDetailsAddedTrait for ReferralDetailsAdded {
+	fn new(
+		event_index: u32,
+		master_account_address: U256,
+		referral_account_address: U256,
+		level: u8,
+		referral_code: U256,
+		fee_discount: FixedI128,
+		block_number: u64,
+	) -> ReferralDetailsAdded {
+		ReferralDetailsAdded {
+			event_index,
+			master_account_address,
+			referral_account_address,
+			level,
+			referral_code,
+			fee_discount,
+			block_number,
+		}
+	}
+}
+
 pub trait UniversalEventArray {
 	fn new() -> Vec<UniversalEvent>;
 	fn add_market_updated_event(&mut self, market_updated_event: MarketUpdated);
@@ -484,6 +646,11 @@ pub trait UniversalEventArray {
 	fn add_signer_removed_event(&mut self, signer_removed_event: SignerRemoved);
 	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet);
 	fn add_settings_event(&mut self, settings_added_event: SettingsAdded);
+	fn add_referral_added_event(&mut self, referral_added_event: ReferralDetailsAdded);
+	fn add_master_level_changed_event(
+		&mut self,
+		master_level_changed_event: MasterAccountLevelChanged,
+	);
 	fn compute_hash(&self) -> FieldElement;
 }
 
@@ -558,6 +725,17 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		self.push(UniversalEvent::SettingsAdded(settings_added_event));
 	}
 
+	fn add_referral_added_event(&mut self, referral_added_event: ReferralDetailsAdded) {
+		self.push(UniversalEvent::ReferralDetailsAdded(referral_added_event));
+	}
+
+	fn add_master_level_changed_event(
+		&mut self,
+		master_level_changed_event: MasterAccountLevelChanged,
+	) {
+		self.push(UniversalEvent::MasterAccountLevelChanged(master_level_changed_event));
+	}
+
 	fn compute_hash(&self) -> FieldElement {
 		let mut flattened_array: Vec<FieldElement> = Vec::new();
 		flattened_array.try_append_universal_event_array(&self).unwrap();
@@ -567,7 +745,166 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 	}
 }
 
-pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
+pub fn get_usdc_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_usdc_maker_open_fees(),
+		maker_sell: get_usdc_maker_close_fees(),
+		taker_buy: get_usdc_taker_open_fees(),
+		taker_sell: get_usdc_taker_close_fees(),
+	}
+}
+
+pub fn get_usdt_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_usdt_maker_open_fees(),
+		maker_sell: get_usdt_maker_close_fees(),
+		taker_buy: get_usdt_taker_open_fees(),
+		taker_sell: get_usdt_taker_close_fees(),
+	}
+}
+
+pub fn get_btc_usdc_aggregate_fees() -> BaseFeeAggregate {
+	BaseFeeAggregate {
+		maker_buy: get_btc_usdc_maker_open_fees(),
+		maker_sell: get_btc_usdc_maker_close_fees(),
+		taker_buy: get_btc_usdc_taker_open_fees(),
+		taker_sell: get_btc_usdc_taker_close_fees(),
+	}
+}
+
+pub fn get_usdc_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.1),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.12),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.15),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(10000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(25000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(50000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
+}
+
+pub fn get_usdt_fee_shares() -> Vec<Vec<FeeShareDetails>> {
+	vec![
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.05),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.08),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+		vec![
+			FeeShareDetails {
+				volume: FixedI128::from_u32(0),
+				fee_share: FixedI128::from_float(0.0),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(200000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+			FeeShareDetails {
+				volume: FixedI128::from_u32(5000000),
+				fee_share: FixedI128::from_float(0.5),
+			},
+		],
+	]
+}
+
+fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -577,7 +914,7 @@ pub fn get_usdc_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.002) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.001) },
@@ -585,7 +922,7 @@ pub fn get_btc_usdc_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
+fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -593,7 +930,7 @@ pub fn get_usdt_maker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
+fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -603,7 +940,7 @@ pub fn get_usdc_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.002) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.001) },
@@ -611,7 +948,7 @@ pub fn get_btc_usdc_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
+fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.02) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.015) },
@@ -619,7 +956,7 @@ pub fn get_usdt_maker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
+fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -630,7 +967,7 @@ pub fn get_usdc_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.005) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.0045) },
@@ -639,7 +976,7 @@ pub fn get_btc_usdc_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
+fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -649,7 +986,7 @@ pub fn get_usdt_taker_open_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
+fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },
@@ -660,7 +997,7 @@ pub fn get_usdc_taker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
+fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.005) },
 		BaseFee { volume: FixedI128::from_u32(10000), fee: FixedI128::from_float(0.0045) },
@@ -669,7 +1006,7 @@ pub fn get_btc_usdc_taker_close_fees() -> Vec<BaseFee> {
 	]
 }
 
-pub fn get_usdt_taker_close_fees() -> Vec<BaseFee> {
+fn get_usdt_taker_close_fees() -> Vec<BaseFee> {
 	vec![
 		BaseFee { volume: FixedI128::from_u32(0), fee: FixedI128::from_float(0.050) },
 		BaseFee { volume: FixedI128::from_u32(1000000), fee: FixedI128::from_float(0.040) },

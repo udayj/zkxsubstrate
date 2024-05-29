@@ -2,38 +2,32 @@ use crate::{mock::*, Event};
 use frame_support::{assert_ok, dispatch::Vec};
 use pallet_support::{
 	test_helpers::{
+		accounts_helper::{alice, get_trading_account_id},
 		asset_helper::{btc, eth, usdc, usdt},
+		bob, charlie,
 		market_helper::{btc_usdc, eth_usdc},
 	},
-	traits::{FieldElementExt, TradingFeesInterface},
+	traits::{FieldElementExt, TradingFeesInterface, TradingInterface},
 	types::{
-		Asset, AssetRemoved, AssetUpdated, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType,
-		MarketRemoved, MarketUpdated, OrderSide, QuorumSet, SettingsAdded, Side, SignerAdded,
-		SignerRemoved, SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		Asset, AssetRemoved, AssetUpdated, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
+		FeeSettingsType, FeeShareDetails, FeeShareSettingsType, MarketRemoved, MarketUpdated,
+		MasterAccountLevelChanged, OrderSide, QuorumSet, ReferralDetails, ReferralDetailsAdded,
+		SettingsAdded, Side, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
+use pallet_trading_account::Event as TradingAccountEvents;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
-use sp_io::hashing::blake2_256;
-use sp_runtime::{traits::ConstU32, BoundedVec};
+use sp_runtime::{
+	traits::{ConstU32, Zero},
+	BoundedVec,
+};
 
 // declare test_helper module
 pub mod test_helper;
 use test_helper::*;
-
-fn get_trading_account_id(trading_account: TradingAccountMinimal) -> U256 {
-	let account_address = U256::from(trading_account.account_address);
-	let mut account_array: [u8; 32] = [0; 32];
-	account_address.to_little_endian(&mut account_array);
-
-	let mut concatenated_bytes: Vec<u8> = account_array.to_vec();
-	concatenated_bytes.push(trading_account.index);
-	let result: [u8; 33] = concatenated_bytes.try_into().unwrap();
-
-	let trading_account_id: U256 = blake2_256(&result).into();
-	trading_account_id
-}
 
 fn get_collaterals() -> Vec<ExtendedAsset> {
 	vec![usdc(), usdt(), btc(), eth()]
@@ -53,12 +47,34 @@ fn get_signers() -> Vec<U256> {
 	]
 }
 
-fn compare_base_fees(id: u128, side: Side, order_side: OrderSide, expected_values: Vec<BaseFee>) {
-	for (iterator, expected_fee) in (1..=expected_values.len() as u8).zip(expected_values) {
+fn compare_base_fees(id: u128, expected_value: BaseFeeAggregate) {
+	let actual_fees = TradingFees::base_fees_all(id).unwrap_or_default();
+
+	assert!(actual_fees == expected_value, "Mismatch fees");
+}
+
+fn compare_fee_shares(id: u128, expected_value: Vec<Vec<FeeShareDetails>>) {
+	let actual_fees = TradingFees::fee_share(id).unwrap_or_default();
+
+	assert!(actual_fees == expected_value, "Mismatch fees");
+}
+
+fn check_fee_share_storage_empty(ids: Vec<u128>) {
+	for id in ids {
+		assert!(SyncFacade::get_temp_fee_share_assets(id) == None, "Id is not removed");
 		assert!(
-			TradingFees::base_fee_tier(id, (iterator, side, order_side)) == expected_fee,
-			"Mismatch fees"
+			SyncFacade::get_temp_fee_shares(id, (FeeShareSettingsType::Vols, 0)) == None,
+			"Fee share volume at index 0 not removed"
 		);
+
+		let mut index = 0;
+		while index < 6 {
+			assert!(
+				SyncFacade::get_temp_fee_shares(id, (FeeShareSettingsType::Fees, 0)) == None,
+				"Fee share fees at not removed"
+			);
+			index += 1;
+		}
 	}
 }
 
@@ -98,14 +114,26 @@ fn setup() -> sp_io::TestExternalities {
 
 	// Set the signers using admin account
 	test_env.execute_with(|| {
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[0])
-			.expect("error while adding signer");
-		SyncFacade::set_signers_quorum(RuntimeOrigin::signed(1), 1_u8)
-			.expect("error while setting quorum");
-		Assets::replace_all_assets(RuntimeOrigin::signed(1), get_collaterals())
-			.expect("error while adding assets");
-		Markets::replace_all_markets(RuntimeOrigin::signed(1), get_markets())
-			.expect("error while adding markets");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[0],
+		)
+		.expect("error while adding signer");
+		SyncFacade::set_signers_quorum(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			1_u8,
+		)
+		.expect("error while setting quorum");
+		Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_collaterals(),
+		)
+		.expect("error while adding assets");
+		Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_markets(),
+		)
+		.expect("error while adding markets");
 		System::set_block_number(1336);
 	});
 
@@ -119,8 +147,11 @@ fn add_signer_authorized() {
 
 	env.execute_with(|| {
 		// Add a signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while adding signer");
 		assert_eq!(SyncFacade::signers().len(), 2);
 		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), true);
@@ -136,7 +167,11 @@ fn add_signer_authorized_0_pub_key() {
 
 	env.execute_with(|| {
 		// Add signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), U256::from(0)).expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(0),
+		)
+		.expect("Error in code");
 	});
 }
 
@@ -148,7 +183,11 @@ fn add_signer_authorized_duplicate_pub_key() {
 
 	env.execute_with(|| {
 		// Add signer; error
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[0]).expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[0],
+		)
+		.expect("Error in code");
 	});
 }
 
@@ -160,8 +199,11 @@ fn remove_signer_authorized_insufficient_signer() {
 
 	env.execute_with(|| {
 		// Remove signer; error
-		SyncFacade::remove_signer(RuntimeOrigin::signed(1), get_signers()[0])
-			.expect("Error in code");
+		SyncFacade::remove_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[0],
+		)
+		.expect("Error in code");
 	});
 }
 
@@ -173,7 +215,11 @@ fn remove_signer_authorized_invalid_signer() {
 
 	env.execute_with(|| {
 		// Remove signer; error
-		SyncFacade::remove_signer(RuntimeOrigin::signed(1), U256::from(0)).expect("Error in code");
+		SyncFacade::remove_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			U256::from(0),
+		)
+		.expect("Error in code");
 	});
 }
 
@@ -184,14 +230,23 @@ fn remove_signer_unauthorized() {
 
 	env.execute_with(|| {
 		// Add signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while adding signer");
 		// Add signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[2])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[2],
+		)
+		.expect("error while adding signer");
 		// Remove signer
-		SyncFacade::remove_signer(RuntimeOrigin::signed(1), get_signers()[0])
-			.expect("error while removing signer");
+		SyncFacade::remove_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[0],
+		)
+		.expect("error while removing signer");
 		assert_eq!(SyncFacade::signers().len(), 2);
 		assert_eq!(SyncFacade::signers(), get_signers()[1..3]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[0]), false);
@@ -199,8 +254,11 @@ fn remove_signer_unauthorized() {
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[2]), true);
 
 		// Remove signer
-		SyncFacade::remove_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while removing signer");
+		SyncFacade::remove_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while removing signer");
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[2]]);
 		assert_eq!(SyncFacade::is_signer_valid(get_signers()[1]), false);
@@ -214,11 +272,17 @@ fn set_quorum_authorized_insufficient_signers() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while adding signer");
 		// Set quorum; error
-		SyncFacade::set_signers_quorum(RuntimeOrigin::signed(1), 3_u8)
-			.expect("error while setting quorum");
+		SyncFacade::set_signers_quorum(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			3_u8,
+		)
+		.expect("error while setting quorum");
 	});
 }
 
@@ -228,13 +292,22 @@ fn set_quorum_authorized() {
 	let mut env = setup();
 
 	env.execute_with(|| {
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while adding signer");
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[2])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[2],
+		)
+		.expect("error while adding signer");
 		// Set quorum; error
-		SyncFacade::set_signers_quorum(RuntimeOrigin::signed(1), 3_u8)
-			.expect("error while setting quorum");
+		SyncFacade::set_signers_quorum(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			3_u8,
+		)
+		.expect("error while setting quorum");
 		let quorum = SyncFacade::get_signers_quorum();
 		assert_eq!(quorum, 3_u8);
 	});
@@ -261,8 +334,12 @@ fn sync_add_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		assert_eq!(SyncFacade::signers().len(), 2);
 		assert_eq!(SyncFacade::signers(), get_signers()[0..2]);
@@ -295,8 +372,12 @@ fn sync_add_multiple_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		assert_eq!(SyncFacade::signers().len(), 4);
 		assert_eq!(SyncFacade::signers(), get_signers()[0..4]);
@@ -328,8 +409,12 @@ fn sync_add_duplicate_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), get_signers()[0..1]);
@@ -367,8 +452,12 @@ fn sync_update_asset_event_add_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 4);
 		assert_eq!(Assets::assets(usdc().asset.id).unwrap(), usdc());
@@ -413,8 +502,12 @@ fn sync_update_asset_event_multiple_add_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 4);
 		assert_eq!(Assets::assets(usdt().asset.id).unwrap(), usdt());
@@ -455,8 +548,12 @@ fn sync_asset_event_add_asset_remove_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 3);
 	});
@@ -489,11 +586,18 @@ fn sync_update_market_event_add_market() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
 
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 2);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
@@ -536,13 +640,17 @@ fn sync_update_market_event_multiple_add_market() {
 
 	env.execute_with(|| {
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![usdc(), eth(), btc()]
 		));
 
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 2);
 		assert_eq!(Markets::markets(eth_usdc().market.id).unwrap(), eth_usdc());
@@ -580,12 +688,22 @@ fn sync_update_market_event_update_market() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![eth_usdc()]
+		));
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 1);
 		assert_eq!(Markets::markets(updated_market.market.id).unwrap(), updated_market);
@@ -614,12 +732,22 @@ fn sync_remove_market_event() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![eth_usdc()]
+		));
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(Markets::markets_count(), 0);
 	});
@@ -646,15 +774,28 @@ fn sync_quorum_set_event() {
 
 	env.execute_with(|| {
 		// add a signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1])
-			.expect("error while adding signer");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("error while adding signer");
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![eth_usdc()]
+		));
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(SyncFacade::get_signers_quorum(), 2_u8);
 	});
@@ -681,15 +822,487 @@ fn sync_quorum_set_event_insufficient_signers() {
 
 	env.execute_with(|| {
 		// add assets
-		assert_ok!(Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), eth()]));
+		assert_ok!(Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), eth()]
+		));
 		// add markets
-		assert_ok!(Markets::replace_all_markets(RuntimeOrigin::signed(1), vec![eth_usdc()]));
+		assert_ok!(Markets::replace_all_markets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![eth_usdc()]
+		));
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		assert_eq!(SyncFacade::get_signers_quorum(), 1_u8);
 		System::assert_has_event(Event::QuorumSetError { quorum: 2_u8 }.into());
+	});
+}
+
+#[test]
+fn sync_referral_added_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let referral_account_address = bob().account_address;
+	let level = 0;
+	let fee_discount = FixedI128::from_float(0.5);
+	let referral_code = U256::from(6648936);
+
+	let referral_added_event = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address,
+		referral_account_address,
+		level,
+		referral_code,
+		fee_discount,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for bob is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount }
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 0_u64)),
+			referral_account_address
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address), 1);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address,
+				fee_discount,
+				referral_code,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_referral_added_event_duplicate() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address_1 = alice().account_address;
+	let master_account_address_2 = bob().account_address;
+	let referral_account_address = charlie().account_address;
+	let level_1 = 1;
+	let level_2 = 2;
+	let fee_discount_1 = FixedI128::from_float(0.5);
+	let fee_discount_2 = FixedI128::from_float(0.25);
+	let referral_code_1 = U256::from(6648936);
+	let referral_code_2 = U256::from(6452323);
+
+	let referral_added_event_1 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address_1,
+		referral_account_address,
+		level_1,
+		referral_code_1,
+		fee_discount_1,
+		1337,
+	);
+
+	let referral_added_event_2 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		2,
+		master_account_address_2,
+		referral_account_address,
+		level_2,
+		referral_code_2,
+		fee_discount_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event_1);
+	events_batch.add_referral_added_event(referral_added_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for charlie is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address).unwrap_or_default(),
+			ReferralDetails {
+				master_account_address: master_account_address_1,
+				fee_discount: fee_discount_1
+			}
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address_1, 0_u64)),
+			referral_account_address
+		);
+
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address_2, 0_u64)),
+			U256::zero()
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address_1), 1);
+		assert_eq!(TradingAccounts::referrals_count(master_account_address_2), 0);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address: master_account_address_1,
+				referral_account_address,
+				fee_discount: fee_discount_1,
+				referral_code: referral_code_1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			Event::AddReferralError {
+				master_account_address: master_account_address_2,
+				referral_account_address,
+			}
+			.into(),
+		);
+	});
+}
+#[test]
+fn sync_multiple_referral_added_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let referral_account_address_1 = bob().account_address;
+	let referral_account_address_2 = charlie().account_address;
+	let level = 2;
+	let fee_discount_1 = FixedI128::from_float(0.5);
+	let fee_discount_2 = FixedI128::from_float(0.2);
+	let referral_code = U256::from(6648936);
+
+	let referral_added_event_1 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		1,
+		master_account_address,
+		referral_account_address_1,
+		level,
+		referral_code,
+		fee_discount_1,
+		1337,
+	);
+
+	let referral_added_event_2 = <ReferralDetailsAdded as ReferralDetailsAddedTrait>::new(
+		2,
+		master_account_address,
+		referral_account_address_2,
+		level,
+		referral_code,
+		fee_discount_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_referral_added_event(referral_added_event_1);
+	events_batch.add_referral_added_event(referral_added_event_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the referral details for bob is set correctly
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address_1).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount: fee_discount_1 }
+		);
+		assert_eq!(
+			TradingAccounts::master_account(referral_account_address_2).unwrap_or_default(),
+			ReferralDetails { master_account_address, fee_discount: fee_discount_2 }
+		);
+
+		// check if the referral address is associated with the masterAddress
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 0_u64)),
+			referral_account_address_1
+		);
+		assert_eq!(
+			TradingAccounts::referral_accounts((master_account_address, 1_u64)),
+			referral_account_address_2
+		);
+
+		// check the referral count
+		assert_eq!(TradingAccounts::referrals_count(master_account_address), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address: referral_account_address_1,
+				fee_discount: fee_discount_1,
+				referral_code,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::ReferralDetailsAdded {
+				master_account_address,
+				referral_account_address: referral_account_address_2,
+				fee_discount: fee_discount_2,
+				referral_code,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let level = 2;
+
+	let master_level_changed = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address,
+		level,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged { master_account_address, level }
+				.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_multiple_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address_1 = alice().account_address;
+	let master_account_address_2 = bob().account_address;
+	let level = 2;
+
+	let master_level_changed_1 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address_1,
+		level,
+		1337,
+	);
+
+	let master_level_changed_2 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address_2,
+		level,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed_1);
+	events_batch.add_master_level_changed_event(master_level_changed_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address_1), 2);
+
+		// check if the master level for bob is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address_2), 2);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address: master_account_address_1,
+				level,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address: master_account_address_2,
+				level,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn sync_duplicate_master_level_changed_event() {
+	// Get a test environment
+	let mut env = setup();
+
+	// Referral Details
+	let master_account_address = alice().account_address;
+	let level_1 = 2;
+	let level_2 = 3;
+
+	let master_level_changed_1 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		1,
+		master_account_address,
+		level_1,
+		1337,
+	);
+
+	let master_level_changed_2 = <MasterAccountLevelChanged as MasterAccountLevelChangedTrait>::new(
+		2,
+		master_account_address,
+		level_2,
+		1337,
+	);
+
+	let mut events_batch: Vec<UniversalEvent> = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch.add_master_level_changed_event(master_level_changed_1);
+	events_batch.add_master_level_changed_event(master_level_changed_2);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding referral");
+
+		// check if the master level for alice is set correctly
+		assert_eq!(TradingAccounts::master_account_level(master_account_address), 3);
+
+		// check the event
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address,
+				level: level_1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			TradingAccountEvents::MasterAccountLevelChanged {
+				master_account_address,
+				level: level_2,
+			}
+			.into(),
+		);
 	});
 }
 
@@ -714,8 +1327,12 @@ fn sync_remove_non_existent_market_event() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating market");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating market");
 
 		// Assert error debugging event has been emitted
 		System::assert_has_event(Event::MarketRemovedError { id: 42_u128 }.into());
@@ -757,8 +1374,12 @@ fn sync_update_asset_event_bump_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 4);
 		assert_eq!(Assets::assets(modified_usdc_asset.asset.id).unwrap(), modified_usdc_asset);
@@ -786,8 +1407,12 @@ fn sync_update_remove_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		assert_eq!(Assets::assets_count(), 3);
 	});
@@ -814,8 +1439,12 @@ fn sync_update_remove_non_existent_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while updating asset");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while updating asset");
 
 		// Assert error event has been emitted
 		System::assert_has_event(Event::AssetRemovedError { id: 42_u128 }.into());
@@ -845,15 +1474,19 @@ fn sync_add_signer_events_duplicate_batch() {
 	env.execute_with(|| {
 		// synchronize the events
 		SyncFacade::synchronize_events(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			events_batch.clone(),
 			signature_array.clone(),
 		)
 		.expect("error while adding signer");
 
 		// synchronize the events; error
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 	});
 }
 
@@ -891,12 +1524,20 @@ fn sync_batch_old_blocks() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		// synchronize the events; error
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch_1, signature_array_1)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch_1,
+			signature_array_1,
+		)
+		.expect("error while adding signer");
 	});
 }
 
@@ -921,8 +1562,12 @@ fn sync_batch_insufficient_signatures() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 	});
 }
 
@@ -934,7 +1579,11 @@ fn sync_remove_signer_events() {
 	// Add a signer that can be removed using sync events
 	env.execute_with(|| {
 		// Add a signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("Error in code");
 	});
 
 	let remove_signer_event_1 =
@@ -954,8 +1603,12 @@ fn sync_remove_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while removing signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while removing signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
@@ -986,8 +1639,12 @@ fn sync_remove_signer_insufficient_quorum_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while removing signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while removing signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[0]]);
@@ -1005,8 +1662,16 @@ fn sync_remove_multiple_signer_events() {
 	// Add a signer that can be removed using sync events
 	env.execute_with(|| {
 		// Add a signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[2]).expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[2],
+		)
+		.expect("Error in code");
 	});
 
 	let remove_signer_event_1 =
@@ -1032,8 +1697,12 @@ fn sync_remove_multiple_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while removing signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while removing signer");
 
 		assert_eq!(SyncFacade::signers().len(), 1);
 		assert_eq!(SyncFacade::signers(), vec![get_signers()[2]]);
@@ -1053,7 +1722,11 @@ fn sync_remove_non_existent_signer_events() {
 	// Add a signer that can be removed using sync events
 	env.execute_with(|| {
 		// Add a signer
-		SyncFacade::add_signer(RuntimeOrigin::signed(1), get_signers()[1]).expect("Error in code");
+		SyncFacade::add_signer(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			get_signers()[1],
+		)
+		.expect("Error in code");
 	});
 
 	let remove_signer_event_1 = <SignerRemoved as SignerRemovedTrait>::new(1, 42_u128.into(), 1337);
@@ -1072,8 +1745,12 @@ fn sync_remove_non_existent_signer_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		assert_eq!(SyncFacade::signers().len(), 2);
 		assert_eq!(SyncFacade::signers(), get_signers()[0..2].to_vec());
@@ -1136,8 +1813,12 @@ fn sync_deposit_events() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		let alice_balance = TradingAccounts::balances(alice_account_id, usdc().asset.id);
 		let bob_balance = TradingAccounts::balances(bob_account_id, usdc().asset.id);
@@ -1168,27 +1849,314 @@ fn sync_settings_event_usdc() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdc_maker_close_fees(),
-		);
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdc_taker_close_fees(),
-		);
+		compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdc().asset.id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id, get_usdc_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+
+		// Check the state by querying share data
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(5000001)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(10000001)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(25000001)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(50000001)) ==
+				FixedI128::from_float(0.15)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(49999999)) ==
+				FixedI128::from_float(0.12)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(24999999)) ==
+				FixedI128::from_float(0.1)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(9999999)) ==
+				FixedI128::from_float(0.08)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(4999999)) ==
+				FixedI128::from_float(0.05)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+
+		// fetch fee_shares for different levels and volumes of a user
+		assert!(
+			TradingFees::get_fee_share(1, collateral_id, FixedI128::zero()) == FixedI128::zero()
+		);
+		assert!(
+			TradingFees::get_fee_share(1, collateral_id, FixedI128::from_u32(200001)) ==
+				FixedI128::from_float(0.5)
+		);
+		assert!(
+			TradingFees::get_fee_share(0, collateral_id, FixedI128::from_u32(199999)) ==
+				FixedI128::zero()
+		);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_no_volume_data() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings.remove(0);
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::InsufficientFeeData { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_no_fee_data() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings.pop();
+	usdc_fee_shares.settings.pop();
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::InsufficientFeeData { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdc_fee_length_mismatch() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdc().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	usdc_fee_shares.settings[2].values.pop();
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		System::assert_has_event(Event::FeeDataLengthMismatch { id: usdc().asset.id }.into());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_fee_share_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id = usdt().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	events_batch
+		.add_settings_event(<SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings());
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id, get_usdt_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id]);
+	});
+}
+
+#[test]
+fn sync_settings_event_multiple_fee_share_usdt() {
+	// Get a test environment
+	let mut env = setup();
+
+	// collateral_id
+	let collateral_id_1 = usdc().asset.id;
+	let collateral_id_2 = usdt().asset.id;
+
+	let mut events_batch = <Vec<UniversalEvent> as UniversalEventArray>::new();
+	let mut usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	let usdt_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings();
+
+	for setting in usdt_fee_shares.settings {
+		usdc_fee_shares.settings.force_push(setting);
+	}
+
+	events_batch.add_settings_event(usdc_fee_shares);
+
+	let events_batch_hash = events_batch.compute_hash();
+
+	let mut signature_array = <Vec<SyncSignature> as SyncSignatureArray>::new();
+	signature_array.add_new_signature(
+		events_batch_hash,
+		U256::from("0x399ab58e2d17603eeccae95933c81d504ce475eb1bd0080d2316b84232e133c"),
+		FieldElement::from(12345_u16),
+	);
+
+	env.execute_with(|| {
+		// synchronize the events
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		// Check if the fees were set successfully
+		compare_fee_shares(collateral_id_1, get_usdc_fee_shares());
+		compare_fee_shares(collateral_id_2, get_usdt_fee_shares());
+
+		// The storage should be empty
+		check_fee_share_storage_empty(vec![collateral_id_1, collateral_id_2]);
 	});
 }
 
@@ -1211,57 +2179,48 @@ fn sync_settings_event_btc_usdc() {
 	);
 
 	env.execute_with(|| {
+		// Add accounts to the system
+		assert_ok!(TradingAccounts::add_accounts(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![alice()]
+		));
+		let alice_id: U256 = get_trading_account_id(alice());
+
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Maker,
-			get_btc_usdc_maker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_btc_usdc_maker_close_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Taker,
-			get_btc_usdc_taker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_btc_usdc_taker_close_fees(),
-		);
+		compare_base_fees(btc_usdc().market.id, get_btc_usdc_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![btc_usdc().market.id]);
 
+		// Get the aggregate fee structure stored in TradingFees
+		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
+
 		// Check fees for maker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(1000001),
@@ -1273,30 +2232,30 @@ fn sync_settings_event_btc_usdc() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_4 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(5000001),
@@ -1330,24 +2289,15 @@ fn sync_settings_event_usdt() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the fees were set successfully
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdt_maker_close_fees(),
-		);
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdt_taker_close_fees(),
-		);
+		compare_base_fees(usdt().asset.id, get_usdt_aggregate_fees());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdt().asset.id]);
@@ -1363,12 +2313,22 @@ fn sync_settings_event_multiple_collaterals_markets() {
 	let mut usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_usdc_fees_settings();
 	let usdt_fees = <SettingsAdded as SettingsAddedTrait>::get_usdt_fees_settings();
 	let btc_usdc_fees = <SettingsAdded as SettingsAddedTrait>::get_btc_usdc_fees_settings();
+	let usdc_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdc_fee_shares_settings();
+	let usdt_fee_shares = <SettingsAdded as SettingsAddedTrait>::get_usdt_fee_shares_settings();
 
 	for setting in usdt_fees.settings {
 		usdc_fees.settings.force_push(setting);
 	}
 
 	for setting in btc_usdc_fees.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+
+	for setting in usdc_fee_shares.settings {
+		usdc_fees.settings.force_push(setting);
+	}
+
+	for setting in usdt_fee_shares.settings {
 		usdc_fees.settings.force_push(setting);
 	}
 
@@ -1384,90 +2344,63 @@ fn sync_settings_event_multiple_collaterals_markets() {
 	);
 
 	env.execute_with(|| {
+		// Add accounts to the system
+		assert_ok!(TradingAccounts::add_accounts(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![alice()]
+		));
+		let alice_id: U256 = get_trading_account_id(alice());
+
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
+
+		print!("Events: {:?}", System::events());
 
 		// Check if the fees were set successfully
 		// USDT
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Maker, get_usdt_maker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdt_maker_close_fees(),
-		);
-		compare_base_fees(usdt().asset.id, Side::Buy, OrderSide::Taker, get_usdt_taker_open_fees());
-		compare_base_fees(
-			usdt().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdt_taker_close_fees(),
-		);
+		compare_base_fees(usdt().asset.id, get_usdt_aggregate_fees());
 
-		// USDT
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Maker, get_usdc_maker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_usdc_maker_close_fees(),
-		);
-		compare_base_fees(usdc().asset.id, Side::Buy, OrderSide::Taker, get_usdc_taker_open_fees());
-		compare_base_fees(
-			usdc().asset.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_usdc_taker_close_fees(),
-		);
+		// USDC
+		compare_base_fees(usdc().asset.id, get_usdc_aggregate_fees());
 
 		// BTC USDC
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Maker,
-			get_btc_usdc_maker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Maker,
-			get_btc_usdc_maker_close_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Buy,
-			OrderSide::Taker,
-			get_btc_usdc_taker_open_fees(),
-		);
-		compare_base_fees(
-			btc_usdc().market.id,
-			Side::Sell,
-			OrderSide::Taker,
-			get_btc_usdc_taker_close_fees(),
-		);
+		compare_base_fees(btc_usdc().market.id, get_btc_usdc_aggregate_fees());
+
+		// USDC fee share
+		compare_fee_shares(usdc().asset.id, get_usdc_fee_shares());
+
+		// USDT fee share
+		compare_fee_shares(usdt().asset.id, get_usdt_fee_shares());
 
 		// The storage should be empty
 		check_fees_storage_empty(vec![usdc().asset.id, usdt().asset.id, btc_usdc().market.id]);
+		check_fee_share_storage_empty(vec![usdc().asset.id, usdt().asset.id]);
+
+		let fee_details = TradingFees::get_all_fees(btc_usdc().market.id, usdc().asset.id);
 
 		// Check fees for maker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Maker,
 			FixedI128::from_u32(1000001),
@@ -1479,30 +2412,30 @@ fn sync_settings_event_multiple_collaterals_markets() {
 		assert!(fees_3 == (FixedI128::from_float(0.0), 3), "Invalid fees for tier 2");
 
 		// Check fees for taker
-		let fees_1 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_1 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(9999),
 		);
-		let fees_2 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_2 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(999999),
 		);
-		let fees_3 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_3 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(1000001),
 		);
-		let fees_4 = TradingFees::get_fee_rate(
-			usdc().asset.id,
-			btc_usdc().market.id,
+		let fees_4 = Trading::get_fee_rate(
+			alice_id,
+			&fee_details,
 			Side::Buy,
 			OrderSide::Taker,
 			FixedI128::from_u32(5000001),
@@ -1536,8 +2469,12 @@ fn sync_settings_event_abr_default() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the max abr value is set
 		assert!(Prices::default_max() == FixedI128::from_float(0.0012), "Wrong max default value");
@@ -1565,8 +2502,12 @@ fn sync_settings_event_abr_default_empty_values() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the max abr value is set
 		assert!(Prices::default_max() == FixedI128::from_float(0.0), "Wrong max default value");
@@ -1596,8 +2537,12 @@ fn sync_settings_event_abr_btc_usd_value() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the max abr value is set
 		assert!(
@@ -1628,8 +2573,12 @@ fn sync_settings_event_abr_invalid_market() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the max abr value is set
 		assert!(
@@ -1674,8 +2623,12 @@ fn sync_settings_event_abr_multiple_markets() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		// Check if the max abr value is set for btc_usdc
 		assert!(
@@ -1718,8 +2671,12 @@ fn sync_settings_invalid_key_general_settings_type() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 71 }.into());
 
@@ -1749,8 +2706,12 @@ fn sync_settings_invalid_key_unknown_settings_type() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 80 }.into());
 
@@ -1779,8 +2740,12 @@ fn sync_settings_unknown_id() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::UnknownIdForFees { id: 1179795800 }.into());
 
@@ -1810,8 +2775,12 @@ fn sync_settings_invalid_key_order_side_key() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 76 }.into());
 
@@ -1841,8 +2810,12 @@ fn sync_settings_invalid_key_maker_side_key() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 90 }.into());
 
@@ -1872,8 +2845,12 @@ fn sync_settings_invalid_key_taker_side_key() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::SettingsKeyError { key: 82 }.into());
 
@@ -1903,8 +2880,12 @@ fn sync_settings_event_insuffient_data_usdt() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 		System::assert_has_event(Event::InsufficientFeeData { id: usdt().asset.id }.into());
 
 		// The storage should be empty
@@ -1933,8 +2914,12 @@ fn sync_settings_event_invalid_key_pattern() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 		System::assert_has_event(
 			Event::TokenParsingError { key: U256::from(5070865521559494477_i128) }.into(),
 		);
@@ -1966,8 +2951,12 @@ fn sync_settings_event_invalid_length_usdt() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding settings");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding settings");
 
 		System::assert_has_event(Event::FeeDataLengthMismatch { id: usdt().asset.id }.into());
 
@@ -2011,8 +3000,12 @@ fn sync_deposit_event_non_existent_asset() {
 
 	env.execute_with(|| {
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding signer");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding signer");
 
 		let alice_balance = TradingAccounts::balances(alice_account_id, 12345_u128);
 
@@ -2057,12 +3050,19 @@ fn sync_deposit_event_non_collateral_asset() {
 	);
 
 	env.execute_with(|| {
-		Assets::replace_all_assets(RuntimeOrigin::signed(1), vec![usdc(), usdt(), btc()])
-			.expect("error while adding assets");
+		Assets::replace_all_assets(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			vec![usdc(), usdt(), btc()],
+		)
+		.expect("error while adding assets");
 
 		// synchronize the events
-		SyncFacade::synchronize_events(RuntimeOrigin::signed(1), events_batch, signature_array)
-			.expect("error while adding deposit event");
+		SyncFacade::synchronize_events(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			events_batch,
+			signature_array,
+		)
+		.expect("error while adding deposit event");
 
 		let alice_balance = TradingAccounts::balances(alice_account_id, btc().asset.id);
 

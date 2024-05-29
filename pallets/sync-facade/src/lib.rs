@@ -23,13 +23,18 @@ pub mod pallet {
 			PricesInterface, TradingAccountInterface, TradingFeesInterface, U256Ext,
 		},
 		types::{
-			ABRSettingsType, BaseFee, ExtendedAsset, ExtendedMarket, FeeSettingsType, OrderSide,
-			Setting, SettingsType, Side, SyncSignature, UniversalEvent,
+			ABRSettingsType, BaseFee, BaseFeeAggregate, ExtendedAsset, ExtendedMarket,
+			FeeSettingsType, FeeShareDetails, FeeShareSettingsType, ReferralDetails, Setting,
+			SettingsType, SyncSignature, UniversalEvent,
 		},
 		FieldElement, Signature,
 	};
 	use primitive_types::U256;
-	use sp_arithmetic::fixed_point::FixedI128;
+	use scale_info::prelude::vec;
+	use sp_arithmetic::{
+		fixed_point::FixedI128,
+		traits::{One, Zero},
+	};
 
 	#[cfg(not(feature = "dev"))]
 	pub const IS_DEV_ENABLED: bool = false;
@@ -97,6 +102,24 @@ pub mod pallet {
 	// v - No of signers required for quorum
 	pub(super) type SignersQuorum<T: Config> = StorageValue<_, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn get_temp_fee_shares)]
+	// k1 - asset_id, k2 - (FeeShareSettingsType, Master Level), v - FixedI28[]
+	pub(super) type TempFeeSharesMap<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		u128,
+		Twox64Concat,
+		(FeeShareSettingsType, u128),
+		Vec<FixedI128>,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn get_temp_fee_share_assets)]
+	// k1 - market_id/asset_id, v - bool
+	pub(super) type TempFeeSharesAssetsMap<T: Config> = StorageMap<_, Twox64Concat, u128, bool>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub (super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -142,6 +165,12 @@ pub mod pallet {
 		InvalidMarket { id: u128 },
 		/// A max abr request with empty array
 		EmptyValuesError { id: u128 },
+		/// An invalid request to add a referral
+		AddReferralError { master_account_address: U256, referral_account_address: U256 },
+		/// Account is not regisered for account level update
+		UpdateAccountLevelError { master_account_address: U256 },
+		/// Invalid fee discount value
+		InvalidFeeDiscount { event_index: u32, block_number: u64 },
 	}
 
 	#[pallet::error]
@@ -178,6 +207,10 @@ pub mod pallet {
 	const CLOSE_ENCODING: u128 = 67;
 	const OMISSION_ENCODING: u128 = 45;
 	const ABR_ENCODING: u128 = 65;
+	const FEE_SHARE_ENCODING: u128 = 82;
+	const FEE_SHARE_VOLS: u128 = 86;
+	const FEE_SHARE_FEES: u128 = 70;
+	const ZERO_ASCII_ENCODING: u128 = 48;
 
 	// Pallet callable functions
 	#[pallet::call]
@@ -372,6 +405,16 @@ pub mod pallet {
 						return Some(SettingsType::ABRSettings(ABRSettingsType::MaxDefault)),
 					_ => return Some(SettingsType::ABRSettings(ABRSettingsType::MaxPerMarket)),
 				},
+				FEE_SHARE_ENCODING => match param2 {
+					FEE_SHARE_VOLS =>
+						return Some(SettingsType::FeeShareSettings(FeeShareSettingsType::Vols)),
+					FEE_SHARE_FEES =>
+						return Some(SettingsType::FeeShareSettings(FeeShareSettingsType::Fees)),
+					_ => {
+						Self::deposit_event(Event::SettingsKeyError { key: param2 });
+						return None;
+					},
+				},
 				GENERAL_SETTINGS => {
 					Self::deposit_event(Event::SettingsKeyError { key: settings_type });
 					return None;
@@ -422,27 +465,41 @@ pub mod pallet {
 				.collect()
 		}
 
-		fn set_fees_internal(
-			id: u128,
-			side: Side,
-			order_side: OrderSide,
+		fn create_fee_shares_vec(
 			volumes: &Vec<FixedI128>,
-			fees: &Vec<FixedI128>,
-		) -> Result<(), ()> {
-			match T::TradingFeesPallet::update_base_fees_internal(
-				id,
-				side,
-				order_side,
-				Self::create_base_fee_vec(volumes, fees),
-			) {
+			fees: &Vec<Vec<FixedI128>>,
+		) -> Vec<Vec<FeeShareDetails>> {
+			fees.iter()
+				.map(|fee_vec| {
+					volumes
+						.iter()
+						.zip(fee_vec.iter())
+						.map(|(&volume, &fee)| FeeShareDetails { volume, fee_share: fee })
+						.collect()
+				})
+				.collect()
+		}
+
+		fn set_fees_internal(id: u128, fee_details: BaseFeeAggregate) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_base_fees_internal(id, fee_details) {
 				Ok(_) => Ok(()),
 				Err(_) => {
-					// Remove partially set fees in Trading Fees pallet
-					T::TradingFeesPallet::remove_base_fees_internal(id);
-
 					// Emit Unknown data event
 					Self::deposit_event(Event::UnknownIdForFees { id });
-					Self::remove_settings_from_maps(id);
+					Err(())
+				},
+			}
+		}
+
+		fn set_fee_shares_internal(
+			id: u128,
+			fee_details: Vec<Vec<FeeShareDetails>>,
+		) -> Result<(), ()> {
+			match T::TradingFeesPallet::update_fee_shares_internal(id, fee_details) {
+				Ok(_) => Ok(()),
+				Err(_) => {
+					// Emit Unknown data event
+					Self::deposit_event(Event::UnknownIdForFees { id });
 					Err(())
 				},
 			}
@@ -472,7 +529,7 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::InsufficientFeeData { id });
-					Self::remove_settings_from_maps(id);
+					Self::remove_fee_settings_from_maps(id);
 					continue;
 				}
 
@@ -494,51 +551,68 @@ pub mod pallet {
 				{
 					// Emit Insufficient data event
 					Self::deposit_event(Event::FeeDataLengthMismatch { id });
-					Self::remove_settings_from_maps(id);
+					Self::remove_fee_settings_from_maps(id);
 					continue;
 				}
 
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Buy,
-					OrderSide::Maker,
-					&maker_volumes,
-					&maker_open_fees,
-				) {
-					continue;
+				let fee_details = BaseFeeAggregate {
+					maker_buy: Self::create_base_fee_vec(&maker_volumes, &maker_open_fees),
+					maker_sell: Self::create_base_fee_vec(&maker_volumes, &maker_close_fees),
+					taker_buy: Self::create_base_fee_vec(&taker_volumes, &taker_open_fees),
+					taker_sell: Self::create_base_fee_vec(&taker_volumes, &taker_close_fees),
+				};
+
+				let _ = Self::set_fees_internal(id, fee_details);
+
+				Self::remove_fee_settings_from_maps(id);
+			}
+		}
+
+		fn set_fee_shares() {
+			let id_list: Vec<u128> =
+				TempFeeSharesAssetsMap::<T>::iter().map(|(key, _)| key).collect();
+			for &id in id_list.iter() {
+				// Get the volumes vector
+				if let Some(volumes) =
+					TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Vols, 0))
+				{
+					let mut fee_vectors = vec![];
+					let mut index = 0;
+					while let Some(fee) =
+						TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Fees, index))
+					{
+						fee_vectors.push(fee);
+						index += 1;
+					}
+
+					// Check if all the required data is present for this asset
+					if fee_vectors.is_empty() {
+						// Emit Insufficient data event
+						Self::deposit_event(Event::InsufficientFeeData { id });
+						Self::remove_fee_share_settings_from_map(id);
+						continue;
+					}
+
+					// Check if the volume and fee vectors have the same size
+					if let Some(_fee_vector) =
+						fee_vectors.iter().find(|fee_vector| fee_vector.len() != volumes.len())
+					{
+						// Emit Fee data length mismatch event
+						Self::deposit_event(Event::FeeDataLengthMismatch { id });
+						Self::remove_fee_share_settings_from_map(id);
+						continue;
+					}
+
+					let _ = Self::set_fee_shares_internal(
+						id,
+						Self::create_fee_shares_vec(&volumes, &fee_vectors),
+					);
+				} else {
+					// Emit Insufficient data event
+					Self::deposit_event(Event::InsufficientFeeData { id });
 				}
 
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Sell,
-					OrderSide::Maker,
-					&maker_volumes,
-					&maker_close_fees,
-				) {
-					continue;
-				}
-
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Buy,
-					OrderSide::Taker,
-					&taker_volumes,
-					&taker_open_fees,
-				) {
-					continue;
-				}
-
-				if let Err(_) = Self::set_fees_internal(
-					id,
-					Side::Sell,
-					OrderSide::Taker,
-					&taker_volumes,
-					&taker_close_fees,
-				) {
-					continue;
-				}
-
-				Self::remove_settings_from_maps(id);
+				Self::remove_fee_share_settings_from_map(id);
 			}
 		}
 
@@ -550,15 +624,44 @@ pub mod pallet {
 			// Add the asset to the map
 			TempAssetsMap::<T>::insert(id, true);
 
-			// Insert maker volume vector to the map
+			// Insert vector to the map
 			TempFeesMap::<T>::insert(id, fee_settings_type, values);
 		}
 
-		fn remove_settings_from_maps(id: u128) {
+		fn add_fee_share_settings_to_map(
+			id: u128,
+			index: u128,
+			fee_share_settings_type: FeeShareSettingsType,
+			values: Vec<FixedI128>,
+		) {
 			// Add the asset to the map
+			TempFeeSharesAssetsMap::<T>::insert(id, true);
+
+			// Insert vector into the map
+			TempFeeSharesMap::<T>::insert(id, (fee_share_settings_type, index), values);
+		}
+
+		fn remove_fee_share_settings_from_map(id: u128) {
+			// Remove the id from the map
+			TempFeeSharesAssetsMap::<T>::remove(id);
+
+			// Remove the vols and fees from the storage map
+			TempFeeSharesMap::<T>::remove(id, (FeeShareSettingsType::Vols, 0));
+
+			let mut index = 0;
+			while let Some(_fee) =
+				TempFeeSharesMap::<T>::get(id, (FeeShareSettingsType::Fees, index))
+			{
+				TempFeeSharesMap::<T>::remove(id, (FeeShareSettingsType::Fees, index));
+				index += 1;
+			}
+		}
+
+		fn remove_fee_settings_from_maps(id: u128) {
+			// Remove the id from the map
 			TempAssetsMap::<T>::remove(id);
 
-			// Insert maker volume vector to the map
+			// Remove base fees from the storage map
 			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerVols);
 			TempFeesMap::<T>::remove(id, FeeSettingsType::TakerVols);
 			TempFeesMap::<T>::remove(id, FeeSettingsType::MakerOpen);
@@ -593,54 +696,77 @@ pub mod pallet {
 						FeeSettingsType::MakerVols => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::MakerVols,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerVols => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::TakerVols,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::MakerOpen => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::MakerOpen,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::MakerClose => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::MakerClose,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerOpen => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::TakerOpen,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 						FeeSettingsType::TakerClose => {
 							Self::add_settings_to_maps(
 								param1,
-								FeeSettingsType::TakerClose,
+								fee_settings_type,
 								setting.values.to_vec(),
 							);
 						},
 					},
 					SettingsType::ABRSettings(abr_settings_type) =>
 						Self::set_abr_max(abr_settings_type, param1, setting.values.to_vec()),
+					SettingsType::FeeShareSettings(fee_share_settings_type) => {
+						// If param3 which contains the index of the level cannot be less than 45
+						if param3 < ZERO_ASCII_ENCODING {
+							continue;
+						}
+						match fee_share_settings_type {
+							FeeShareSettingsType::Vols => Self::add_fee_share_settings_to_map(
+								param1,
+								param3 - ZERO_ASCII_ENCODING,
+								fee_share_settings_type,
+								setting.values.to_vec(),
+							),
+							FeeShareSettingsType::Fees => Self::add_fee_share_settings_to_map(
+								param1,
+								param3 - ZERO_ASCII_ENCODING,
+								fee_share_settings_type,
+								setting.values.to_vec(),
+							),
+						}
+					},
 					SettingsType::GeneralSettings => {},
 				}
 			}
 
 			// Set the trading Fees and remove the temporary storage items
 			Self::set_trading_fees();
+
+			// Set the trading share Fees and remove the temporary storage items
+			Self::set_fee_shares();
 		}
 
 		fn set_abr_max(
@@ -837,6 +963,39 @@ pub mod pallet {
 					UniversalEvent::SettingsAdded(settings_added) => {
 						Self::handle_settings(&settings_added.settings);
 					},
+					UniversalEvent::ReferralDetailsAdded(referral_added) => {
+						if referral_added.fee_discount > FixedI128::one() ||
+							referral_added.fee_discount < FixedI128::zero()
+						{
+							Self::deposit_event(Event::InvalidFeeDiscount {
+								event_index: referral_added.event_index,
+								block_number: referral_added.block_number,
+							});
+
+							continue;
+						}
+
+						match T::TradingAccountPallet::add_referral_internal(
+							referral_added.referral_account_address,
+							ReferralDetails {
+								master_account_address: referral_added.master_account_address,
+								fee_discount: referral_added.fee_discount,
+							},
+							referral_added.referral_code,
+						) {
+							false => Self::deposit_event(Event::AddReferralError {
+								master_account_address: referral_added.master_account_address,
+								referral_account_address: referral_added.referral_account_address,
+							}),
+							true => (),
+						};
+					},
+					UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
+						T::TradingAccountPallet::update_master_account_level_internal(
+							account_level_updated.master_account_address,
+							account_level_updated.level,
+						);
+					},
 				}
 			}
 		}
@@ -917,6 +1076,10 @@ pub mod pallet {
 					(quorum_set.block_number, quorum_set.event_index),
 				UniversalEvent::SettingsAdded(settings_added) =>
 					(settings_added.block_number, settings_added.event_index),
+				UniversalEvent::ReferralDetailsAdded(referral_added) =>
+					(referral_added.block_number, referral_added.event_index),
+				UniversalEvent::MasterAccountLevelChanged(account_level_updated) =>
+					(account_level_updated.block_number, account_level_updated.event_index),
 			}
 		}
 	}
