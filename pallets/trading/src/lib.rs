@@ -2030,6 +2030,7 @@ pub mod pallet {
 
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
+					// Transfer fee from the user
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
