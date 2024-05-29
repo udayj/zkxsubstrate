@@ -348,7 +348,7 @@ node:
 
 
   # -- Flags to add to the Polkadot binary
-  flags: ["-l debug --bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg'"]
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
