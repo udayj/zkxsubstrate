@@ -1,3 +1,4 @@
+validatorNode: true
 # -- Provide a name in place of node for `app:` labels
 nameOverride: ""
 
@@ -12,7 +13,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: production-node
+  tag: stage-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -138,21 +139,22 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3.sandbox.zkx.fi
+  - host: l3-node-2.stage.zkx.fi
     http:
       paths:
       - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: zkxl3-node-1-0
+            name: zkxl3-node-2-0
             port:
               number: 9944
   # -- Ingress TLS configuration
   tls:
-  - secretName: l3-tls-node-1
+  - secretName: l3-tls-node-2
     hosts:
-      - l3.sandbox.zkx.fi
+      - l3-node-2.stage.zkx.fi
+
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -180,9 +182,9 @@ node:
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
   customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox_customSpecRaw.json"
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/stage_customSpecRaw.json"
   # -- Replace chain spec if it already exists
-  forceDownloadChainspec: true
+  forceDownloadChainspec: false
 
   chainData:
     # -- Database backend engine to use
@@ -342,24 +344,21 @@ node:
       port: 9625
 
     # -- Flags to add to the Polkadot binary
-    flags: ["--bootnodes '/dns4/zkxl3-node-2-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWQwp2WtuePGWNia2YCHRYsmsQ3Ct4jCGTT2FcyTdN4jJg' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
+    flags: []
+
 
   # -- Flags to add to the Polkadot binary
-  flags: []
+  flags: ["--bootnodes '/dns4/zkxl3-node-1-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWLY4vCQPrAwHeiJVQt6zfsuqme1AEgLt7CHVVcrPXG3Ck' --bootnodes '/dns4/zkxl3-node-3-0-relay-chain-p2p/tcp/30333/p2p/12D3KooWSxdojxPRxbs6xiR9AqwSkifpp9ZXv97w1STczxY8ZhhG'"]
 
   # -- Keys to use by the node.
   # ref: https://wiki.polkadot.network/docs/learn-keys
   keys:
   - type: "aura"
     scheme: "Sr25519"
-    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
+    seed: "0xa83c6d1d242cb87a69ac757c0ba66707b8483bccd42c71f9987f4d17dbecbf10"
   - type: "gran"
     scheme: "Ed25519"
-    seed: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
-  # - type: "babe"
-  #   scheme: "sr25519"
-  #   seed: "//Alice"
-  #   extraDerivation: //babe
+    seed: "0xa83c6d1d242cb87a69ac757c0ba66707b8483bccd42c71f9987f4d17dbecbf10"
 
   # -- Inject keys from already existing Kubernetes secrets
   existingSecrets:
@@ -414,7 +413,7 @@ node:
   # -- If enabled, generate a persistent volume to use for the keys
   persistGeneratedNodeKey: false
   # -- Name of the secret containig the key
-  customNodeKey: "0x6a229c16a85e75c30830ed73049574469ab93831aa6b7f118a2b932d958910ef"
+  customNodeKey: "0xa83c6d1d242cb87a69ac757c0ba66707b8483bccd42c71f9987f4d17dbecbf10"
 
   # -- Expose metrics via Prometheus format in /metrics endpoint.
   # Passes the following args to the Polkadot binary:
@@ -576,7 +575,13 @@ node:
   enableSidecarLivenessProbe: false
 
   # -- Resource limits & requests
-  resources: {}
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    limits:
+      cpu: 1000m
+      memory: 4Gi
 
   # -- Define the WASM runtime overrides directory path
   wasmRuntimeOverridesPath: "/chain-data/runtimes"
@@ -682,13 +687,19 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector: {}
+nodeSelector:
+  role: substrate
+  topology.kubernetes.io/zone: eu-north-1a
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
 
 # -- Tolerations for use with node taints
-tolerations: []
+tolerations:
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: substrate
 
 # -- Assign custom affinity rules
 affinity: {}

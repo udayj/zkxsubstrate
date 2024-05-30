@@ -7,6 +7,8 @@ spec:
   clusterIP: None
   selector:
     app.kubernetes.io/component: substrate-node
+    # app.kubernetes.io/component: validator-node ## for sandbox-2 and stage
+    
   ports:
     - protocol: TCP
       port: 9944

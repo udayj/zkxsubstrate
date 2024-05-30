@@ -1,6 +1,11 @@
-use crate::helpers::compute_hash_on_elements;
-use crate::traits::{FieldElementExt, FixedI128Ext, U256Ext};
-use crate::types::{convert_to_u128_pair, HashType, TradingAccountMinimal, WithdrawalRequest};
+use crate::{
+	helpers::compute_hash_on_elements,
+	traits::{FieldElementExt, FixedI128Ext, U256Ext},
+	types::{
+		convert_to_u128_pair, HashType, InsuranceWithdrawalRequest, TradingAccountMinimal,
+		WithdrawalRequest,
+	},
+};
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
 use sp_arithmetic::fixed_point::FixedI128;
@@ -8,6 +13,42 @@ use sp_io::hashing::blake2_256;
 use starknet_crypto::{sign, FieldElement};
 use starknet_ff::FromByteSliceError;
 type ConversionError = FromByteSliceError;
+
+pub fn create_insurance_withdrawal_request(
+	insurance_fund: U256,
+	recipient: U256,
+	collateral_id: u128,
+	amount: FixedI128,
+	timestamp: u64,
+	private_key: FieldElement,
+) -> Result<InsuranceWithdrawalRequest, ConversionError> {
+	let (insurance_fund_low, insurance_fund_high) = convert_to_u128_pair(insurance_fund)?;
+	let (recipient_low, recipient_high) = convert_to_u128_pair(recipient)?;
+	let mut elements = Vec::<FieldElement>::new();
+	elements.push(insurance_fund_low);
+	elements.push(insurance_fund_high);
+	elements.push(recipient_low);
+	elements.push(recipient_high);
+	elements.push(FieldElement::from(collateral_id));
+	elements.push(amount.to_u256().try_to_felt()?);
+	elements.push(FieldElement::from(timestamp));
+
+	let msg_hash = compute_hash_on_elements(&elements);
+
+	// Get the signature
+	let signature = sign(&private_key, &msg_hash, &FieldElement::ONE).unwrap();
+
+	Ok(InsuranceWithdrawalRequest {
+		insurance_fund,
+		recipient,
+		collateral_id,
+		amount,
+		timestamp,
+		sig_r: signature.r.to_u256(),
+		sig_s: signature.s.to_u256(),
+		hash_type: HashType::Pedersen,
+	})
+}
 
 pub fn create_withdrawal_request(
 	account_id: U256,

@@ -709,7 +709,8 @@ pub mod pallet {
 					let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
 					let time_difference = current_timestamp - timestamp;
-					if time_difference > market.ttl.into() {
+					let ttl: u64 = market.ttl.into();
+					if time_difference > ttl {
 						FixedI128::zero()
 					} else {
 						price
@@ -1176,6 +1177,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer_from(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
@@ -1204,6 +1206,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);

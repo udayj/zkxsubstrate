@@ -7,17 +7,18 @@ use pallet_support::{
 			get_trading_account_id,
 		},
 		asset_helper::{btc, eth, link, usdc, usdt},
+		create_insurance_withdrawal_request,
 		market_helper::{btc_usdc, link_usdc},
 	},
 	traits::TradingAccountInterface,
 	types::{
 		trading::{Direction, OrderType},
-		BalanceUpdate, FeeSharesInput, FundModifyType, MonetaryAccountDetails, Order,
-		ReferralDetails,
+		BalanceUpdate, FeeSharesInput, MonetaryAccountDetails, Order, ReferralDetails,
 	},
 };
 use primitive_types::U256;
 use sp_arithmetic::FixedI128;
+use sp_runtime::traits::Zero;
 
 fn setup() -> sp_io::TestExternalities {
 	// Create a new test environment
@@ -328,44 +329,75 @@ fn test_deposit() {
 #[test]
 fn test_deposit_when_negative() {
 	let mut env = setup();
+	// Get the trading account of Alice
+	let trading_account_id = get_trading_account_id(alice());
+	let collateral_id = usdc().asset.id;
+	let initial_fund_balance = 1000000.into();
+	let default_insurance_fund = U256::from(1_u8);
 
 	env.execute_with(|| {
-		// Get the trading account of Alice
-		let trading_account_id = get_trading_account_id(alice());
+		// Set default insurance fund
+		assert_ok!(TradingAccountModule::set_default_insurance_fund(
+			RuntimeOrigin::root(),
+			default_insurance_fund,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			initial_fund_balance,
+		));
 
 		// Dispatch a signed extrinsic.
 		assert_ok!(TradingAccountModule::set_balances(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			trading_account_id,
-			vec![BalanceUpdate { asset_id: usdc().asset.id, balance_value: (-250).into() }],
+			vec![BalanceUpdate { asset_id: collateral_id, balance_value: (-250).into() }],
 		));
 
 		// Check the state
 		assert_eq!(
-			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			TradingAccountModule::balances(trading_account_id, collateral_id),
 			(-250).into()
+		);
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == initial_fund_balance,
+			"Invalid balance of default insurance balance"
 		);
 
 		// Desposit 100 USDC
 		assert_ok!(TradingAccountModule::deposit(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			alice(),
-			usdc().asset.id,
+			collateral_id,
 			100.into(),
 		));
 
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + 100.into(),
+			"Invalid balance of default insurance balance"
+		);
+
 		// Check the state
 		assert_eq!(
-			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
+			TradingAccountModule::balances(trading_account_id, collateral_id),
 			(-150).into()
 		);
 
-		// Check the InsuranceFundChange event
+		// Check the UserBalanceDeficit event
 		System::assert_has_event(
-			Event::InsuranceFundChange {
-				collateral_id: usdc().asset.id,
+			Event::UserBalanceDeficit {
+				trading_account: alice(),
+				collateral_id,
 				amount: 100.into(),
-				modify_type: FundModifyType::Increase,
 				block_number: 1,
 			}
 			.into(),
@@ -379,15 +411,23 @@ fn test_deposit_when_negative() {
 			160.into(),
 		));
 
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + 250.into(),
+			"Invalid balance of default insurance balance"
+		);
+
 		// Check the state
 		assert_eq!(TradingAccountModule::balances(trading_account_id, usdc().asset.id), 10.into());
 
-		// Check the InsuranceFundChange event
+		// Check the UserBalanceDeficit event
 		System::assert_has_event(
-			Event::InsuranceFundChange {
-				collateral_id: usdc().asset.id,
+			Event::UserBalanceDeficit {
+				trading_account: alice(),
+				collateral_id,
 				amount: 150.into(),
-				modify_type: FundModifyType::Increase,
 				block_number: 1,
 			}
 			.into(),
@@ -398,14 +438,16 @@ fn test_deposit_when_negative() {
 #[test]
 fn test_withdraw() {
 	let mut env = setup();
+	let collateral_id = usdc().asset.id;
+	let withdrawal_amount = 1000.into();
 
 	env.execute_with(|| {
 		// Get the trading account of Alice and create a withdrawal request
 		let trading_account_id = get_trading_account_id(alice());
 		let withdrawal_request = create_withdrawal_request(
 			trading_account_id,
-			usdc().asset.id,
-			1000.into(),
+			collateral_id,
+			withdrawal_amount,
 			1697733033397,
 			get_private_key(alice().pub_key),
 		)
@@ -421,8 +463,369 @@ fn test_withdraw() {
 			TradingAccountModule::balances(trading_account_id, usdc().asset.id),
 			9000.into()
 		);
-		let event_record: frame_system::EventRecord<_, _> = System::events().pop().unwrap();
-		println!("Events: {:?}", event_record);
+
+		System::assert_has_event(
+			Event::UserWithdrawal {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_withdraw_with_fees() {
+	let mut env = setup();
+	let collateral_id = usdc().asset.id;
+	let default_insurance_fund = U256::from(1_u8);
+	let initial_fund_balance = 1000000.into();
+	let initial_user_balance: FixedI128 = 10000.into();
+	let withdrawal_amount = 1000.into();
+	let withdrawal_fee = FixedI128::from_float(0.5);
+
+	env.execute_with(|| {
+		// Set default insurance fund
+		assert_ok!(TradingAccountModule::set_default_insurance_fund(
+			RuntimeOrigin::root(),
+			default_insurance_fund
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			initial_fund_balance,
+		));
+
+		// Set standard withdrawal fee
+		assert_ok!(TradingAccountModule::set_standard_withdrawal_fee(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			collateral_id,
+			withdrawal_fee
+		));
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == initial_fund_balance,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Get the trading account of Alice and create a withdrawal request
+		let trading_account_id = get_trading_account_id(alice());
+		let withdrawal_request = create_withdrawal_request(
+			trading_account_id,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(alice().pub_key),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		print!("Insurance balance after: {:?}", insurance_balance_after);
+		assert!(
+			insurance_balance_after == initial_fund_balance + withdrawal_fee,
+			"Invalid balance of default insurance balance"
+		);
+
+		assert!(
+			TradingAccountModule::balances(trading_account_id, usdc().asset.id) ==
+				initial_user_balance - withdrawal_amount - withdrawal_fee,
+			"Wrong balance of user"
+		);
+
+		System::assert_has_event(
+			Event::UserWithdrawal {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+
+		System::assert_has_event(
+			Event::UserWithdrawalFee {
+				trading_account: alice(),
+				collateral_id,
+				amount: withdrawal_fee,
+				block_number: 1,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_default_insurance_withdraw() {
+	let mut env = setup();
+	let default_insurance_fund = U256::from(1_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+
+	env.execute_with(|| {
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			default_insurance_fund,
+			recipient,
+			collateral_id,
+			deposit_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == deposit_amount,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_after == FixedI128::zero(),
+			"Invalid balance of default insurance balance"
+		);
+
+		// Check the InsuranceWithdrawal event
+		System::assert_has_event(
+			Event::InsuranceFundWithdrawal {
+				insurance_fund: default_insurance_fund,
+				recipient,
+				collateral_id,
+				amount: deposit_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_isolated_insurance_withdraw() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			deposit_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == deposit_amount,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_after == FixedI128::zero(),
+			"Invalid balance of default insurance balance"
+		);
+
+		// Check the InsuranceWithdrawal event
+		System::assert_has_event(
+			Event::InsuranceFundWithdrawal {
+				insurance_fund: btc_insurance_fund,
+				recipient,
+				collateral_id,
+				amount: deposit_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn test_isolated_insurance_withdraw_twice() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+	let withdrawal_amount = FixedI128::from_u32(10000);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == deposit_amount,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_after == FixedI128::from_u32(990000),
+			"Invalid balance of default insurance balance"
+		);
+
+		// Check the InsuranceWithdrawal event
+		System::assert_has_event(
+			Event::InsuranceFundWithdrawal {
+				insurance_fund: btc_insurance_fund,
+				recipient,
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
+
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033398,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+
+		let insurance_balance_after =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_after == FixedI128::from_u32(980000_u32),
+			"Invalid balance of default insurance balance"
+		);
+
+		// Check the InsuranceWithdrawal event
+		System::assert_has_event(
+			Event::InsuranceFundWithdrawal {
+				insurance_fund: btc_insurance_fund,
+				recipient,
+				collateral_id,
+				amount: withdrawal_amount,
+				block_number: 1,
+			}
+			.into(),
+		);
 	});
 }
 
@@ -510,6 +913,73 @@ fn test_withdraw_duplicate() {
 }
 
 #[test]
+#[should_panic(expected = "DuplicateWithdrawal")]
+fn test_isolated_insurance_withdraw_duplicate() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let deposit_amount = FixedI128::from_u32(1000000);
+	let recipient = U256::from(123_u8);
+	let withdrawal_amount = FixedI128::from_u32(10000);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		let insurance_balance_before =
+			TradingAccountModule::insurance_fund_balance(btc_insurance_fund, collateral_id);
+		assert!(
+			insurance_balance_before == deposit_amount,
+			"Invalid balance of default insurance balance"
+		);
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request.clone()
+		));
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "AccountDoesNotExist")]
 fn test_withdraw_on_not_existing_account() {
 	let mut env = setup();
@@ -531,6 +1001,53 @@ fn test_withdraw_on_not_existing_account() {
 		assert_ok!(TradingAccountModule::withdraw(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			withdrawal_request
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "NoPublicKeyFound")]
+fn test_isolated_insurance_withdraw_no_pub_key() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			deposit_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
 		));
 	});
 }
@@ -564,6 +1081,59 @@ fn test_withdraw_on_invalid_sig() {
 }
 
 #[test]
+#[should_panic(expected = "InvalidSignature")]
+fn test_isolated_insurance_withdraw_invalid_sig() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			deposit_amount,
+			1697733033397,
+			get_private_key(dave().pub_key),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+	});
+}
+
+#[test]
 #[should_panic(expected = "InvalidWithdrawalRequest")]
 fn test_withdraw_with_insufficient_balance() {
 	let mut env = setup();
@@ -585,6 +1155,114 @@ fn test_withdraw_with_insufficient_balance() {
 		assert_ok!(TradingAccountModule::withdraw(
 			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			withdrawal_request
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "InsufficientBalance")]
+fn test_isolated_insurance_withdraw_insufficient_balance() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(123_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+	let withdrawal_amount = FixedI128::from_u32(1000001);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
+		));
+	});
+}
+
+#[test]
+#[should_panic(expected = "ZeroRecipient")]
+fn test_isolated_insurance_withdraw_zero_recipient() {
+	let mut env = setup();
+	let market_id: u128 = btc_usdc().market.id;
+	let btc_insurance_fund = U256::from(2_u8);
+	let withdrawal_signer = eduard().pub_key;
+	let collateral_id = usdc().asset.id;
+	let recipient = U256::from(0_u8);
+	let deposit_amount = FixedI128::from_u32(1000000);
+	let withdrawal_amount = FixedI128::from_u32(1000001);
+
+	env.execute_with(|| {
+		// Set insurance fund for BTC
+		assert_ok!(TradingAccountModule::update_fee_split_details(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			market_id,
+			btc_insurance_fund,
+			FixedI128::from_float(0.1)
+		));
+
+		// Set insurance withdrawal signer
+		assert_ok!(TradingAccountModule::update_insurance_withdrawal_signer(
+			RuntimeOrigin::root(),
+			withdrawal_signer,
+		));
+
+		// Set balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			btc_insurance_fund,
+			collateral_id,
+			deposit_amount,
+		));
+
+		// Create an insurance withdrawal request
+		let insurance_withdrawal_request = create_insurance_withdrawal_request(
+			btc_insurance_fund,
+			recipient,
+			collateral_id,
+			withdrawal_amount,
+			1697733033397,
+			get_private_key(withdrawal_signer),
+		)
+		.unwrap();
+
+		// Dispatch a signed extrinsic.
+		assert_ok!(TradingAccountModule::insurance_withdraw(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			insurance_withdrawal_request
 		));
 	});
 }

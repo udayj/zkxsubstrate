@@ -2,8 +2,8 @@ use crate::{
 	traits::{FeltSerializedArrayExt, U256Ext},
 	types::{
 		common::convert_to_u128_pair, Asset, AssetRemoved, AssetUpdated, Market, MarketRemoved,
-		MarketUpdated, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
-		TradingAccountMinimal, UniversalEvent, UserDeposit,
+		MarketUpdated, MarketUpdatedV2, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded,
+		SignerRemoved, TradingAccountMinimal, UniversalEvent, UserDeposit,
 	},
 };
 use frame_support::dispatch::Vec;
@@ -12,7 +12,7 @@ use sp_arithmetic::fixed_point::FixedI128;
 use sp_runtime::{traits::ConstU32, BoundedVec};
 use starknet_ff::{FieldElement, FromByteSliceError};
 
-use super::{AssetAddress, MasterAccountLevelChanged, QuorumSet};
+use super::{AssetAddress, InsuranceFundDeposited, MasterAccountLevelChanged, QuorumSet};
 
 impl FeltSerializedArrayExt for Vec<FieldElement> {
 	fn append_bounded_vec_u8(&mut self, vec: &BoundedVec<u8, ConstU32<256>>) {
@@ -284,6 +284,36 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 		Ok(())
 	}
 
+	fn try_append_market_updated_v2_event(
+		&mut self,
+		market_updated_v2_event: &MarketUpdatedV2,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(11_u8));
+		self.push(FieldElement::from(market_updated_v2_event.event_index));
+		self.push(FieldElement::from(market_updated_v2_event.id));
+		self.try_append_market(&market_updated_v2_event.market)?;
+		self.append_bounded_vec_u8(&market_updated_v2_event.metadata_url);
+		self.try_append_u256(market_updated_v2_event.fee_split_details.0)?;
+		self.try_append_fixedi128(market_updated_v2_event.fee_split_details.1)?;
+		self.push(FieldElement::from(market_updated_v2_event.block_number));
+
+		Ok(())
+	}
+
+	fn try_append_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited: &InsuranceFundDeposited,
+	) -> Result<(), FromByteSliceError> {
+		// enum prefix
+		self.push(FieldElement::from(12_u8));
+		self.try_append_u256(insurance_fund_deposited.insurance_fund)?;
+		self.try_append_fixedi128(insurance_fund_deposited.amount)?;
+		self.push(FieldElement::from(insurance_fund_deposited.block_number));
+
+		Ok(())
+	}
+
 	fn try_append_universal_event_array(
 		&mut self,
 		universal_event_array: &Vec<UniversalEvent>,
@@ -323,6 +353,11 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 				UniversalEvent::MasterAccountLevelChanged(account_level_updated) => {
 					self.try_append_account_level_updated_event(account_level_updated)?;
 				},
+				UniversalEvent::MarketUpdatedV2(market_updated_v2) => {
+					self.try_append_market_updated_v2_event(market_updated_v2)?;
+				},
+				UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited) =>
+					self.try_append_insurance_fund_deposited(insurance_fund_deposited)?,
 			}
 		}
 

@@ -12,7 +12,12 @@ mod tests;
 pub mod pallet {
 	use super::*;
 	use core::cmp::{max, min};
-	use frame_support::{dispatch::Vec, pallet_prelude::*, traits::UnixTime, Blake2_128Concat};
+	use frame_support::{
+		dispatch::Vec,
+		pallet_prelude::{OptionQuery, *},
+		traits::UnixTime,
+		Blake2_128Concat,
+	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
 		ecdsa_verify,
@@ -23,8 +28,8 @@ pub mod pallet {
 		},
 		types::{
 			BalanceChangeReason, BalanceUpdate, Direction, FeeSharesInput, FundModifyType,
-			MonetaryAccountDetails, Position, ReferralDetails, TradingAccount,
-			TradingAccountMinimal, VolumeType, WithdrawalRequest,
+			InsuranceWithdrawalRequest, MonetaryAccountDetails, Position, ReferralDetails,
+			TradingAccount, TradingAccountMinimal, VolumeType, WithdrawalRequest,
 		},
 		Signature,
 	};
@@ -153,6 +158,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn master_account_level)]
 	// It stores master account level
+	// Here, key1 is the master account address and the values is the level
 	pub(super) type MasterAccountLevel<T: Config> =
 		StorageMap<_, Twox64Concat, U256, u8, ValueQuery>;
 
@@ -175,6 +181,41 @@ pub mod pallet {
 	// Maps from (monetary_account_address, collateral_id) -> accumulated fee share
 	pub(super) type MasterAccountFeeShare<T: Config> =
 		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn insurance_fund_balance)]
+	// Stores balance of Insurance Funds
+	// Here, key1 is the insurance fund address, key2 is the collateral_id and the value is the
+	// balance
+	pub(super) type InsuranceFundBalances<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, U256, Twox64Concat, u128, FixedI128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn market_to_insurance_fund)]
+	// Stores balance of Insurance Funds
+	// Here, key1 is market_id, the value is the insurance_fund address and the revenue split
+	// fraction
+	pub(super) type MarketToFeeSplitMap<T: Config> =
+		StorageMap<_, Twox64Concat, u128, (U256, FixedI128), OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn default_insurance_fund)]
+	// Stores the default insurance fund
+	// Here, the value is the Starknet address of the default Insurance fund
+	pub(super) type DefaultInsuranceFund<T: Config> = StorageValue<_, U256, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn insurance_withdrawal_signer)]
+	// Stores the signer that is authorized to do withdrawals
+	// Here, the value is the pubkey of the signer
+	pub(super) type InsuranceWithdrawalSigner<T: Config> = StorageValue<_, U256, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn standard_withdrawal_fee_v2)]
+	// It stores the standard withdrawal fee
+	// Here, the key_1 is the collateral_id and the value is the fee
+	pub(super) type StandardWithdrawalFeeV2<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, ValueQuery>;
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
@@ -215,6 +256,12 @@ pub mod pallet {
 		DevOnlyCall,
 		/// Invalid amount passed to pay_fee_shares fn
 		InvalidFeeSharesAmount { invalid_index: u16 },
+		/// Withdrawal amount not set
+		ZeroWithdrawalSigner,
+		/// Zero pub key sent
+		ZeroSigner,
+		/// Zero address passed for insurance withdrawal
+		ZeroRecipient,
 	}
 
 	#[pallet::event]
@@ -294,6 +341,49 @@ pub mod pallet {
 			master_account_address: U256,
 			level: u8,
 		},
+		/// Event to be synced by L2, for pnl changes
+		UserBalanceChangeV2 {
+			trading_account: TradingAccountMinimal,
+			market_id: u128,
+			amount: FixedI128,
+			revenue_amount: FixedI128,
+			fee_share_amount: FixedI128,
+			modify_type: FundModifyType,
+			reason: u8,
+			block_number: BlockNumberFor<T>,
+		},
+		/// Insurance fund updation event
+		InsuranceFundChangeV2 {
+			market_id: u128,
+			amount: FixedI128,
+			modify_type: FundModifyType,
+			block_number: BlockNumberFor<T>,
+		},
+		FeeShareTransferV2 {
+			master_account_address: U256,
+			market_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
+		InsuranceFundWithdrawal {
+			insurance_fund: U256,
+			recipient: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
+		UserBalanceDeficit {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
+		UserWithdrawalFee {
+			trading_account: TradingAccountMinimal,
+			collateral_id: u128,
+			amount: FixedI128,
+			block_number: BlockNumberFor<T>,
+		},
 	}
 
 	#[pallet::call]
@@ -336,6 +426,56 @@ pub mod pallet {
 
 			// Call the internal function to facililate the deposit
 			Self::deposit_internal(trading_account, collateral_id, amount);
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
+		/// To test setting of insurance funds
+		#[pallet::weight(0)]
+		pub fn update_fee_split_details(
+			origin: OriginFor<T>,
+			market_id: u128,
+			insurance_fund: U256,
+			fee_split: FixedI128,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			Self::update_fee_split_details_internal(market_id, insurance_fund, fee_split);
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
+		/// To test setting of default insurance funds
+		#[pallet::weight(0)]
+		pub fn set_default_insurance_fund(
+			origin: OriginFor<T>,
+			insurance_fund: U256,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			DefaultInsuranceFund::<T>::set(Some(insurance_fund));
+
+			Ok(())
+		}
+
+		// TODO(merkle-groot): To be removed in production
+		/// To test setting of default insurance funds
+		#[pallet::weight(0)]
+		pub fn update_insurance_fund_balance(
+			origin: OriginFor<T>,
+			insurance_fund: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) -> DispatchResult {
+			if !IS_DEV_ENABLED {
+				return Err(Error::<T>::DevOnlyCall.into())
+			}
+			ensure_signed(origin)?;
+
+			Self::update_insurance_fund_balance_internal(insurance_fund, collateral_id, amount);
 			Ok(())
 		}
 
@@ -448,6 +588,66 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::weight(0)]
+		pub fn update_insurance_withdrawal_signer(
+			origin: OriginFor<T>,
+			pub_key: U256,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			// The pub key cannot be 0
+			ensure!(pub_key != U256::zero(), Error::<T>::ZeroSigner);
+
+			// Store the new signer
+			InsuranceWithdrawalSigner::<T>::set(Some(pub_key));
+
+			// Return ok
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn insurance_withdraw(
+			origin: OriginFor<T>,
+			insurance_withdrawal_request: InsuranceWithdrawalRequest,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			ensure!(
+				insurance_withdrawal_request.recipient != U256::zero(),
+				Error::<T>::ZeroRecipient
+			);
+
+			// Check if the signature is valid
+			Self::verify_insurance_withdrawal_signature(&insurance_withdrawal_request)?;
+
+			// Get the current balance
+			let current_balance = InsuranceFundBalances::<T>::get(
+				insurance_withdrawal_request.insurance_fund,
+				insurance_withdrawal_request.collateral_id,
+			);
+
+			// Get the new balance of the user
+			let new_balance = current_balance - insurance_withdrawal_request.amount;
+			ensure!(new_balance >= FixedI128::zero(), Error::<T>::InsufficientBalance);
+
+			// Update the balance, after deducting fees
+			InsuranceFundBalances::<T>::set(
+				insurance_withdrawal_request.insurance_fund,
+				insurance_withdrawal_request.collateral_id,
+				new_balance,
+			);
+
+			Self::deposit_event(Event::InsuranceFundWithdrawal {
+				insurance_fund: insurance_withdrawal_request.insurance_fund,
+				recipient: insurance_withdrawal_request.recipient,
+				collateral_id: insurance_withdrawal_request.collateral_id,
+				amount: insurance_withdrawal_request.amount,
+				block_number: <frame_system::Pallet<T>>::block_number(),
+			});
+
+			Ok(())
+		}
+
 		/// To test adding of referral
 		#[pallet::weight(0)]
 		pub fn add_referral(
@@ -487,11 +687,12 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_standard_withdrawal_fee(
 			origin: OriginFor<T>,
+			collateral_id: u128,
 			withdrawal_fee: FixedI128,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			ensure!(withdrawal_fee >= FixedI128::zero(), Error::<T>::InvalidWithdrawalFee);
-			StandardWithdrawalFee::<T>::put(withdrawal_fee);
+			StandardWithdrawalFeeV2::<T>::set(collateral_id, withdrawal_fee);
 			Ok(())
 		}
 
@@ -544,16 +745,14 @@ pub mod pallet {
 			Self::verify_signature(&withdrawal_request)?;
 
 			// Get the standard fee for a withdrawal tx
-			let withdrawal_fee = StandardWithdrawalFee::<T>::get();
+			let withdrawal_fee =
+				StandardWithdrawalFeeV2::<T>::get(withdrawal_request.collateral_id);
 
 			// Get the current balance
 			let current_balance: FixedI128 = BalancesMap::<T>::get(
 				withdrawal_request.account_id,
 				withdrawal_request.collateral_id,
 			);
-
-			// Get the new balance of the user
-			let new_balance = current_balance - withdrawal_fee;
 
 			// Get the account struct
 			let account = AccountMap::<T>::get(&withdrawal_request.account_id)
@@ -563,6 +762,8 @@ pub mod pallet {
 			// Get the current block number
 			let block_number = <frame_system::Pallet<T>>::block_number();
 
+			// Get the new balance of the user
+			let new_balance = current_balance - withdrawal_fee;
 			// Update the balance, after deducting fees
 			BalancesMap::<T>::set(
 				withdrawal_request.account_id,
@@ -571,6 +772,13 @@ pub mod pallet {
 			);
 
 			if withdrawal_fee != FixedI128::zero() {
+				Self::deposit_event(Event::UserWithdrawalFee {
+					trading_account: account,
+					collateral_id: withdrawal_request.collateral_id,
+					amount: withdrawal_fee,
+					block_number,
+				});
+
 				// BalanceUpdated event is emitted for reducing the withdrawal fee
 				Self::deposit_event(Event::BalanceUpdated {
 					account_id: withdrawal_request.account_id,
@@ -583,6 +791,20 @@ pub mod pallet {
 					new_balance,
 					block_number,
 				});
+
+				if let Some(insurance_fund) = DefaultInsuranceFund::<T>::get() {
+					let current_insurance_fund_balance = InsuranceFundBalances::<T>::get(
+						insurance_fund,
+						withdrawal_request.collateral_id,
+					);
+
+					// Increment the local balance of insurance fund
+					InsuranceFundBalances::<T>::set(
+						insurance_fund,
+						withdrawal_request.collateral_id,
+						current_insurance_fund_balance + withdrawal_fee,
+					);
+				}
 			}
 
 			// Get withdrawal amount before withdrawal leads to the position to be liquidatable or
@@ -641,7 +863,7 @@ pub mod pallet {
 				let fee_share =
 					MasterAccountFeeShare::<T>::get(master_account_address, collateral_id);
 
-				// If the passed amount is invalid, we emit an event and skip the current iteration
+				// If the passed amount is invalid, we return an error
 				ensure!(
 					amount <= fee_share && amount > FixedI128::zero(),
 					Error::<T>::InvalidFeeSharesAmount { invalid_index: index as u16 }
@@ -657,7 +879,7 @@ pub mod pallet {
 				Self::deposit_event(Event::FeeShareTransfer {
 					master_account_address,
 					collateral_id,
-					amount: fee_share,
+					amount,
 					block_number: <frame_system::Pallet<T>>::block_number(),
 				});
 			}
@@ -783,6 +1005,52 @@ pub mod pallet {
 			return (unrealized_pnl_sum, maintenance_margin_requirement, negative_unrealized_pnl_sum)
 		}
 
+		fn verify_insurance_withdrawal_signature(
+			insurance_withdrawl_request: &InsuranceWithdrawalRequest,
+		) -> Result<(), Error<T>> {
+			// Convert the r and s value to fieldElement
+			let (sig_r, sig_s) = sig_u256_to_sig_felt(
+				&insurance_withdrawl_request.sig_r,
+				&insurance_withdrawl_request.sig_s,
+			)
+			.map_err(|_| Error::<T>::InvalidSignatureFelt)?;
+
+			// Construct the signature struct
+			let signature = Signature { r: sig_r, s: sig_s };
+
+			// Hash the withdrawal request struct
+			let withdrawal_request_hash = insurance_withdrawl_request
+				.hash(&insurance_withdrawl_request.hash_type)
+				.map_err(|_| Error::<T>::InvalidWithdrawalRequestHash)?;
+
+			// Check if the withdrawal is already processed
+			let withdrawal_request_hash_u256 = withdrawal_request_hash.to_u256();
+			ensure!(
+				!IsWithdrawalProcessed::<T>::contains_key(withdrawal_request_hash_u256),
+				Error::<T>::DuplicateWithdrawal
+			);
+
+			// Fetch the public key of signer
+			let public_key =
+				InsuranceWithdrawalSigner::<T>::get().ok_or(Error::<T>::NoPublicKeyFound)?;
+
+			// Convert the public key to felt
+			let public_key_felt =
+				public_key.try_to_felt().map_err(|_| Error::<T>::InvalidPublicKey)?;
+
+			// Verify the signature
+			let verification = ecdsa_verify(&public_key_felt, &withdrawal_request_hash, &signature)
+				.map_err(|_| Error::<T>::InvalidSignature)?;
+
+			// Signature verification returned error or false
+			ensure!(verification, Error::<T>::InvalidSignature);
+
+			// Mark the request as being processed
+			IsWithdrawalProcessed::<T>::insert(withdrawal_request_hash_u256, true);
+
+			Ok(())
+		}
+
 		fn verify_signature(withdrawal_request: &WithdrawalRequest) -> Result<(), Error<T>> {
 			// Convert the r and s value to fieldElement
 			let (sig_r, sig_s) =
@@ -895,6 +1163,7 @@ pub mod pallet {
 		fn transfer(
 			account_id: U256,
 			collateral_id: u128,
+			market_id: u128,
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
@@ -926,10 +1195,12 @@ pub mod pallet {
 			});
 
 			// Event to be synced by L2
-			Self::deposit_event(Event::UserBalanceChange {
+			Self::deposit_event(Event::UserBalanceChangeV2 {
 				trading_account: account,
-				collateral_id,
+				market_id,
 				amount,
+				revenue_amount: FixedI128::zero(),
+				fee_share_amount: FixedI128::zero(),
 				modify_type: FundModifyType::Increase,
 				reason: reason.into(),
 				block_number,
@@ -939,6 +1210,7 @@ pub mod pallet {
 		fn transfer_from(
 			account_id: U256,
 			collateral_id: u128,
+			market_id: u128,
 			amount: FixedI128,
 			reason: BalanceChangeReason,
 		) {
@@ -969,15 +1241,18 @@ pub mod pallet {
 				block_number,
 			});
 
-			// Event to be synced by L2
-			Self::deposit_event(Event::UserBalanceChange {
-				trading_account: account,
-				collateral_id,
-				amount,
-				modify_type: FundModifyType::Decrease,
-				reason: reason.into(),
-				block_number,
-			});
+			if reason != BalanceChangeReason::Fee {
+				Self::deposit_event(Event::UserBalanceChangeV2 {
+					trading_account: account,
+					market_id,
+					amount,
+					revenue_amount: FixedI128::zero(),
+					fee_share_amount: FixedI128::zero(),
+					modify_type: FundModifyType::Decrease.into(),
+					reason: reason.into(),
+					block_number,
+				});
+			}
 		}
 
 		fn is_registered_user(account_id: U256) -> bool {
@@ -1069,6 +1344,14 @@ pub mod pallet {
 			)
 		}
 
+		fn update_fee_split_details_internal(
+			market_id: u128,
+			insurance_fund: U256,
+			fee_split: FixedI128,
+		) {
+			MarketToFeeSplitMap::<T>::set(market_id, Some((insurance_fund, fee_split)));
+		}
+
 		fn deposit_internal(
 			trading_account: TradingAccountMinimal,
 			collateral_id: u128,
@@ -1122,11 +1405,25 @@ pub mod pallet {
 			} else if current_balance.is_negative() {
 				let absolute_amount = min(-current_balance, amount);
 
-				Self::emit_insurance_fund_change_event(
+				Self::deposit_event(Event::UserBalanceDeficit {
+					trading_account,
 					collateral_id,
-					absolute_amount,
-					FundModifyType::Increase.into(),
-				);
+					amount: absolute_amount,
+					block_number,
+				});
+
+				// Add amount to Default InsuranceFund
+				if let Some(insurance_fund) = DefaultInsuranceFund::<T>::get() {
+					let current_insurance_fund_balance =
+						InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
+
+					// Increment the local balance of insurance fund
+					InsuranceFundBalances::<T>::set(
+						insurance_fund,
+						collateral_id,
+						current_insurance_fund_balance + absolute_amount,
+					);
+				}
 			}
 
 			let new_balance: FixedI128 = amount + current_balance;
@@ -1150,17 +1447,80 @@ pub mod pallet {
 			});
 		}
 
-		fn emit_insurance_fund_change_event(
+		fn handle_fee_split(
+			account_id: U256,
 			collateral_id: u128,
+			market_id: u128,
+			amount: FixedI128,
+			fee_share_amount: FixedI128,
+		) {
+			// Get the insurance fund and fee split details
+			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+
+			let (insurance_fund, fee_split) = Self::get_fee_split_details(market_id);
+			let current_insurance_fund_balance =
+				InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
+			let amount_after_fee_share = amount - fee_share_amount;
+			let revenue_amount = (amount_after_fee_share * fee_split)
+				.round_to_precision(collateral_token_decimal.into());
+			let fee_amount = amount_after_fee_share - revenue_amount;
+
+			// Increment the local balance of insurance fund
+			InsuranceFundBalances::<T>::set(
+				insurance_fund,
+				collateral_id,
+				current_insurance_fund_balance + fee_amount,
+			);
+
+			// Emit the event to be picked up by the Synchronizer
+			Self::deposit_event(Event::UserBalanceChangeV2 {
+				trading_account: AccountMap::<T>::get(&account_id)
+					.unwrap()
+					.to_trading_account_minimal(),
+				market_id,
+				amount,
+				revenue_amount,
+				fee_share_amount,
+				modify_type: FundModifyType::Decrease,
+				reason: BalanceChangeReason::Fee.into(),
+				block_number: <frame_system::Pallet<T>>::block_number(),
+			});
+		}
+
+		fn handle_insurance_fund_update(
+			collateral_id: u128,
+			market_id: u128,
 			amount: FixedI128,
 			modify_type: FundModifyType,
 		) {
-			let block_number = <frame_system::Pallet<T>>::block_number();
-			Self::deposit_event(Event::InsuranceFundChange {
-				collateral_id,
-				amount,
+			// Get the insurance fund and update the value
+			let collateral_asset = T::AssetPallet::get_asset(collateral_id).unwrap();
+			let collateral_token_decimal = collateral_asset.decimals;
+			let rounded_amount = amount.round_to_precision(collateral_token_decimal.into());
+
+			let (insurance_fund, _) = Self::get_fee_split_details(market_id);
+			let current_insurance_fund_balance =
+				InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
+
+			match modify_type {
+				FundModifyType::Increase => InsuranceFundBalances::<T>::set(
+					insurance_fund,
+					collateral_id,
+					current_insurance_fund_balance + rounded_amount,
+				),
+				FundModifyType::Decrease => InsuranceFundBalances::<T>::set(
+					insurance_fund,
+					collateral_id,
+					current_insurance_fund_balance - rounded_amount,
+				),
+			}
+
+			Self::deposit_event(Event::InsuranceFundChangeV2 {
+				market_id,
+				amount: rounded_amount,
 				modify_type,
-				block_number,
+				block_number: <frame_system::Pallet<T>>::block_number(),
 			});
 		}
 
@@ -1486,6 +1846,15 @@ pub mod pallet {
 			Self::modify_master_account_level(master_account_address, level);
 		}
 
+		fn update_insurance_fund_balance_internal(
+			insurance_fund: U256,
+			collateral_id: u128,
+			amount: FixedI128,
+		) {
+			let current_balance = InsuranceFundBalances::<T>::get(insurance_fund, collateral_id);
+			InsuranceFundBalances::<T>::set(insurance_fund, collateral_id, current_balance + amount)
+		}
+
 		fn get_fee_discount(trading_account_id: U256) -> FixedI128 {
 			let trading_account = AccountMap::<T>::get(trading_account_id);
 			// Here, unwrap will not lead to any error becuase, we are checking
@@ -1526,6 +1895,16 @@ pub mod pallet {
 			let new_fee_share =
 				MasterAccountFeeShare::<T>::get(account_address, collateral_id) + current_fee_share;
 			MasterAccountFeeShare::<T>::set(account_address, collateral_id, new_fee_share);
+		}
+
+		fn get_fee_split_details(market_id: u128) -> (U256, FixedI128) {
+			match MarketToFeeSplitMap::<T>::get(market_id) {
+				Some((insurance_fund, fee_split)) => (insurance_fund, fee_split),
+				None => match DefaultInsuranceFund::<T>::get() {
+					Some(insurance_fund) => (insurance_fund, FixedI128::zero()),
+					None => panic!("No default insurance fund set"),
+				},
+			}
 		}
 	}
 }

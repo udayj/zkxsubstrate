@@ -184,6 +184,11 @@ pub mod pallet {
 	#[pallet::getter(fn matching_time_limit)]
 	pub(super) type MatchingTimeLimit<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn withdrawal_signer)]
+	// Array of U256 signers
+	pub(super) type WithdrawalSigner<T: Config> = StorageValue<_, U256, ValueQuery>;
+
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -1687,28 +1692,34 @@ pub mod pallet {
 				total_30day_volume,
 			);
 
-			let mut fee = fee_rate * leveraged_order_value;
+			let mut fee = fee_rate * current_volume;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
+
+			let fee_share_amount = Self::update_and_get_fee_share(
+				order.account_id,
+				collateral_id,
+				master_30day_volume,
+				current_volume,
+				fee,
+				collateral_token_decimal,
+			);
 
 			ensure!(fee <= available_margin, Error::<T>::TradeBatchError501);
 			if fee != FixedI128::zero() {
-				// Update fee share for the master account
-				if master_30day_volume != FixedI128::zero() {
-					Self::update_fee_share(
-						order.account_id,
-						collateral_id,
-						master_30day_volume,
-						leveraged_order_value,
-						fee,
-						collateral_token_decimal,
-					);
-				}
-
 				T::TradingAccountPallet::transfer_from(
 					order.account_id,
 					collateral_id,
+					order.market_id,
 					fee,
 					BalanceChangeReason::Fee,
+				);
+
+				T::TradingAccountPallet::handle_fee_split(
+					order.account_id,
+					collateral_id,
+					order.market_id,
+					fee,
+					fee_share_amount,
 				);
 			}
 
@@ -1794,8 +1805,9 @@ pub mod pallet {
 					if pnl_abs > balance {
 						if balance.is_negative() {
 							// Complete funds lost by user should be taken from insurance fund
-							T::TradingAccountPallet::emit_insurance_fund_change_event(
+							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
+								order.market_id,
 								pnl_abs,
 								FundModifyType::Decrease,
 							);
@@ -1813,8 +1825,9 @@ pub mod pallet {
 						} else {
 							// Some amount of lost funds can be taken from user available balance
 							// Rest of the funds should be taken from insurance fund
-							T::TradingAccountPallet::emit_insurance_fund_change_event(
+							T::TradingAccountPallet::handle_insurance_fund_update(
 								collateral_id,
+								order.market_id,
 								pnl_abs - balance,
 								FundModifyType::Decrease,
 							);
@@ -1837,6 +1850,7 @@ pub mod pallet {
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						pnl.saturating_abs(),
 						BalanceChangeReason::PnlRealization,
 					);
@@ -1853,8 +1867,9 @@ pub mod pallet {
 							// if balance >= margin amount, deposit remaining margin in insurance
 							if margin_amount_to_reduce <= balance {
 								// Deposit margin_plus_pnl to insurance fund
-								T::TradingAccountPallet::emit_insurance_fund_change_event(
+								T::TradingAccountPallet::handle_insurance_fund_update(
 									collateral_id,
+									order.market_id,
 									margin_plus_pnl,
 									FundModifyType::Increase,
 								);
@@ -1873,8 +1888,9 @@ pub mod pallet {
 							} else {
 								if balance.is_negative() {
 									// Deduct margin_amount_to_reduce from insurance fund
-									T::TradingAccountPallet::emit_insurance_fund_change_event(
+									T::TradingAccountPallet::handle_insurance_fund_update(
 										collateral_id,
+										order.market_id,
 										margin_amount_to_reduce,
 										FundModifyType::Decrease,
 									);
@@ -1896,8 +1912,9 @@ pub mod pallet {
 									let pnl_abs = pnl.saturating_abs();
 									if balance <= pnl_abs {
 										// Deduct (pnl_abs -  balance) from insurance fund
-										T::TradingAccountPallet::emit_insurance_fund_change_event(
+										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
+											order.market_id,
 											pnl_abs - balance,
 											FundModifyType::Decrease,
 										);
@@ -1916,8 +1933,9 @@ pub mod pallet {
 										});
 									} else {
 										// Deposit (balance - pnl_abs) to insurance fund
-										T::TradingAccountPallet::emit_insurance_fund_change_event(
+										T::TradingAccountPallet::handle_insurance_fund_update(
 											collateral_id,
+											order.market_id,
 											balance - pnl_abs,
 											FundModifyType::Increase,
 										);
@@ -1940,6 +1958,7 @@ pub mod pallet {
 							T::TradingAccountPallet::transfer_from(
 								order.account_id,
 								collateral_id,
+								order.market_id,
 								margin_amount_to_reduce,
 								BalanceChangeReason::Liquidation,
 							);
@@ -1960,6 +1979,7 @@ pub mod pallet {
 						T::TradingAccountPallet::transfer_from(
 							order.account_id,
 							collateral_id,
+							order.market_id,
 							pnl.saturating_abs(),
 							BalanceChangeReason::PnlRealization,
 						);
@@ -1970,6 +1990,7 @@ pub mod pallet {
 					T::TradingAccountPallet::transfer(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						pnl,
 						BalanceChangeReason::PnlRealization,
 					);
@@ -1995,28 +2016,35 @@ pub mod pallet {
 					total_30day_volume,
 				);
 
-				let mut fee = fee_rate * leveraged_order_value;
+				let mut fee = fee_rate * current_volume;
 				fee = fee.round_to_precision(collateral_token_decimal.into());
+
+				let fee_share_amount = Self::update_and_get_fee_share(
+					order.account_id,
+					collateral_id,
+					master_30day_volume,
+					current_volume,
+					fee,
+					collateral_token_decimal,
+				);
 
 				// Deduct fee while closing a position
 				if fee != FixedI128::zero() {
-					// Update fee share for the master accoun
-					if master_30day_volume != FixedI128::zero() {
-						Self::update_fee_share(
-							order.account_id,
-							collateral_id,
-							master_30day_volume,
-							leveraged_order_value,
-							fee,
-							collateral_token_decimal,
-						);
-					}
-
+					// Transfer fee from the user
 					T::TradingAccountPallet::transfer_from(
 						order.account_id,
 						collateral_id,
+						order.market_id,
 						fee,
 						BalanceChangeReason::Fee,
+					);
+
+					T::TradingAccountPallet::handle_fee_split(
+						order.account_id,
+						collateral_id,
+						order.market_id,
+						fee,
+						fee_share_amount,
 					);
 				}
 
@@ -2036,14 +2064,15 @@ pub mod pallet {
 			))
 		}
 
-		fn update_fee_share(
+		fn update_and_get_fee_share(
 			account_id: U256,
 			collateral_id: u128,
 			master_30day_volume: FixedI128,
 			order_volume: FixedI128,
 			fee: FixedI128,
 			collateral_token_decimal: u8,
-		) {
+		) -> FixedI128 {
+			let mut fee_share = FixedI128::zero();
 			if let Some(referral_details) =
 				T::TradingAccountPallet::get_account_address_and_referral_details(account_id)
 			{
@@ -2055,8 +2084,8 @@ pub mod pallet {
 					collateral_id,
 					master_30day_volume,
 				);
-				let mut fee_share = fee * fee_share_rate;
-				fee_share = fee_share.round_to_precision(collateral_token_decimal.into());
+				fee_share =
+					(fee * fee_share_rate).round_to_precision(collateral_token_decimal.into());
 				T::TradingAccountPallet::update_master_fee_share(
 					referral_details.master_account_address,
 					collateral_id,
@@ -2074,6 +2103,7 @@ pub mod pallet {
 					fee_share,
 				});
 			}
+			return fee_share;
 		}
 
 		fn get_maintenance_requirement(
@@ -2252,8 +2282,9 @@ pub mod pallet {
 				if pnl_abs > balance {
 					if balance.is_negative() {
 						// Complete funds lost by user should be taken from insurance fund
-						T::TradingAccountPallet::emit_insurance_fund_change_event(
+						T::TradingAccountPallet::handle_insurance_fund_update(
 							collateral_id,
+							market_id,
 							pnl_abs,
 							FundModifyType::Decrease,
 						);
@@ -2269,10 +2300,11 @@ pub mod pallet {
 							block_number: <frame_system::Pallet<T>>::block_number(),
 						});
 					} else {
-						// Some amount of lost funds can be taken from users available balance
+						// Some amount of lost funds can be taken from user available balance
 						// Rest of the funds should be taken from insurance fund
-						T::TradingAccountPallet::emit_insurance_fund_change_event(
+						T::TradingAccountPallet::handle_insurance_fund_update(
 							collateral_id,
+							market_id,
 							pnl_abs - balance,
 							FundModifyType::Decrease,
 						);
@@ -2294,6 +2326,7 @@ pub mod pallet {
 				T::TradingAccountPallet::transfer_from(
 					account_id,
 					collateral_id,
+					market_id,
 					pnl_abs,
 					BalanceChangeReason::PnlRealization,
 				);
@@ -2303,6 +2336,7 @@ pub mod pallet {
 				T::TradingAccountPallet::transfer(
 					account_id,
 					collateral_id,
+					market_id,
 					pnl,
 					BalanceChangeReason::PnlRealization,
 				);
@@ -2331,25 +2365,31 @@ pub mod pallet {
 			let mut fee = fee_rate * leveraged_order_value;
 			fee = fee.round_to_precision(collateral_token_decimal.into());
 
+			let fee_share_amount = Self::update_and_get_fee_share(
+				account_id,
+				collateral_id,
+				master_30day_volume,
+				current_volume,
+				fee,
+				collateral_token_decimal,
+			);
+
 			// Deduct fee while closing a position
 			if fee != FixedI128::zero() {
-				// Update fee share for the master account
-				if master_30day_volume != FixedI128::zero() {
-					Self::update_fee_share(
-						account_id,
-						collateral_id,
-						master_30day_volume,
-						leveraged_order_value,
-						fee,
-						collateral_token_decimal,
-					);
-				}
-
 				T::TradingAccountPallet::transfer_from(
 					account_id,
 					collateral_id,
+					market_id,
 					fee,
 					BalanceChangeReason::Fee,
+				);
+
+				T::TradingAccountPallet::handle_fee_split(
+					account_id,
+					collateral_id,
+					market_id,
+					fee,
+					fee_share_amount,
 				);
 			}
 
@@ -2667,9 +2707,13 @@ pub mod pallet {
 				return (FeeRates::new(zero, zero, zero, zero), 0)
 			}
 
+			// Get monetary address from account_id
+			// Unwrap won't fail here as user is valid
+			let monetary_address =
+				T::TradingAccountPallet::get_account(&account_id).unwrap().account_address;
 			let last_30day_volume: FixedI128;
 			match T::TradingAccountPallet::get_30day_volume(
-				account_id,
+				monetary_address,
 				market_id,
 				VolumeType::UserVolume,
 			) {

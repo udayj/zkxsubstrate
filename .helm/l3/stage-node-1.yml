@@ -13,7 +13,7 @@ image:
   # -- Image repository
   repository: zkxteam/zkxsubstrate
   # -- Image tag
-  tag: sandbox-2-node
+  tag: stage-node
   # -- Image pull policy
   pullPolicy: Always
   # -- Adds `-x` shell option to container.
@@ -139,7 +139,7 @@ ingress:
    cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare
   # -- Ingress rules configuration
   rules:
-  - host: l3.sandbox-2.zkx.fi
+  - host: l3.stage.zkx.fi
     http:
       paths:
       - path: "/"
@@ -153,7 +153,7 @@ ingress:
   tls:
   - secretName: l3-tls-node-1
     hosts:
-      - l3.sandbox-2.zkx.fi
+      - l3.stage.zkx.fi
 
 # -- Deploy a substrate node.
 # ref: https://docs.substrate.io/tutorials/v3/private-network/
@@ -181,7 +181,7 @@ node:
   # Note: path should start with /chain-data/ since this folder mount in init container download-chainspec.
   customChainspecPath: "/chain-data/customSpecRaw.json"
   # -- (string) URL to retrive custom chain spec
-  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/sandbox2_customSpecRaw.json"
+  customChainspecUrl: "https://substratechainspecfiles.s3.eu-central-1.amazonaws.com/stage_customSpecRaw.json"
   # -- Replace chain spec if it already exists
   forceDownloadChainspec: true
 
@@ -689,13 +689,19 @@ jaegerAgent:
 podAnnotations: {}
 
 # -- Define which Nodes the Pods are scheduled on
-nodeSelector: {}
+nodeSelector:
+  role: substrate
+  topology.kubernetes.io/zone: eu-north-1a
 
 # -- Grace termination period of the Pod
 terminationGracePeriodSeconds: 60
 
 # -- Tolerations for use with node taints
-tolerations: []
+tolerations:
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: substrate
 
 # -- Assign custom affinity rules
 affinity: {}

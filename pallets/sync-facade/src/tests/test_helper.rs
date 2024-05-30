@@ -5,9 +5,10 @@ use pallet_support::{
 	traits::{FeltSerializedArrayExt, FieldElementExt},
 	types::{
 		Asset, AssetAddress, AssetRemoved, AssetUpdated, BaseFee, BaseFeeAggregate,
-		FeeShareDetails, Market, MarketRemoved, MarketUpdated, MasterAccountLevelChanged,
-		QuorumSet, ReferralDetailsAdded, Setting, SettingsAdded, SignerAdded, SignerRemoved,
-		SyncSignature, TradingAccountMinimal, UniversalEvent, UserDeposit,
+		FeeShareDetails, InsuranceFundDeposited, Market, MarketRemoved, MarketUpdated,
+		MarketUpdatedV2, MasterAccountLevelChanged, QuorumSet, ReferralDetailsAdded, Setting,
+		SettingsAdded, SignerAdded, SignerRemoved, SyncSignature, TradingAccountMinimal,
+		UniversalEvent, UserDeposit,
 	},
 	FieldElement,
 };
@@ -23,6 +24,17 @@ pub trait MarketUpdatedTrait {
 		metadata_url: BoundedVec<u8, ConstU32<256>>,
 		block_number: u64,
 	) -> MarketUpdated;
+}
+
+pub trait MarketUpdatedTraitV2 {
+	fn new(
+		event_index: u32,
+		id: u128,
+		market: Market,
+		metadata_url: BoundedVec<u8, ConstU32<256>>,
+		fee_split_details: (U256, FixedI128),
+		block_number: u64,
+	) -> MarketUpdatedV2;
 }
 
 pub trait AssetUpdatedTrait {
@@ -107,6 +119,16 @@ pub trait MasterAccountLevelChangedTrait {
 	) -> MasterAccountLevelChanged;
 }
 
+pub trait InsuranceFundDepositedTrait {
+	fn new(
+		event_index: u32,
+		insurance_fund: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		block_number: u64,
+	) -> InsuranceFundDeposited;
+}
+
 impl MarketUpdatedTrait for MarketUpdated {
 	fn new(
 		event_index: u32,
@@ -116,6 +138,19 @@ impl MarketUpdatedTrait for MarketUpdated {
 		block_number: u64,
 	) -> MarketUpdated {
 		MarketUpdated { event_index, id, market, metadata_url, block_number }
+	}
+}
+
+impl MarketUpdatedTraitV2 for MarketUpdatedV2 {
+	fn new(
+		event_index: u32,
+		id: u128,
+		market: Market,
+		metadata_url: BoundedVec<u8, ConstU32<256>>,
+		fee_split_details: (U256, FixedI128),
+		block_number: u64,
+	) -> MarketUpdatedV2 {
+		MarketUpdatedV2 { event_index, id, market, metadata_url, fee_split_details, block_number }
 	}
 }
 
@@ -129,6 +164,18 @@ impl AssetUpdatedTrait for AssetUpdated {
 		block_number: u64,
 	) -> AssetUpdated {
 		AssetUpdated { event_index, id, asset, asset_addresses, metadata_url, block_number }
+	}
+}
+
+impl InsuranceFundDepositedTrait for InsuranceFundDeposited {
+	fn new(
+		event_index: u32,
+		insurance_fund: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+		block_number: u64,
+	) -> InsuranceFundDeposited {
+		InsuranceFundDeposited { event_index, insurance_fund, collateral_id, amount, block_number }
 	}
 }
 
@@ -647,9 +694,14 @@ pub trait UniversalEventArray {
 	fn add_quorum_set_event(&mut self, quorum_set_event: QuorumSet);
 	fn add_settings_event(&mut self, settings_added_event: SettingsAdded);
 	fn add_referral_added_event(&mut self, referral_added_event: ReferralDetailsAdded);
+	fn add_market_updated_v2_event(&mut self, market_updated_event: MarketUpdatedV2);
 	fn add_master_level_changed_event(
 		&mut self,
 		master_level_changed_event: MasterAccountLevelChanged,
+	);
+	fn add_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited_event: InsuranceFundDeposited,
 	);
 	fn compute_hash(&self) -> FieldElement;
 }
@@ -693,6 +745,10 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		self.push(UniversalEvent::MarketUpdated(market_updated_event));
 	}
 
+	fn add_market_updated_v2_event(&mut self, market_updated_event: MarketUpdatedV2) {
+		self.push(UniversalEvent::MarketUpdatedV2(market_updated_event));
+	}
+
 	fn add_asset_updated_event(&mut self, asset_updated_event: AssetUpdated) {
 		self.push(UniversalEvent::AssetUpdated(asset_updated_event));
 	}
@@ -734,6 +790,13 @@ impl UniversalEventArray for Vec<UniversalEvent> {
 		master_level_changed_event: MasterAccountLevelChanged,
 	) {
 		self.push(UniversalEvent::MasterAccountLevelChanged(master_level_changed_event));
+	}
+
+	fn add_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited_event: InsuranceFundDeposited,
+	) {
+		self.push(UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited_event));
 	}
 
 	fn compute_hash(&self) -> FieldElement {
