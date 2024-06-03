@@ -307,7 +307,9 @@ impl FeltSerializedArrayExt for Vec<FieldElement> {
 	) -> Result<(), FromByteSliceError> {
 		// enum prefix
 		self.push(FieldElement::from(12_u8));
+		self.push(FieldElement::from(insurance_fund_deposited.event_index));
 		self.try_append_u256(insurance_fund_deposited.insurance_fund)?;
+		self.push(FieldElement::from(insurance_fund_deposited.collateral_id));
 		self.try_append_fixedi128(insurance_fund_deposited.amount)?;
 		self.push(FieldElement::from(insurance_fund_deposited.block_number));
 
