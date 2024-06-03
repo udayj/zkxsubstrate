@@ -13,6 +13,7 @@ pub mod pallet {
 	use core::option::Option;
 	use frame_support::{
 		dispatch::Vec,
+		ensure,
 		pallet_prelude::{OptionQuery, ValueQuery, *},
 		traits::UnixTime,
 	};
@@ -301,6 +302,11 @@ pub mod pallet {
 		TradeBatchError547,
 		// The resulting position size is larger than the max size allowed in the market
 		TradeBatchError548,
+		/// FoK, IoC error when maker has some issue
+		TradeBatchError {
+			index: u8,
+			code: u16,
+		},
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -510,13 +516,23 @@ pub mod pallet {
 					Err(e) => {
 						// if maker order, emit event and process next order
 						if element.order_id != taker_order.order_id {
-							Self::handle_maker_error(
-								element.order_id,
-								element.account_id,
-								e,
-								&mut maker_error_codes,
-							);
-							continue
+							if taker_order.time_in_force == TimeInForce::IOC ||
+								taker_order.time_in_force == TimeInForce::FOK
+							{
+								return Err(Error::<T>::TradeBatchError {
+									index: 1,
+									code: Self::get_error_code(&e),
+								}
+								.into())
+							} else {
+								Self::handle_maker_error(
+									element.order_id,
+									element.account_id,
+									e,
+									&mut maker_error_codes,
+								);
+								continue
+							}
 						} else {
 							// if taker order, revert with error
 							return Err(e.into())
@@ -546,13 +562,23 @@ pub mod pallet {
 					match validation_response {
 						Ok(()) => (),
 						Err(e) => {
-							Self::handle_maker_error(
-								element.order_id,
-								element.account_id,
-								e,
-								&mut maker_error_codes,
-							);
-							continue
+							if taker_order.time_in_force == TimeInForce::IOC ||
+								taker_order.time_in_force == TimeInForce::FOK
+							{
+								return Err(Error::<T>::TradeBatchError {
+									index: 1,
+									code: Self::get_error_code(&e),
+								}
+								.into())
+							} else {
+								Self::handle_maker_error(
+									element.order_id,
+									element.account_id,
+									e,
+									&mut maker_error_codes,
+								);
+								continue
+							}
 						},
 					}
 					// Calculate quantity left to be executed
@@ -569,13 +595,23 @@ pub mod pallet {
 					match maker_quantity_to_execute_response {
 						Ok(quantity) => quantity_to_execute = quantity,
 						Err(e) => {
-							Self::handle_maker_error(
-								element.order_id,
-								element.account_id,
-								e,
-								&mut maker_error_codes,
-							);
-							continue
+							if taker_order.time_in_force == TimeInForce::IOC ||
+								taker_order.time_in_force == TimeInForce::FOK
+							{
+								return Err(Error::<T>::TradeBatchError {
+									index: 1,
+									code: Self::get_error_code(&e),
+								}
+								.into())
+							} else {
+								Self::handle_maker_error(
+									element.order_id,
+									element.account_id,
+									e,
+									&mut maker_error_codes,
+								);
+								continue
+							}
 						},
 					}
 
@@ -666,13 +702,23 @@ pub mod pallet {
 						Err(e) => {
 							// if maker order, emit event and process next order
 							if element.order_id != taker_order.order_id {
-								Self::handle_maker_error(
-									element.order_id,
-									element.account_id,
-									e,
-									&mut maker_error_codes,
-								);
-								continue
+								if taker_order.time_in_force == TimeInForce::IOC ||
+									taker_order.time_in_force == TimeInForce::FOK
+								{
+									return Err(Error::<T>::TradeBatchError {
+										index: 1,
+										code: Self::get_error_code(&e),
+									}
+									.into())
+								} else {
+									Self::handle_maker_error(
+										element.order_id,
+										element.account_id,
+										e,
+										&mut maker_error_codes,
+									);
+									continue
+								}
 							} else {
 								// if taker order, revert with error code
 								return Err(e.into())
@@ -807,13 +853,23 @@ pub mod pallet {
 						Err(e) => {
 							// if maker order, emit event and process next order
 							if element.order_id != taker_order.order_id {
-								Self::handle_maker_error(
-									element.order_id,
-									element.account_id,
-									e,
-									&mut maker_error_codes,
-								);
-								continue
+								if taker_order.time_in_force == TimeInForce::IOC ||
+									taker_order.time_in_force == TimeInForce::FOK
+								{
+									return Err(Error::<T>::TradeBatchError {
+										index: 1,
+										code: Self::get_error_code(&e),
+									}
+									.into())
+								} else {
+									Self::handle_maker_error(
+										element.order_id,
+										element.account_id,
+										e,
+										&mut maker_error_codes,
+									);
+									continue
+								}
 							} else {
 								// if taker order, revert with error code
 								return Err(e.into())
