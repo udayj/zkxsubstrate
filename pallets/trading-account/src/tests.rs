@@ -2243,6 +2243,19 @@ fn migration_should_work() {
 			FixedI128::from_u32(1000000)
 		);
 
+		// Modify the balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			FixedI128::from_u32(500),
+		));
+
+		assert_eq!(
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
+			FixedI128::from_u32(1000500)
+		);
+
 		// Trigger migration for the second time
 		// The migration shouldn't run and the storage values must remain intact
 		TradingAccountModule::on_runtime_upgrade();
@@ -2250,7 +2263,7 @@ fn migration_should_work() {
 		assert_eq!(TradingAccountModule::default_insurance_fund(), Some(U256::from(1)));
 		assert_eq!(
 			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
-			FixedI128::from_u32(1000000)
+			FixedI128::from_u32(1000500)
 		);
 	});
 }
