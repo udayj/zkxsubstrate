@@ -25,7 +25,7 @@ pub mod migrations {
 			InsuranceFundBalances::<T>::set(insurance_fund_address, collateral_id, amount);
 
 			// Update the storage version
-			StorageVersion::new(2).put::<Pallet<T>>();
+			StorageVersion::new(1).put::<Pallet<T>>();
 
 			T::DbWeight::get().reads_writes(1, 2)
 		} else {
