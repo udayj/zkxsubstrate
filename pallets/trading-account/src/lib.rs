@@ -8,6 +8,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod migrations;
+
 #[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
@@ -384,6 +386,13 @@ pub mod pallet {
 			amount: FixedI128,
 			block_number: BlockNumberFor<T>,
 		},
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			migrations::migrations::migrate_to_v2::<T>()
+		}
 	}
 
 	#[pallet::call]

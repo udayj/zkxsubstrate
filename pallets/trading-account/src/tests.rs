@@ -1,5 +1,5 @@
 use crate::{mock::*, Event};
-use frame_support::assert_ok;
+use frame_support::{assert_ok, pallet_prelude::Hooks};
 use pallet_support::{
 	test_helpers::{
 		accounts_helper::{
@@ -2216,6 +2216,61 @@ fn test_adjust_balances() {
 		println!(
 			"Alice balance: {:?}",
 			TradingAccountModule::balances(trading_account_id, usdc().asset.id)
+		);
+	});
+}
+
+#[test]
+fn migration_should_work() {
+	let mut env = setup();
+	let default_insurance_fund =
+		U256::from("0x0578b12cd73ebca3e8edd00a959d5428ebde350a36f896e2a5c5b87b6e6b6caf");
+	let collateral_id: u128 = usdc().asset.id;
+
+	env.execute_with(|| {
+		// Before migration
+		assert_eq!(TradingAccountModule::default_insurance_fund(), None);
+		assert_eq!(
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
+			FixedI128::zero()
+		);
+
+		// Trigger migration
+		TradingAccountModule::on_runtime_upgrade();
+
+		assert_eq!(
+			TradingAccountModule::default_insurance_fund(),
+			Some(U256::from("0x0578b12cd73ebca3e8edd00a959d5428ebde350a36f896e2a5c5b87b6e6b6caf"))
+		);
+		assert_eq!(
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
+			FixedI128::from_inner(1010010909636000000000000)
+		);
+
+		// Modify the balance of default insurance fund
+		assert_ok!(TradingAccountModule::update_insurance_fund_balance(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			default_insurance_fund,
+			collateral_id,
+			FixedI128::from_u32(500),
+		));
+
+		assert_eq!(
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
+			FixedI128::from_inner(1010510909636000000000000)
+		);
+
+		// Trigger migration for the second time
+		// The migration shouldn't run and the storage values must remain intact
+		TradingAccountModule::on_runtime_upgrade();
+
+		assert_eq!(
+			TradingAccountModule::default_insurance_fund(),
+			Some(U256::from(default_insurance_fund))
+		);
+		assert_eq!(
+			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
+			FixedI128::from_inner(1010510909636000000000000)
 		);
 	});
 }
