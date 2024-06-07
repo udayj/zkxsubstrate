@@ -2223,7 +2223,8 @@ fn test_adjust_balances() {
 #[test]
 fn migration_should_work() {
 	let mut env = setup();
-	let default_insurance_fund = U256::from(1);
+	let default_insurance_fund =
+		U256::from("0x0578b12cd73ebca3e8edd00a959d5428ebde350a36f896e2a5c5b87b6e6b6caf");
 	let collateral_id: u128 = usdc().asset.id;
 
 	env.execute_with(|| {
@@ -2237,10 +2238,13 @@ fn migration_should_work() {
 		// Trigger migration
 		TradingAccountModule::on_runtime_upgrade();
 
-		assert_eq!(TradingAccountModule::default_insurance_fund(), Some(U256::from(1)));
+		assert_eq!(
+			TradingAccountModule::default_insurance_fund(),
+			Some(U256::from("0x0578b12cd73ebca3e8edd00a959d5428ebde350a36f896e2a5c5b87b6e6b6caf"))
+		);
 		assert_eq!(
 			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
-			FixedI128::from_u32(1000000)
+			FixedI128::from_inner(1010010909636000000000000)
 		);
 
 		// Modify the balance of default insurance fund
@@ -2253,17 +2257,20 @@ fn migration_should_work() {
 
 		assert_eq!(
 			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
-			FixedI128::from_u32(1000500)
+			FixedI128::from_inner(1010510909636000000000000)
 		);
 
 		// Trigger migration for the second time
 		// The migration shouldn't run and the storage values must remain intact
 		TradingAccountModule::on_runtime_upgrade();
 
-		assert_eq!(TradingAccountModule::default_insurance_fund(), Some(U256::from(1)));
+		assert_eq!(
+			TradingAccountModule::default_insurance_fund(),
+			Some(U256::from(default_insurance_fund))
+		);
 		assert_eq!(
 			TradingAccountModule::insurance_fund_balance(default_insurance_fund, collateral_id),
-			FixedI128::from_u32(1000500)
+			FixedI128::from_inner(1010510909636000000000000)
 		);
 	});
 }
