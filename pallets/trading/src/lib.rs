@@ -101,9 +101,16 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn market_to_user)]
-	// k1 - (market_id, direction), k2 - account_id, v - account_id
-	pub(super) type MarketToUserMap<T: Config> =
-		StorageDoubleMap<_, Twox64Concat, (u128, Direction), Twox64Concat, U256, U256, OptionQuery>;
+	// k1 - (market_id, direction), k2 - account_id, v - (account_id, group_index)
+	pub(super) type MarketToUserMap<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		(u128, Direction),
+		Twox64Concat,
+		U256,
+		(U256, u128),
+		OptionQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn open_interest)]
@@ -367,7 +374,11 @@ pub mod pallet {
 
 			for (account_id, (market, direction), _) in PositionsMap::<T>::iter() {
 				if market_id == market {
-					MarketToUserMap::<T>::set((market_id, direction), account_id, Some(account_id));
+					MarketToUserMap::<T>::set(
+						(market_id, direction),
+						account_id,
+						Some((account_id, 0)),
+					);
 				}
 			}
 
@@ -687,7 +698,7 @@ pub mod pallet {
 						MarketToUserMap::<T>::insert(
 							(market_id, element.direction),
 							element.account_id,
-							element.account_id,
+							(element.account_id, 0),
 						);
 
 						let opposite_direction = Self::get_opposite_direction(element.direction);
@@ -1200,7 +1211,7 @@ pub mod pallet {
 
 			if long_users_count != 0 {
 				// Iterate through all long users who have open positions in a delisted market
-				for long_user in
+				for (long_user, _) in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
 				{
 					if positions_close_count == 0 {
@@ -1244,7 +1255,7 @@ pub mod pallet {
 
 			if short_users_count != 0 && positions_close_count != 0 {
 				// Iterate through all short users who have open positions in a delisted market
-				for short_user in
+				for (short_user, _) in
 					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
 				{
 					if positions_close_count == 0 {
