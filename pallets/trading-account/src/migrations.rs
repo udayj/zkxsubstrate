@@ -28,7 +28,7 @@ pub mod migrations {
 			// Update the storage version
 			StorageVersion::new(1).put::<Pallet<T>>();
 
-			T::DbWeight::get().reads_writes(1, 2)
+			T::DbWeight::get().reads_writes(0, 2)
 		} else {
 			Weight::zero()
 		}
