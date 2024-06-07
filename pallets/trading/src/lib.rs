@@ -101,8 +101,15 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn market_to_user)]
+	// k1 - (market_id, direction), k2 - account_id, v - account_id
+	// It is not being used anymore. It is to be removed.
+	pub(super) type MarketToUserMap<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, (u128, Direction), Twox64Concat, U256, U256, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn market_to_account)]
 	// k1 - (market_id, direction), k2 - account_id, v - (account_id, group_index)
-	pub(super) type MarketToUserMap<T: Config> = StorageDoubleMap<
+	pub(super) type MarketToAccountMap<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
 		(u128, Direction),
@@ -374,7 +381,7 @@ pub mod pallet {
 
 			for (account_id, (market, direction), _) in PositionsMap::<T>::iter() {
 				if market_id == market {
-					MarketToUserMap::<T>::set(
+					MarketToAccountMap::<T>::set(
 						(market_id, direction),
 						account_id,
 						Some((account_id, 0)),
@@ -695,7 +702,7 @@ pub mod pallet {
 					if position_details.size == FixedI128::zero() {
 						// Previous position size = 0 means that user does not have a position
 						// in this market and direction
-						MarketToUserMap::<T>::insert(
+						MarketToAccountMap::<T>::insert(
 							(market_id, element.direction),
 							element.account_id,
 							(element.account_id, 0),
@@ -863,12 +870,12 @@ pub mod pallet {
 
 					// If the user does not have any position in this market
 					// then remove the market from CollateralToMarketMap
-					// Remove the user from MarketToUserMap also if position is
+					// Remove the user from MarketToAccountMap also if position is
 					// completely closed in a market and direction combination
 					if new_position_size == FixedI128::zero() {
 						// If the new position size is 0, it means that the position in a certain
 						// market and direction is completely closed
-						MarketToUserMap::<T>::remove(
+						MarketToAccountMap::<T>::remove(
 							(market_id, element.direction),
 							element.account_id,
 						);
@@ -1207,12 +1214,12 @@ pub mod pallet {
 
 			let mut positions_close_count = POSITIONS_CLOSE_COUNT;
 			let long_users_count =
-				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count();
+				MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Long)).count();
 
 			if long_users_count != 0 {
 				// Iterate through all long users who have open positions in a delisted market
 				for (long_user, _) in
-					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long))
+					MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Long))
 				{
 					if positions_close_count == 0 {
 						break;
@@ -1251,12 +1258,12 @@ pub mod pallet {
 			}
 
 			let short_users_count =
-				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count();
+				MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Short)).count();
 
 			if short_users_count != 0 && positions_close_count != 0 {
 				// Iterate through all short users who have open positions in a delisted market
 				for (short_user, _) in
-					MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short))
+					MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Short))
 				{
 					if positions_close_count == 0 {
 						break;
@@ -2406,7 +2413,7 @@ pub mod pallet {
 
 			// Since new position size is 0, it means that the position in a certain
 			// market and direction is completely closed
-			MarketToUserMap::<T>::remove((market_id, direction), account_id);
+			MarketToAccountMap::<T>::remove((market_id, direction), account_id);
 
 			let opposite_direction = Self::get_opposite_direction(direction);
 			let opposite_position =
@@ -2774,10 +2781,10 @@ pub mod pallet {
 
 		fn get_no_of_delisted_market_positions(market_id: u128) -> u32 {
 			let long_users_count =
-				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Long)).count()
+				MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Long)).count()
 					as u32;
 			let short_users_count =
-				MarketToUserMap::<T>::iter_prefix_values((market_id, Direction::Short)).count()
+				MarketToAccountMap::<T>::iter_prefix_values((market_id, Direction::Short)).count()
 					as u32;
 			return long_users_count + short_users_count;
 		}

@@ -333,13 +333,13 @@ fn it_works_for_open_trade_simple() {
 		let open_interest = Trading::open_interest(market_id);
 		assert_eq!(open_interest, FixedI128::from_inner(2000000000000000000));
 
-		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Long), alice_id);
 		assert_eq!(account_id.unwrap().0, alice_id);
-		let account_id = Trading::market_to_user((market_id, Direction::Short), alice_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Short), alice_id);
 		assert_eq!(account_id, None);
-		let account_id = Trading::market_to_user((market_id, Direction::Long), bob_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Long), bob_id);
 		assert_eq!(account_id, None);
-		let account_id = Trading::market_to_user((market_id, Direction::Short), bob_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Short), bob_id);
 		assert_eq!(account_id.unwrap().0, bob_id);
 
 		// Check for events
@@ -596,7 +596,7 @@ fn it_works_for_close_trade_simple() {
 			1699940367000,
 		));
 
-		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Long), alice_id);
 		assert_eq!(account_id.unwrap().0, alice_id);
 
 		// Close close orders
@@ -628,7 +628,7 @@ fn it_works_for_close_trade_simple() {
 			1699940367000,
 		));
 
-		let account_id = Trading::market_to_user((market_id, Direction::Long), alice_id);
+		let account_id = Trading::market_to_account((market_id, Direction::Long), alice_id);
 		assert_eq!(account_id, None);
 
 		// Check for open interest
@@ -6844,16 +6844,16 @@ fn test_update_market_to_user_map() {
 			btc_usdc().market.id
 		));
 
-		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Long), alice_id);
+		let result = Trading::market_to_account((btc_usdc().market.id, Direction::Long), alice_id);
 		assert_eq!(result.unwrap().0, alice_id);
-		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Short), bob_id);
+		let result = Trading::market_to_account((btc_usdc().market.id, Direction::Short), bob_id);
 		assert_eq!(result.unwrap().0, bob_id);
-		let result = Trading::market_to_user((eth_usdc().market.id, Direction::Long), alice_id);
+		let result = Trading::market_to_account((eth_usdc().market.id, Direction::Long), alice_id);
 		assert_eq!(result.unwrap().0, alice_id);
-		let result = Trading::market_to_user((eth_usdc().market.id, Direction::Short), bob_id);
+		let result = Trading::market_to_account((eth_usdc().market.id, Direction::Short), bob_id);
 		assert_eq!(result.unwrap().0, bob_id);
 
-		let result = Trading::market_to_user((btc_usdc().market.id, Direction::Short), alice_id);
+		let result = Trading::market_to_account((btc_usdc().market.id, Direction::Short), alice_id);
 		assert_eq!(result, None);
 	})
 }
