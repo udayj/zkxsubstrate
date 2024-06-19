@@ -17,7 +17,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use pallet_support::{
-		traits::{AssetInterface, MarketInterface},
+		traits::{AssetInterface, MarketInterface, PricesInterface},
 		types::{ExtendedMarket, Market},
 	};
 	use sp_arithmetic::fixed_point::FixedI128;
@@ -37,6 +37,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type AssetPallet: AssetInterface;
+		type PricesPallet: PricesInterface;
 	}
 
 	#[pallet::storage]
@@ -223,6 +224,10 @@ pub mod pallet {
 
 			// Replace the market in the market map
 			MarketMap::<T>::insert(extended_market.market.id, extended_market.clone());
+
+			if extended_market.market.is_tradable == false {
+				T::PricesPallet::set_mark_price_for_ads(extended_market.market.id)?;
+			}
 
 			// Emit the market updated event
 			Self::deposit_event(Event::MarketUpdated { market: extended_market });

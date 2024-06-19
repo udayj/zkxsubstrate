@@ -169,6 +169,12 @@ pub mod pallet {
 		AddReferralError { master_account_address: U256, referral_account_address: U256 },
 		/// Account is not regisered for account level update
 		UpdateAccountLevelError { master_account_address: U256 },
+		/// A Deprecated event was passed in the batch
+		DeprecatedEvent { event_index: u32, block_number: u64 },
+		/// An invalid fee split data associated with update market event
+		InvalidFeeSplitData { event_index: u32, block_number: u64 },
+		/// An invalid insurance fund event data
+		InvalidInsuranceData { event_index: u32, block_number: u64 },
 		/// Invalid fee discount value
 		InvalidFeeDiscount { event_index: u32, block_number: u64 },
 	}
@@ -800,33 +806,10 @@ pub mod pallet {
 			for event in events_batch.iter() {
 				match event {
 					UniversalEvent::MarketUpdated(market_updated) => {
-						// Check if the Market already exists
-						match T::MarketPallet::get_market(market_updated.id) {
-							// If yes, update it
-							Some(_) => {
-								match T::MarketPallet::update_market_internal(ExtendedMarket {
-									market: market_updated.market.clone(),
-									metadata_url: market_updated.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::UpdateMarketError {
-										id: market_updated.id,
-									}),
-								}
-							},
-							// If not, add a new market
-							None => {
-								match T::MarketPallet::add_market_internal(ExtendedMarket {
-									market: market_updated.market.clone(),
-									metadata_url: market_updated.metadata_url.clone(),
-								}) {
-									Ok(_) => (),
-									Err(_) => Self::deposit_event(Event::AddMarketError {
-										id: market_updated.id,
-									}),
-								}
-							},
-						}
+						Self::deposit_event(Event::DeprecatedEvent {
+							event_index: market_updated.event_index,
+							block_number: market_updated.block_number,
+						});
 					},
 					UniversalEvent::AssetUpdated(asset_updated) => {
 						// Check if the Asset already exists
@@ -996,6 +979,61 @@ pub mod pallet {
 							account_level_updated.level,
 						);
 					},
+					UniversalEvent::MarketUpdatedV2(market_updated_v2) => {
+						let (insurance_fund, fee_split) = market_updated_v2.fee_split_details;
+						let result =
+							if let Some(_) = T::MarketPallet::get_market(market_updated_v2.id) {
+								// Update existing market
+								T::MarketPallet::update_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								})
+							} else {
+								// Add new market
+								T::MarketPallet::add_market_internal(ExtendedMarket {
+									market: market_updated_v2.market.clone(),
+									metadata_url: market_updated_v2.metadata_url.clone(),
+								})
+							};
+
+						match result {
+							Ok(_) => {
+								if insurance_fund != U256::zero() &&
+									fee_split >= FixedI128::zero() && fee_split <=
+									FixedI128::from_u32(1)
+								{
+									T::TradingAccountPallet::update_fee_split_details_internal(
+										market_updated_v2.market.id,
+										insurance_fund,
+										fee_split,
+									);
+								} else {
+									Self::deposit_event(Event::InvalidFeeSplitData {
+										event_index: market_updated_v2.event_index,
+										block_number: market_updated_v2.block_number,
+									});
+								}
+							},
+							Err(_) => {
+								Self::deposit_event(Event::AddMarketError {
+									id: market_updated_v2.id,
+								});
+							},
+						}
+					},
+					UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited) =>
+						if insurance_fund_deposited.insurance_fund > U256::zero() {
+							T::TradingAccountPallet::update_insurance_fund_balance_internal(
+								insurance_fund_deposited.insurance_fund,
+								insurance_fund_deposited.collateral_id,
+								insurance_fund_deposited.amount,
+							);
+						} else {
+							Self::deposit_event(Event::InvalidInsuranceData {
+								event_index: insurance_fund_deposited.event_index,
+								block_number: insurance_fund_deposited.block_number,
+							});
+						},
 				}
 			}
 		}
@@ -1080,6 +1118,10 @@ pub mod pallet {
 					(referral_added.block_number, referral_added.event_index),
 				UniversalEvent::MasterAccountLevelChanged(account_level_updated) =>
 					(account_level_updated.block_number, account_level_updated.event_index),
+				UniversalEvent::MarketUpdatedV2(market_updated_v2) =>
+					(market_updated_v2.block_number, market_updated_v2.event_index),
+				UniversalEvent::InsuranceFundDeposited(insurance_fund_deposited) =>
+					(insurance_fund_deposited.block_number, insurance_fund_deposited.event_index),
 			}
 		}
 	}

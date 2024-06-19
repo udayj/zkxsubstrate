@@ -221,6 +221,12 @@ pub mod pallet {
 	// v - Default maximum ABR allowed
 	pub(super) type MaxABRDefault<T: Config> = StorageValue<_, FixedI128, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn mark_price_for_ads)]
+	// k1 - market_id, v - Mark price for Automatic Deleveraging System
+	pub(super) type MarkPriceForADS<T: Config> =
+		StorageMap<_, Twox64Concat, u128, FixedI128, OptionQuery>;
+
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
@@ -282,6 +288,8 @@ pub mod pallet {
 		FutureTimestampPriceUpdate,
 		/// Prices Start timestamp is not set
 		PricesStartTimestampEmpty,
+		/// Mark price is not available
+		MarkPriceNotAvailable,
 	}
 
 	#[pallet::event]
@@ -324,6 +332,8 @@ pub mod pallet {
 		BollingerWidthUpdated { bollinger_width: FixedI128 },
 		/// Index/mark prices updated successfully
 		PricesUpdated { timestamp: u64, prices: Vec<MultiplePrices> },
+		/// Mark price for the delisted market is set successfully
+		MarkPriceForDelistedMarketSet { market_id: u128, mark_price: FixedI128 },
 	}
 
 	// Pallet callable functions
@@ -699,7 +709,8 @@ pub mod pallet {
 					let current_timestamp: u64 = T::TimeProvider::now().as_secs();
 
 					let time_difference = current_timestamp - timestamp;
-					if time_difference > market.ttl.into() {
+					let ttl: u64 = market.ttl.into();
+					if time_difference > ttl {
 						FixedI128::zero()
 					} else {
 						price
@@ -1166,6 +1177,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer_from(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
@@ -1194,6 +1206,7 @@ pub mod pallet {
 			T::TradingAccountPallet::transfer(
 				user,
 				collateral,
+				market_id,
 				payment_amount,
 				BalanceChangeReason::ABR,
 			);
@@ -1276,6 +1289,10 @@ pub mod pallet {
 			let price = CurrentPricesMap::<T>::get(market_id);
 
 			Self::get_price(market_id, price.timestamp, price.index_price)
+		}
+
+		fn get_mark_price_for_ads(market_id: u128) -> Option<FixedI128> {
+			MarkPriceForADS::<T>::get(market_id)
 		}
 
 		fn update_last_oracle_price(market_id: u128, price: FixedI128) {
@@ -1458,6 +1475,21 @@ pub mod pallet {
 			}
 
 			0_u64
+		}
+
+		fn set_mark_price_for_ads(market_id: u128) -> DispatchResult {
+			// Get mark price for the given market
+			let mark_price: FixedI128 = Self::get_mark_price(market_id);
+
+			ensure!(mark_price > FixedI128::zero(), Error::<T>::MarkPriceNotAvailable);
+
+			// Set the mark price for the given market
+			MarkPriceForADS::<T>::insert(market_id, mark_price);
+
+			// Emit mark price set event
+			Self::deposit_event(Event::MarkPriceForDelistedMarketSet { market_id, mark_price });
+
+			Ok(())
 		}
 	}
 

@@ -5,8 +5,9 @@ use pallet_support::{
 		asset_helper::{eth, link, usdc},
 		market_helper::{eth_usdc, link_usdc},
 	},
-	types::ExtendedMarket,
+	types::{ExtendedMarket, MultiplePrices},
 };
+use sp_arithmetic::fixed_point::FixedI128;
 
 fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Create a new test environment
@@ -15,8 +16,9 @@ fn setup() -> (sp_io::TestExternalities, Vec<ExtendedMarket>) {
 	// Set the block number in the environment
 	env.execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Timestamp::set(None.into(), 1699940367000));
 		assert_ok!(Assets::replace_all_assets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth(), usdc(), link()]
 		));
 	});
@@ -32,7 +34,7 @@ fn it_works_for_replace_markets() {
 	env.execute_with(|| {
 		// Set eth_usdc as a market
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 
@@ -54,7 +56,7 @@ fn it_works_for_replace_markets_multiple_markets() {
 	env.execute_with(|| {
 		// Set eth_usdc and link_usdc as markets
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone(), link_usdc_market.clone()]
 		));
 
@@ -80,7 +82,7 @@ fn it_does_not_work_for_replace_markets_duplicate() {
 	env.execute_with(|| {
 		// Try to set eth_usdc as market, twice
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone(), eth_usdc_market.clone()]
 		));
 	});
@@ -95,7 +97,7 @@ fn it_does_not_work_for_replace_markets_zero_id() {
 	env.execute_with(|| {
 		// Try to set eth_usdc with 0 id
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 	});
@@ -110,7 +112,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset() {
 	env.execute_with(|| {
 		// Try to set a market with invalid asset
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 	});
@@ -125,7 +127,7 @@ fn it_does_not_work_for_replace_markets_invalid_asset_collateral() {
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 	});
@@ -140,7 +142,7 @@ fn it_does_not_work_for_replace_markets_not_collateral() {
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_link_market.clone()]
 		));
 	});
@@ -156,7 +158,7 @@ fn it_does_not_work_for_replace_markets_invalid_max_leverage() {
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 	});
@@ -171,7 +173,7 @@ fn it_does_not_work_for_replace_markets_invalid_current_leverage() {
 	env.execute_with(|| {
 		// Try to set a market with invalid current leverage
 		assert_ok!(MarketModule::replace_all_markets(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			vec![eth_usdc_market.clone()]
 		));
 	});
@@ -184,7 +186,10 @@ fn test_add_market() {
 
 	env.execute_with(|| {
 		// Set eth usd as market
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 		assert_eq!(MarketModule::markets_count(), 1);
 	});
 }
@@ -197,8 +202,14 @@ fn test_add_market_with_duplicate_market() {
 
 	env.execute_with(|| {
 		// Try to set the market twice
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -210,7 +221,10 @@ fn test_add_market_with_zero_id() {
 
 	env.execute_with(|| {
 		// Try to set a market with 0 id
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -222,7 +236,10 @@ fn test_add_market_with_invalid_asset() {
 
 	env.execute_with(|| {
 		// Try to set a market with invalid asset
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -234,7 +251,10 @@ fn test_add_market_with_asset_not_collateral() {
 
 	env.execute_with(|| {
 		// Try to set an invalid collateral
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_link_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_link_market.clone()
+		));
 	});
 }
 
@@ -246,7 +266,10 @@ fn test_add_market_with_invalid_asset_collateral() {
 
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -259,7 +282,10 @@ fn test_add_market_with_invalid_max_leverage() {
 
 	env.execute_with(|| {
 		// Try to set a market with invalid collateral
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -271,7 +297,10 @@ fn test_add_market_with_invalid_current_leverage() {
 
 	env.execute_with(|| {
 		// Try to set a market with invalid current leverage
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 	});
 }
 
@@ -283,17 +312,39 @@ fn test_update_market() {
 
 	env.execute_with(|| {
 		// Set the eth_usdc market
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
+
+		let timestamp: u64 = 1699940367000;
+		let mut prices: Vec<MultiplePrices> = Vec::new();
+		let price: MultiplePrices = MultiplePrices {
+			market_id: eth_usdc_market_updated.market.id,
+			index_price: FixedI128::from_inner(250000000000000000000),
+			mark_price: FixedI128::from_inner(260000000000000000000),
+		};
+		prices.push(price);
+		assert_ok!(Prices::update_prices(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			prices,
+			timestamp
+		));
 
 		// Update the eth_usdc market
 		assert_ok!(MarketModule::update_market(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_usdc_market_updated.clone()
 		));
 		assert_eq!(
 			MarketModule::markets(eth_usdc_market_updated.market.id).unwrap(),
 			eth_usdc_market_updated.clone()
 		);
+
+		// Since is_tradable flag for ETH-USDC is set to false
+		// Check whether the mark price for that market is set
+		let eth_usdc_mark_price = Prices::mark_price_for_ads(eth_usdc_market_updated.market.id);
+		assert_eq!(eth_usdc_mark_price.unwrap(), FixedI128::from_inner(260000000000000000000));
 	});
 }
 
@@ -304,14 +355,17 @@ fn test_remove_market() {
 
 	env.execute_with(|| {
 		// Add eth_usdc market
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 
 		// Check the state
 		assert_eq!(MarketModule::markets_count(), 1);
 
 		// Remove the market
 		assert_ok!(MarketModule::remove_market(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_usdc_market.market.id
 		));
 
@@ -328,13 +382,16 @@ fn test_remove_market_with_already_removed_market_id() {
 
 	env.execute_with(|| {
 		// Add market and remove it twice
-		assert_ok!(MarketModule::add_market(RuntimeOrigin::signed(1), eth_usdc_market.clone()));
+		assert_ok!(MarketModule::add_market(
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
+			eth_usdc_market.clone()
+		));
 		assert_ok!(MarketModule::remove_market(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_usdc_market.market.id
 		));
 		assert_ok!(MarketModule::remove_market(
-			RuntimeOrigin::signed(1),
+			RuntimeOrigin::signed(sp_core::sr25519::Public::from_raw([1u8; 32])),
 			eth_usdc_market.market.id
 		));
 	});

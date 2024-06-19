@@ -1,10 +1,11 @@
 use crate::types::{
 	ABRDetails, AccountInfo, Asset, AssetAddress, AssetRemoved, AssetUpdated, BalanceChangeReason,
 	BaseFeeAggregate, Direction, ExtendedAsset, ExtendedMarket, FeeRates, FeeShareDetails,
-	ForceClosureFlag, FundModifyType, HashType, MarginInfo, Market, MarketRemoved, MarketUpdated,
-	MasterAccountLevelChanged, Order, OrderSide, Position, PositionExtended, QuorumSet,
-	ReferralDetails, ReferralDetailsAdded, Setting, SettingsAdded, Side, SignerAdded,
-	SignerRemoved, TradingAccount, TradingAccountMinimal, UniversalEvent, UserDeposit, VolumeType,
+	ForceClosureFlag, FundModifyType, HashType, InsuranceFundDeposited, MarginInfo, Market,
+	MarketRemoved, MarketUpdated, MarketUpdatedV2, MasterAccountLevelChanged, Order, OrderSide,
+	Position, PositionExtended, QuorumSet, ReferralDetails, ReferralDetailsAdded, Setting,
+	SettingsAdded, Side, SignerAdded, SignerRemoved, TradingAccount, TradingAccountMinimal,
+	UniversalEvent, UserDeposit, VolumeType,
 };
 use frame_support::dispatch::Vec;
 use primitive_types::U256;
@@ -19,11 +20,6 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		amount: FixedI128,
 	);
-	fn emit_insurance_fund_change_event(
-		collateral_id: u128,
-		amount: FixedI128,
-		modify_type: FundModifyType,
-	);
 	fn is_registered_user(account: U256) -> bool;
 	fn get_balance(account: U256, asset_id: u128) -> FixedI128;
 	fn get_unused_balance(account: U256, asset_id: u128) -> FixedI128;
@@ -33,12 +29,14 @@ pub trait TradingAccountInterface {
 	fn transfer(
 		account_id: U256,
 		collateral_id: u128,
+		market_id: u128,
 		amount: FixedI128,
 		reason: BalanceChangeReason,
 	);
 	fn transfer_from(
 		account_id: U256,
 		collateral_id: u128,
+		market_id: u128,
 		amount: FixedI128,
 		reason: BalanceChangeReason,
 	);
@@ -94,6 +92,30 @@ pub trait TradingAccountInterface {
 		collateral_id: u128,
 		current_fee_share: FixedI128,
 	);
+	fn handle_fee_split(
+		account_id: U256,
+		collateral_id: u128,
+		market_id: u128,
+		amount: FixedI128,
+		fee_share_amount: FixedI128,
+	);
+	fn handle_insurance_fund_update(
+		collateral_id: u128,
+		market_id: u128,
+		amount: FixedI128,
+		modify_type: FundModifyType,
+	);
+	fn update_fee_split_details_internal(
+		market_id: u128,
+		insurance_fund: U256,
+		fee_split: FixedI128,
+	);
+	fn get_fee_split_details(market_id: u128) -> (U256, FixedI128);
+	fn update_insurance_fund_balance_internal(
+		insurance_fund: U256,
+		collateral_id: u128,
+		amount: FixedI128,
+	);
 }
 
 pub trait TradingInterface {
@@ -127,6 +149,7 @@ pub trait TradingInterface {
 		collateral_id: u128,
 		volume: FixedI128,
 	) -> FeeRates;
+	fn get_no_of_delisted_market_positions(market_id: u128) -> u32;
 }
 
 pub trait AssetInterface {
@@ -183,6 +206,8 @@ pub trait PricesInterface {
 	fn get_remaining_pay_abr_calls() -> u64;
 	fn get_intermediary_abr_value(market_id: u128) -> FixedI128;
 	fn get_remaining_prices_cleanup_calls() -> u64;
+	fn set_mark_price_for_ads(market_id: u128) -> DispatchResult;
+	fn get_mark_price_for_ads(market_id: u128) -> Option<FixedI128>;
 }
 
 pub trait FixedI128Ext {
@@ -285,6 +310,14 @@ pub trait FeltSerializedArrayExt {
 	fn try_append_account_level_updated_event(
 		&mut self,
 		account_level_updated_event: &MasterAccountLevelChanged,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_market_updated_v2_event(
+		&mut self,
+		market_updated_v2_event: &MarketUpdatedV2,
+	) -> Result<(), FromByteSliceError>;
+	fn try_append_insurance_fund_deposited(
+		&mut self,
+		insurance_fund_deposited: &InsuranceFundDeposited,
 	) -> Result<(), FromByteSliceError>;
 	fn try_append_universal_event_array(
 		&mut self,
