@@ -1,4 +1,4 @@
-FROM rust:1.75 as builder
+FROM 263041925010.dkr.ecr.eu-north-1.amazonaws.com/rust:1.75 as builder
 WORKDIR /app
 COPY . .
 RUN apt-get update && \
@@ -15,7 +15,7 @@ RUN cargo build --release --package node-template-runtime
 
 CMD ["/bin/bash"]
 
-FROM node:18-bullseye
+FROM 263041925010.dkr.ecr.eu-north-1.amazonaws.com/node:18-bullseye
 ARG SCRIPT_NAME=test
 WORKDIR /app
 COPY --from=builder /app/target/release/wbuild/node-template-runtime/node_template_runtime.compact.compressed.wasm /app

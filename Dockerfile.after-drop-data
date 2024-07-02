@@ -1,4 +1,4 @@
-FROM node:18-bullseye
+FROM 263041925010.dkr.ecr.eu-north-1.amazonaws.com/node:18-bullseye
 ARG SCRIPT_NAME=test
 WORKDIR /app
 COPY scripts/* /app/
