@@ -303,7 +303,7 @@ pub mod pallet {
 		// The resulting position size is larger than the max size allowed in the market
 		TradeBatchError548,
 		/// FoK, IoC error when maker has some issue
-		OrderTypeError(u8, u16),
+		IocFokError(u8, u16),
 		/// When a zero signer is being added
 		ZeroSigner,
 		/// When a duplicate signer is being added
@@ -483,7 +483,7 @@ pub mod pallet {
 			let mut min_timestamp: u64 = batch_timestamp;
 			let mut maker_error_codes = Vec::<u16>::new();
 
-			for element in &orders {
+			for (index, element) in orders.iter().enumerate() {
 				let mut margin_amount: FixedI128;
 				let mut borrowed_amount: FixedI128;
 				let mut avg_execution_price: FixedI128;
@@ -516,9 +516,11 @@ pub mod pallet {
 							if taker_order.time_in_force == TimeInForce::IOC ||
 								taker_order.time_in_force == TimeInForce::FOK
 							{
-								return Err(
-									Error::<T>::OrderTypeError(5, Self::get_error_code(&e)).into()
+								return Err(Error::<T>::IocFokError(
+									index as u8,
+									Self::get_error_code(&e),
 								)
+								.into())
 							} else {
 								Self::handle_maker_error(
 									element.order_id,
@@ -560,9 +562,11 @@ pub mod pallet {
 							if taker_order.time_in_force == TimeInForce::IOC ||
 								taker_order.time_in_force == TimeInForce::FOK
 							{
-								return Err(
-									Error::<T>::OrderTypeError(5, Self::get_error_code(&e)).into()
+								return Err(Error::<T>::IocFokError(
+									index as u8,
+									Self::get_error_code(&e),
 								)
+								.into())
 							} else {
 								Self::handle_maker_error(
 									element.order_id,
@@ -591,9 +595,11 @@ pub mod pallet {
 							if taker_order.time_in_force == TimeInForce::IOC ||
 								taker_order.time_in_force == TimeInForce::FOK
 							{
-								return Err(
-									Error::<T>::OrderTypeError(5, Self::get_error_code(&e)).into()
+								return Err(Error::<T>::IocFokError(
+									index as u8,
+									Self::get_error_code(&e),
 								)
+								.into())
 							} else {
 								Self::handle_maker_error(
 									element.order_id,
@@ -696,8 +702,8 @@ pub mod pallet {
 								if taker_order.time_in_force == TimeInForce::IOC ||
 									taker_order.time_in_force == TimeInForce::FOK
 								{
-									return Err(Error::<T>::OrderTypeError(
-										5,
+									return Err(Error::<T>::IocFokError(
+										index as u8,
 										Self::get_error_code(&e),
 									)
 									.into())
@@ -847,8 +853,8 @@ pub mod pallet {
 								if taker_order.time_in_force == TimeInForce::IOC ||
 									taker_order.time_in_force == TimeInForce::FOK
 								{
-									return Err(Error::<T>::OrderTypeError(
-										5,
+									return Err(Error::<T>::IocFokError(
+										index as u8,
 										Self::get_error_code(&e),
 									)
 									.into())
