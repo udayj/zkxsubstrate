@@ -1122,23 +1122,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// External function to be called for trade execution
-		#[pallet::weight(0)]
-		pub fn execute_ads_trade(
-			origin: OriginFor<T>,
-			batch_id: U256,
-			quantity_locked: FixedI128,
-			market_id: u128,
-			oracle_price: FixedI128,
-			orders: Vec<Order>,
-			batch_timestamp: u64,
-		) -> DispatchResult {
-			// Make sure the caller is from a signed origin
-			ensure_signed(origin)?;
-
-			Ok(())
-		}
-
 		// TODO(merkle-groot): To add origin restriction in production
 		#[pallet::weight(0)]
 		pub fn add_liquidator_signer(origin: OriginFor<T>, pub_key: U256) -> DispatchResult {
